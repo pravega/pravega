@@ -237,6 +237,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     } else {
                         log.error("{}: Problem instantiating EventProcessor {}.", this.traceObjectId, name, ex);
                         result.completeExceptionally(ex);
+                        // After a failed initialization, delete the entry form the map to allow new attempts.
+                        eventProcessorMap.remove(name);
                     }
                 });
     }

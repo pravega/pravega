@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -454,10 +455,12 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      */
     @Test(timeout = 10000)
     public void testInitializationException() throws Exception {
+        AtomicBoolean induceFailure = new AtomicBoolean(true);
         Function<String, CompletableFuture<DirectSegmentAccess>> failingSegmentSupplier = s ->
-                CompletableFuture.failedFuture(new IntentionalException());
+                induceFailure.getAndSet(!induceFailure.get()) ? CompletableFuture.failedFuture(new IntentionalException()) :
+                CompletableFuture.completedFuture(new SegmentMock(this.executorService()));
         @Cleanup
-        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, failingSegmentSupplier,
+        ContainerEventProcessorImpl eventProcessorService = new ContainerEventProcessorImpl(0, failingSegmentSupplier,
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
@@ -468,9 +471,19 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("Expected future exceptionally complete with IntentionalException",
                 eventProcessorService.forConsumer("testExceptionForConsumer", l -> null, config),
                 ex -> ex instanceof IntentionalException);
+
+        // If the call has failed, the future for that EventProcessor should have been removed from the map.
+        Assert.assertNull(eventProcessorService.getEventProcessorMap().get("testExceptionForConsumer"));
+        // The next call is expected to succeed, so the future should be in the map when this call completes.
+        Assert.assertNotNull(eventProcessorService.forConsumer("testExceptionForConsumer", l -> null, config).join());
+        Assert.assertNotNull(eventProcessorService.getEventProcessorMap().get("testExceptionForConsumer"));
+
         AssertExtensions.assertFutureThrows("Expected future exceptionally complete with IntentionalException",
                 eventProcessorService.forDurableQueue("testExceptionForDurableQueue"),
                 ex -> ex instanceof IntentionalException);
+        Assert.assertNull(eventProcessorService.getEventProcessorMap().get("testExceptionForDurableQueue"));
+        Assert.assertNotNull(eventProcessorService.forDurableQueue("testExceptionForDurableQueue").join());
+        Assert.assertNotNull(eventProcessorService.getEventProcessorMap().get("testExceptionForDurableQueue"));
     }
 
     /**
