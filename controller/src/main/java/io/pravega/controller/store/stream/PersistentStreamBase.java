@@ -20,6 +20,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -65,6 +66,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2236,7 +2238,7 @@ public abstract class PersistentStreamBase implements Stream {
         AtomicInteger till = new AtomicInteger(Math.min(limit, txnIds.size()));
         return Futures.loop(() -> from.get() < txnIds.size() && transactionsMap.size() < limit, 
                 () -> getVersionedTransactionRecords(epoch, txnIds.subList(from.get(), till.get()), context).thenAccept(txns -> {
-            for (int i = 0; i < txns.size(); i++) {
+                for (int i = 0; i < txns.size() && transactionsMap.size() < limit; i++) {
                 VersionedTransactionData txnRecord = txns.get(i);
                 int index = from.get() + i;
                 UUID txnId = UUID.fromString(txnIds.get(index));
