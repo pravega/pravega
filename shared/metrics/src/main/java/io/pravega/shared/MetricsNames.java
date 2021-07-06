@@ -209,18 +209,20 @@ public final class MetricsNames {
     public static final String STORAGE_WRITER_FLUSHED_ATTRIBUTES = PREFIX + "segmentstore.storagewriter.flushed_attributes";  // Attributes flushed per iteration. Counter.
 
     // Segment container metrics
-    public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                          // Per-container Event Counter
-    public static final String CONTAINER_APPEND_OFFSET_COUNT = PREFIX + "segmentstore.container.append_offset_count";            // Per-container Event Counter
-    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.update_attributes_count";    // Per-container Event Counter
-    public static final String CONTAINER_GET_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.get_attributes_count";          // Per-container Event Counter
-    public static final String CONTAINER_READ_COUNT = PREFIX + "segmentstore.container.read_count";                              // Per-container Event Counter
-    public static final String CONTAINER_GET_INFO_COUNT = PREFIX + "segmentstore.container.get_info_count";                      // Per-container Event Counter
-    public static final String CONTAINER_CREATE_SEGMENT_COUNT = PREFIX + "segmentstore.container.create_segment_count";          // Per-container Event Counter
-    public static final String CONTAINER_DELETE_SEGMENT_COUNT = PREFIX + "segmentstore.container.delete_segment_count";          // Per-container Event Counter
-    public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";            // Per-container Event Counter
-    public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                              // Per-container Event Counter
-    public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                      // Per-container Event Counter
-    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                        // Per-container Gauge
+    public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                                             // Per-container Event Counter
+    public static final String CONTAINER_APPEND_OFFSET_COUNT = PREFIX + "segmentstore.container.append_offset_count";                               // Per-container Event Counter
+    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.update_attributes_count";                       // Per-container Event Counter
+    public static final String CONTAINER_GET_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.get_attributes_count";                             // Per-container Event Counter
+    public static final String CONTAINER_READ_COUNT = PREFIX + "segmentstore.container.read_count";                                                 // Per-container Event Counter
+    public static final String CONTAINER_GET_INFO_COUNT = PREFIX + "segmentstore.container.get_info_count";                                         // Per-container Event Counter
+    public static final String CONTAINER_CREATE_SEGMENT_COUNT = PREFIX + "segmentstore.container.create_segment_count";                             // Per-container Event Counter
+    public static final String CONTAINER_DELETE_SEGMENT_COUNT = PREFIX + "segmentstore.container.delete_segment_count";                             // Per-container Event Counter
+    public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";                               // Per-container Event Counter
+    public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                                                 // Per-container Event Counter
+    public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                                         // Per-container Event Counter
+    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                                           // Per-container Gauge
+    public static final String CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES = PREFIX + "segmentstore.container.event_processor_outstanding_bytes";   // Per-processor Gauge
+    public static final String CONTAINER_EVENT_PROCESSOR_BATCH_LATENCY = PREFIX + "segmentstore.container.event_processor_batch_latency";           // Per-processor Histogram
 
     // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = PREFIX + "segmentstore.container.process_operations.latency_ms";                 // Per-container Histogram
