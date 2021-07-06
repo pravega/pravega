@@ -194,4 +194,9 @@ public class NameUtilsTest {
         Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("_system/containers/_storage_metadata_1"));
         Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("system/containers/storage_metadata_1"));
     }
+
+    @Test
+    public void testGetEventProcessorSegmentName() {
+        Assert.assertEquals(NameUtils.getEventProcessorSegmentName(0, "test"), "_system/containers/event_processor_test_0");
+    }
 }

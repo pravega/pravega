@@ -42,6 +42,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
+import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -126,6 +127,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.Container metrics;
+    private final ContainerEventProcessor containerEventProcessor;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
 
@@ -174,6 +176,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
+        this.containerEventProcessor = new ContainerEventProcessorImpl(this, this.metadataStore,
+                config.getEventProcessorIterationDelay(), config.getEventProcessorOperationTimeout(), this.executor);
         this.closed = new AtomicBoolean();
     }
 
@@ -244,6 +248,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region AutoCloseable Implementation
 
+    @SneakyThrows
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
@@ -257,6 +262,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.attributeIndex.close();
             this.storage.close();
             this.metrics.close();
+            this.containerEventProcessor.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }

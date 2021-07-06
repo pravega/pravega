@@ -486,9 +486,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // Length must be at least StorageLength.
         metadata.setLength(Math.max(mapping.getLength(), metadata.getLength()));
 
-        // StartOffset must not exceed the last offset of the Segment.
+        // StartOffset must be a value in the interval [0, Length] (closed at both ends).
         if (metadata.getLength() > 0) {
-            metadata.setStartOffset(Math.min(mapping.getStartOffset(), metadata.getLength() - 1));
+            metadata.setStartOffset(Math.min(mapping.getStartOffset(), metadata.getLength()));
         }
 
         if (mapping.isSealed()) {

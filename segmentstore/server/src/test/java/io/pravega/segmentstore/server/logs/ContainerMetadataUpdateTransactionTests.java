@@ -1137,6 +1137,21 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.commit(metadata);
         val pinnedMetadata = metadata.getStreamSegmentMetadata(metadata.getStreamSegmentId(pinnedMap.getStreamSegmentName(), false));
         Assert.assertTrue("Unexpected isPinned for pinned map.", pinnedMetadata.isPinned());
+
+        // Truncate offset is beyond the length.
+        val truncateMap = new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
+                .name(mapOp.getStreamSegmentName() + "_truncate")
+                .length(storageLength)
+                .startOffset(storageLength) // StreamSegmentInformation does not allow us to exceed Length for this value.
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
+        txn2.preProcessOperation(truncateMap);
+        txn2.acceptOperation(truncateMap);
+        txn2.commit(metadata);
+        val truncatedMetadata = metadata.getStreamSegmentMetadata(metadata.getStreamSegmentId(truncateMap.getStreamSegmentName(), false));
+        Assert.assertEquals("Unexpected startOffset for over-zealously truncated segment.", truncatedMetadata.getLength(), truncatedMetadata.getStartOffset());
     }
 
     /**

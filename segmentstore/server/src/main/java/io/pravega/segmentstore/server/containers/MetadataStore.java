@@ -67,6 +67,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import static io.pravega.segmentstore.server.containers.MetadataStore.SegmentInfo.newSegment;
+
 /**
  * Stores Segment Metadata information and assigns unique Ids to the same.
  */
@@ -473,6 +475,21 @@ public abstract class MetadataStore implements AutoCloseable {
                                  .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
                                  .thenApply(id -> completeAssignment(properties.getName(), id));
         }
+    }
+
+    /**
+     * Registers a new pinned Segment with given name.
+     *
+     * @param segmentName The case-sensitive Segment Name.
+     * @param segmentType Type of Segment.
+     * @param attributes  The initial attributes for the StreamSegment, if any.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the Segment has been registered and pinned.
+     * If the operation failed, this will contain the exception that caused the failure.
+     */
+    CompletableFuture<Long> registerPinnedSegment(String segmentName, SegmentType segmentType,
+                                                  Collection<AttributeUpdate> attributes, Duration timeout) {
+        return submitAssignment(newSegment(segmentName, segmentType, attributes), true, timeout);
     }
 
     /**

@@ -38,8 +38,12 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link FileSystemChunkStorage} that uses mocks.
@@ -76,12 +80,12 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows(
                 " openRead should throw ChunkStorageException.",
                 testStorage.openRead(chunkName),
-                ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
+                ex -> ex instanceof ChunkStorageException && ex.getMessage().contains("chunk is not a regular file"));
 
         AssertExtensions.assertFutureThrows(
                 " openRead should throw ChunkStorageException.",
                 testStorage.openWrite(chunkName),
-                ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
+                ex -> ex instanceof ChunkStorageException && ex.getMessage().contains("chunk is not a regular file"));
     }
 
     @Test

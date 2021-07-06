@@ -198,6 +198,15 @@ public class MetricsTagsTest {
         assertEquals("rg", tags[3]);
     }
 
+    @Test
+    public void testEventProcessorTags() {
+        String[] tags = eventProcessorTag(0, "myProcessor");
+        assertEquals(TAG_CONTAINER, tags[0]);
+        assertEquals("0", tags[1]);
+        assertEquals(TAG_EVENT_PROCESSOR, tags[2]);
+        assertEquals("myProcessor", tags[3]);
+    }
+
     private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {
         Assert.assertEquals(4, tags.length);
         Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
