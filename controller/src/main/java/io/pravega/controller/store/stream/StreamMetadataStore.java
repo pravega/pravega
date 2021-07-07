@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -1378,15 +1379,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param record versioned record
      * @param context operation context
      * @param executor executor
-     * @param writerTimes operation context
-     * @param writerIdToTxnOffsets Mapping of WriterId to Transaction Offset.
+     * @param writerMarks Mapping of WriterId to Transaction Offset.
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
                                                        final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor,
-                                                       Map<String, Long> writerTimes,
-                                                       Map<String, Map<Long, Long>> writerIdToTxnOffsets);
+                                                       Map<String, CommitRequestHandler.TxnWriterMark> writerMarks);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

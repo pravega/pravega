@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -213,8 +214,8 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                  OperationContext context, Map<String, Long> writerTimes,
-                                                                  Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
+                                                                  OperationContext context,
+                                                                  Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // create all transaction entries in committing txn list.
@@ -236,7 +237,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         if (record.getObject().getTransactionsToCommit().size() == 0) {
             future = CompletableFuture.completedFuture(null);
         } else {
-            future = generateMarksForTransactions(context, writerTimes, writerIdToTxnOffsets)
+            future = generateMarksForTransactions(context, writerMarks)
                 .thenCompose(v -> createCompletedTxEntries(completedRecords, context))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch(), context)
                             .thenCompose(table -> {

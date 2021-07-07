@@ -573,7 +573,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         testStore.createTransaction(scope, stream, txnId, 10000L, 10000L, null, executor).join();
         testStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", 0L, null, executor).join();
         VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
-        testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
     }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {

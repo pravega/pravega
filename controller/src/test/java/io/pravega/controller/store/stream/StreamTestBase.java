@@ -156,7 +156,7 @@ public abstract class StreamTestBase {
                                                         .thenCompose(ctr2 -> stream.rollingTxnCreateDuplicateEpochs(
                                                                 txnSizeMap, time, ctr2, context)
                                                         .thenCompose(v -> stream.completeRollingTxn(activeSizeMap, ctr2, context))
-                                                                .thenCompose(v -> stream.completeCommittingTransactions(ctr2, context, Collections.emptyMap(), Collections.emptyMap()))
+                                                                .thenCompose(v -> stream.completeCommittingTransactions(ctr2, context, Collections.emptyMap()))
                                         )))
               .thenCompose(x -> stream.updateState(State.ACTIVE, context)).join();
     }
@@ -748,7 +748,7 @@ public abstract class StreamTestBase {
                 startingSegmentNumber + 5, 3)));
 
         stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
-        stream.completeCommittingTransactions(ctr, context, Collections.emptyMap(), Collections.emptyMap()).join();
+        stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
     }
 
     @Test(timeout = 30000L)

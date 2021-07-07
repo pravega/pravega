@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -608,8 +609,8 @@ interface Stream {
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                           OperationContext context, Map<String, Long> writerTimes,
-                                                           Map<String, Map<Long, Long>> writerIdToTxnOffsets);
+                                                           OperationContext context,
+                                                           Map<String, CommitRequestHandler.TxnWriterMark> writerMarks);
 
     /**
      * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 

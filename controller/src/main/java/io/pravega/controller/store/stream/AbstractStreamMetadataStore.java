@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -964,14 +965,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream,
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext ctx, ScheduledExecutorService executor,
-                                                              Map<String, Long> writerTimes,
-                                                              Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
+                                                              Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
-        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)
+        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerMarks), executor)
                 .thenAcceptAsync(result -> {
                         streamObj.getNumberOfOngoingTransactions(context)
                                 .thenAccept(count -> TransactionMetrics.reportOpenTransactions(scope, stream, count));

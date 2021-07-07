@@ -634,7 +634,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
         val record = streamStoreMock.getVersionedCommittingTransactionsRecord(
                 SCOPE, STREAM, null, executor).join();
-        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor, Collections.emptyMap()).join();
 
         // verify that transaction is removed from active txn
         AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",

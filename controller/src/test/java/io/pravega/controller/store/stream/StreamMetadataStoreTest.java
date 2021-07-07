@@ -851,7 +851,7 @@ public abstract class StreamMetadataStoreTest {
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(3, activeEpoch.getEpoch());
@@ -909,7 +909,7 @@ public abstract class StreamMetadataStoreTest {
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
@@ -966,7 +966,7 @@ public abstract class StreamMetadataStoreTest {
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         state = store.getVersionedState(scope, stream, null, executor).join();
@@ -1109,7 +1109,7 @@ public abstract class StreamMetadataStoreTest {
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
         
         // after committing, we should have committed tx00 while having purged references for tx01 and tx02
@@ -1144,7 +1144,7 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         // verify that it is committing transactions on epoch 1         
 
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         // references for tx00 should be removed from orderer
@@ -1947,7 +1947,7 @@ public abstract class StreamMetadataStoreTest {
         long time = 1L;
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
         VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
-        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.singletonMap(writer1, time),
+        store.completeCommitTransactions(scope, stream, record, null, executor,
                 Collections.singletonMap(writer1, Collections.singletonMap(0L, 1L))).join();
 
         // verify that writer mark is created in the store

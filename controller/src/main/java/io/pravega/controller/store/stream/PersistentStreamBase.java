@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Preconditions;
@@ -1735,20 +1736,19 @@ public abstract class PersistentStreamBase implements Stream {
      * @return A completableFuture, which when completed will have marks reported for all transactions in the committing 
      * transaction record for which a writer with time and position information is available. 
      */
-    CompletableFuture<Void> generateMarksForTransactions(OperationContext context, Map<String, Long> writerTimes,
-                                                         Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
+    CompletableFuture<Void> generateMarksForTransactions(OperationContext context,
+                                                         Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
-        Preconditions.checkArgument(writerTimes != null && writerIdToTxnOffsets != null && writerTimes.size() == writerIdToTxnOffsets.size());
+        Preconditions.checkArgument(writerMarks != null && !writerMarks.isEmpty());
         
         // For each writerId we will take the transaction with the time and position pair (which is to take
         // max of all transactions for the said writer).
         // Note: if multiple transactions from same writer have same time, we will take any one arbitrarily and
         // use its position for watermarks. Other positions and times would be ignored.
-        val noteTimeFutures = writerTimes
+        val noteTimeFutures = writerMarks
                 .entrySet()
                 .stream().map(x -> Futures.exceptionallyExpecting(
-                        noteWriterMark(x.getKey(), x.getValue(), writerIdToTxnOffsets.get(x.getKey()),
-                                context),
+                        noteWriterMark(x.getKey(), x.getValue().getTimestamp(), x.getValue().getPosition(), context),
                         DATA_NOT_FOUND_PREDICATE, null)).collect(Collectors.toList());
         return Futures.allOf(noteTimeFutures);
     }
@@ -1980,13 +1980,13 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                  OperationContext context, Map<String, Long> writerTimes,
-                                                                  Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
+                                                                  OperationContext context,
+                                                                  Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = generateMarksForTransactions(context, writerTimes, writerIdToTxnOffsets);
+        CompletableFuture<Void> future = generateMarksForTransactions(context, writerMarks);
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store
