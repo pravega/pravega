@@ -25,7 +25,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.ConfigMismatchException;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
@@ -58,6 +57,7 @@ import java.util.stream.IntStream;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -113,8 +113,8 @@ public class ReaderGroupManagerImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         // Create a ReaderGroup
-        boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
-        assertTrue(created);
+        ReaderGroupConfig readerGroupConfig = readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        assertEquals(config, readerGroupConfig);
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
@@ -130,11 +130,12 @@ public class ReaderGroupManagerImplTest {
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
 
-        // Create a ReaderGroup
+
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
                                                        .build();
-        assertThrows(ConfigMismatchException.class, () -> readerGroupManager.createReaderGroup(GROUP_NAME, newConfig));
+        // attempt creating a ReaderGroup with a new config when the ReaderGroupAlready exists.
+        assertNotEquals(readerGroupManager.createReaderGroup(GROUP_NAME, newConfig), newConfig);
         verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
                                                                 any(Serializer.class), any(SynchronizerConfig.class));
         Map<SegmentWithRange, Long> segments = ImmutableMap.<SegmentWithRange, Long>builder()
@@ -162,9 +163,8 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 1L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-        // Create a ReaderGroup
-        boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
-        assertFalse(created);
+        // re-create a ReaderGroup
+        assertEquals(config, readerGroupManager.createReaderGroup(GROUP_NAME, config));
         verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
                                                                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, never()).initialize(any(InitialUpdate.class));
