@@ -1297,9 +1297,79 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
         // 3. Merge all the Transaction.
-        mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
+        Futures.allOf(mergeTransactions(transactionsBySegment, lengths, segmentContents, context, false))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 4. Add more appends (to the parent segments)
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            for (String segmentName : segmentNames) {
+                RefCountByteArraySegment appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
+                appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, null);
+
+                // Verify that we can no longer append to Transaction.
+                for (String transactionName : transactionsBySegment.get(segmentName)) {
+                    AssertExtensions.assertThrows(
+                            "An append was allowed to a merged Transaction " + transactionName,
+                            context.container.append(transactionName, new ByteArraySegment("foo".getBytes()), null, TIMEOUT)::join,
+                            ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
+                }
+            }
+        }
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 5. Verify their contents.
+        checkReadIndex(segmentContents, lengths, context);
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkStorage(segmentContents, lengths, context);
+
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Test the createTransaction, append-to-Transaction, mergeTransaction methods with attribute updates.
+     */
+    @Test
+    public void testConditionalTransactionOperations() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        context.container.startAsync().awaitRunning();
+
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
+        activateAllSegments(segmentNames, context);
+        transactionsBySegment.values().forEach(s -> activateAllSegments(s, context));
+
+        // 2. Add some appends.
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
+
+        // 3. Correctly update attribute on parent Segments. Each source Segment will be initialized with a value and
+        // after the merge, that value should have been updated.
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
+            String parentName = e.getKey();
+            for (String transactionName : e.getValue()) {
+                opFutures.add(context.container.updateAttributes(
+                        parentName,
+                        AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.fromUUID(UUID.nameUUIDFromBytes(transactionName.getBytes())),
+                                AttributeUpdateType.None, Long.MIN_VALUE)),
+                        TIMEOUT));
+            }
+        }
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 4. Merge all the Transaction. Now this should work.
+        Futures.allOf(mergeTransactions(transactionsBySegment, lengths, segmentContents, context, true))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 5. Add more appends (to the parent segments)
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
@@ -1320,13 +1390,57 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 5. Verify their contents.
+        // 6. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
 
-        // 6. Writer moving data to Storage.
+        // 7. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Test the createTransaction, append-to-Transaction, mergeTransaction methods with invalid attribute updates.
+     */
+    @Test
+    public void testConditionalTransactionOperationsWithWrongAttributes() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        context.container.startAsync().awaitRunning();
+
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
+        activateAllSegments(segmentNames, context);
+        transactionsBySegment.values().forEach(s -> activateAllSegments(s, context));
+
+        // 2. Add some appends.
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
+
+        // 3. Wrongly update attribute on parent Segments. First, we update the attributes with a wrong value to
+        // validate that Segments do not get merged when attribute updates fail.
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
+            String parentName = e.getKey();
+            for (String transactionName : e.getValue()) {
+                opFutures.add(context.container.updateAttributes(
+                        parentName,
+                        AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.fromUUID(UUID.nameUUIDFromBytes(transactionName.getBytes())),
+                                AttributeUpdateType.None, 0)),
+                        TIMEOUT));
+            }
+        }
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 4. Merge all the Transaction and expect this to fail.
+        for (CompletableFuture<Void> mergeTransaction : mergeTransactions(transactionsBySegment, lengths, segmentContents, context, true)) {
+            AssertExtensions.assertMayThrow("If the transaction merge fails, it should be due to BadAttributeUpdateException",
+                    () -> mergeTransaction,
+                    ex -> ex instanceof BadAttributeUpdateException);
+        }
         context.container.stopAsync().awaitTerminated();
     }
 
@@ -1387,7 +1501,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
         // 4. Merge all the Transactions.
-        mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
+        Futures.allOf(mergeTransactions(transactionsBySegment, lengths, segmentContents, context, false))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 5. Add more appends (to the parent segments)
         ArrayList<CompletableFuture<Void>> operationFutures = new ArrayList<>();
@@ -2339,7 +2454,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+    private ArrayList<CompletableFuture<Void>> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                                                 HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context,
+                                                                 boolean conditionalMerge) throws Exception {
         ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
         int i = 0;
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
@@ -2350,7 +2467,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
                 }
 
-                mergeFutures.add(Futures.toVoid(context.container.mergeStreamSegment(parentName, transactionName, TIMEOUT)));
+                // Use both calls, with and without attribute updates for mergeSegments.
+                if (conditionalMerge) {
+                    Collection<AttributeUpdate> attributeUpdates = Collections.singletonList(
+                            new AttributeUpdate(AttributeId.fromUUID(UUID.nameUUIDFromBytes(transactionName.getBytes())),
+                            AttributeUpdateType.ReplaceIfEquals, transactionName.hashCode(), Long.MIN_VALUE));
+                    mergeFutures.add(Futures.toVoid(context.container.mergeStreamSegment(parentName, transactionName, attributeUpdates, TIMEOUT)));
+                } else {
+                    mergeFutures.add(Futures.toVoid(context.container.mergeStreamSegment(parentName, transactionName, TIMEOUT)));
+                }
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
@@ -2362,7 +2487,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        Futures.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        return mergeFutures;
     }
 
     private RefCountByteArraySegment getAppendData(String segmentName, int appendId) {

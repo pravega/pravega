@@ -1248,7 +1248,7 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
-        final Map<UUID, Map.Entry<Long, Long>> attributeUpdates;
+        final List<ConditionalAttributeUpdate> attributeUpdates;
 
         // Constructor to keep compatibility with all the calls not requiring attributes to merge Segments.
         public MergeSegments(long requestId, String target, String source, String delegationToken) {
@@ -1256,7 +1256,7 @@ public final class WireCommands {
             this.target = target;
             this.source = source;
             this.delegationToken = delegationToken;
-            this.attributeUpdates = Collections.emptyMap();
+            this.attributeUpdates = Collections.emptyList();
         }
 
         @Override
@@ -1270,31 +1270,21 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            for (Map.Entry<UUID, Map.Entry<Long, Long>> entry : attributeUpdates.entrySet()) {
-                out.writeLong(entry.getKey().getMostSignificantBits());
-                out.writeLong(entry.getKey().getLeastSignificantBits());
-                // For each AttributeUpdate, we need both the new value and old value to check.
-                out.writeLong(entry.getValue().getKey());   // New value first
-                out.writeLong(entry.getValue().getValue()); // Old value for comparison
+            for (ConditionalAttributeUpdate entry : attributeUpdates) {
+                entry.writeFields(out);
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            Map<UUID, Map.Entry<Long, Long>> attributes = new HashMap<>();
-            // Account for the bytes already read so we know the remaining ones to be read as attributes.
-            int readBytes = Long.BYTES + target.getBytes().length + source.getBytes().length + delegationToken.getBytes().length;
-            while (readBytes < length) {
-                UUID attributeId = new UUID(in.readLong(), in.readLong());
-                long newValue = in.readLong(); // New value first
-                long oldValue = in.readLong(); // Old value for comparison
-                attributes.put(attributeId, new AbstractMap.SimpleEntry<>(newValue, oldValue));
-                readBytes += 4 * Long.BYTES;
+            List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
+            while (in.available() > 0) {
+                attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
             }
-            return new MergeSegments(requestId, target, source, delegationToken, Collections.unmodifiableMap(attributes));
+            return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
         }
     }
 
@@ -2190,7 +2180,6 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
@@ -2563,5 +2552,36 @@ public final class WireCommands {
          * against multiple invocations.
          */
         abstract void releaseInternal();
+    }
+
+    /**
+     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
+     * WireCommand.
+     */
+    @Data
+    public static final class ConditionalAttributeUpdate {
+        public static final int LENGTH = 4 * Long.BYTES; // UUID (2 longs) + oldValue + newValue
+
+        private final UUID attributeId;
+        private final long newValue;
+        private final long oldValue;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(attributeId.getMostSignificantBits());
+            out.writeLong(attributeId.getLeastSignificantBits());
+            out.writeLong(newValue);
+            out.writeLong(oldValue);
+        }
+
+        public static ConditionalAttributeUpdate readFrom(DataInput in, int length) throws IOException {
+            UUID attributeId = new UUID(in.readLong(), in.readLong());
+            long newValue = in.readLong();
+            long oldValue = in.readLong();
+            return new ConditionalAttributeUpdate(attributeId, newValue, oldValue);
+        }
+
+        public int size() {
+            return LENGTH;
+        }
     }
 }

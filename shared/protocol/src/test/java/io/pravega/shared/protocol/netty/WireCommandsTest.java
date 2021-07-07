@@ -895,6 +895,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testMergeSegmentsWithAttributes() throws IOException {
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = Arrays.asList(
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), 0, Long.MIN_VALUE),
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), 0, Long.MIN_VALUE));
+        WireCommands.MergeSegments conditionalMergeSegments = new WireCommands.MergeSegments(l, testString1, testString2,
+                "", attributeUpdates);
+        testCommand(conditionalMergeSegments);
+    }
+
+    @Test
     public void testErrorMessage() throws IOException {
         for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
             Class exceptionType = code.getExceptionType();

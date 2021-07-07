@@ -58,7 +58,7 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
 
     public MergeSegmentOperation(long targetSegmentId, long sourceSegmentId, Collection<AttributeUpdate> attributeUpdates) {
         this(targetSegmentId, sourceSegmentId);
-        this.attributeUpdates = attributeUpdates;
+        this.attributeUpdates = attributeUpdates == null ? Collections.emptyList() : attributeUpdates;
     }
 
     /**
