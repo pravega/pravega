@@ -458,7 +458,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
-                //.tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION)
+                .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION)
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)

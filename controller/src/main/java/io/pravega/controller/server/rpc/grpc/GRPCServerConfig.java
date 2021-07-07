@@ -66,6 +66,12 @@ public interface GRPCServerConfig extends ServerConfig {
     boolean isTlsEnabled();
 
     /**
+     * A configuration for TLS protocol versions.
+     * @return A variable for tls protocol version
+     */
+    String getTlsProtocolVersion();
+
+    /**
      * The truststore to be used while talking to segmentstore over TLS.
      *
      * @return A path pointing to a trust store.
