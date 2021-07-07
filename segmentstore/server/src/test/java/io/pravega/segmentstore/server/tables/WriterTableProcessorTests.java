@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
