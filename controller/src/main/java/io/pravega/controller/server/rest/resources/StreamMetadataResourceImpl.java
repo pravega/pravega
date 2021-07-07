@@ -22,6 +22,7 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -564,9 +565,32 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
         boolean showOnlyInternalStreams = filterType != null && filterType.equals("showInternalStreams");
-        String tag;
+        String tag = null;
         if (filterType.equals("tag") && filterValue != null)
             tag = filterValue;
+        if(tag != null) {
+            List<Stream> streams = new ArrayList<>();
+            StreamsList responseStreams = new StreamsList();
+            Iterator<Stream> streamIterator = localController.listStreamsForTag(scopeName, tag).asIterator();
+            while(streamIterator.hasNext()) {
+                String streamName = streamIterator.next().getStreamName();
+                localController.getStreamConfiguration(scopeName, streamName).thenApply(config -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, streamName, config)));
+            }
+                try {
+                    if (restAuthHelper.isAuthorized(authHeader, authorizationResource.ofScope(scopeName),
+                            principal, READ)) {
+                        log.info(requestId, "Successfully fetched streams with tag for scope: {}", scopeName);
+
+                    }
+                } catch (AuthException e) {
+                    log.warn(e.getMessage(), e);
+                    // Ignore. This exception occurs under abnormal circumstances and not to determine
+                    // whether the user is authorized. In case it does occur, we assume that the user
+                    // is unauthorized.
+                }
+                return
+        }
+        else
         controllerService.listStreamsInScope(scopeName, requestId)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
