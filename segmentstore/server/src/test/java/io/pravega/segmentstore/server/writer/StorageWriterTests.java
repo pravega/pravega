@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -55,6 +56,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -427,17 +429,19 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     /**
      * Tests the StorageWriter in a Scenario where the Storage component throws arbitrary exceptions when requesting
      * information about a segment. This simulates the Segment Aggregators failing to initialize and we ensure that the
-     * StorageWriter is resilient enough to handle this situation.
+     * StorageWriter is resilient enough to handle this situation. This test verifies the case when such errors are
+     * transient (they will eventually subside). See {@link #testWithAggregatorInitPermanentErrors} for a case when
+     * such errors are permanent (they don't ever recover).
      */
     @Test
-    public void testWithSegmentAggregatorInitErrors() throws Exception {
+    public void testWithAggregatorInitTransientErrors() throws Exception {
         final int failGetEvery = 2; // Fail very frequently - we want this tested well.
 
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
         context.writer.startAsync();
 
-        // Create a bunch of segments and Transactions.
+        // Create a few segments.
         ArrayList<Long> segmentIds = createSegments(context);
 
         Supplier<Exception> exceptionSupplier = IntentionalException::new;
@@ -447,7 +451,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
 
-        // Truncate half of the remaining segments, then seal all, then truncate all segments.
+        // Record a checkpoint.
         metadataCheckpoint(context);
 
         // Wait for the writer to complete its job.
@@ -467,6 +471,80 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setGetErrorInjector(null);
         verifyFinalOutput(segmentContents, Collections.emptyList(), context);
     }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component always throws exceptions when requesting
+     * information about a segment in particular. This simulates a case when a single Segment Aggregators fails to
+     * initialize and we ensure that the StorageWriter is resilient enough to process all other segments.
+     */
+    @Test
+    public void testWithAggregatorInitPermanentErrors() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a few segments.
+        val segmentIds = createSegments(context);
+
+        // One of those segments is highly problematic.
+        val healthySegments = segmentIds.subList(0, segmentIds.size() - 1);
+        val failedSegmentId = segmentIds.get(segmentIds.size() - 1);
+        val failedSegment = context.metadata.getStreamSegmentMetadata(failedSegmentId);
+        Supplier<Exception> exceptionSupplier = IntentionalException::new;
+        context.storage.setOpenWriteInterceptor((segmentName, wrappedStorage) -> {
+            if (segmentName.equals(failedSegment.getName())) {
+                return Futures.failedFuture(exceptionSupplier.get());
+            }
+            return wrappedStorage.openWrite(segmentName);
+        });
+
+        // Append data to healthy segments first.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(healthySegments, segmentContents, context);
+
+        // ... and then to the bad segment.
+        appendDataBreadthFirst(Collections.singleton(failedSegmentId), segmentContents, context);
+
+        // Record a checkpoint.
+        metadataCheckpoint(context);
+
+        // Start the writer now.
+        context.writer.startAsync();
+
+        // Latch onto the writer completing or failing - whichever comes first.
+        val writerStopped = new CompletableFuture<Void>();
+        Services.onStop(context.writer, () -> writerStopped.complete(null), writerStopped::completeExceptionally, executorService());
+        val fullyAck = context.dataSource.waitFullyAcked();
+
+        // Wait for all the segments EXCEPT the one we wanted to fail.
+        TestUtils.await(() -> {
+            for (val segmentId : segmentIds) {
+                if (segmentId != failedSegment.getId()) {
+                    val m = context.metadata.getStreamSegmentMetadata(segmentId);
+                    if (m.getLength() != m.getStorageLength()) {
+                        return false; // not done yet.
+                    }
+                }
+            }
+
+            return true; // All but the problematic segment have been flushed.
+        }, 10, TIMEOUT.toMillis());
+
+        // Unblock failed segment.
+        context.storage.setOpenWriteInterceptor(null);
+
+        // Stop quickly if the writer fails. If not wait until fully acked.
+        CompletableFuture.anyOf(writerStopped, fullyAck).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // If the writer stopped prematurely, it should only be because it failed, so we should never get in here.
+        // However, just for sanity reasons, ensure that we have fully acked to the data source, as that is a prerequisite
+        // for verifying final output.
+        fullyAck.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify final output (and clear out any error injectors since we are done using the writer at this point).
+        context.storage.setGetErrorInjector(null);
+        verifyFinalOutput(segmentContents, Collections.emptyList(), context);
+    }
+
 
     /**
      * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all

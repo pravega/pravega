@@ -94,7 +94,7 @@ plugins.withId('java') {
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["STARTED", "PASSED", "SKIPPED", "FAILED"]
+        testLogging.events = ["STARTED", "SKIPPED", "FAILED"]
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : Math.min(4, Runtime.runtime.availableProcessors())
         minHeapSize = "128m"
         maxHeapSize = "512m"

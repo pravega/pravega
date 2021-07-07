@@ -266,10 +266,17 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 this.executor)
                 .thenRun(() -> {
                     // Clear the last read result from the state before exiting.
-                    Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still {} items to process.", readResult.size());
+                    Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still %s items to process.", readResult.size());
                     this.state.setLastRead(null);
                     logStageEvent("InputRead", result);
-                });
+                })
+                // Unless we get a CRITICAL error while processing the read result, let the iteration proceed and try
+                // to flush whatever we can flush. Anything we have in our state so far is consistent so it's better to
+                // try to flush whatever we can (as it relieves pressure) than stubbornly refusing to make progress. A
+                // specific corner case that this solves is if the Storage Metadata Table is severely backed up and we
+                // are unable to initialize other segments due to it not being ready; if we can unblock that one then
+                // eventually we can unblock the other segments too.
+                .exceptionally(this::iterationErrorHandler);
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {

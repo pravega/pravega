@@ -70,6 +70,8 @@ public class TestStorage implements Storage {
     @Setter
     private CreateInterceptor createInterceptor;
     @Setter
+    private OpenWriteInterceptor openWriteInterceptor;
+    @Setter
     private WriteInterceptor writeInterceptor;
     @Setter
     private SealInterceptor sealInterceptor;
@@ -134,7 +136,13 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-        return this.wrappedStorage.openWrite(streamSegmentName);
+        OpenWriteInterceptor i = this.openWriteInterceptor;
+        CompletableFuture<SegmentHandle> result = null;
+        if (i != null) {
+            result = i.apply(streamSegmentName, this.wrappedStorage);
+        }
+
+        return result != null ? result : this.wrappedStorage.openWrite(streamSegmentName);
     }
 
     @Override
@@ -258,6 +266,11 @@ public class TestStorage implements Storage {
     @FunctionalInterface
     public interface CreateInterceptor {
         CompletableFuture<Void> apply(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Storage wrappedStorage);
+    }
+
+    @FunctionalInterface
+    public interface OpenWriteInterceptor {
+        CompletableFuture<SegmentHandle> apply(String streamSegmentName, Storage wrappedStorage);
     }
 
     @FunctionalInterface
