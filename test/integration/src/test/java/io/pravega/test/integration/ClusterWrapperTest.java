@@ -115,6 +115,7 @@ public class ClusterWrapperTest {
 
                 // TLS related configs
                 .tlsEnabled(true)
+                .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                 .tlsServerCertificatePath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .tlsServerKeyPath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                 .tlsHostVerificationEnabled(false)
@@ -163,6 +164,7 @@ public class ClusterWrapperTest {
 
                 // TLS related configs
                 .tlsEnabled(true)
+                .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                 .tlsServerCertificatePath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .tlsServerKeyPath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                 .tlsHostVerificationEnabled(false)

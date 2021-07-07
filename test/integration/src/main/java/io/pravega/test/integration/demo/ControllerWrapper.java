@@ -181,6 +181,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(isRGWritesWithReadPermEnabled)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .tlsEnabled(enableTls)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .tlsTrustStore(serverCertificatePath)
                 .tlsCertFile(serverCertificatePath)
                 .tlsKeyFile(serverKeyPath)
