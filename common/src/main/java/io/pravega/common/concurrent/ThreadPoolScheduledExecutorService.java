@@ -37,11 +37,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
-public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
+@ToString(of = "runner")
+public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
 
     private static final AtomicLong COUNTER = new AtomicLong(0);
     private final ThreadPoolExecutor runner;
@@ -52,6 +54,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
         // While this cast looks sketchy as hell, its ok because runner is private and will only
         // be given ScheduledRunnable which by definition implement runnable.
+        @SuppressWarnings("unchecked")
         BlockingQueue<Runnable> queue = (BlockingQueue) this.queue;
         runner = new ThreadPoolExecutor(corePoolSize,
                 maxPoolSize,
@@ -286,7 +289,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
 
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
-            if (canceled.compareAndExchangeAcquire(false, true)) {
+            if (!canceled.getAndSet(true)) {
                 ScheduledRunnable<?> runnable = current.get();
                 if (runnable != null) {
                     ThreadPoolScheduledExecutorService.this.cancel(runnable);
@@ -360,6 +363,10 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
             long time = startTimeNanos + periodNanos * callCount.get();
             return returnUnit.convert(time - System.nanoTime(), NANOSECONDS);
         }
+    }
+
+    ThreadFactory getThreadFactory() {
+        return runner.getThreadFactory();
     }
     
 }

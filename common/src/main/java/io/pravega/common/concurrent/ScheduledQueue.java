@@ -316,11 +316,11 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
             itemCount++;
         }
         while (itemCount < maxElements) {
-            E item = delayedTasks.pollFirstEntry().getValue();
+            Entry<FireTime, E> item = delayedTasks.pollFirstEntry();
             if (item == null) {
                 break;
             }
-            c.add(item);
+            c.add(item.getValue());
             itemCount++;
         }
         itemsRemoved.addAndGet(itemCount);
@@ -333,7 +333,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
      */
     public List<E> drainDelayed() {
         ArrayList<E> result = new ArrayList<>();
-        var item = delayedTasks.pollFirstEntry();
+        Entry<FireTime, E> item = delayedTasks.pollFirstEntry();
         while (item != null) {
             result.add(item.getValue());
             itemsRemoved.incrementAndGet();

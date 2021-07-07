@@ -16,14 +16,10 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.annotations.VisibleForTesting;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.NonNull;
@@ -71,10 +67,9 @@ final class ExecutorServiceFactory {
 
         // In all of the below, the ThreadFactory is created in this class, and its toString() returns the pool name.
         if (this.detectionLevel == ThreadLeakDetectionLevel.None) {
-            this.createScheduledExecutor = (size, factory) -> new ScheduledThreadPoolExecutor(size, factory, new CallerRuns(factory.toString()));
+            this.createScheduledExecutor = (size, factory) -> new ThreadPoolScheduledExecutorService(size, size, 100, factory, new CallerRuns(factory.toString()));
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) ->
-                    new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
-                            new LinkedBlockingQueue<>(), factory, new CallerRuns(factory.toString()));
+                    new ThreadPoolScheduledExecutorService(0, maxThreadCount, threadTimeout, factory, new CallerRuns(factory.toString()));
         } else {
             // Light and Aggressive need a special executor that overrides the finalize() method.
             this.createScheduledExecutor = (size, factory) -> {
@@ -83,8 +78,7 @@ final class ExecutorServiceFactory {
             };
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) -> {
                 logNewThreadPoolCreated(factory.toString());
-                return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(), factory, new CallerRuns(factory.toString()));
+                return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, factory, new CallerRuns(factory.toString()));
             };
         }
     }
@@ -155,17 +149,18 @@ final class ExecutorServiceFactory {
         ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
 
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = this.createScheduledExecutor.apply(size, threadFactory);
+        ThreadPoolScheduledExecutorService result = this.createScheduledExecutor.apply(size, threadFactory);
 
-        // Do not execute any periodic tasks after shutdown.
-        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-
-        // Do not execute any delayed tasks after shutdown.
-        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-
-        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
-        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
-        result.setRemoveOnCancelPolicy(true);
+        //These aren't needed anymore as ThreadPoolScheduledExecutorService mandates all of them
+//        // Do not execute any periodic tasks after shutdown.
+//        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+//
+//        // Do not execute any delayed tasks after shutdown.
+//        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+//
+//        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
+//        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
+//        result.setRemoveOnCancelPolicy(true);
         return result;
     }
 
@@ -177,7 +172,7 @@ final class ExecutorServiceFactory {
      * @param poolName       The name of the threadpool.
      * @return A new threadPool
      */
-    ThreadPoolExecutor newShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
+    ThreadPoolScheduledExecutorService newShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
         ThreadFactory factory = getThreadFactory(poolName);
         return this.createShrinkingExecutor.apply(maxThreadCount, threadTimeout, factory);
     }
@@ -208,30 +203,32 @@ final class ExecutorServiceFactory {
 
     //region Leak Detection Pools
 
-    private class LeakDetectorScheduledExecutorService extends ScheduledThreadPoolExecutor {
+    private class LeakDetectorScheduledExecutorService extends ThreadPoolScheduledExecutorService {
         private final Exception stackTraceEx;
 
         LeakDetectorScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-            super(corePoolSize, threadFactory, handler);
+            super(corePoolSize, corePoolSize, 100, threadFactory, handler);
             this.stackTraceEx = new Exception();
         }
 
-        protected void finalize() {
+        @Override
+        protected void finalize() throws Throwable {
             checkThreadPoolLeak(this, this.stackTraceEx);
             super.finalize();
         }
     }
 
-    private class LeakDetectorThreadPoolExecutor extends ThreadPoolExecutor {
+    private class LeakDetectorThreadPoolExecutor extends ThreadPoolScheduledExecutorService {
         private final Exception stackTraceEx;
 
-        LeakDetectorThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue,
+        LeakDetectorThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, 
                                        ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+            super(corePoolSize, maximumPoolSize, keepAliveTime, threadFactory, handler);
             this.stackTraceEx = new Exception();
         }
 
-        protected void finalize() {
+        @Override
+        protected void finalize() throws Throwable {
             checkThreadPoolLeak(this, this.stackTraceEx);
             super.finalize();
         }
@@ -246,7 +243,7 @@ final class ExecutorServiceFactory {
     }
 
     @VisibleForTesting
-    void checkThreadPoolLeak(ThreadPoolExecutor e, Exception stackTraceEx) {
+    void checkThreadPoolLeak(ThreadPoolScheduledExecutorService e, Exception stackTraceEx) {
         if (this.detectionLevel == ThreadLeakDetectionLevel.None) {
             // Not doing anything in this case.
             return;
@@ -286,12 +283,12 @@ final class ExecutorServiceFactory {
 
     @FunctionalInterface
     private interface CreateScheduledExecutor {
-        ScheduledThreadPoolExecutor apply(int size, ThreadFactory factory);
+        ThreadPoolScheduledExecutorService apply(int size, ThreadFactory factory);
     }
 
     @FunctionalInterface
     private interface CreateShrinkingExecutor {
-        ThreadPoolExecutor apply(int maxThreadCount, int threadTimeout, ThreadFactory factory);
+        ThreadPoolScheduledExecutorService apply(int maxThreadCount, int threadTimeout, ThreadFactory factory);
     }
 
     //endregion
