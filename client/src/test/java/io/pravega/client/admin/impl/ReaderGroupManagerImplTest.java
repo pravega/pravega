@@ -54,11 +54,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -129,7 +126,6 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-
 
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
