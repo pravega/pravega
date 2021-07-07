@@ -81,10 +81,10 @@ public class HealthServiceManager implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            this.root.close();
             this.updater.close();
             this.updater.stopAsync();
             this.updater.awaitTerminated();
+            this.root.close();
         }
     }
 

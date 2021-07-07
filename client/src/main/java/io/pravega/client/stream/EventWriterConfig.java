@@ -80,7 +80,7 @@ public class EventWriterConfig implements Serializable {
      * of the lease renewal period. The 1,000 is hardcoded and has been chosen arbitrarily
      * to be a large enough value.
      *
-     * The maximum allowed lease time by default is 120s, see:
+     * The maximum allowed lease time by default is 600s, see:
      *
      * {@link io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE}
      *
@@ -105,7 +105,7 @@ public class EventWriterConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private long transactionTimeoutTime = 90 * 1000 - 1;
+        private long transactionTimeoutTime = 600 * 1000 - 1;
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
         private boolean enableConnectionPooling = false;

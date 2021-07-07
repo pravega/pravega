@@ -183,8 +183,8 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 },
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
-        EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
-        AssertExtensions.assertThrows("lease value too large, max value is 120000",
+        EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(700 * 1000).build();
+        AssertExtensions.assertThrows("lease value too large, max value is 600000",
                 () -> createTxn(clientFactory, highTimeoutConfig, streamName),
                 e -> e instanceof IllegalArgumentException);
     }
