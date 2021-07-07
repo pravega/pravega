@@ -79,6 +79,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
+    private String tlsProtocolVersion;
 
     private boolean enableTlsReload;
 
@@ -169,7 +170,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = !this.isInMemStorage;
-            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
                     enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
@@ -407,6 +408,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
+                .tlsProtocolVersion(this.tlsProtocolVersion)
                 .tlsTrustStore(this.certFile)
                 .tlsCertFile(this.certFile)
                 .tlsKeyFile(this.keyFile)

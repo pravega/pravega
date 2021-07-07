@@ -71,6 +71,7 @@ public class PravegaEmulatorResource extends ExternalResource {
                 .enableRestServer(restEnabled)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled)
+                .tlsProtocolVersion(TestUtils.getTlsProtocolVersion())
                 .enabledAdminGateway(true)
                 .adminGatewayPort(TestUtils.getAvailableListenPort());
 
