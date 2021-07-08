@@ -46,9 +46,10 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class FailingRequestProcessorTest {
 
-    private RequestProcessor rp = new FailingRequestProcessor();
 
-    private static Event EMPTY_EVENT = new Event(Unpooled.wrappedBuffer(new byte[1]));
+    private static final Event EMPTY_EVENT = new Event(Unpooled.wrappedBuffer(new byte[1]));
+
+    private RequestProcessor rp = new FailingRequestProcessor();
 
     @Test
     public void testEverythingThrows() {
@@ -66,7 +67,7 @@ public class FailingRequestProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.updateTableEntries(new UpdateTableEntries(0, "", "", null, 0)));
         assertThrows(IllegalStateException.class, () -> rp.removeTableKeys(new RemoveTableKeys(0, "", "", null, 0)));
         assertThrows(IllegalStateException.class, () -> rp.readTable(new ReadTable(0, "", "", null)));
-        assertThrows(IllegalStateException.class, () -> rp.readTableKeys(new ReadTableKeys(0, "", "", 0, null, null)));;
+        assertThrows(IllegalStateException.class, () -> rp.readTableKeys(new ReadTableKeys(0, "", "", 0, null, null)));
         assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null, null)));
         assertThrows(IllegalStateException.class, () -> rp.mergeSegments(new MergeSegments(0, "", "", "")));
         assertThrows(IllegalStateException.class, () -> rp.mergeTableSegments(new MergeTableSegments(0, "", "", "")));

@@ -15,14 +15,15 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.netty.buffer.Unpooled;
 import org.junit.Test;
 
 public class DelegatingRequestProcessorTest {
 
-    private MockRequestProcessor rp = new MockRequestProcessor();
+    private static final Event EMPTY_EVENT = new WireCommands.Event(Unpooled.wrappedBuffer(new byte[1]));
 
-    private static WireCommands.Event EMPTY_EVENT = new WireCommands.Event(Unpooled.wrappedBuffer(new byte[1]));
+    private MockRequestProcessor rp = new MockRequestProcessor();
 
     @Test
     public void testEverythingCalled() {
