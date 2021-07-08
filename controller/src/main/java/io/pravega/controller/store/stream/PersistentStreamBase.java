@@ -2185,19 +2185,17 @@ public abstract class PersistentStreamBase implements Stream {
                           // is no longer active)
                           // or its a duplicate entry or transaction is aborting. 
                           ConcurrentSkipListSet<Long> toPurge = new ConcurrentSkipListSet<>();
-                          ConcurrentSkipListSet<VersionedTransactionData> transactionsMap = new ConcurrentSkipListSet<>(
+                          ConcurrentSkipListSet<VersionedTransactionData> transactionsData = new ConcurrentSkipListSet<>(
                                   Comparator.comparingLong(VersionedTransactionData::getCommitOrder));
 
                           // Collect transactions that are in committing state from smallest available epoch 
                           // smallest epoch has transactions in committing state, we should break, else continue.
                           // also remove any transaction order references which are invalid.
-                          return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
-                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap,
-                                      limit, executor, context);
-                          }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
-                                  .thenApply(version -> transactionsMap.stream().sorted(
-                                                        Comparator.comparing(VersionedTransactionData::getCommitOrder))
-                                                               .collect(Collectors.toList()));
+                          return Futures.loop(() -> iterator.hasNext() && transactionsData.isEmpty(),
+                                  () -> processTransactionsInEpoch(iterator.next(), toPurge, transactionsData,
+                                  limit, executor, context), executor)
+                                  .thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
+                                  .thenApply(v -> transactionsData.stream().collect(Collectors.toList()));
                       });
     }
 
@@ -2246,9 +2244,6 @@ public abstract class PersistentStreamBase implements Stream {
                         if (txnRecord.getCommitOrder() == order) {
                             // if entry matches record's position then include it
                             transactionsMap.add(txnRecord);
-                            if (transactionsMap.size() >= limit) {
-                                break;
-                            }
                         } else {
                             log.debug(context.getRequestId(), "duplicate txn {} at position {}. removing {}",
                                     txnId, txnRecord.getCommitOrder(), order);

@@ -1277,21 +1277,21 @@ public abstract class StreamMetadataStoreTest {
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
-        
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
+
         // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
         List<UUID> txns = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            UUID tx = store.generateTransactionId(scope, stream, null, executor).join();
+            UUID tx = store.generateTransactionId(scope, stream, context, executor).join();
             store.createTransaction(scope, stream, tx,
-                    100, 100, null, executor).join();
+                    100, 100, context, executor).join();
             store.sealTransaction(scope, stream, tx, true, Optional.empty(),
-                    "", Long.MIN_VALUE, null, executor).join();
+                    "", Long.MIN_VALUE, context, executor).join();
             txns.add(tx);
         }
 
-        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
-
-        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
         while (!txns.isEmpty()) {
             int limit = 5;
             List<VersionedTransactionData> ordered = streamObj.getOrderedCommittingTxnInLowestEpoch(limit, context).join();
