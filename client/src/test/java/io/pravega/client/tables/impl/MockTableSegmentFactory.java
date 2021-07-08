@@ -187,6 +187,15 @@ class MockTableSegmentFactory implements TableSegmentFactory {
             return getIterator(args, TableSegmentEntry::versioned, e -> e.getKey().getKey());
         }
 
+        @Override
+        public CompletableFuture<Long> getEntryCount() {
+            return CompletableFuture.supplyAsync(() -> {
+                synchronized (this.data) {
+                    return (long) this.data.size();
+                }
+            }, this.executorService);
+        }
+
         private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs initialArgs, IteratorConverter<T> converter,
                                                                Function<T, ByteBuf> getKey) {
             Preconditions.checkNotNull(initialArgs.getFromKey(), "initialArgs.fromKey");
