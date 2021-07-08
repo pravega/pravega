@@ -286,7 +286,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source,
-                                                                              Collection<AttributeUpdate> attributeUpdates,
+                                                                              AttributeUpdateCollection attributeUpdates,
                                                                               Duration timeout) {
             throw new UnsupportedOperationException("mergeStreamSegment");
         }

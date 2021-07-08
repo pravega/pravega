@@ -392,7 +392,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
-                                                                              Collection<AttributeUpdate> attributes, Duration timeout) {
+                                                                              AttributeUpdateCollection attributes, Duration timeout) {
             return null;
         }
 

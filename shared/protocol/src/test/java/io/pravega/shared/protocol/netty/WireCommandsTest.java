@@ -938,10 +938,9 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testCompatibilityMergeSegmentsV5() throws IOException {
         // Test that we are able to decode a message with a previous version
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        MergeSegmentsV5 commandV5 = new MergeSegmentsV5(l, testString1, testString2,"");
+        MergeSegmentsV5 commandV5 = new MergeSegmentsV5(l, testString1, testString2, "");
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.MergeSegments(l, testString1, testString2,
-                "", Collections.emptyList()));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.MergeSegments(l, testString1, testString2, "", Collections.emptyList()));
     }
 
     @Test

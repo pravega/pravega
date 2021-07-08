@@ -17,10 +17,9 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 
 /**
@@ -29,7 +28,7 @@ import java.util.Random;
 public class ConditionalMergeSegmentOperationTests extends MergeSegmentOperationTests {
     @Override
     protected MergeSegmentOperation createOperation(Random random) {
-        List<AttributeUpdate> attributeUpdates = Arrays.asList(
+        AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
                 new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 0, Long.MIN_VALUE),
                 new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 0, Long.MIN_VALUE));
         return new MergeSegmentOperation(random.nextLong(), random.nextLong(), attributeUpdates);

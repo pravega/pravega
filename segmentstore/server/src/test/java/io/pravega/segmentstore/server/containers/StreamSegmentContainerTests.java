@@ -2469,7 +2469,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                 // Use both calls, with and without attribute updates for mergeSegments.
                 if (conditionalMerge) {
-                    Collection<AttributeUpdate> attributeUpdates = Collections.singletonList(
+                    AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
                             new AttributeUpdate(AttributeId.fromUUID(UUID.nameUUIDFromBytes(transactionName.getBytes())),
                             AttributeUpdateType.ReplaceIfEquals, transactionName.hashCode(), Long.MIN_VALUE));
                     mergeFutures.add(Futures.toVoid(context.container.mergeStreamSegment(parentName, transactionName, attributeUpdates, TIMEOUT)));
