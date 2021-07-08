@@ -38,10 +38,12 @@ public abstract class SegmentStoreCommand extends AdminCommand {
         log.info("Auth config is: {}, trustStoreSigningKey is: {}, and ttlseconds is: {}", cliConfig.isAuthEnabled()
                 , cliConfig.getTruststoreSignKey(), cliConfig.getAccessTokenTtlInSeconds());
 
-        authHelper = new GrpcAuthHelper(cliConfig.isAuthEnabled(),
-                cliConfig.getTruststoreSignKey(),
-                cliConfig.getAccessTokenTtlInSeconds());
 
-        log.info("delegation token is: ", authHelper.retrieveMasterToken());
+//        authHelper = new GrpcAuthHelper(cliConfig.isAuthEnabled(),
+//                "super-secret",
+//                cliConfig.getAccessTokenTtlInSeconds());
+        authHelper = new GrpcAuthHelper(true,
+                "super-secret",
+                600);
     }
 }
