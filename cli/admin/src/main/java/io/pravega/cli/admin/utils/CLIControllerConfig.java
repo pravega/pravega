@@ -32,7 +32,7 @@ public final class CLIControllerConfig {
 
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
-    private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", false);
+    private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", true);
     private static final Property<String> CONTROLLER_USER_NAME = Property.named("credentials.username", "");
     private static final Property<String> CONTROLLER_PASSWORD = Property.named("credentials.pwd", "");
     private static final Property<Boolean> TLS_ENABLED = Property.named("channel.tls", false);

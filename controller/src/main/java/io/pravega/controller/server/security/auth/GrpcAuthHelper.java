@@ -117,6 +117,8 @@ public class GrpcAuthHelper {
 
     public String retrieveMasterToken() {
         if (isAuthEnabled) {
+            log.info("reached");
+            log.info("In authhelper the token is", GrpcAuthHelper.retrieveMasterToken(tokenSigningKey));
             return GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         } else {
             return "";

@@ -20,6 +20,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+@Slf4j
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 10;
