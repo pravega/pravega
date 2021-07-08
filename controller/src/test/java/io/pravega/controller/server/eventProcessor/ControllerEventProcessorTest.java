@@ -325,8 +325,7 @@ public abstract class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
         streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
-        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
