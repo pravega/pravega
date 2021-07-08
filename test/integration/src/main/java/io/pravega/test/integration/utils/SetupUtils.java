@@ -87,7 +87,7 @@ public final class SetupUtils {
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
-    private final String tlsProtocolVersion = "TLSv1.2,TLSv1.3";
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     
     /**
      * Start all pravega related services required for the test deployment.

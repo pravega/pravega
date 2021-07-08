@@ -48,6 +48,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
+import java.security.Provider;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
@@ -297,6 +298,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, this.tlsProtocolVersion)
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
