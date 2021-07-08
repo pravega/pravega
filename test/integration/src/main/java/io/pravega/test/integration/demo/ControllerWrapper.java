@@ -190,6 +190,7 @@ public class ControllerWrapper implements AutoCloseable {
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
                 Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort)
                         .tlsEnabled(enableTls)
+                        .tlsProtocolVersion(tlsProtocolVersion)
                         .keyFilePath(serverKeystorePath)
                         .keyFilePasswordPath(serverKeystorePasswordPath)
                         .build()) :
