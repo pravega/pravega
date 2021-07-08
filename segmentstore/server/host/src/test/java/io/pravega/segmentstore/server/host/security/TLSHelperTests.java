@@ -51,6 +51,10 @@ public class TLSHelperTests {
         assertThrows("Null pathToServerKeyFile argument wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, null, PATH_NONEMPTY),
                 e -> e instanceof NullPointerException);
+
+        assertThrows("Null tlsprotocolversion argument wasn't rejected.",
+                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEMPTY, null),
+                e -> e instanceof NullPointerException);
     }
 
     @Test
@@ -61,6 +65,10 @@ public class TLSHelperTests {
 
         assertThrows("Empty pathToServerKeyFile argument wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_EMPTY, PATH_NONEMPTY),
+                e -> e instanceof IllegalArgumentException);
+
+        assertThrows("Empty tlsprotocolversion argument wasn't rejected.",
+                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEMPTY, PATH_EMPTY),
                 e -> e instanceof IllegalArgumentException);
     }
 

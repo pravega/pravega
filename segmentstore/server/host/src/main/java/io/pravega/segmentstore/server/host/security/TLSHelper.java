@@ -63,6 +63,7 @@ public class TLSHelper {
     public static SslContext newServerSslContext(File certificateFile, File serverKeyFile, String tlsProtocolVersion) {
         Preconditions.checkNotNull(certificateFile);
         Preconditions.checkNotNull(serverKeyFile);
+        Preconditions.checkNotNull(tlsProtocolVersion);
         ensureExistAndAreReadable(certificateFile, serverKeyFile);
 
         try {
