@@ -118,7 +118,7 @@ public class SecSegmentStoreCommandsTest extends AbstractAdminCommandTest {
     @SneakyThrows
     public void testSegmentInfoCommand() {
         String commandResult = TestUtils.executeCommand("segmentstore read-segment segmentstore/readsegment/0.#epoch.0 0 8 localhost", cliConfig());
-        Assert.assertTrue(commandResult.contains("StreamSegmentInfo:"));
+        Assert.assertTrue(commandResult.contains("ReadSegment:"));
     }
 //
 //    @Test
