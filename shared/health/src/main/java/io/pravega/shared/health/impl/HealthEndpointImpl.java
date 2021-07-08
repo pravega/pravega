@@ -20,6 +20,7 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.HealthServiceUpdater;
+import io.pravega.shared.health.ContributorNotFoundException;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.pravega.shared.health.HealthContributor.DELIMITER;
+
 /**
  * Provides a simpler interface for retrieving {@link Health} information from the {@link io.pravega.shared.health.HealthServiceManager}.
  * The {@link HealthEndpoint} should be used to serve information about the {@link Health} of a component for external classes.
+ *
+ * The 'String id' parameter of the following methods si expected to be a fully qualified id, i.e. containing the complete path
+ * (delimited by {@link HealthContributor#DELIMITER}) starting from the HealthServiceManager.RootHealthContributor.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -62,12 +68,17 @@ public class HealthEndpointImpl implements HealthEndpoint {
     @NonNull
     @Override
     public Health getHealth(String id) {
+        Health health;
         if (id == null || id.equals(root.getName())) {
-            return updater.getLatestHealth();
+            health = updater.getLatestHealth();
         } else {
-            List<String> path = Arrays.asList(id.split("/"));
-            return search(path, updater.getLatestHealth());
+            List<String> path = Arrays.asList(id.split(DELIMITER));
+            health = search(path, updater.getLatestHealth());
         }
+        if (health == null)  {
+            throw new ContributorNotFoundException(String.format("No HealthContributor found with name '%s'", id), 404);
+        }
+        return health;
     }
 
     @Override

@@ -69,7 +69,7 @@ public class FixedKeyLengthTableSegmentLayoutTests extends TableSegmentLayoutTes
     }
 
     @Override
-    protected WriterTableProcessor createWriterTableProcessor(TableContext context) {
+    protected WriterTableProcessor createWriterTableProcessor(ContainerTableExtension ext, TableContext context) {
         return null;
     }
 

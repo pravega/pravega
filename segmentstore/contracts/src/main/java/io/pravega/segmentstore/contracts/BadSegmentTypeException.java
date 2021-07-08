@@ -19,21 +19,21 @@ package io.pravega.segmentstore.contracts;
  * Exception that is thrown whenever a segment of the wrong type is accessed (i.e., we want a StreamSegment but were given
  * the name of a Table Segment).
  */
-public class BadSegmentTypeException extends StreamSegmentException {
+public class BadSegmentTypeException extends IllegalArgumentException {
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the BadSegmentTypeException class.
      *
-     * @param streamSegmentName The name of the Segment.
-     * @param expectedType      The expected type for the Segment.
-     * @param actualType        The actual type.
+     * @param segmentName  The name of the Segment.
+     * @param expectedType The expected type for the Segment.
+     * @param actualType   The actual type.
      */
-    public BadSegmentTypeException(String streamSegmentName, String expectedType, String actualType) {
-        super(streamSegmentName, getMessage(expectedType, actualType));
+    public BadSegmentTypeException(String segmentName, SegmentType expectedType, SegmentType actualType) {
+        super(getMessage(segmentName, expectedType, actualType));
     }
 
-    private static String getMessage(String expectedType, String actualType) {
-        return String.format("Bad Segment Type. Expected '%s', given '%s'.", expectedType, actualType);
+    private static String getMessage(String segmentName, SegmentType expectedType, SegmentType actualType) {
+        return String.format("Bad Segment Type for '%s'. Expected '%s', given '%s'.", segmentName, expectedType, actualType);
     }
 }

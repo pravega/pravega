@@ -100,13 +100,16 @@ public abstract class AbstractHealthContributor implements HealthContributor {
         Collection<Status> statuses = new ArrayList<>();
         Map<String, Health> children = new HashMap<>();
 
-        for (val  contributor : contributors.entrySet()) {
-            if (!contributor.getValue().isClosed()) {
-                Health health =  contributor.getValue().getHealthSnapshot();
-                children.put(contributor.getKey(), health);
-                statuses.add(health.getStatus());
-            } else {
-                contributors.remove(name);
+        for (val entry : contributors.entrySet()) {
+            HealthContributor contributor = entry.getValue();
+            synchronized (contributor) {
+                if (!contributor.isClosed()) {
+                    Health health = contributor.getHealthSnapshot();
+                    children.put(entry.getKey(), health);
+                    statuses.add(health.getStatus());
+                } else {
+                    contributors.remove(name);
+                }
             }
         }
 
@@ -130,12 +133,16 @@ public abstract class AbstractHealthContributor implements HealthContributor {
     synchronized final public void register(HealthContributor... children) {
         Exceptions.checkNotClosed(isClosed(), this);
         for (HealthContributor child : children) {
+            if (child.getName().contains(DELIMITER)) {
+                log.warn("The supplied HealthContributor contains the lookup delimiter ('{}') -- skipping.", DELIMITER);
+                continue;
+            }
             contributors.put(child.getName(), child);
         }
     }
 
     @Override
-    public final void close() {
+    synchronized public final void close() {
         if (!closed.getAndSet(true)) {
             for (val contributor : contributors.entrySet()) {
                 contributor.getValue().close();

@@ -324,6 +324,16 @@ class SegmentKeyCache {
         return new HashMap<>(this.tailOffsets);
     }
 
+    /**
+     * Gets a number representing the expected change in number of entries to the index once all the tail cache entries
+     * are included in it.
+     *
+     * @return The tail entry update count delta.
+     */
+    synchronized int getTailEntryCountDelta() {
+        return this.tailOffsets.values().stream().mapToInt(o -> o.isRemoval() ? -1 : 1).sum();
+    }
+
     @Override
     public synchronized String toString() {
         return String.format("LIO = %s, Entries = %s, Backpointers = %s, BucketOffsets = %s.",

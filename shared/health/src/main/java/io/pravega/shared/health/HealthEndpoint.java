@@ -112,4 +112,5 @@ public interface HealthEndpoint {
      * @return The {@link Health} of the whole health service.
      */
     Health getHealth();
+
 }

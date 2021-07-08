@@ -316,6 +316,11 @@ public class SegmentStoreConnectionManagerTest {
             }
 
             @Override
+            public void tableSegmentInfo(WireCommands.TableSegmentInfo info) {
+
+            }
+
+            @Override
             public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
 
             }

@@ -172,6 +172,22 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link TableSegmentImpl#getEntryCount()} method.
+     */
+    @Test
+    public void testGetEntryCount() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+        val getInfoResult = context.segment.getEntryCount();
+        val wireCommand = (WireCommands.GetTableSegmentInfo) context.getConnection().getLastSentWireCommand();
+        Assert.assertEquals(SEGMENT.getKVTScopedName(), wireCommand.getSegmentName());
+        context.sendReply(new WireCommands.TableSegmentInfo(context.getConnection().getLastRequestId(), SEGMENT.getKVTScopedName(),
+                1, 2, 3L, 4));
+        val actualResult = getInfoResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected return value", 3L, (long) actualResult);
+    }
+
+    /**
      * Tests the {@link TableSegmentImpl#get} method when the response coming back from the server is truncated.
      * Connection reset failures are not tested here; they're checked in {@link #testReconnect()}.
      */

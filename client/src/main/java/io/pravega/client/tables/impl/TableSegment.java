@@ -177,6 +177,21 @@ public interface TableSegment extends AutoCloseable {
     AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args);
 
     /**
+     * Gets the number of entries in the Table Segment.
+     *
+     * NOTE: this is an "eventually consistent" value:
+     * <ul>
+     * <li> In-flight (not yet acknowledged) updates and removals are not included.
+     * <li> Recently acknowledged updates and removals may or may not be included (depending on whether they were
+     * conditional or not). As the index is updated (in the background), this value will eventually converge towards the
+     * actual number of entries in the Table Segment.
+     * </ul>
+     *
+     * @return A CompletableFuture that, when completed, will contain the number of entries in the Table Segment.
+     */
+    CompletableFuture<Long> getEntryCount();
+
+    /**
      * Gets a value indicating the internal Id of the Table Segment, as assigned by the Controller.
      *
      * @return The Table Segment Id.

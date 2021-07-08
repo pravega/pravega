@@ -84,6 +84,14 @@ public interface TableSegmentStatsRecorder extends AutoCloseable {
      */
     void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed);
 
+    /**
+     * Notifies that a Get Table Segment Info was invoked.
+     *
+     * @param tableSegmentName Table Segment Name.
+     * @param elapsed          Elapsed time.
+     */
+    void getInfo(String tableSegmentName, Duration elapsed);
+
     @Override
     void close();
 
@@ -120,6 +128,11 @@ public interface TableSegmentStatsRecorder extends AutoCloseable {
 
             @Override
             public void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed) {
+            }
+
+            @Override
+            public void getInfo(String tableSegmentName, Duration elapsed) {
+
             }
 
             @Override

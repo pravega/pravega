@@ -131,35 +131,6 @@ public interface TableStore {
     CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout);
 
     /**
-     * Merges a Table Segment into another Table Segment.
-     *
-     * @param targetSegmentName The name of the Table Segment to merge into.
-     * @param sourceSegmentName The name of the Table Segment to merge.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception. Notable Exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If either the Source or Target Table Segment do not exist.
-     * <li>{@link BadSegmentTypeException} If sourceSegmentName or targetSegmentName refer to non-Table Segments.
-     * </ul>
-     */
-    CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout);
-
-    /**
-     * Seals a Table Segment for modifications.
-     *
-     * @param segmentName The name of the Table Segment to seal.
-     * @param timeout     Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception. Notable Exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
-     */
-    CompletableFuture<Void> seal(String segmentName, Duration timeout);
-
-    /**
      * Inserts new or updates existing Table Entries into the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to insert/update the Table Entries.
@@ -338,4 +309,19 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout);
+
+    /**
+     * Gets information about a Table Segment.
+     *
+     * @param segmentName The name of the Table Segment.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
+     * future will be failed with the causing exception. Note that this result will only contain the Core Attributes
+     * for this Segment. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
+     */
+    CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout);
 }

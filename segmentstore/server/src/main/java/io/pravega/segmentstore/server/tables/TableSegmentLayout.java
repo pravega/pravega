@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -173,6 +174,15 @@ abstract class TableSegmentLayout implements AutoCloseable {
      * @return See {@link TableStore#entryDeltaIterator}.
      */
     abstract AsyncIterator<IteratorItem<TableEntry>> entryDeltaIterator(@NonNull DirectSegmentAccess segment, long fromPosition, Duration fetchTimeout);
+
+    /**
+     * Gets information about a Table Segment.
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the segment to query.
+     * @param timeout Timeout for the operation.
+     * @return See {@link TableStore#getInfo}.
+     */
+    abstract CompletableFuture<TableSegmentInfo> getInfo(@NonNull DirectSegmentAccess segment, Duration timeout);
 
     //endregion
 

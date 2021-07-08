@@ -19,6 +19,7 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
@@ -45,7 +46,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TableKeysRemoved;
 import io.pravega.shared.protocol.netty.WireCommands.TableRead;
 import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -84,6 +84,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.segmentsMerged(new SegmentsMerged(0, "", "", 2)));
         assertThrows(IllegalStateException.class, () -> rp.segmentTruncated(new SegmentTruncated(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.streamSegmentInfo(new StreamSegmentInfo(0, "", false, false, false, 0, 0, 0)));
+        assertThrows(IllegalStateException.class, () -> rp.tableSegmentInfo(new WireCommands.TableSegmentInfo(0, "", 0, 0, 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesDeltaRead(new TableEntriesDeltaRead(0, "", null, false, true, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesRead(new TableEntriesRead(0, "", null, null)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesUpdated(new TableEntriesUpdated(0, null)));

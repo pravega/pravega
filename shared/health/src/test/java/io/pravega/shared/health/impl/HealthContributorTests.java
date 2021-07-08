@@ -30,11 +30,10 @@ import io.pravega.shared.health.TestHealthContributors.FailingContributor;
 public class HealthContributorTests {
 
     /**
-     * Test a {@link Health} check, but request its details.
+     * Perform a basic {@link Health} check.
      */
     @Test
-    public void testHealthDetails() {
-        // Details implicitly added during class construction.
+    public void testHealth() {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor();
         Health health = contributor.getHealthSnapshot();

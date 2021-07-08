@@ -46,6 +46,8 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     private final Counter iterateKeys = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS);
     private final OpStatsLogger iterateEntriesLatency = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY);
     private final Counter iterateEntries = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES);
+    private final OpStatsLogger getInfoLatency = createLogger(MetricsNames.TABLE_SEGMENT_GET_INFO_LATENCY);
+    private final Counter getInfo = createCounter(MetricsNames.TABLE_SEGMENT_GET_INFO);
 
     //region AutoCloseable Implementation
 
@@ -67,6 +69,8 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
         this.iterateKeys.close();
         this.iterateEntriesLatency.close();
         this.iterateEntries.close();
+        this.getInfo.close();
+        this.getInfoLatency.close();
     }
 
     //endregion
@@ -111,6 +115,12 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     public void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed) {
         this.iterateEntriesLatency.reportSuccessEvent(elapsed);
         this.iterateEntries.add(resultCount);
+    }
+
+    @Override
+    public void getInfo(String tableSegmentName, Duration elapsed) {
+        this.getInfoLatency.reportSuccessEvent(elapsed);
+        this.getInfo.inc();
     }
 
     //endregion

@@ -374,6 +374,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         @Override
+        public void tableSegmentInfo(WireCommands.TableSegmentInfo info) {
+            execute(ReplyProcessor::tableSegmentInfo, info);
+        }
+
+        @Override
         public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
             execute(ReplyProcessor::tableEntriesUpdated, tableEntriesUpdated);
         }

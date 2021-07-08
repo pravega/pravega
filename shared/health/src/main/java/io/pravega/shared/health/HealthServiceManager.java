@@ -67,13 +67,23 @@ public class HealthServiceManager implements AutoCloseable {
 
     @VisibleForTesting
     HealthServiceUpdater getHealthServiceUpdater() {
-        return updater;
+        return this.updater;
+    }
+
+    /**
+     * Synchronously starts the {@link HealthServiceUpdater}.
+     */
+    public void start() {
+        this.updater.startAsync();
+        this.updater.awaitRunning();
     }
 
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.updater.close();
+            this.updater.stopAsync();
+            this.updater.awaitTerminated();
             this.root.close();
         }
     }
