@@ -1739,7 +1739,7 @@ public abstract class PersistentStreamBase implements Stream {
     CompletableFuture<Void> generateMarksForTransactions(OperationContext context,
                                                          Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
-        Preconditions.checkArgument(writerMarks != null && !writerMarks.isEmpty());
+        Preconditions.checkArgument(writerMarks != null);
         
         // For each writerId we will take the transaction with the time and position pair (which is to take
         // max of all transactions for the said writer).
