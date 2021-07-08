@@ -20,6 +20,7 @@ import com.google.common.collect.Maps;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;

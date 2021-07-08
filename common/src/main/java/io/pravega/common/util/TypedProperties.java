@@ -19,6 +19,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -142,6 +144,35 @@ public class TypedProperties {
      */
     public boolean getBoolean(Property<Boolean> property) throws ConfigurationException {
         return tryGet(property, this::parseBoolean);
+    }
+
+    /**
+     * Gets the value of an Integer property only if it is greater than 0.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a positive Integer.
+     */
+    public int getPositiveInt(Property<Integer> property) {
+        int value = getInt(property);
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
+        }
+        return value;
+    }
+
+    /**
+     * Gets a Duration from an Integer property only if it is greater than 0.
+     *
+     * @param property The Property to get.
+     * @param unit Temporal unit related to the value associated to this property (i.e, seconds, millis).
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a positive Integer.
+     */
+    public Duration getDuration(Property<Integer> property, TemporalUnit unit) {
+        return Duration.of(getPositiveInt(property), unit);
     }
 
     private <T> T tryGet(Property<T> property, Function<String, T> converter) {
