@@ -425,6 +425,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .host("0.0.0.0")
                     .port(this.restServerPort)
                     .tlsEnabled(this.enableTls)
+                    .tlsProtocolVersion(this.tlsProtocolVersion)
                     .keyFilePath(this.jksKeyFile)
                     .keyFilePasswordPath(this.keyPasswordFile)
                     .build();

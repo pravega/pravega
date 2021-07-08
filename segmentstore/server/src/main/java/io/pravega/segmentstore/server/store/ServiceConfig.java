@@ -413,6 +413,7 @@ public class ServiceConfig {
                 .host(properties.get(REST_LISTENING_HOST))
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
+                .tlsProtocolVersion(properties.get(TLS_PROTOCOL_VERSION))
                 .keyFilePath(properties.get(KEY_FILE))
                 .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
                 .build();
