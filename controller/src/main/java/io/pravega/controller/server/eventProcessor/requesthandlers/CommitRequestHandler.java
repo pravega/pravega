@@ -166,10 +166,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final OperationContext context) {
         Timer timer = new Timer();
         Map<String, TxnWriterMark> writerMarks = new HashMap<>();
-        //Map<String, Long> writerTimes = new HashMap<>();
-        //Map<String, UUID> writerTimesTxId = new HashMap<>();
         Map<UUID, String> txnIdToWriterId = new HashMap<>();
-        //Map<String, Map<Long, Long>> writerPositions = new HashMap<>();
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
@@ -186,13 +183,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     // completed all the work.
                                     return CompletableFuture.completedFuture(committingTxnsRecord);
                                 } else {
-                                    txnsTuple.getValue().forEach(txn -> {
-                                        if (!Strings.isNullOrEmpty(txn.getWriterId()) && (!writerMarks.containsKey(txn.getWriterId()) ||
-                                            writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime())) {
-                                            writerMarks.put(txn.getWriterId(), new TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
-                                        }
-                                        txnIdToWriterId.put(txn.getId(), txn.getWriterId());
-                                    });
                                     int txnEpoch = committingTxnsRecord.getObject().getEpoch();
                                     List<UUID> txnList = committingTxnsRecord.getObject().getTransactionsToCommit();
 
@@ -216,6 +206,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                             .thenAccept(stateRecord::set);
                                     }
 
+                                    txnsTuple.getValue().forEach(txn -> {
+                                        if (!Strings.isNullOrEmpty(txn.getWriterId()) && (!writerMarks.containsKey(txn.getWriterId()) ||
+                                                writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime())) {
+                                            writerMarks.put(txn.getWriterId(), new TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
+                                        }
+                                        txnIdToWriterId.put(txn.getId(), txn.getWriterId());
+                                    });
                                     // Note: since we have set the state to COMMITTING_TXN (or it was already sealing),
                                     // the active epoch that we fetch now cannot change until we perform rolling txn. 
                                     // TxnCommittingRecord ensures no other rollingTxn can run concurrently
@@ -417,7 +414,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     @Data
     @AllArgsConstructor
     public static class TxnWriterMark {
-        public static final TxnWriterMark EMPTY = new TxnWriterMark(Long.MIN_VALUE, ImmutableMap.of(), UUID.fromString(""));
         private long timestamp;
         private Map<Long, Long> position;
         private UUID transactionId;

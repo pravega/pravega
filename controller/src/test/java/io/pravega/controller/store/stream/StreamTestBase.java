@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -1615,16 +1616,17 @@ public abstract class StreamTestBase {
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time, context).join();
         streamObj.startCommittingTransactions(100, context).join();
-        streamObj.generateMarksForTransactions(context, Collections.singletonMap(writer1, time),
-                Collections.singletonMap(writer1, Collections.singletonMap(0L, 1L))).join();
+        CommitRequestHandler.TxnWriterMark writerMarks = new CommitRequestHandler.TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId);
+        Map<String, CommitRequestHandler.TxnWriterMark> marksForWriters = Collections.singletonMap(writer1, writerMarks);
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
 
-        /*
+
         // idempotent call to generateMarksForTransactions
-        streamObj.generateMarksForTransactions(context).join();
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
         mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
 
@@ -1633,11 +1635,10 @@ public abstract class StreamTestBase {
         AssertExtensions.assertFutureThrows("", streamObj.getActiveTx(0, txnId, context),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        streamObj.generateMarksForTransactions(context).join();
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
         mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
 
-         */
     }
     
     @Test(timeout = 30000L)
@@ -1667,8 +1668,11 @@ public abstract class StreamTestBase {
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L, context).join();
 
         streamObj.startCommittingTransactions(100, context).join();
-        streamObj.generateMarksForTransactions(context, Collections.singletonMap(writer, time + 4L),
-                Collections.singletonMap(writer, Collections.singletonMap(0L, 4L))).join();
+        CommitRequestHandler.TxnWriterMark writerMarks = new CommitRequestHandler.TxnWriterMark(time + 4L,
+                Collections.singletonMap(0L, 1L), txnId4);
+        Map<String, CommitRequestHandler.TxnWriterMark> marksForWriters = Collections.singletonMap(writer, writerMarks);
+
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = streamObj.getWriterMark(writer, context).join();
