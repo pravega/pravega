@@ -1623,8 +1623,7 @@ public abstract class StreamTestBase {
         // verify that writer mark is created in the store
         WriterMark mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
-
-
+        
         // idempotent call to generateMarksForTransactions
         streamObj.generateMarksForTransactions(context, marksForWriters).join();
         mark = streamObj.getWriterMark(writer1, context).join();
