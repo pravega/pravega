@@ -395,6 +395,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentNotSealedException If the source Segment is not sealed.
      * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
+     * @throws BadAttributeUpdateException     If any of the given AttributeUpdates is invalid given the current state of the segment.
      */
     void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
             throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException {

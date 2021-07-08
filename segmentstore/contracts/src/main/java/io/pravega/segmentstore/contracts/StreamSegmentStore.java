@@ -202,7 +202,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName,
-                                                                   Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+                                                                   AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.

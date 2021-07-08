@@ -2560,24 +2560,27 @@ public final class WireCommands {
      */
     @Data
     public static final class ConditionalAttributeUpdate {
-        public static final int LENGTH = 4 * Long.BYTES; // UUID (2 longs) + oldValue + newValue
+        public static final int LENGTH = 4 * Long.BYTES + 1; // UUID (2 longs) + oldValue + newValue + updateType (1 byte)
 
         private final UUID attributeId;
+        private final byte attributeUpdateType;
         private final long newValue;
         private final long oldValue;
 
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(attributeId.getMostSignificantBits());
             out.writeLong(attributeId.getLeastSignificantBits());
+            out.writeByte(attributeUpdateType);
             out.writeLong(newValue);
             out.writeLong(oldValue);
         }
 
         public static ConditionalAttributeUpdate readFrom(DataInput in, int length) throws IOException {
             UUID attributeId = new UUID(in.readLong(), in.readLong());
+            byte attributeUpdateType = in.readByte();
             long newValue = in.readLong();
             long oldValue = in.readLong();
-            return new ConditionalAttributeUpdate(attributeId, newValue, oldValue);
+            return new ConditionalAttributeUpdate(attributeId, attributeUpdateType, newValue, oldValue);
         }
 
         public int size() {

@@ -472,12 +472,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
 
         // Populate the AttributeUpdates for this mergeSegments operation, if any.
-        Collection<AttributeUpdate> attributeUpdates = null;
+        AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
         if (mergeSegments.getAttributeUpdates() != null) {
-            attributeUpdates = new ArrayList<>();
             for (WireCommands.ConditionalAttributeUpdate update : mergeSegments.getAttributeUpdates()) {
                 attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(update.getAttributeId()),
-                        AttributeUpdateType.ReplaceIfEquals, update.getNewValue(), update.getOldValue()));
+                    AttributeUpdateType.get(update.getAttributeUpdateType()), update.getNewValue(), update.getOldValue()));
             }
         }
 

@@ -101,7 +101,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
-                                                                          Collection<AttributeUpdate> attributes, Duration timeout) {
+                                                                          AttributeUpdateCollection attributes, Duration timeout) {
         CompletableFuture<MergeStreamSegmentResult> result = impl.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, attributes, timeout);
         Futures.await(result);
         return result;
