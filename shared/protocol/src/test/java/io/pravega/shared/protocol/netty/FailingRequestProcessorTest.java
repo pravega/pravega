@@ -42,6 +42,8 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
 
 import org.junit.Test;
 
+import java.util.UUID;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class FailingRequestProcessorTest {
@@ -78,7 +80,7 @@ public class FailingRequestProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null, null)));
         assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, "")));
         assertThrows(IllegalStateException.class, () -> rp.readTableEntriesDelta(new ReadTableEntriesDelta(0, "", "", 0, 0)));
-        assertThrows(IllegalStateException.class, () -> rp.createTransientSegment(new CreateTransientSegment(0, "", "")));
+        assertThrows(IllegalStateException.class, () -> rp.createTransientSegment(new CreateTransientSegment(0, new UUID(0, 0), "", "")));
     }
 
 }

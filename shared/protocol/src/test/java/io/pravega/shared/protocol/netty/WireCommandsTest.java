@@ -619,7 +619,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateTransientSegment() throws IOException {
-        testCommand(new WireCommands.CreateTransientSegment(l, testString1, ""));
+        testCommand(new WireCommands.CreateTransientSegment(l, new UUID(0, 0), testString1, ""));
     }
 
     @Test

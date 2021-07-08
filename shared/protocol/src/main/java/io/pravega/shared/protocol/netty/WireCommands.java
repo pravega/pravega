@@ -1176,7 +1176,8 @@ public final class WireCommands {
 
         final WireCommandType type = WireCommandType.CREATE_TRANSIENT_SEGMENT;
         final long requestId;
-        final String segmentName;
+        final UUID writerId;
+        final String parentSegment;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1188,16 +1189,19 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(segmentName);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeUTF(parentSegment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            String segmentName = in.readUTF();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            String parentSegment = in.readUTF();
             String delegationToken = in.readUTF();
 
-            return new CreateTransientSegment(requestId, segmentName, delegationToken);
+            return new CreateTransientSegment(requestId, writerId, parentSegment, delegationToken);
         }
     }
 

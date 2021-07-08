@@ -19,11 +19,18 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.netty.buffer.Unpooled;
 import org.junit.Test;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+import java.util.UUID;
+
 public class DelegatingRequestProcessorTest {
 
     private static final Event EMPTY_EVENT = new WireCommands.Event(Unpooled.wrappedBuffer(new byte[1]));
 
-    private MockRequestProcessor rp = new MockRequestProcessor();
+    private RequestProcessor rp = mock(RequestProcessor.class);
 
     @Test
     public void testEverythingCalled() {
@@ -36,7 +43,6 @@ public class DelegatingRequestProcessorTest {
         rp.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(0, "", ""));
         rp.createSegment(new WireCommands.CreateSegment(0, "", (byte) 0, 0, ""));
         rp.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(0, "", (byte) 0, 0, ""));
-        rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, ""));
         rp.deleteTableSegment(new WireCommands.DeleteTableSegment(0, "", false,  ""));
         rp.updateTableEntries(new WireCommands.UpdateTableEntries(0, "", "", null, 0));
         rp.removeTableKeys(new WireCommands.RemoveTableKeys(0, "", "", null, 0));
@@ -49,150 +55,33 @@ public class DelegatingRequestProcessorTest {
         rp.sealTableSegment(new WireCommands.SealTableSegment(0, "", ""));
         rp.truncateSegment(new WireCommands.TruncateSegment(0, "", 0, ""));
         rp.deleteSegment(new WireCommands.DeleteSegment(0, "", ""));
-        rp.readTableEntries(new WireCommands.ReadTableEntries(0, "", "", 0, null, null));
         rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, ""));
         rp.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(0, "", "", 0, 0));
-        rp.createTransientSegment(new WireCommands.CreateTransientSegment(0, "", ""));
-    }
+        rp.createTransientSegment(new WireCommands.CreateTransientSegment(0, new UUID(0, 0), "", ""));
 
-    private class EmptyRequestProcessor implements RequestProcessor {
-        @Override
-        public void hello(WireCommands.Hello hello) {
-
-        }
-
-        @Override
-        public void setupAppend(WireCommands.SetupAppend setupAppend) {
-
-        }
-
-        @Override
-        public void append(Append append) {
-
-        }
-
-        @Override
-        public void readSegment(WireCommands.ReadSegment readSegment) {
-
-        }
-
-        @Override
-        public void updateSegmentAttribute(WireCommands.UpdateSegmentAttribute updateSegmentAttribute) {
-
-        }
-
-        @Override
-        public void getSegmentAttribute(WireCommands.GetSegmentAttribute getSegmentAttribute) {
-
-        }
-
-        @Override
-        public void getStreamSegmentInfo(WireCommands.GetStreamSegmentInfo getStreamInfo) {
-
-        }
-
-        @Override
-        public void createSegment(WireCommands.CreateSegment createSegment) {
-
-        }
-
-        @Override
-        public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
-
-        }
-
-        @Override
-        public void mergeTableSegments(WireCommands.MergeTableSegments mergeSegments) {
-
-        }
-
-        @Override
-        public void sealSegment(WireCommands.SealSegment sealSegment) {
-
-        }
-
-        @Override
-        public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
-
-        }
-
-        @Override
-        public void truncateSegment(WireCommands.TruncateSegment truncateSegment) {
-
-        }
-
-        @Override
-        public void deleteSegment(WireCommands.DeleteSegment deleteSegment) {
-
-        }
-
-        @Override
-        public void keepAlive(WireCommands.KeepAlive keepAlive) {
-
-        }
-
-        @Override
-        public void updateSegmentPolicy(WireCommands.UpdateSegmentPolicy updateSegmentPolicy) {
-
-        }
-
-        @Override
-        public void createTableSegment(WireCommands.CreateTableSegment createTableSegment) {
-
-        }
-
-        @Override
-        public void deleteTableSegment(WireCommands.DeleteTableSegment deleteSegment) {
-
-        }
-
-        @Override
-        public void updateTableEntries(WireCommands.UpdateTableEntries tableEntries) {
-
-        }
-
-        @Override
-        public void removeTableKeys(WireCommands.RemoveTableKeys tableKeys) {
-
-        }
-
-        @Override
-        public void readTable(WireCommands.ReadTable readTable) {
-
-        }
-
-        @Override
-        public void readTableKeys(WireCommands.ReadTableKeys readTableKeys) {
-
-        }
-
-        @Override
-        public void readTableEntries(WireCommands.ReadTableEntries readTableEntries) {
-
-        }
-
-        @Override
-        public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
-
-        }
-
-        @Override
-        public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
-
-        }
-    }
-
-    private class MockRequestProcessor extends DelegatingRequestProcessor {
-        RequestProcessor empty = new EmptyRequestProcessor();
-
-        @Override
-        public RequestProcessor getNextRequestProcessor() {
-            return empty;
-        }
-
-        @Override
-        public void hello(WireCommands.Hello hello) {
-
-        }
+        verify(rp, times(1)).hello(any());
+        verify(rp, times(1)).setupAppend(any());
+        verify(rp, times(1)).append(any());
+        verify(rp, times(1)).readSegment(any());
+        verify(rp, times(1)).updateSegmentAttribute(any());
+        verify(rp, times(1)).getSegmentAttribute(any());
+        verify(rp, times(1)).getStreamSegmentInfo(any());
+        verify(rp, times(1)).createSegment(any());
+        verify(rp, times(1)).updateSegmentPolicy(any());
+        verify(rp, times(1)).createTableSegment(any());
+        verify(rp, times(1)).deleteTableSegment(any());
+        verify(rp, times(1)).updateTableEntries(any());
+        verify(rp, times(1)).removeTableKeys(any());
+        verify(rp, times(1)).readTable(any());
+        verify(rp, times(1)).readTableKeys(any());
+        verify(rp, times(1)).mergeSegments(any());
+        verify(rp, times(1)).mergeTableSegments(any());
+        verify(rp, times(1)).sealSegment(any());
+        verify(rp, times(1)).sealTableSegment(any());
+        verify(rp, times(1)).truncateSegment(any());
+        verify(rp, times(1)).deleteSegment(any());
+        verify(rp, times(1)).readTableEntries(any());
+        verify(rp, times(1)).readTableEntriesDelta(any());
+        verify(rp, times(1)).createTransientSegment(any());
     }
 }
