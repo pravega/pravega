@@ -19,17 +19,17 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.ByteArrayInputStream;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -38,7 +38,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +47,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
@@ -337,6 +338,17 @@ public class ContainerRecoveryUtils {
             // Get the container for segments inside back up metadata segment
             val container = containersMap.get(backUpMetadataSegmentEntry.getKey());
 
+            // Make sure the backup segment is registered as a table segment.
+            val bmsInfo = containerForBackUpMetadataSegment.getStreamSegmentInfo(backUpMetadataSegment, timeout)
+                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (bmsInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, Attributes.NULL_ATTRIBUTE_VALUE) == Attributes.NULL_ATTRIBUTE_VALUE) {
+                log.info("Back up container metadata segment name: {} does not have INDEX_OFFSET set; setting to 0 (forcing reindexing).", backUpMetadataSegment);
+                containerForBackUpMetadataSegment.forSegment(backUpMetadataSegment, timeout)
+                        .thenCompose(s -> s.updateAttributes(AttributeUpdateCollection.from(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, 0)), timeout))
+                        .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                refreshDerivedProperties(backUpMetadataSegment, containerForBackUpMetadataSegment);
+            }
+
             // Get the iterator to iterate through all segments in the back up metadata segment
             val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
@@ -357,20 +369,29 @@ public class ContainerRecoveryUtils {
                     }
 
                     // Get the attributes for the current segment
-                    List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
+                    val attributeUpdates = properties.getAttributes().entrySet().stream()
                             .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
-                            .collect(Collectors.toList());
+                            .collect(Collectors.toCollection(AttributeUpdateCollection::new));
                     log.info("Segment Name: {} Attributes Updates: {}", properties.getName(), attributeUpdates);
 
                     // Update attributes for the current segment
                     futures.add(Futures.exceptionallyExpecting(
-                            container.updateAttributes(properties.getName(), attributeUpdates, timeout),
+                            container.updateAttributes(properties.getName(), attributeUpdates, timeout)
+                                    .thenRun(() -> refreshDerivedProperties(properties.getName(), container)),
                             ex -> ex instanceof StreamSegmentNotExistsException, null));
                 }
             }, executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Waiting for update attributes for all segments in each back up metadata segment.
             Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private static void refreshDerivedProperties(String segmentName, DebugStreamSegmentContainer container) {
+        val m = container.getMetadata().getStreamSegmentMetadata(
+                container.getMetadata().getStreamSegmentId(segmentName, false));
+        if (m != null) {
+            m.refreshDerivedProperties();
         }
     }
 

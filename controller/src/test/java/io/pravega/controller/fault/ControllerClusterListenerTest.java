@@ -21,6 +21,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -37,7 +38,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
-import io.pravega.test.common.TestingServerStarter;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -47,14 +47,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -73,11 +70,12 @@ import static org.mockito.Mockito.verify;
  */
 @Slf4j
 public class ControllerClusterListenerTest {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
-    private TestingServer zkServer;
-    private CuratorFramework curatorClient;
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     private ScheduledExecutorService executor;
     private ClusterZKImpl clusterZK;
 
@@ -86,19 +84,12 @@ public class ControllerClusterListenerTest {
 
     @Before
     public void setup() throws Exception {
-        // 1. Start ZK server.
-        zkServer = new TestingServerStarter().start();
 
-        // 2. Start ZK client.
-        curatorClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        curatorClient.start();
-
-        // 3. Start executor service.
+        // 1. Start executor service.
         executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
-        // 4. start cluster event listener
-        clusterZK = new ClusterZKImpl(curatorClient, ClusterType.CONTROLLER);
+        // 2. start cluster event listener
+        clusterZK = new ClusterZKImpl(PRAVEGA_ZK_CURATOR_RESOURCE.client, ClusterType.CONTROLLER);
 
         clusterZK.addListener((eventType, host) -> {
             switch (eventType) {
@@ -119,8 +110,6 @@ public class ControllerClusterListenerTest {
     public void shutdown() throws Exception {
         clusterZK.close();
         ExecutorServiceHelpers.shutdown(executor);
-        curatorClient.close();
-        zkServer.close();
     }
 
     @Test(timeout = 60000L)
@@ -137,7 +126,7 @@ public class ControllerClusterListenerTest {
         @Cleanup
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
@@ -184,7 +173,7 @@ public class ControllerClusterListenerTest {
         CompletableFuture<Void> txnHostSweepIgnore = new CompletableFuture<>();
         CompletableFuture<Void> txnHostSweep2 = new CompletableFuture<>();
         // Create task sweeper.
-        TaskMetadataStore taskStore = TaskStoreFactory.createZKStore(curatorClient, executor);
+        TaskMetadataStore taskStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         TaskSweeper taskSweeper = spy(new TaskSweeper(taskStore, host.getHostId(), executor,
                 new TestTasks(taskStore, executor, host.getHostId())));
 
@@ -211,7 +200,7 @@ public class ControllerClusterListenerTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
@@ -231,7 +220,7 @@ public class ControllerClusterListenerTest {
             }
             return CompletableFuture.completedFuture(null);
         }).when(txnSweeper).sweepFailedProcesses(any());
-        
+
         doAnswer(invocation -> {
             if (!txnHostSweep2.isDone()) {
                 txnHostSweep2.complete(null);
@@ -264,7 +253,7 @@ public class ControllerClusterListenerTest {
             }
             return CompletableFuture.completedFuture(null);
         }).when(requestSweeper).sweepFailedProcesses(any());
-        
+
         doAnswer(invocation -> {
             if (!requestHostSweep2.isDone()) {
                 requestHostSweep2.complete(null);
@@ -317,7 +306,7 @@ public class ControllerClusterListenerTest {
         // verify that txn sweeper was checked to be ready. It would have found it not ready at this point
         verify(txnSweeper, atLeast(1)).isReady();
 
-        // request sweeper 
+        // request sweeper
         // verify that txns are not yet swept as txnsweeper is not yet ready.
         verify(requestSweeper, times(0)).sweepFailedProcesses(any());
         verify(requestSweeper, times(0)).handleFailedProcess(anyString());

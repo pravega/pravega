@@ -15,6 +15,7 @@
  */
 package io.pravega.client.tables;
 
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -25,7 +26,24 @@ import org.junit.Test;
 public class KeyValueTableConfigurationTest {
     @Test
     public void testBuilder() {
-        val c = KeyValueTableConfiguration.builder().partitionCount(4).build();
+        val c = KeyValueTableConfiguration.builder()
+                .partitionCount(4)
+                .primaryKeyLength(8)
+                .secondaryKeyLength(6).build();
         Assert.assertEquals(4, c.getPartitionCount());
+        Assert.assertEquals(8, c.getPrimaryKeyLength());
+        Assert.assertEquals(6, c.getSecondaryKeyLength());
+
+        AssertExtensions.assertThrows("build() accepted bad partitionCount.",
+                () -> KeyValueTableConfiguration.builder().partitionCount(0).primaryKeyLength(8).secondaryKeyLength(4).build(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("build() accepted bad primaryKeyLength.",
+                () -> KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(0).secondaryKeyLength(4).build(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("build() accepted bad secondaryKeyLength.",
+                () -> KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(8).secondaryKeyLength(-1).build(),
+                ex -> ex instanceof IllegalArgumentException);
     }
 }

@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.contracts;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -59,66 +58,72 @@ public class Attributes {
     /**
      * Defines an attribute that can be used to denote Segment creation time.
      */
-    public static final UUID CREATION_TIME = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 0);
+    public static final AttributeId CREATION_TIME = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 0);
 
     /**
      * Defines an attribute that can be used to keep track of the number of events in a Segment.
      */
-    public static final UUID EVENT_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 1);
+    public static final AttributeId EVENT_COUNT = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 1);
 
     /**
      * Defines an attribute that is used to keep scale policy type for stream segment.
      */
-    public static final UUID SCALE_POLICY_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 2);
+    public static final AttributeId SCALE_POLICY_TYPE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 2);
 
     /**
      * Defines an attribute that is used to keep scale policy rate for stream segment.
      */
-    public static final UUID SCALE_POLICY_RATE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 3);
+    public static final AttributeId SCALE_POLICY_RATE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 3);
 
     /**
      * Defines an attribute that is used to set the value after which a Segment needs to be rolled over in Storage.
      */
-    public static final UUID ROLLOVER_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 4);
+    public static final AttributeId ROLLOVER_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 4);
 
     /**
      * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
      * Attribute Snapshot Location.
      */
-    private static final UUID RETIRED_1 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
+    private static final AttributeId RETIRED_1 = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 5);
 
     /**
      * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
      * Attribute Snapshot Length.
      */
-    private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
+    private static final AttributeId RETIRED_2 = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
      * Defines an attribute that is used to keep a pointer (offset) to the Attribute Segment BTree Index Root Information.
      */
-    public static final UUID ATTRIBUTE_SEGMENT_ROOT_POINTER = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
+    public static final AttributeId ATTRIBUTE_SEGMENT_ROOT_POINTER = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 7);
 
     /**
      * Defines an attribute that is used to track the Sequence Number of the last Operation that was persisted into
      * the Attribute Index.
      */
-    public static final UUID ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
+    public static final AttributeId ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 8);
 
     /**
      * Defines an attribute that is used to store the Segment's Type ({@link SegmentType#getValue()}.
      * This attribute cannot be modified once set on the Segment.
      */
-    public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
+    public static final AttributeId ATTRIBUTE_SEGMENT_TYPE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
      * Defines an attribute that is used to store SLTS snapshot id.
      */
-    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 10);
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 10);
 
     /**
      * Defines an attribute that is used to store SLTS snapshot epoch.
      */
-    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 11);
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 11);
+
+    /**
+     * Defines an attribute that is used to store the Segment's Extended Attribute Id Length.
+     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
+     */
+    public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 12);
 
     /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
@@ -126,8 +131,8 @@ public class Attributes {
      * @param attributeId The Attribute Id to check.
      * @return True if immutable, false otherwise.
      */
-    public static boolean isUnmodifiable(UUID attributeId) {
-        return attributeId == ATTRIBUTE_SEGMENT_TYPE;
+    public static boolean isUnmodifiable(AttributeId attributeId) {
+        return attributeId == ATTRIBUTE_SEGMENT_TYPE || attributeId == ATTRIBUTE_ID_LENGTH;
     }
 
     /**
@@ -136,8 +141,8 @@ public class Attributes {
      * @param attributeId The Attribute Id to check.
      * @return True if Core Attribute, false otherwise.
      */
-    public static boolean isCoreAttribute(UUID attributeId) {
-        return attributeId.getMostSignificantBits() == CORE_ATTRIBUTE_ID_PREFIX;
+    public static boolean isCoreAttribute(AttributeId attributeId) {
+        return attributeId.isUUID() && attributeId.getBitGroup(0) == CORE_ATTRIBUTE_ID_PREFIX;
     }
 
     /**
@@ -147,7 +152,7 @@ public class Attributes {
      * @param attributes The Map of Attribute Ids to Values to filter from.
      * @return A new Map containing only Core Attribute Ids and Values (from the original map).
      */
-    public static Map<UUID, Long> getCoreNonNullAttributes(Map<UUID, Long> attributes) {
+    public static Map<AttributeId, Long> getCoreNonNullAttributes(Map<AttributeId, Long> attributes) {
         return attributes.entrySet().stream()
                          .filter(e -> Attributes.isCoreAttribute(e.getKey()) && e.getValue() != NULL_ATTRIBUTE_VALUE)
                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

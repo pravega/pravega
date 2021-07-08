@@ -20,6 +20,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -32,7 +33,6 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.shared.NameUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -44,14 +44,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -59,10 +58,12 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 public class StreamTest extends ThreadPooledTestSuite {
+
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
-    private TestingServer zkTestServer;
-    private CuratorFramework cli;
     private ZkOrderedStore orderer;
 
     @Override
@@ -72,16 +73,12 @@ public class StreamTest extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
-        cli.start();
-        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executorService()), executorService());
+        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService()), executorService());
     }
 
     @After
     public void tearDown() throws Exception {
-        cli.close();
-        zkTestServer.close();
+
     }
 
     @Test(timeout = 10000)
@@ -105,9 +102,9 @@ public class StreamTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService());
         ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executorService());
-        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executorService(), orderer);
+        ZKStream zkStream = new ZKStream("test1", "test1", zkStoreHelper, executorService(), orderer);
         testStream(zkStream);
     }
 
@@ -187,8 +184,8 @@ public class StreamTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScaleZk() throws Exception {
-        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executorService())) {
-            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
+        try (final StreamMetadataStore store = new ZKStreamMetadataStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService())) {
+            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService());
             testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper, executorService(), orderer));
         }
     }
@@ -199,7 +196,7 @@ public class StreamTest extends ThreadPooledTestSuite {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService());
         GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
-                segmentHelper, cli, executorService(), authHelper)) {
+                segmentHelper, PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService(), authHelper)) {
 
             testConcurrentGetSuccessorScale(store, (x, y) -> {
                 PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());

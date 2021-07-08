@@ -16,7 +16,7 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;
@@ -109,6 +109,12 @@ public interface ControllerServiceConfig {
      * @return Duration for retention frequency.
      */
     Duration getRetentionFrequency();
+
+    /**
+     * Frequency at which the {@link io.pravega.shared.health.HealthServiceUpdater} will update the health state of
+     * the Controller service(s).
+     */
+    Duration getHealthCheckFrequency();
 
     /**
      * How long to await a graceful shutdown.

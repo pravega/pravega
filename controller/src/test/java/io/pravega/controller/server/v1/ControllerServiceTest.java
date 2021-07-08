@@ -26,6 +26,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -52,7 +53,6 @@ import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,14 +64,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -90,6 +88,8 @@ import static org.mockito.Mockito.spy;
  */
 public class ControllerServiceTest {
 
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
@@ -107,22 +107,14 @@ public class ControllerServiceTest {
     private ConnectionPool connectionPool;
     private ControllerService consumer;
 
-    private CuratorFramework zkClient;
-    private TestingServer zkServer;
-
     private long startTs;
     private long scaleTs;
 
     private RequestTracker requestTracker = new RequestTracker(true);
     @Before
     public void setup() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
 
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
@@ -198,8 +190,6 @@ public class ControllerServiceTest {
         streamMetadataTasks.close();
         connectionPool.close();
         streamStore.close();
-        zkClient.close();
-        zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

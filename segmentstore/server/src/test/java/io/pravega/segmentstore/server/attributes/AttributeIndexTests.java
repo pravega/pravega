@@ -21,6 +21,7 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -55,7 +56,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -116,18 +116,18 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     public void testIterator() {
         final int count = 2000;
         final int checkSkipCount = 10;
-        val attributes = IntStream.range(-count / 2, count / 2).mapToObj(i -> new UUID(i, -i)).collect(Collectors.toList());
+        val attributes = IntStream.range(-count / 2, count / 2).mapToObj(i -> AttributeId.uuid(i, -i)).collect(Collectors.toList());
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
 
         // 1. Populate and verify first index.
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
 
         // Populate data.
         AtomicLong nextValue = new AtomicLong(0);
-        for (UUID attributeId : attributes) {
+        for (AttributeId attributeId : attributes) {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
         }
@@ -135,12 +135,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         idx.update(expectedValues, TIMEOUT).join();
 
         // Check iterator.
-        // Sort the keys using natural order (UUID comparator).
+        // Sort the keys using natural order (AttributeId comparator).
         val sortedKeys = expectedValues.keySet().stream().sorted().collect(Collectors.toList());
 
         // Add some values outside of the bounds.
-        sortedKeys.add(0, new UUID(Long.MIN_VALUE, Long.MIN_VALUE));
-        sortedKeys.add(new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
+        sortedKeys.add(0, AttributeId.uuid(Long.MIN_VALUE, Long.MIN_VALUE));
+        sortedKeys.add(AttributeId.uuid(Long.MAX_VALUE, Long.MAX_VALUE));
 
         // Check various combinations.
         for (int startIndex = 0; startIndex < sortedKeys.size() / 2; startIndex += checkSkipCount) {
@@ -171,7 +171,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testSeal() {
         int attributeCount = 1000;
-        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> AttributeId.uuid(i, i)).collect(Collectors.toList());
         val config = AttributeIndexConfig
                 .builder()
                 .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, DEFAULT_CONFIG.getMaxIndexPageSize())
@@ -184,11 +184,11 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // 1. Populate and verify first index.
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
 
         // Populate data.
         AtomicLong nextValue = new AtomicLong(0);
-        for (UUID attributeId : attributes) {
+        for (AttributeId attributeId : attributes) {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
         }
@@ -202,7 +202,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         idx.seal(TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "Index allowed adding new values after being sealed.",
-                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
+                () -> idx.update(Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         // Check index again, after sealing.
@@ -229,7 +229,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "Index allowed adding new values when sealed.",
-                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
+                () -> idx.update(Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         idx.seal(TIMEOUT).join();
@@ -248,7 +248,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val sm = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        idx.update(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT).join();
+        idx.update(Collections.singletonMap(AttributeId.randomUUID(), 0L), TIMEOUT).join();
 
         // We intentionally delete twice to make sure the operation is idempotent.
         context.index.delete(sm.getName(), TIMEOUT).join();
@@ -256,7 +256,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "update() worked after delete().",
-                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
+                () -> idx.update(Collections.singletonMap(AttributeId.randomUUID(), 0L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertSuppliedFutureThrows(
@@ -280,7 +280,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testStorageFailure() {
-        val attributeId = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
@@ -314,7 +314,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     public void testCacheWriteFailure() throws Exception {
         val exceptionMakers = Arrays.<Supplier<RuntimeException>>asList(
                 IntentionalException::new, () -> new CacheFullException("intentional"));
-        val attributeId = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
         val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         val initialValue = 0L;
         val finalValue = 1L;
@@ -380,7 +380,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Create one index before main segment deletion.
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        idx.update(Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT).join();
 
         // Clear the cache (otherwise we'll just end up serving cached entries and not try to access Storage).
         idx.removeAllCacheEntries();
@@ -393,12 +393,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Verify relevant operations cannot proceed.
         AssertExtensions.assertSuppliedFutureThrows(
                 "update() worked on deleted segment.",
-                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
+                () -> idx.update(Collections.singletonMap(AttributeId.randomUUID(), 2L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "get() worked on deleted segment.",
-                () -> idx.get(Collections.singleton(UUID.randomUUID()), TIMEOUT),
+                () -> idx.get(Collections.singleton(AttributeId.randomUUID()), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertSuppliedFutureThrows(
@@ -413,8 +413,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testConditionalUpdates() {
-        val attributeId = UUID.randomUUID();
-        val attributeId2 = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
+        val attributeId2 = AttributeId.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
@@ -484,9 +484,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 result -> result.get(0));
     }
 
-    private <T> void testTruncatedSegment(BiFunction<UUID, AttributeIndex, CompletableFuture<T>> toTest,
-                                          Function<T, Map.Entry<UUID, Long>> getValue) throws Exception {
-        val attributeId = UUID.randomUUID();
+    private <T> void testTruncatedSegment(BiFunction<AttributeId, AttributeIndex, CompletableFuture<T>> toTest,
+                                          Function<T, Map.Entry<AttributeId, Long>> getValue) throws Exception {
+        val attributeId = AttributeId.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         val config = AttributeIndexConfig.builder()
                 .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10) // Very, very frequent rollovers.
@@ -548,7 +548,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 .build();
         val attributeCount = config.getMaxIndexPageSize() / 16;
         val attributes = IntStream.range(0, attributeCount).boxed()
-                .collect(Collectors.toMap(value -> UUID.randomUUID(), value -> (long) value));
+                .collect(Collectors.toMap(value -> AttributeId.randomUUID(), value -> (long) value));
         @Cleanup
         val context = new TestContext(config);
         populateSegments(context);
@@ -634,7 +634,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testCacheEviction() {
         int attributeCount = 1000;
-        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> AttributeId.uuid(i, i)).collect(Collectors.toList());
         val config = AttributeIndexConfig
                 .builder()
                 .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 1024)
@@ -647,11 +647,11 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // 1. Populate and verify first index.
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
 
         // Populate data.
         AtomicLong nextValue = new AtomicLong(0);
-        for (UUID attributeId : attributes) {
+        for (AttributeId attributeId : attributes) {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
         }
@@ -689,7 +689,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testNonEssentialCache() throws Exception {
-        val attributeId = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
         val config = AttributeIndexConfig
                 .builder()
                 .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 1024)
@@ -702,7 +702,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // 1. Populate and verify first index.
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
         expectedValues.put(attributeId, 1L);
 
         // Populate data.
@@ -752,7 +752,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIndexCorruption() {
-        val attributeId = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
@@ -806,7 +806,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testRecoveryWithAtomicStorageWrites() {
-        val attribute = UUID.randomUUID();
+        val attribute = AttributeId.randomUUID();
         val value1 = 1L;
         val value2 = 2L;
         val noRollingConfig = AttributeIndexConfig.builder().build(); // So we don't trip over rollovers.
@@ -846,7 +846,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testRecoveryAfterIncompleteUpdateWithNoRootPointer() {
-        val attribute = UUID.randomUUID();
+        val attribute = AttributeId.randomUUID();
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         // Lie to the SegmentAttributeBTreeIndex. Tell it that the Storage adapter does support atomic writes, but it
@@ -893,7 +893,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testRecoveryAfterIncompleteUpdateWithRootPointer() {
         final int attributeCount = 1000;
-        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> AttributeId.uuid(i, i)).collect(Collectors.toList());
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         // Root pointers are read from Segment's Metadata if Storage does not support atomic writes. This test validates
@@ -904,10 +904,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // 1. Populate and verify first index.
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
-        val updateBatch = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
+        val updateBatch = new HashMap<AttributeId, Long>();
         AtomicLong nextValue = new AtomicLong(0);
-        for (UUID attributeId : attributes) {
+        for (AttributeId attributeId : attributes) {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
             updateBatch.put(attributeId, value);
@@ -960,17 +960,17 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 8)
                 .build();
         final int attributeCount = 20;
-        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> AttributeId.uuid(i, i)).collect(Collectors.toList());
         @Cleanup
         val context = new TestContext(config);
         populateSegments(context);
 
         // 1. Populate and verify first index.
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
         long nextValue = 0;
         long previousRootPointer = -1;
         boolean invalidRootPointer = false;
-        for (UUID attributeId : attributes) {
+        for (AttributeId attributeId : attributes) {
             val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
 
             val value = nextValue++;
@@ -1020,7 +1020,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testLazyCreateAttributeSegment() {
-        val attributeId = UUID.randomUUID();
+        val attributeId = AttributeId.randomUUID();
         val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
@@ -1049,24 +1049,24 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config) {
-        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> AttributeId.uuid(i, i)).collect(Collectors.toList());
         @Cleanup
         val context = new TestContext(config);
         populateSegments(context);
 
         // 1. Populate and verify first index.
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        val expectedValues = new HashMap<UUID, Long>();
+        val expectedValues = new HashMap<AttributeId, Long>();
 
         // Record every time we read from Storage.
         AtomicBoolean storageRead = new AtomicBoolean(false);
         context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
 
         // Populate data.
-        val updateBatch = new HashMap<UUID, Long>();
+        val updateBatch = new HashMap<AttributeId, Long>();
         AtomicLong nextValue = new AtomicLong(0);
         for (int r = 0; r < repeats; r++) {
-            for (UUID attributeId : attributes) {
+            for (AttributeId attributeId : attributes) {
                 long value = nextValue.getAndIncrement();
                 expectedValues.put(attributeId, value);
                 updateBatch.put(attributeId, value);
@@ -1100,13 +1100,13 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         checkIndex(idx2, expectedValues);
     }
 
-    private Map<UUID, Long> toDelete(Collection<UUID> keys) {
-        val result = new HashMap<UUID, Long>();
+    private Map<AttributeId, Long> toDelete(Collection<AttributeId> keys) {
+        val result = new HashMap<AttributeId, Long>();
         keys.forEach(key -> result.put(key, null));
         return result;
     }
 
-    private void checkIndex(AttributeIndex index, Map<UUID, Long> expectedValues) {
+    private void checkIndex(AttributeIndex index, Map<AttributeId, Long> expectedValues) {
         val actual = index.get(expectedValues.keySet(), TIMEOUT).join();
         val expected = expectedValues.entrySet().stream()
                 .filter(e -> e.getValue() != Attributes.NULL_ATTRIBUTE_VALUE)
@@ -1281,13 +1281,13 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+        CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, boolean shouldCache, Duration timeout) {
             val interceptor = this.readPageInterceptor;
             if (interceptor != null) {
                 return interceptor.apply(handle, offset, length)
-                        .thenCompose(v -> super.readPageFromStorage(handle, offset, length, timeout));
+                        .thenCompose(v -> super.readPageFromStorage(handle, offset, length, shouldCache, timeout));
             }
-            return super.readPageFromStorage(handle, offset, length, timeout);
+            return super.readPageFromStorage(handle, offset, length, shouldCache, timeout);
         }
     }
 

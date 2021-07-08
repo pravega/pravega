@@ -34,9 +34,9 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AuthorizationResource;
 import io.pravega.shared.security.auth.AuthorizationResourceImpl;
+import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.server.security.auth.StreamAuthParams;
-import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
@@ -106,6 +106,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
 
+import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.*;
 
 /**
@@ -298,6 +299,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     return result;
                 }, streamsFn, responseObserver, requestTag);
 
+    }
+
+    @Override
+    public void getKeyValueTableConfiguration(KeyValueTableInfo request, StreamObserver<Controller.KeyValueTableConfigResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                GET_KEY_VALUE_TABLE_CONFIGURATION, request.getScope(), request.getKvtName());
+
+        log.info(requestTag.getRequestId(), "{} called for {}/{}.", GET_KEY_VALUE_TABLE_CONFIGURATION,
+                request.getScope(), request.getKvtName());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
+                AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.getKeyValueTableConfiguration(request.getScope(), request.getKvtName(), requestTag.getRequestId()),
+                responseObserver, requestTag);
     }
 
     @Override
@@ -772,7 +787,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getLease(), requestTag.getRequestId())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(delegationToken)
-                                                                                      .setTxnId(ModelHelper.decode(pair.getKey()))
+                                                                                      .setTxnId(decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
                 responseObserver, requestTag);
@@ -986,6 +1001,43 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void getStreamConfiguration(StreamInfo request, StreamObserver<StreamConfig> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                                                                            GET_STREAM_CONFIGURATION);
+        String scope = request.getScope();
+        String stream = request.getStream();
+        log.info(requestTag.getRequestId(), "{} called for {}/{}.", GET_STREAM_CONFIGURATION, scope, stream);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    authorizationResource.ofStreamInScope(scope, stream),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                      authorizationResource.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<StreamConfig>> streamFn = delegationToken -> controllerService
+                .getStream(scope, stream, requestTag.getRequestId())
+                .handle((response, e) -> {
+                    if (e != null) {
+                        throw new CompletionException(e);
+                    } else {
+                        return decode(scope, stream, response);
+
+                    }
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, streamFn, responseObserver, requestTag);
+    }
+
+    @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, 
                                    StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
@@ -1020,13 +1072,59 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
         authenticateExecuteAndProcessResults(
                 () -> {
-                        String result = this.grpcAuthHelper.checkAuthorization(
-                                authorizationResource.ofScope(scopeName),
-                                AuthHandler.Permissions.READ,
-                                ctx);
-                        log.debug("Result of authorization for [{}] and READ permission is: [{}]",
-                                authorizationResource.ofScope(scopeName), result);
-                        return result;
+                    String result = this.grpcAuthHelper.checkAuthorization(
+                            authorizationResource.ofScope(scopeName),
+                            AuthHandler.Permissions.READ,
+                            ctx);
+                    log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                              authorizationResource.ofScope(scopeName), result);
+                    return result;
+                }, streamsFn, responseObserver, requestTag);
+    }
+
+    @Override
+    public void listStreamsInScopeForTag(Controller.StreamsInScopeWithTagRequest request,
+                                   StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+        String scopeName = request.getScope().getScope();
+        String tag = request.getTag();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                                                                            LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName);
+        log.info(requestTag.getRequestId(), "{} called for scope {} and tags {}", LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName, tag);
+
+        final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
+        Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
+                listWithFilter(request.getContinuationToken().getToken(), pageLimit,
+                               (x, y) -> controllerService.listStreamsForTag(scopeName, tag, x, requestTag.getRequestId()),
+                               x -> grpcAuthHelper.isAuthorized(authorizationResource.ofStreamInScope(scopeName, x),
+                                                                AuthHandler.Permissions.READ, ctx),
+                               x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build(), requestTag.getRequestId())
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.StreamsInScopeResponse
+                                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                                            .build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                return Controller.StreamsInScopeResponse
+                                        .newBuilder().addAllStreams(response.getKey())
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                                          .setToken(response.getValue()).build())
+                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                            }
+                        });
+
+        authenticateExecuteAndProcessResults(
+                () -> {
+                    String result = this.grpcAuthHelper.checkAuthorization(
+                            authorizationResource.ofScope(scopeName),
+                            AuthHandler.Permissions.READ,
+                            ctx);
+                    log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                              authorizationResource.ofScope(scopeName), result);
+                    return result;
                 }, streamsFn, responseObserver, requestTag);
     }
     

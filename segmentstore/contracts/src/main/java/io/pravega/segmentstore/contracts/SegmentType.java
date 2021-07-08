@@ -18,7 +18,6 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import java.util.Map;
-import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -38,10 +37,6 @@ public class SegmentType {
      * General Table Segment with no special roles.
      */
     public static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
-    /**
-     * General Sorted Table Segment with no special roles.
-     */
-    public static final SegmentType TABLE_SEGMENT_SORTED = SegmentType.builder().sortedTableSegment().build();
 
     //endregion
 
@@ -58,7 +53,7 @@ public class SegmentType {
     @VisibleForTesting
     static final long FORMAT_TABLE_SEGMENT = 0b0000_0001L;
     @VisibleForTesting
-    static final long FORMAT_SORTED_TABLE_SEGMENT = 0b0000_0010L | FORMAT_TABLE_SEGMENT;
+    static final long FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT = 0b0000_0100L | FORMAT_TABLE_SEGMENT;
     @VisibleForTesting
     static final long ROLE_INTERNAL = 0b0001_0000L;
     @VisibleForTesting
@@ -106,12 +101,12 @@ public class SegmentType {
     }
 
     /**
-     * Whether this {@link SegmentType} refers to a Sorted Table Segment (which implies {@link #isTableSegment()}.
+     * Whether this {@link SegmentType} refers to a Fixed-Key-Length Table Segment (which implies {@link #isTableSegment()}.
      *
-     * @return True if Sorted Table Segment, false otherwise.
+     * @return True if Fixed-Key-Length Table Segment, false otherwise.
      */
-    public boolean isSortedTableSegment() {
-        return (this.flags & FORMAT_SORTED_TABLE_SEGMENT) == FORMAT_SORTED_TABLE_SEGMENT;
+    public boolean isFixedKeyLengthTableSegment() {
+        return (this.flags & FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT) == FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT;
     }
 
     /**
@@ -151,8 +146,8 @@ public class SegmentType {
     public String toString() {
         StringBuilder result = new StringBuilder();
         result.append(String.format("[%s]: Base", this.flags));
-        if (isSortedTableSegment()) {
-            result.append(", Table Segment (Sorted)");
+        if (isFixedKeyLengthTableSegment()) {
+            result.append(", Table Segment (Fixed-Key-Length)");
         } else if (isTableSegment()) {
             result.append(", Table Segment");
         }
@@ -182,22 +177,19 @@ public class SegmentType {
      * Attributes Checked:
      * - {@link Attributes#ATTRIBUTE_SEGMENT_TYPE} (base value)
      * - {@link TableAttributes#INDEX_OFFSET} (whether a Table Segment - if not already in base value)
-     * - {@link TableAttributes#SORTED} (whether a Sorted Table Segment - if not already in base value)
      *
      * The {@link TableAttributes} is necessary to support upgrades. {@link SegmentType} was introduced in Pravega 0.9,
-     * however Table Segments (and their sorted versions) were introduced in prior versions.
+     * however Table Segments were introduced in prior versions. Fixed-Key-Length Table Segments were introduced post 0.9,
+     * so they should already have the correct Segment Type set.
      *
      * @param segmentAttributes A {@link Map} containing the Segment's Attributes to load from.
      * @return A {@link SegmentType}.
      */
-    public static SegmentType fromAttributes(Map<UUID, Long> segmentAttributes) {
+    public static SegmentType fromAttributes(Map<AttributeId, Long> segmentAttributes) {
         long type = segmentAttributes.getOrDefault(Attributes.ATTRIBUTE_SEGMENT_TYPE, FORMAT_BASIC);
         Builder builder = new Builder(type);
         if (segmentAttributes.containsKey(TableAttributes.INDEX_OFFSET)) {
             builder.tableSegment();
-            if (segmentAttributes.getOrDefault(TableAttributes.SORTED, Attributes.BOOLEAN_FALSE) == Attributes.BOOLEAN_TRUE) {
-                builder.sortedTableSegment();
-            }
         }
 
         return builder.build();
@@ -210,7 +202,7 @@ public class SegmentType {
      * @param segmentAttributes A {@link Map} representing the segment attributes to update.
      * @return True if the value was inserted or modified, false if an identical value already existed.
      */
-    public boolean intoAttributes(Map<UUID, Long> segmentAttributes) {
+    public boolean intoAttributes(Map<AttributeId, Long> segmentAttributes) {
         Long previous = segmentAttributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, this.flags);
         return previous == null || previous != this.flags;
     }
@@ -250,8 +242,8 @@ public class SegmentType {
             return this;
         }
 
-        public Builder sortedTableSegment() {
-            this.flags |= FORMAT_SORTED_TABLE_SEGMENT;
+        public Builder fixedKeyLengthTableSegment() {
+            this.flags |= FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT;
             return this;
         }
 

@@ -42,6 +42,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -127,6 +128,8 @@ public class ControllerService {
         Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
+        Preconditions.checkArgument(kvtConfig.getPrimaryKeyLength() > 0);
+        Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
@@ -166,6 +169,22 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         OperationContext context = streamStore.createScopeContext(scope, requestId);
         return kvtMetadataStore.listKeyValueTables(scope, token, limit, context, executor);
+    }
+
+    public CompletableFuture<KeyValueTableConfigResponse> getKeyValueTableConfiguration(final String scope, final String kvtName,
+                                                                                                   final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "Scope name");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable name.");
+        OperationContext context = kvtMetadataStore.createContext(scope, kvtName, requestId);
+        return kvtMetadataStore.getConfiguration(scope, kvtName, context, executor).handleAsync((r, ex) -> {
+            if (ex == null) {
+                return KeyValueTableConfigResponse.newBuilder().setConfig(ModelHelper.decode(scope, kvtName, r))
+                        .setStatus(KeyValueTableConfigResponse.Status.SUCCESS).build();
+            } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.TABLE_NOT_FOUND).build();
+            }
+            return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.FAILURE).build();
+        });
     }
 
     /**
@@ -814,12 +833,30 @@ public class ControllerService {
      * @param requestId request id
      * @return List of streams in scope.
      */
-    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit, 
+    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit,
                                                                      final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         OperationContext context = streamStore.createScopeContext(scope, requestId);
 
         return streamStore.listStream(scope, token, limit, executor, context);
+    }
+
+    /**
+     * List streams matching the provided tag in a scope.
+     *
+     * @param scope Name of the scope.
+     * @param tag Tag name.
+     * @param token continuation token
+     * @param requestId request id
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String scope, final String tag,
+                                                                           final String token, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(tag, "tag");
+        OperationContext context = streamStore.createScopeContext(scope, requestId);
+
+        return streamStore.listStreamsForTag(scope, tag, token, executor, context);
     }
 
     /**

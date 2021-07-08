@@ -15,11 +15,11 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -39,10 +39,10 @@ public interface AttributeIndex {
      * will contain the value that should be set as {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the segment.
      * If the operation fails, this will complete with the appropriate exception.
      */
-    CompletableFuture<Long> update(Map<UUID, Long> values, Duration timeout);
+    CompletableFuture<Long> update(Map<AttributeId, Long> values, Duration timeout);
 
     /**
-     * Bulk-fetches a set of Attributes. This is preferred to calling get(UUID, Duration) repeatedly over a set of Attributes
+     * Bulk-fetches a set of Attributes. This is preferred to calling get(AttributeId, Duration) repeatedly over a set of Attributes
      * as it only executes a single search for all, instead of one search for each.
      *
      * @param keys    A Collection of Attribute Ids whose values to fetch.
@@ -50,7 +50,7 @@ public interface AttributeIndex {
      * @return A CompletableFuture that, when completed, will contain the desired result, but only for those Attribute Ids
      * that do have values. If the operation fails, this will complete with the appropriate exception.
      */
-    CompletableFuture<Map<UUID, Long>> get(Collection<UUID> keys, Duration timeout);
+    CompletableFuture<Map<AttributeId, Long>> get(Collection<AttributeId> keys, Duration timeout);
 
     /**
      * Compacts the Attribute Index into a final Snapshot and seals it, which means it will not accept any further changes.
@@ -63,12 +63,19 @@ public interface AttributeIndex {
 
     /**
      * Returns an {@link AttributeIterator} that will iterate through all Attributes between the given ranges. The
-     * Attributes will be returned in ascending order, based on the {@link UUID#compareTo} ordering.
+     * Attributes will be returned in ascending order, based on the {@link AttributeId#compareTo} ordering.
      *
-     * @param fromId       A UUID representing the Attribute Id to begin the iteration at. This is an inclusive value.
-     * @param toId         A UUID representing the Attribute Id to end the iteration at. This is an inclusive value.
+     * @param fromId       An AttributeId representing the Attribute Id to begin the iteration at. This is an inclusive value.
+     * @param toId         An AttributeId representing the Attribute Id to end the iteration at. This is an inclusive value.
      * @param fetchTimeout Timeout for every index fetch.
      * @return A new {@link AttributeIterator} that will iterate through the given Attribute range.
      */
-    AttributeIterator iterator(UUID fromId, UUID toId, Duration fetchTimeout);
+    AttributeIterator iterator(AttributeId fromId, AttributeId toId, Duration fetchTimeout);
+
+    /**
+     * Gets the number of Attributes stored in this index.
+     *
+     * @return The number of Attributes stored, or -1 if index statistics are not enabled.
+     */
+    long getCount();
 }

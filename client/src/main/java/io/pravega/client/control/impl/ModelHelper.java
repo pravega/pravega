@@ -129,9 +129,10 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                .scalingPolicy(encode(config.getScalingPolicy()))
-                .retentionPolicy(encode(config.getRetentionPolicy()))
-                .build();
+                                  .scalingPolicy(encode(config.getScalingPolicy()))
+                                  .retentionPolicy(encode(config.getRetentionPolicy()))
+                                  .tags(config.getTags().getTagList())
+                                  .build();
     }
 
     /**
@@ -145,7 +146,13 @@ public final class ModelHelper {
         Preconditions.checkNotNull(config.getScope(), "scope");
         Preconditions.checkNotNull(config.getKvtName(), "kvtName");
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
-        return KeyValueTableConfiguration.builder().partitionCount(config.getPartitionCount()).build();
+        Preconditions.checkArgument(config.getPrimaryKeyLength() > 0, "Length of primary key should be > 0.");
+        Preconditions.checkArgument(config.getSecondaryKeyLength() >= 0, "Length of secondary key should be >= 0.");
+        return KeyValueTableConfiguration.builder()
+                .partitionCount(config.getPartitionCount())
+                .primaryKeyLength(config.getPrimaryKeyLength())
+                .secondaryKeyLength(config.getSecondaryKeyLength())
+                .build();
     }
 
     /**
@@ -372,11 +379,12 @@ public final class ModelHelper {
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
+        builder.setTags(Controller.Tags.newBuilder().addAllTag(configModel.getTags()).build());
         return builder.build();
     }
 
     /**
-     * Converts StreamConfiguration into StreamConfig.
+     * Converts Subscriber into StreamSubscriberInfo.
      *
      * @param scope the stream's scope
      * @param streamName The Stream Name
@@ -431,8 +439,13 @@ public final class ModelHelper {
         Preconditions.checkNotNull(scopeName, "scopeName");
         Preconditions.checkNotNull(kvtName, "kvtName");
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
+        Preconditions.checkArgument(config.getPrimaryKeyLength() > 0, "Length of primary key should be > 0.");
+        Preconditions.checkArgument(config.getSecondaryKeyLength() >= 0, "Length of secondary key should be >= 0.");
         return KeyValueTableConfig.newBuilder().setScope(scopeName)
-                .setKvtName(kvtName).setPartitionCount(config.getPartitionCount()).build();
+                .setKvtName(kvtName)
+                .setPartitionCount(config.getPartitionCount())
+                .setPrimaryKeyLength(config.getPrimaryKeyLength())
+                .setSecondaryKeyLength(config.getSecondaryKeyLength()).build();
     }
 
     /**

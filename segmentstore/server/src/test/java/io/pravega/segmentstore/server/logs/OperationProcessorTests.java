@@ -87,6 +87,10 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.spy;
 
 /**
  * Unit tests for OperationProcessor class.
@@ -555,6 +559,68 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 op2.getSequenceNumber(), op1.getSequenceNumber());
 
         operationProcessor.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the behavior of the OperationProcessor when handling a {@link CancellationException} and {@link ObjectClosedException}.
+     */
+    @Test
+    public void testWithCancellationExceptionAndObjectClosedException() throws Exception {
+        int streamSegmentCount = 1;
+        int appendsPerStreamSegment = 1;
+        int transactionsPerStreamSegment = 2;
+        boolean mergeTransactions = true;
+        boolean sealStreamSegments = true;
+
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        // Generate some test data.
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        AbstractMap<Long, Long> transactions = createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
+
+        // The first operation will be a CancellationException, which is supposed to do not shut down the OperationProcessor.
+        Operation cancellationException = spy(operations.get(0));
+        Mockito.doThrow(new CancellationException("Intentional")).when(cancellationException).setSequenceNumber(anyLong());
+        operations.add(0, cancellationException);
+        List<OperationWithCompletion> completionFutures = processOperations(operations.subList(0, 1), operationProcessor);
+        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
+        AssertExtensions.assertThrows(
+                "No operations failed.",
+                OperationWithCompletion.allOf(completionFutures)::join,
+                ex -> ex instanceof CancellationException);
+        operations.remove(0);
+        // Even though the exception, the OperationProcessor is not closed.
+        Assert.assertTrue("OperationProcessor not running when it should.", operationProcessor.isRunning());
+
+        // The second operation will be a ObjectCloseException, which is supposed to shut down the OperationProcessor.
+        Operation objectClosedException = spy(operations.get(0));
+        Mockito.doThrow(new ObjectClosedException("Intentional")).when(objectClosedException).setSequenceNumber(anyLong());
+        operations.add(0, objectClosedException);
+        completionFutures = processOperations(operations, operationProcessor);
+        AssertExtensions.assertThrows(
+                "No operations failed.",
+                OperationWithCompletion.allOf(completionFutures)::join,
+                ex -> ex instanceof ObjectClosedException);
+
+        // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
+        Assert.assertEquals("OperationProcessor is not in a failed state after ObjectClosedException detected.",
+                Service.State.FAILED, operationProcessor.state());
+        Assert.assertTrue("OperationProcessor did not fail with the correct exception.",
+                operationProcessor.failureCause() instanceof ObjectClosedException);
+        Assert.assertFalse("OperationProcessor running when it should not.", operationProcessor.isRunning());
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {

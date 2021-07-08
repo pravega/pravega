@@ -23,9 +23,11 @@ public final class RPCTracingTags {
     public static final String CREATE_SCOPE = "createScope";
     public static final String CHECK_SCOPE_EXISTS = "checkScopeExists";
     public static final String LIST_STREAMS_IN_SCOPE = "listStreamsInScope";
+    public static final String LIST_STREAMS_IN_SCOPE_FOR_TAG = "listStreamsInScopeForTag";
     public static final String DELETE_SCOPE = "deleteScope";
     public static final String CREATE_STREAM = "createStream";
     public static final String CHECK_STREAM_EXISTS = "checkStreamExists";
+    public static final String GET_STREAM_CONFIGURATION = "getStreamConfiguration";
     public static final String UPDATE_STREAM = "updateStream";
     public static final String LIST_SUBSCRIBERS = "listSubscribers";
     public static final String UPDATE_TRUNCATION_STREAM_CUT = "updateTruncationStreamCut";
@@ -47,6 +49,7 @@ public final class RPCTracingTags {
     public static final String REMOVE_WRITER = "removeWriter";
     public static final String CREATE_KEY_VALUE_TABLE = "createKeyValueTable";
     public static final String LIST_KEY_VALUE_TABLES = "listKeyValueTables";
+    public static final String GET_KEY_VALUE_TABLE_CONFIGURATION = "getKeyValueTableConfiguration";
     public static final String DELETE_KEY_VALUE_TABLE = "deleteKeyValueTable";
     public static final String CREATE_READER_GROUP = "createReaderGroup";
     public static final String UPDATE_READER_GROUP = "updateReaderGroup";

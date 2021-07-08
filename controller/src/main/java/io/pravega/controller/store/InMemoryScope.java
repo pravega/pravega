@@ -141,6 +141,11 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
+        return Futures.failedFuture(new UnsupportedOperationException("Not implmemented"));
+    }
+
     @Synchronized
     public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
         kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, id));
