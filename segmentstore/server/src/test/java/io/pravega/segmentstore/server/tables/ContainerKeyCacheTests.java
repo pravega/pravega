@@ -684,7 +684,8 @@ public class ContainerKeyCacheTests {
                                    .collect(Collectors.toList());
 
             // Fetch initial tail hashes now, before we apply the updates
-            val expectedTailHashes = new HashMap<UUID, CacheBucketOffset>(keyCache.getTailHashes(segmentId));
+            val expectedTailHashes = new HashMap<>(keyCache.getTailHashes(segmentId));
+            Assert.assertEquals(getExpectedTailUpdateDelta(expectedTailHashes.values()), keyCache.getTailUpdateDelta(segmentId));
 
             // Update the Cache.
             val batchUpdateResult = keyCache.includeUpdateBatch(segmentId, e.getValue(), batchOffset);
@@ -714,7 +715,20 @@ public class ContainerKeyCacheTests {
                 val actual = tailHashes.get(expected.getKey());
                 Assert.assertEquals("Unexpected tail hash.", expected.getValue(), actual);
             }
+            Assert.assertEquals(getExpectedTailUpdateDelta(expectedTailHashes.values()), keyCache.getTailUpdateDelta(segmentId));
         }
+    }
+
+    private int getExpectedTailUpdateDelta(Collection<CacheBucketOffset> tailOffsets) {
+        int r = 0;
+        for (val c : tailOffsets) {
+            if (c.isRemoval()) {
+                r--;
+            } else {
+                r++;
+            }
+        }
+        return r;
     }
 
     private void updateSegmentIndexOffsets(ContainerKeyCache keyCache, long offset) {

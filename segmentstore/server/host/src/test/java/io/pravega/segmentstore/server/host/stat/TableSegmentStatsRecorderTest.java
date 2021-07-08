@@ -80,6 +80,11 @@ public class TableSegmentStatsRecorderTest {
         r.iterateEntries(SEGMENT_NAME, 8, ELAPSED);
         verify(r.getIterateEntriesLatency()).reportSuccessEvent(ELAPSED);
         verify(r.getIterateEntries()).add(8);
+
+        // GetInfo
+        r.getInfo(SEGMENT_NAME, ELAPSED);
+        verify(r.getGetInfoLatency()).reportSuccessEvent(ELAPSED);
+        verify(r.getGetInfo()).inc();
     }
 
     @RequiredArgsConstructor
