@@ -36,7 +36,7 @@ public abstract class SegmentStoreCommand extends AdminCommand {
         CLIControllerConfig cliConfig = super.getCLIControllerConfig();
 
         log.info("Auth config is: {}, trustStoreSigningKey is: {}, and ttlseconds is: {}", cliConfig.isAuthEnabled()
-                , "", cliConfig.getAccessTokenTtlInSeconds());
+                , cliConfig.getTruststoreSignKey(), cliConfig.getAccessTokenTtlInSeconds());
 
         authHelper = new GrpcAuthHelper(cliConfig.isAuthEnabled(),
                 cliConfig.getTruststoreSignKey(),
