@@ -51,7 +51,7 @@ public class FailingRequestProcessorTest {
 
     private static final Event EMPTY_EVENT = new Event(Unpooled.wrappedBuffer(new byte[1]));
 
-    private RequestProcessor rp = new FailingRequestProcessor();
+    private final RequestProcessor rp = new FailingRequestProcessor();
 
     @Test
     public void testEverythingThrows() {
