@@ -151,7 +151,7 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         val baseIterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
         val newIterator = baseIterator.thenApply(Object::toString);
         val result = new ArrayList<String>();
-        newIterator.forEachRemaining(result::add, executorService()).join();
+        CompletableFuture<ArrayList<String>> temp = newIterator.forEachRemaining(result::add, executorService()).thenApply(v -> result);
         val expectedResult = expected.stream().map(Object::toString).collect(Collectors.toList());
         AssertExtensions.assertListEquals("Unexpected result.", expectedResult, result, String::equals);
     }
