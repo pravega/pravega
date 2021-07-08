@@ -17,13 +17,13 @@
 package io.pravega.common.concurrent;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Cleanup;
 import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -34,7 +34,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ThreadPoolScheduledExecutorServiceTest {
 
-    private ThreadPoolScheduledExecutorService createPool(int min, int max) {
+    private static ThreadPoolScheduledExecutorService createPool(int min, int max) {
         return new ThreadPoolScheduledExecutorService(min,
                 max,
                 100,
@@ -50,7 +50,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         pool.submit(() -> result.complete(5));
         assertEquals(Integer.valueOf(5), result.get(5, SECONDS));
         pool.shutdown();
-        pool.awaitTermination(5, SECONDS);
+        assertTrue(pool.awaitTermination(5, SECONDS));
     }
     
     @Test(timeout = 10000)
@@ -62,12 +62,24 @@ public class ThreadPoolScheduledExecutorServiceTest {
         long runTime = result.get(5, SECONDS);
         assertTrue(runTime > startTime + 50 * 1000 * 1000);
         pool.shutdown();
-        pool.awaitTermination(5, SECONDS);
+        assertTrue(pool.awaitTermination(5, SECONDS));
+    }
+    
+    @Test(timeout = 10000)
+    public void testCancelsDelayTask() throws Exception {
+        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        AtomicInteger count = new AtomicInteger(0);
+        ScheduledFuture<Integer> future = pool.schedule(() -> count.incrementAndGet(), 100, SECONDS);
+        assertTrue(future.cancel(false));
+        assertTrue(future.isCancelled());
+        assertTrue(future.isDone());
+        AssertExtensions.assertThrows(CancellationException.class, () -> future.get());
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(5, SECONDS));
     }
     
     @Test(timeout = 10000)
     public void testSpawnsOptionalThreads() throws Exception {
-        @Cleanup("shutdown")
         ThreadPoolScheduledExecutorService pool = createPool(3, 3);
         AtomicInteger count = new AtomicInteger(0);
         CyclicBarrier barrior = new CyclicBarrier(4);
@@ -99,6 +111,8 @@ public class ThreadPoolScheduledExecutorServiceTest {
         barrior.await(5, SECONDS);
         assertEquals(3, count.get());
         assertNull(error.get());
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(5, SECONDS));
     }
     
     @Test(timeout = 10000)
@@ -114,9 +128,9 @@ public class ThreadPoolScheduledExecutorServiceTest {
         }, 10, 10, MILLISECONDS);
         AssertExtensions.assertEventuallyEquals(20, () -> count.get(), 5000);
         AssertExtensions.assertThrows(RuntimeException.class, () -> future.get(5000, MILLISECONDS));
-        assertTrue(System.nanoTime() > startTime + 18 * 10 * 1000 * 1000);
+        assertTrue(System.nanoTime() > startTime + 19 * 10 * 1000 * 1000L);
         pool.shutdown();
-        pool.awaitTermination(5, SECONDS);
+        assertTrue(pool.awaitTermination(5, SECONDS));
         assertEquals(20, count.get());
     }
     
@@ -134,9 +148,9 @@ public class ThreadPoolScheduledExecutorServiceTest {
         }, 10, 10, MILLISECONDS);
         AssertExtensions.assertEventuallyEquals(20, () -> count.get(), 5000);
         AssertExtensions.assertThrows(RuntimeException.class, () -> future.get(5000, MILLISECONDS));
-        assertTrue(System.nanoTime() > startTime + 18 * 10 * 1000 * 1000);
+        assertTrue(System.nanoTime() > startTime + 19 * 10 * 1000 * 1000L);
         pool.shutdown();
-        pool.awaitTermination(5, SECONDS);
+        assertTrue(pool.awaitTermination(5, SECONDS));
         assertEquals(20, count.get());
     }
     

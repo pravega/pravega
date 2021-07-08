@@ -38,10 +38,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+@Slf4j
 @ToString(of = "runner")
 public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
 
@@ -259,24 +261,22 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         @Override
         public Void call() {
             if (!canceled.get()) {
-                ScheduledRunnable<?> runnable = createScheduledRunnable();
-                runnable.future.whenComplete((r,e) -> {
-                    if (e != null) {
-                        canceled.set(true);
-                        shutdownFuture.completeExceptionally(e);
-                    } else {
-                        ThreadPoolScheduledExecutorService.this.execute(this);
-                    }
-                });
-                current.set(runnable);
-                ThreadPoolScheduledExecutorService.this.runner.execute(runnable);
+                try {
+                    command.run();
+                } catch (Throwable t) {
+                    canceled.set(true);
+                    log.error("Exception thrown out of root of recurring task: " + command + " This task will not run again!", t);
+                    shutdownFuture.completeExceptionally(t);
+                    return null;
+                }
+                schedule();
             } else {
                 shutdownFuture.complete(null);
             }
             return null;
         }
 
-        abstract ScheduledRunnable<?> createScheduledRunnable();
+        abstract void schedule();
 
         @Override
         public int compareTo(Delayed other) {
@@ -331,37 +331,41 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         }
         
         @Override
-        ScheduledRunnable<?> createScheduledRunnable() {
-            return new ScheduledRunnable<>(Executors.callable(command), delay, unit);
-        }
-        
-        @Override
         public long getDelay(TimeUnit returnUnit) {
             return returnUnit.convert(delay, unit);
+        }
+
+        @Override
+        void schedule() {
+            ThreadPoolScheduledExecutorService.this.schedule(this, delay, unit);
         }
     }
     
     private class FixedRateLoop extends ScheduleLoop {
-        private final long startTimeNanos;
         private final long periodNanos;
-        private final AtomicLong callCount = new AtomicLong(0);
+        private final AtomicLong startTimeNanos;
 
         public FixedRateLoop(Runnable command, long period, TimeUnit unit) {
             super(command);
-            this.startTimeNanos = System.nanoTime();
+            this.startTimeNanos = new AtomicLong(System.nanoTime());
             this.periodNanos = unit.toNanos(period);
         }
         
-        @Override
-        ScheduledRunnable<?> createScheduledRunnable() {
-            long time = startTimeNanos + periodNanos * callCount.incrementAndGet();
-            return new ScheduledRunnable<>(Executors.callable(command), time);
-        }
         
         @Override
         public long getDelay(TimeUnit returnUnit) {
-            long time = startTimeNanos + periodNanos * callCount.get();
-            return returnUnit.convert(time - System.nanoTime(), NANOSECONDS);
+            return returnUnit.convert(periodNanos, NANOSECONDS);
+        }
+
+        @Override
+        public Void call() {
+            startTimeNanos.set(System.nanoTime());
+            return super.call();
+        }
+        
+        @Override
+        void schedule() {
+            runner.execute(new ScheduledRunnable<>(this, startTimeNanos.get() + periodNanos));
         }
     }
 

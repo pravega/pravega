@@ -20,6 +20,8 @@ import lombok.Data;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class ScheduledQueueTest {
 
@@ -53,7 +55,7 @@ public class ScheduledQueueTest {
         }
     }
     
-    @Test
+    @Test(timeout = 5000)
     public void testNonDelayed() {
         ScheduledQueue<NoDelay> queue = new ScheduledQueue<NoDelay>();
         queue.add(new NoDelay(1));
@@ -65,7 +67,7 @@ public class ScheduledQueueTest {
         assertEquals(null, queue.poll());
     }
     
-    @Test
+    @Test(timeout = 5000)
     public void testDelayed() {
         ScheduledQueue<Delay> queue = new ScheduledQueue<Delay>();
         queue.add(new Delay(1));
@@ -77,4 +79,33 @@ public class ScheduledQueueTest {
         assertEquals(null, queue.poll());
     }
     
+    @Test(timeout = 5000)
+    public void testSize() {
+        ScheduledQueue<Scheduled> queue = new ScheduledQueue<Scheduled>();
+        assertEquals(0, queue.size());
+        queue.add(new NoDelay(1));
+        assertEquals(1, queue.size());
+        NoDelay nd2 = new NoDelay(2);
+        queue.add(nd2);
+        assertEquals(2, queue.size());
+        queue.add(new NoDelay(3));
+        assertEquals(3, queue.size());
+        queue.add(new Delay(1));
+        assertEquals(4, queue.size());
+        Delay d3 = new Delay(3);
+        queue.add(d3);
+        assertEquals(5, queue.size());
+        queue.add(new Delay(2));
+        assertEquals(6, queue.size());
+        assertNotNull(queue.poll());
+        assertEquals(5, queue.size());
+        assertTrue(queue.remove(nd2));
+        assertEquals(4, queue.size());
+        assertTrue(queue.remove(d3));
+        assertEquals(3, queue.size());
+        queue.drainDelayed();
+        assertEquals(1, queue.size());
+        queue.clear();
+        assertEquals(0, queue.size());
+    }
 }

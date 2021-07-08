@@ -274,11 +274,11 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
     @Override
     public boolean remove(Object o) {
         if (readyTasks.remove(o)) {
-            this.itemsRemoved.decrementAndGet();
+            this.itemsRemoved.incrementAndGet();
             return true;
         } else {
             if (delayedTasks.values().remove(o)) {
-                this.itemsRemoved.decrementAndGet();
+                this.itemsRemoved.incrementAndGet();
                 return true;
             }
             return false;
@@ -337,6 +337,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
         while (item != null) {
             result.add(item.getValue());
             itemsRemoved.incrementAndGet();
+            item = delayedTasks.pollFirstEntry();
         }
         return result;
     }
