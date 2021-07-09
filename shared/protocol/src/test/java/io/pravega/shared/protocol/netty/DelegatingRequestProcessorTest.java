@@ -47,15 +47,15 @@ public class DelegatingRequestProcessorTest {
         rp.updateTableEntries(new WireCommands.UpdateTableEntries(0, "", "", null, 0));
         rp.removeTableKeys(new WireCommands.RemoveTableKeys(0, "", "", null, 0));
         rp.readTable(new WireCommands.ReadTable(0, "", "", null));
-        rp.readTableKeys(new WireCommands.ReadTableKeys(0, "", "", 0, null, null));
-        rp.readTableEntries(new WireCommands.ReadTableEntries(0, "", "", 0, null, null));
+        rp.readTableKeys(new WireCommands.ReadTableKeys(0, "", "", 0, null));
+        rp.readTableEntries(new WireCommands.ReadTableEntries(0, "", "", 0, null));
         rp.mergeSegments(new WireCommands.MergeSegments(0, "", "", ""));
         rp.mergeTableSegments(new WireCommands.MergeTableSegments(0, "", "", ""));
         rp.sealSegment(new WireCommands.SealSegment(0, "", ""));
         rp.sealTableSegment(new WireCommands.SealTableSegment(0, "", ""));
         rp.truncateSegment(new WireCommands.TruncateSegment(0, "", 0, ""));
         rp.deleteSegment(new WireCommands.DeleteSegment(0, "", ""));
-        rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, ""));
+        rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, 0, ""));
         rp.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(0, "", "", 0, 0));
         rp.createTransientSegment(new WireCommands.CreateTransientSegment(0, new UUID(0, 0), "", ""));
 
