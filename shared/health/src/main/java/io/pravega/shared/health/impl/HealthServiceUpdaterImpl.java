@@ -88,7 +88,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
      */
     @Override
     protected void startUp() {
-        log.info("Starting the HealthServiceUpdater, running at {} SECOND intervals.", interval);
+        log.info("Starting the HealthServiceUpdater, running at {} intervals.", interval);
     }
 
     /**
