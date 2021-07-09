@@ -71,7 +71,6 @@ public class PravegaEmulatorResource extends ExternalResource {
                 .enableRestServer(restEnabled)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled)
-                .tlsProtocolVersion(TestUtils.getTlsProtocolVersion())
                 .enabledAdminGateway(true)
                 .adminGatewayPort(TestUtils.getAvailableListenPort());
 
@@ -87,6 +86,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         }
         if (tlsEnabled) {
             emulatorBuilder.certFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                     .jksKeyFile(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH)
                     .jksTrustFile(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH)
