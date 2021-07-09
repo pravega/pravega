@@ -22,7 +22,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -1616,8 +1615,8 @@ public abstract class StreamTestBase {
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time, context).join();
         streamObj.startCommittingTransactions(100, context).join();
-        CommitRequestHandler.TxnWriterMark writerMarks = new CommitRequestHandler.TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId);
-        Map<String, CommitRequestHandler.TxnWriterMark> marksForWriters = Collections.singletonMap(writer1, writerMarks);
+        AbstractStreamMetadataStore.TxnWriterMark writerMarks = new AbstractStreamMetadataStore.TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId);
+        Map<String, AbstractStreamMetadataStore.TxnWriterMark> marksForWriters = Collections.singletonMap(writer1, writerMarks);
         streamObj.generateMarksForTransactions(context, marksForWriters).join();
 
         // verify that writer mark is created in the store
@@ -1667,9 +1666,9 @@ public abstract class StreamTestBase {
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L, context).join();
 
         streamObj.startCommittingTransactions(100, context).join();
-        CommitRequestHandler.TxnWriterMark writerMarks = new CommitRequestHandler.TxnWriterMark(time + 4L,
+        AbstractStreamMetadataStore.TxnWriterMark writerMarks = new AbstractStreamMetadataStore.TxnWriterMark(time + 4L,
                 Collections.singletonMap(0L, 1L), txnId4);
-        Map<String, CommitRequestHandler.TxnWriterMark> marksForWriters = Collections.singletonMap(writer, writerMarks);
+        Map<String, AbstractStreamMetadataStore.TxnWriterMark> marksForWriters = Collections.singletonMap(writer, writerMarks);
 
         streamObj.generateMarksForTransactions(context, marksForWriters).join();
 

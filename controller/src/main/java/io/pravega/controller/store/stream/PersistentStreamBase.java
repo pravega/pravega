@@ -17,7 +17,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Preconditions;
@@ -1737,7 +1736,7 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(OperationContext context,
-                                                         Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                         Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         Preconditions.checkArgument(writerMarks != null);
         
@@ -1981,7 +1980,7 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
                                                                   OperationContext context,
-                                                                  Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                                  Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit

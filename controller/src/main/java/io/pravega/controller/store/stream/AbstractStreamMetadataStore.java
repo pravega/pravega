@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -54,6 +53,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -968,7 +969,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream,
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext ctx, ScheduledExecutorService executor,
-                                                              Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                              Map<String, TxnWriterMark> writerMarks) {
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerMarks), executor)
@@ -1290,6 +1291,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     // region reader group
     abstract ReaderGroup newReaderGroup(final String scope, final String name);
+
+    /* This is a data class that represents a writer mark. Writers send mark information
+     * for watermarking purposes, containing time and position.
+     */
+    @Data
+    @AllArgsConstructor
+    public static class TxnWriterMark {
+        final private long timestamp;
+        final private Map<Long, Long> position;
+        final private UUID transactionId;
+    }
 
     //endregion
 }

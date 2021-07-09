@@ -30,13 +30,12 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
@@ -165,8 +164,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final String stream,
                                                           final OperationContext context) {
         Timer timer = new Timer();
-        Map<String, TxnWriterMark> writerMarks = new HashMap<>();
+        Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks = new HashMap<>();
         Map<UUID, String> txnIdToWriterId = new HashMap<>();
+
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
@@ -207,11 +207,14 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     }
 
                                     txnsTuple.getValue().forEach(txn -> {
-                                        if (!Strings.isNullOrEmpty(txn.getWriterId()) && (!writerMarks.containsKey(txn.getWriterId()) ||
-                                                writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime())) {
-                                            writerMarks.put(txn.getWriterId(), new TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
+                                        if (!Strings.isNullOrEmpty(txn.getWriterId())) {
+                                            txnIdToWriterId.put(txn.getId(), txn.getWriterId());
+                                            if (!writerMarks.containsKey(txn.getWriterId())
+                                                    || writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime()) {
+                                            writerMarks.put(txn.getWriterId(),
+                                                    new AbstractStreamMetadataStore.TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
+                                            }
                                         }
-                                        txnIdToWriterId.put(txn.getId(), txn.getWriterId());
                                     });
                                     // Note: since we have set the state to COMMITTING_TXN (or it was already sealing),
                                     // the active epoch that we fetch now cannot change until we perform rolling txn. 
@@ -251,7 +254,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
             VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context,
             Map<UUID, String> txnIdToWriterId,
-            Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+            Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(
@@ -273,7 +276,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                   EpochRecord activeEpoch, 
                                                   VersionedMetadata<CommittingTransactionsRecord> existing,
                                                   OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                  Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                  Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 
@@ -320,7 +323,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      */
     private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
                                                                       List<Long> segmentIds, OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                                                            Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                                                            Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
@@ -351,7 +354,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     private CompletableFuture<Void> commitTransactions(String scope, String stream, List<Long> segments,
                                                                              List<UUID> transactionsToCommit, OperationContext context,
                                                                              Map<UUID, String> txnIdToWriterId,
-                                                                             Map<String, CommitRequestHandler.TxnWriterMark> writerMarks) {
+                                                                             Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
         boolean noteTime = writerMarks.size() > 0;
@@ -364,10 +367,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     .thenAccept(txnOffsets -> {
                         String writerId = txnIdToWriterId.get(txnId);
                         if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
-                            writerMarks.get(writerId).setPosition(txnOffsets);
+                            AbstractStreamMetadataStore.TxnWriterMark mark = writerMarks.get(writerId);
+                            writerMarks.put(writerId, new AbstractStreamMetadataStore.TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
                             }
                         }
-                    );
+            );
         }
         return future.thenAcceptAsync(x -> {
             if (noteTime) {
@@ -408,14 +412,4 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                   .thenApply(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING));
     }
 
-    /* This is a data class that represents a writer mark. Writers send mark information
-     * for watermarking purposes, containing time and position.
-     */
-    @Data
-    @AllArgsConstructor
-    public static class TxnWriterMark {
-        private long timestamp;
-        private Map<Long, Long> position;
-        private UUID transactionId;
-    }
 }

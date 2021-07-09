@@ -18,7 +18,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -1385,7 +1384,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
                                                        final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor,
-                                                       Map<String, CommitRequestHandler.TxnWriterMark> writerMarks);
+                                                       Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
@@ -1595,4 +1594,5 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
                                              Executor executor);
+
 }

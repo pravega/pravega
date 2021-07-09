@@ -29,7 +29,6 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -1950,7 +1949,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
         store.completeCommitTransactions(scope, stream, record, null, executor,
                 Collections.singletonMap(writer1,
-                        new CommitRequestHandler.TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId))).join();
+                        new AbstractStreamMetadataStore.TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId))).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = store.getWriterMark(scope, stream, writer1, null, executor).join();
