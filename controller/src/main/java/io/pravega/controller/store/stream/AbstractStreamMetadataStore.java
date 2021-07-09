@@ -53,6 +53,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -950,7 +952,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(
+    public CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommitTransactions(
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
@@ -964,24 +966,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
-                                                       OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets, context), 
-                executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream,
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
-                                                              OperationContext ctx, ScheduledExecutorService executor) {
+                                                              OperationContext ctx, ScheduledExecutorService executor,
+                                                              Map<String, TxnWriterMark> writerMarks) {
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
-        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
+        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerMarks), executor)
                 .thenAcceptAsync(result -> {
-                    streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
-                }, executor);
+                        streamObj.getNumberOfOngoingTransactions(context)
+                                .thenAccept(count -> TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                    }, executor);
     }
 
     @Override
@@ -1296,6 +1291,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     // region reader group
     abstract ReaderGroup newReaderGroup(final String scope, final String name);
+
+    /* This is a data class that represents a writer mark. Writers send mark information
+     * for watermarking purposes, containing time and position.
+     */
+    @Data
+    @AllArgsConstructor
+    public static class TxnWriterMark {
+        final private long timestamp;
+        final private Map<Long, Long> position;
+        final private UUID transactionId;
+    }
 
     //endregion
 }

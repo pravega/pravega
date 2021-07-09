@@ -40,6 +40,6 @@ public class VersionedTransactionData {
     private final long maxExecutionExpiryTime;
     private final String writerId;
     private final Long commitTime;
-    private final Long position;
+    private final Long commitOrder;
     private final ImmutableMap<Long, Long> commitOffsets;
 }
