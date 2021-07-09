@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.store.SegmentContainerCollection;
@@ -55,10 +56,10 @@ public class TableService extends SegmentContainerCollection implements TableSto
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
         return invokeExtension(segmentName,
-                e -> e.createSegment(segmentName, segmentType, timeout),
-                "createSegment", segmentName, segmentType);
+                e -> e.createSegment(segmentName, segmentType, config, timeout),
+                "createSegment", segmentName, segmentType, config);
     }
 
     @Override

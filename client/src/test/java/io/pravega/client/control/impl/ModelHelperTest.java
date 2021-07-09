@@ -15,7 +15,9 @@
  */
 package io.pravega.client.control.impl;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
@@ -43,6 +45,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.client.control.impl.ModelHelper.createStreamInfo;
+import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -60,14 +64,14 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void decodeSegmentIdNullTest() {
-        ModelHelper.decode((Segment) null);
+        decode((Segment) null);
     }
 
     @Test
     public void decodeSegmentId() {
         final String streamName = "stream1";
 
-        SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
+        SegmentId segmentID = decode(createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamInfo().getStream());
         assertEquals("scope", segmentID.getStreamInfo().getScope());
         assertEquals(2, segmentID.getSegmentId());
@@ -80,7 +84,7 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2L)));
+        Segment segment = ModelHelper.encode(decode(createSegmentId("stream1", 2L)));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2L, segment.getSegmentId());
@@ -97,12 +101,12 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void decodeScalingPolicyNullInput() throws Exception {
-        ModelHelper.decode((ScalingPolicy) null);
+        decode((ScalingPolicy) null);
     }
 
     @Test
     public void decodeScalingPolicy() {
-        Controller.ScalingPolicy policy = ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3));
+        Controller.ScalingPolicy policy = decode(ScalingPolicy.byEventRate(100, 2, 3));
         assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
@@ -116,7 +120,7 @@ public class ModelHelperTest {
 
     @Test
     public void encodeScalingPolicy() {
-        ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3)));
+        ScalingPolicy policy = ModelHelper.encode(decode(ScalingPolicy.byEventRate(100, 2, 3)));
         assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
@@ -125,40 +129,40 @@ public class ModelHelperTest {
 
     @Test
     public void encodeRetentionPolicy() {
-        RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L)));
+        RetentionPolicy policy1 = ModelHelper.encode(decode(RetentionPolicy.bySizeBytes(1000L)));
         assertEquals(RetentionPolicy.RetentionType.SIZE, policy1.getRetentionType());
         assertEquals(1000L, (long) policy1.getRetentionParam());
 
-        RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
+        RetentionPolicy policy2 = ModelHelper.encode(decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
         assertEquals(RetentionPolicy.RetentionType.TIME, policy2.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionParam());
 
-        RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
+        RetentionPolicy policy3 = ModelHelper.encode(decode((RetentionPolicy) null));
         assertNull(policy3);
     }
 
     @Test
     public void decodeRetentionPolicy() {
-        Controller.RetentionPolicy policy1 = ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L));
+        Controller.RetentionPolicy policy1 = decode(RetentionPolicy.bySizeBytes(1000L));
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.SIZE, policy1.getRetentionType());
         assertEquals(1000L, policy1.getRetentionParam());
 
-        Controller.RetentionPolicy policy2 = ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L)));
+        Controller.RetentionPolicy policy2 = decode(RetentionPolicy.byTime(Duration.ofDays(100L)));
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, policy2.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), policy2.getRetentionParam());
 
-        Controller.RetentionPolicy policy3 = ModelHelper.decode((RetentionPolicy) null);
+        Controller.RetentionPolicy policy3 = decode((RetentionPolicy) null);
         assertNull(policy3);
     }
 
     @Test(expected = NullPointerException.class)
     public void decodeStreamConfigNullInput() {
-        ModelHelper.decode("", "", (StreamConfiguration) null);
+        decode("", "", (StreamConfiguration) null);
     }
 
     @Test
     public void decodeStreamConfig() {
-        StreamConfig config = ModelHelper.decode("scope", "test", StreamConfiguration.builder()
+        StreamConfig config = decode("scope", "test", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
                 .build());
@@ -171,6 +175,26 @@ public class ModelHelperTest {
         Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
+        assertEquals(Collections.emptyList(), config.getTags().getTagList());
+    }
+
+    @Test
+    public void decodeStreamConfigWithTags() {
+        StreamConfig config = decode("scope", "test", StreamConfiguration.builder()
+                                                                                     .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+                                                                                     .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
+                                                                                     .tag("tag1").tag("tag2")
+                                                                                     .build());
+        assertEquals("test", config.getStreamInfo().getStream());
+        Controller.ScalingPolicy policy = config.getScalingPolicy();
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
+        assertEquals(100L, policy.getTargetRate());
+        assertEquals(2, policy.getScaleFactor());
+        assertEquals(3, policy.getMinNumSegments());
+        Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
+        assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
+        assertEquals(ImmutableList.of("tag1", "tag2"), config.getTags().getTagList());
     }
 
     @Test(expected = NullPointerException.class)
@@ -192,6 +216,41 @@ public class ModelHelperTest {
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
         assertEquals(1000L, (long) retentionPolicy.getRetentionParam());
+        assertEquals(Collections.emptySet(), config.getTags());
+    }
+
+    @Test
+    public void encodeStreamConfigWithoutTags() {
+        final StreamConfig cfg = StreamConfig.newBuilder()
+                                             .setStreamInfo(createStreamInfo("scope", "test"))
+                                             .setScalingPolicy(decode(ScalingPolicy.fixed(10))).build();
+
+        StreamConfiguration config = ModelHelper.encode(cfg);
+        ScalingPolicy policy = config.getScalingPolicy();
+        assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, policy.getScaleType());
+        assertEquals(10, policy.getMinNumSegments());
+        assertNull(config.getRetentionPolicy());
+        assertEquals(0, config.getTimestampAggregationTimeout());
+        assertEquals(Collections.emptySet(), config.getTags());
+    }
+    
+    @Test
+    public void encodeStreamConfigWithTags() {
+        StreamConfiguration config = ModelHelper.encode(decode("scope", "test", StreamConfiguration.builder()
+                                                                                                   .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+                                                                                                   .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
+                                                                                                   .tag("tag1")
+                                                                                                   .tag("tag2")
+                                                                                                   .build()));
+        ScalingPolicy policy = config.getScalingPolicy();
+        assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
+        assertEquals(100L, policy.getTargetRate());
+        assertEquals(2, policy.getScaleFactor());
+        assertEquals(3, policy.getMinNumSegments());
+        RetentionPolicy retentionPolicy = config.getRetentionPolicy();
+        assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
+        assertEquals(1000L, (long) retentionPolicy.getRetentionParam());
+        assertEquals(ImmutableSet.of("tag1", "tag2"), config.getTags());
     }
 
     @Test
@@ -227,7 +286,7 @@ public class ModelHelperTest {
     public void testStreamCutRange() {
         Map<Long, Long> from = Collections.singletonMap(0L, 0L);
         Map<Long, Long> to = Collections.singletonMap(1L, 0L);
-        Controller.StreamCutRange response = ModelHelper.decode("scope", "stream", from, to);
+        Controller.StreamCutRange response = decode("scope", "stream", from, to);
         assertTrue(response.getFromMap().containsKey(0L));
         assertTrue(response.getToMap().containsKey(1L));
     }
@@ -265,14 +324,26 @@ public class ModelHelperTest {
     @Test
     public void encodeKeyValueTableConfig() {
         Controller.KeyValueTableConfig config = Controller.KeyValueTableConfig.newBuilder()
-                .setScope("scope").setKvtName("kvtable").setPartitionCount(2).build();
+                .setScope("scope").setKvtName("kvtable").setPartitionCount(2)
+                .setPrimaryKeyLength(Integer.BYTES).setSecondaryKeyLength(Long.BYTES).build();
         KeyValueTableConfiguration configuration = ModelHelper.encode(config);
         assertEquals(config.getPartitionCount(), configuration.getPartitionCount());
+        assertEquals(config.getPrimaryKeyLength(), configuration.getPrimaryKeyLength());
+        assertEquals(config.getSecondaryKeyLength(), configuration.getSecondaryKeyLength());
+    }
+
+    @Test
+    public void decodeKeyValueTableConfig() {
+        Controller.KeyValueTableConfig config = ModelHelper.decode("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(Integer.BYTES).secondaryKeyLength(Long.BYTES).build());
+        assertEquals(2, config.getPartitionCount());
+        assertEquals(Integer.BYTES, config.getPrimaryKeyLength());
+        assertEquals(Long.BYTES, config.getSecondaryKeyLength());
     }
 
     @Test
     public void createStreamInfoWithMissingAccessOperation() {
-        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo("testScope", "testStream");
+        Controller.StreamInfo streamInfo = createStreamInfo("testScope", "testStream");
         assertEquals("testScope", streamInfo.getScope());
         assertEquals("testStream", streamInfo.getStream());
         assertEquals(Controller.StreamInfo.AccessOperation.UNSPECIFIED, streamInfo.getAccessOperation());
@@ -281,11 +352,11 @@ public class ModelHelperTest {
     @Test
     public void createStreamInfoWithAccessOperation() {
         assertEquals(Controller.StreamInfo.AccessOperation.READ,
-                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ).getAccessOperation());
+                createStreamInfo("testScope", "testStream", AccessOperation.READ).getAccessOperation());
         assertEquals(Controller.StreamInfo.AccessOperation.WRITE,
-                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.WRITE).getAccessOperation());
+                createStreamInfo("testScope", "testStream", AccessOperation.WRITE).getAccessOperation());
         assertEquals(Controller.StreamInfo.AccessOperation.READ_WRITE,
-                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ_WRITE).getAccessOperation());
+                createStreamInfo("testScope", "testStream", AccessOperation.READ_WRITE).getAccessOperation());
     }
 
     @Test
@@ -296,7 +367,7 @@ public class ModelHelperTest {
         StreamCut sc = new StreamCutImpl(Stream.of(scope, stream), positions);
         ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(getScopedStreamName(scope, stream), StreamCut.UNBOUNDED, sc).build();
-        Controller.ReaderGroupConfiguration decodedConfig = ModelHelper.decode(scope, "group", config);
+        Controller.ReaderGroupConfiguration decodedConfig = decode(scope, "group", config);
         assertEquals(config, ModelHelper.encode(decodedConfig));
     }
 

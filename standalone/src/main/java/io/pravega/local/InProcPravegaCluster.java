@@ -25,8 +25,8 @@ import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -312,7 +312,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 ServiceConfig.StorageType.FILESYSTEM)
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
                         .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
-                        .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError))
+                        .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)
+                        .with(ServiceConfig.REST_LISTENING_PORT, this.restServerPort + segmentStoreId + 1)
+                        .with(ServiceConfig.REST_LISTENING_ENABLE, this.enableRestServer))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)

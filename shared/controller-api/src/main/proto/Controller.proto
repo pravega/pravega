@@ -58,6 +58,7 @@ service ControllerService {
     rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc getKeyValueTableConfiguration(KeyValueTableInfo) returns (KeyValueTableConfigResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
@@ -65,6 +66,8 @@ service ControllerService {
     rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
     rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
     rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
+    rpc getStreamConfiguration(StreamInfo) returns (StreamConfig);
+    rpc listStreamsInScopeForTag(StreamsInScopeWithTagRequest) returns (StreamsInScopeResponse);
 }
 
 message ServerRequest {
@@ -155,6 +158,18 @@ message KeyValueTableConfig {
     string scope = 1;
     string kvtName = 2;
     int32 partitionCount = 3;
+    int32 primaryKeyLength = 4;
+    int32 secondaryKeyLength = 5;
+}
+
+message KeyValueTableConfigResponse {
+    KeyValueTableConfig config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 2;
 }
 
 message KeyValueTableInfo {
@@ -323,6 +338,12 @@ message ContinuationToken {
      ContinuationToken continuationToken = 2;
 }
 
+message StreamsInScopeWithTagRequest {
+    ScopeInfo scope = 1;
+    string tag = 2;
+    ContinuationToken continuationToken =3;
+}
+
  message StreamsInScopeResponse {
     repeated StreamInfo streams = 1;
     ContinuationToken continuationToken = 2;
@@ -375,6 +396,11 @@ message StreamConfig {
     StreamInfo streamInfo = 1;
     ScalingPolicy scalingPolicy = 2;
     RetentionPolicy retentionPolicy = 3;
+    Tags tags = 4;
+}
+
+message Tags {
+    repeated string tag = 1;
 }
 
 message StreamCut {

@@ -31,6 +31,9 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
+import io.pravega.client.tables.TableKey;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
@@ -80,7 +83,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     private final ConcurrentHashMap<String, List<TransactionalEventStreamWriter<byte[]>>> transactionalWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicReference<ClientReader> clientReader;
-    private final ConcurrentHashMap<String, io.pravega.client.tables.KeyValueTable<BufferView, BufferView>> keyValueTables;
+    private final ConcurrentHashMap<String, io.pravega.client.tables.KeyValueTable> keyValueTables;
     private final int writersPerStream;
 
     //endregion
@@ -306,7 +309,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
             }
 
             val clientConfig = KeyValueTableClientConfiguration.builder().build();
-            val kvt = getKVTFactory().forKeyValueTable(tableName, KVT_SERIALIZER, KVT_SERIALIZER, clientConfig);
+            val kvt = getKVTFactory().forKeyValueTable(tableName, clientConfig);
             this.keyValueTables.putIfAbsent(tableName, kvt);
         }, this.testExecutor);
     }
@@ -330,7 +333,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         // NOTE: we do not support conditional updates (these are converted to unconditional updates).
         ensureRunning();
         return getKvt(tableName)
-                .put(null, key, value)
+                .update(new Put(new TableKey(ByteBuffer.wrap(key.getCopy())), ByteBuffer.wrap(value.getCopy())))
                 .thenApply(v -> v.asImpl().getSegmentVersion());
     }
 
@@ -338,16 +341,15 @@ abstract class ClientAdapterBase extends StoreAdapter {
     public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
         // NOTE: we do not support conditional removals (these are converted to unconditional removals).
         ensureRunning();
-        return getKvt(tableName)
-                .remove(null, key);
+        return Futures.toVoid(getKvt(tableName).update(new Remove(new TableKey(ByteBuffer.wrap(key.getCopy())))));
     }
 
     @Override
     public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
         ensureRunning();
         return getKvt(tableName)
-                .getAll(null, keys)
-                .thenApplyAsync(entries -> entries.stream().map(e -> e == null ? null : e.getValue()).collect(Collectors.toList()), this.testExecutor);
+                .getAll(keys.stream().map(BufferView::getCopy).map(ByteBuffer::wrap).map(TableKey::new).collect(Collectors.toList()))
+                .thenApplyAsync(entries -> entries.stream().map(e -> e == null ? null : new ByteArraySegment(e.getValue())).collect(Collectors.toList()), this.testExecutor);
     }
 
     @Override
@@ -426,7 +428,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @SneakyThrows(StreamSegmentNotExistsException.class)
-    private io.pravega.client.tables.KeyValueTable<BufferView, BufferView> getKvt(String kvtName) {
+    private io.pravega.client.tables.KeyValueTable getKvt(String kvtName) {
         val kvt = this.keyValueTables.getOrDefault(kvtName, null);
         if (kvt == null) {
             throw new StreamSegmentNotExistsException(kvtName);

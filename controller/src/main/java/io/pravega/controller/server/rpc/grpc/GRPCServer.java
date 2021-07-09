@@ -26,7 +26,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
@@ -66,7 +66,7 @@ public class GRPCServer extends AbstractIdleService {
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.authHandlerManager = new AuthHandlerManager(serverConfig);
-            this.authHandlerManager.registerInterceptors(builder);
+            GrpcAuthHelper.registerInterceptors(authHandlerManager.getHandlerMap(), builder);
         } else {
             this.authHandlerManager = null;
         }

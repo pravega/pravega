@@ -22,8 +22,8 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
+import java.io.IOException;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,8 +31,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -45,6 +45,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -120,7 +121,10 @@ public class BTreeIndex {
     private final ReadPage read;
     private final WritePages write;
     private final GetLength getLength;
-    private final AtomicReference<IndexState> state;
+    private volatile IndexState state;
+    private volatile boolean maintainStatistics;
+    @Getter
+    private volatile Statistics statistics;
     private final Executor executor;
     private final String traceObjectId;
 
@@ -131,28 +135,30 @@ public class BTreeIndex {
     /**
      * Creates a new instance of the BTreeIndex class.
      *
-     * @param maxPageSize Maximum page size. No BTreeIndex Page will exceed this value.
-     * @param keyLength   The length, in bytes, of the index Keys.
-     * @param valueLength The length, in bytes, of the index Values.
-     * @param readPage    A Function that reads the contents of a page from an external data source.
-     * @param writePages  A Function that writes contents of one or more contiguous pages to an external data source.
-     * @param getLength   A Function that returns the length of the index, in bytes, as stored in an external data source.
-     * @param executor    Executor for async operations.
-     * @param traceObjectId An identifier to add to all log entries.
+     * @param maxPageSize        Maximum page size. No BTreeIndex Page will exceed this value.
+     * @param keyLength          The length, in bytes, of the index Keys.
+     * @param valueLength        The length, in bytes, of the index Values.
+     * @param readPage           A Function that reads the contents of a page from an external data source.
+     * @param writePages         A Function that writes contents of one or more contiguous pages to an external data source.
+     * @param getLength          A Function that returns the length of the index, in bytes, as stored in an external data source.
+     * @param maintainStatistics If true, the BTreeIndex will maintain {@link Statistics} about its contents.
+     * @param executor           Executor for async operations.
+     * @param traceObjectId      An identifier to add to all log entries.
      */
     @Builder
     public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull WritePages writePages,
-                      @NonNull GetLength getLength, @NonNull Executor executor, String traceObjectId) {
+                      @NonNull GetLength getLength, boolean maintainStatistics, @NonNull Executor executor, String traceObjectId) {
         this.read = readPage;
         this.write = writePages;
         this.getLength = getLength;
+        this.maintainStatistics = maintainStatistics;
         this.executor = executor;
         this.traceObjectId = traceObjectId;
 
         // BTreePage.Config validates the arguments so we don't need to.
         this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
         this.leafPageConfig = new BTreePage.Config(keyLength, valueLength, maxPageSize, false);
-        this.state = new AtomicReference<>();
+        this.state = null;
     }
 
     //endregion
@@ -165,7 +171,7 @@ public class BTreeIndex {
      * @return True if initialized, false otherwise.
      */
     public boolean isInitialized() {
-        return this.state.get() != null;
+        return this.state != null;
     }
 
     /**
@@ -174,7 +180,7 @@ public class BTreeIndex {
      * @return The Index Length.
      */
     public long getIndexLength() {
-        IndexState s = this.state.get();
+        IndexState s = this.state;
         return s == null ? -1 : s.length;
     }
 
@@ -197,13 +203,16 @@ public class BTreeIndex {
                     if (indexInfo.getIndexLength() <= FOOTER_LENGTH) {
                         // Empty index.
                         setState(indexInfo.getIndexLength(), PagePointer.NO_OFFSET, 0);
+                        this.statistics = this.maintainStatistics ? Statistics.EMPTY : null;
                         return CompletableFuture.completedFuture(null);
                     }
 
                     long footerOffset = indexInfo.getRootPointer() >= 0 ? indexInfo.getRootPointer() : getFooterOffset(indexInfo.getIndexLength());
                     return this.read
-                            .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
-                            .thenAccept(footer -> initialize(footer, footerOffset, indexInfo.getIndexLength()));
+                            .apply(footerOffset, FOOTER_LENGTH, false, timer.getRemaining())
+                            .thenAcceptAsync(footer -> initialize(footer, footerOffset, indexInfo.getIndexLength()), this.executor)
+                            .thenCompose(v -> loadStatistics(timer.getRemaining()))
+                            .thenRun(() -> log.info("{}: Initialized. State = {}, Stats = {}.", this.traceObjectId, this.state, this.statistics));
                 });
     }
 
@@ -230,6 +239,40 @@ public class BTreeIndex {
         setState(indexLength, rootPageOffset, rootPageLength);
     }
 
+    private CompletableFuture<Void> loadStatistics(Duration timeout) {
+        if (!this.maintainStatistics) {
+            // Disabled.
+            return CompletableFuture.completedFuture(null);
+        }
+
+        val s = this.state;
+        if (s.rootPageOffset == PagePointer.NO_OFFSET) {
+            this.statistics = Statistics.EMPTY;
+            log.debug("{}: Resetting stats due to index empty.", this.traceObjectId);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        long statsOffset = s.rootPageOffset + s.rootPageLength;
+        int statsLength = (int) Math.min(s.length - FOOTER_LENGTH - statsOffset, Integer.MAX_VALUE);
+        if (statsLength <= 0) {
+            // The Maintain Stats option was set, however this particular index does not support stats (because it was
+            // originally build with stats disabled or before stats were added).
+            this.maintainStatistics = false;
+            this.statistics = null;
+            log.debug("{}: Not loading stats due to legacy index not supporting stats.", this.traceObjectId);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        return this.read.apply(statsOffset, statsLength, false, timeout)
+                .thenAccept(data -> {
+                    try {
+                        this.statistics = Statistics.SERIALIZER.deserialize(data);
+                    } catch (IOException ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
+    }
+
     /**
      * Looks up the value of a single key.
      *
@@ -244,7 +287,7 @@ public class BTreeIndex {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Lookup the page where the Key should exist (if at all).
-        PageCollection pageCollection = new PageCollection(this.state.get().length);
+        PageCollection pageCollection = new PageCollection(this.state.length);
         return locatePage(key, pageCollection, timer)
                 .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor);
     }
@@ -269,7 +312,7 @@ public class BTreeIndex {
         // where provided to us.
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        PageCollection pageCollection = new PageCollection(this.state.get().length);
+        PageCollection pageCollection = new PageCollection(this.state.length);
         val gets = keys.stream()
                 .map(key -> locatePage(key, pageCollection, timer)
                         .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
@@ -294,8 +337,8 @@ public class BTreeIndex {
         // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-update
         // entries belonging to the same page.
         val toUpdate = entries.stream()
-                              .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
-                              .iterator();
+                .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
+                .iterator();
         return applyUpdates(toUpdate, timer)
                 .thenComposeAsync(pageCollection -> loadSmallestOffsetPage(pageCollection, timer)
                                 .thenRun(() -> processModifiedPages(pageCollection))
@@ -319,7 +362,7 @@ public class BTreeIndex {
     public AsyncIterator<List<PageEntry>> iterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive,
                                                    @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive, Duration fetchTimeout) {
         ensureInitialized();
-        return new EntryIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, this.state.get().length, fetchTimeout);
+        return new EntryIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, this.state.length, fetchTimeout);
     }
 
     //endregion
@@ -336,7 +379,7 @@ public class BTreeIndex {
      * @return A CompletableFuture that will contain a PageCollection with all touched pages.
      */
     private CompletableFuture<UpdateablePageCollection> applyUpdates(Iterator<PageEntry> updates, TimeoutTimer timer) {
-        UpdateablePageCollection pageCollection = new UpdateablePageCollection(this.state.get().length);
+        UpdateablePageCollection pageCollection = new UpdateablePageCollection(this.state.length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageUpdates = new ArrayList<PageEntry>();
         return Futures.loop(
@@ -353,7 +396,7 @@ public class BTreeIndex {
                                     // This key goes to a different page than the one we were looking at.
                                     if (last != null) {
                                         // Commit the outstanding updates.
-                                        last.getPage().update(lastPageUpdates);
+                                        last.setEntryCountDelta(last.getPage().update(lastPageUpdates));
                                     }
 
                                     // Update the pointers.
@@ -366,13 +409,14 @@ public class BTreeIndex {
                             });
                 },
                 this.executor)
-                      .thenApplyAsync(v -> {
-                          // We need not forget to apply the last batch of updates from the last page.
-                          if (lastPage.get() != null) {
-                              lastPage.get().getPage().update(lastPageUpdates);
-                          }
-                          return pageCollection;
-                      }, this.executor);
+                .thenApplyAsync(v -> {
+                    // We need not forget to apply the last batch of updates from the last page.
+                    PageWrapper last = lastPage.get();
+                    if (last != null) {
+                        last.setEntryCountDelta(last.getPage().update(lastPageUpdates));
+                    }
+                    return pageCollection;
+                }, this.executor);
     }
 
     /**
@@ -579,8 +623,8 @@ public class BTreeIndex {
         } else {
             // Update parent page's child pointers for modified pages.
             val toUpdate = context.getUpdatedPagePointers().stream()
-                                  .map(pp -> new PageEntry(pp.getKey(), serializePointer(pp)))
-                                  .collect(Collectors.toList());
+                    .map(pp -> new PageEntry(pp.getKey(), serializePointer(pp)))
+                    .collect(Collectors.toList());
             parentPage.getPage().update(toUpdate);
         }
     }
@@ -601,9 +645,9 @@ public class BTreeIndex {
         // Sanity check that our pageCollection has a somewhat correct view of the data index state. It is OK for it to
         // think the index length is less than what it actually is (since a concurrent update may have increased it), but
         // it is not a good sign if it thinks it's longer than the actual length.
-        Preconditions.checkArgument(pageCollection.getIndexLength() <= this.state.get().length, "Unexpected PageCollection.IndexLength.");
+        Preconditions.checkArgument(pageCollection.getIndexLength() <= this.state.length, "Unexpected PageCollection.IndexLength.");
 
-        if (this.state.get().rootPageOffset == PagePointer.NO_OFFSET && pageCollection.getCount() == 0) {
+        if (this.state.rootPageOffset == PagePointer.NO_OFFSET && pageCollection.getCount() == 0) {
             // No data. Return an empty (leaf) page, which will serve as the root for now.
             return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
         }
@@ -624,7 +668,7 @@ public class BTreeIndex {
      */
     private CompletableFuture<PageWrapper> locatePage(Function<BTreePage, PagePointer> getChildPointer, Predicate<PageWrapper> found,
                                                       PageCollection pageCollection, TimeoutTimer timer) {
-        AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, this.state.get().rootPageOffset, this.state.get().rootPageLength));
+        AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, this.state.rootPageOffset, this.state.rootPageLength));
         CompletableFuture<PageWrapper> result = new CompletableFuture<>();
         AtomicReference<PageWrapper> parentPage = new AtomicReference<>(null);
         Futures.loop(
@@ -641,10 +685,10 @@ public class BTreeIndex {
                             }
                         }),
                 this.executor)
-               .exceptionally(ex -> {
-                   result.completeExceptionally(ex);
-                   return null;
-               });
+                .exceptionally(ex -> {
+                    result.completeExceptionally(ex);
+                    return null;
+                });
 
         return result;
     }
@@ -747,7 +791,7 @@ public class BTreeIndex {
      * @return A CompletableFuture with a ByteArraySegment representing the contents of the page.
      */
     private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
-        return this.read.apply(offset, length, timeout);
+        return this.read.apply(offset, length, true, timeout);
     }
 
     /**
@@ -757,12 +801,13 @@ public class BTreeIndex {
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture with a Long representing the current length of the index in the external data source.
      */
+    @SneakyThrows(IOException.class)
     private CompletableFuture<Long> writePages(UpdateablePageCollection pageCollection, Duration timeout) {
-        IndexState state = this.state.get();
+        IndexState state = this.state;
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 
         // Collect the data to be written.
-        val pages = new ArrayList<Map.Entry<Long, ByteArraySegment>>();
+        val pages = new ArrayList<WritePage>();
         val oldOffsets = new ArrayList<Long>();
         long offset = state.length;
         PageWrapper lastPage = null;
@@ -772,20 +817,38 @@ public class BTreeIndex {
             }
 
             // Collect the page, as well as its previous offset.
-            pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, p.getPage().getContents()));
+            pages.add(new WritePage(offset, p.getPage().getContents(), true));
             if (p.getPointer() != null && p.getPointer().getOffset() >= 0) {
                 oldOffsets.add(p.getPointer().getOffset());
+                if (this.maintainStatistics && p.getParent() == null) {
+                    // Stats are stored immediately after the root page; mark that as obsolete as well.
+                    oldOffsets.add(p.getPointer().getOffset() + p.getPointer().getLength());
+                }
             }
 
             offset = p.getOffset() + p.getPage().getLength();
             lastPage = p;
         }
 
-        // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
+
+        // Update and store statistics - if required.
+        Statistics newStats;
+        if (this.maintainStatistics) {
+            // Calculate and store stats here.
+            newStats = this.statistics.update(pageCollection.getEntryCountDelta(), pageCollection.getPageCountDelta());
+            val sp = new WritePage(offset, Statistics.SERIALIZER.serialize(newStats), false);
+            pages.add(sp);
+            offset += sp.getContents().getLength();
+        } else {
+            // Stats are not maintained.
+            newStats = null;
+        }
+
+        // Write a footer with information about locating the root page.
         final long footerOffset = offset;
-        pages.add(new AbstractMap.SimpleImmutableEntry<>(footerOffset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
+        pages.add(new WritePage(footerOffset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength()), false));
 
         // Collect the old footer's offset, as it will be replaced by a more recent value.
         long oldFooterOffset = getFooterOffset(state.length);
@@ -803,6 +866,7 @@ public class BTreeIndex {
         assert rootMinOffset >= 0 : "root.MinOffset not set";
         return this.write.apply(pages, oldOffsets, rootMinOffset, timeout)
                 .thenApply(indexLength -> {
+                    this.statistics = newStats;
                     setState(indexLength, rootOffset, rootLength);
                     assert footerOffset == getFooterOffset(indexLength); // This should fail any unit tests.
                     return footerOffset;
@@ -810,9 +874,8 @@ public class BTreeIndex {
     }
 
     private void setState(long length, long rootPageOffset, int rootPageLength) {
-        IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
-        this.state.set(s);
-        log.debug("{}: IndexState: {}.", this.traceObjectId, s);
+        this.state = new IndexState(length, rootPageOffset, rootPageLength);
+        log.debug("{}: IndexState: {}, Stats: {}.", this.traceObjectId, this.state, this.statistics);
     }
 
     private long getFooterOffset(long indexLength) {
@@ -916,13 +979,14 @@ public class BTreeIndex {
         /**
          * Reads a single Page from an external data source.
          *
-         * @param offset  The offset of the desired Page.
-         * @param length  The length of the desired Page.
-         * @param timeout Timeout for the operation.
+         * @param offset      The offset of the desired Page.
+         * @param length      The length of the desired Page.
+         * @param cacheResult If true, the result of this operation should be cached if possible.
+         * @param timeout     Timeout for the operation.
          * @return A CompletableFuture that, when completed, will contain a ByteArraySegment that represents the contents
          * of the desired Page.
          */
-        CompletableFuture<ByteArraySegment> apply(long offset, int length, Duration timeout);
+        CompletableFuture<ByteArraySegment> apply(long offset, int length, boolean cacheResult, Duration timeout);
     }
 
     /**
@@ -933,7 +997,7 @@ public class BTreeIndex {
         /**
          * Persists the contents of multiple, contiguous Pages to an external data source.
          *
-         * @param pageContents    An ordered List of Offset-ByteArraySegments pairs representing the contents of the
+         * @param pageContents    An ordered List of {@link WritePage} representing the contents of the
          *                        individual pages mapped to their assigned Offsets. The list is ordered by Offset (Keys).
          *                        All entries should be contiguous (an entry's offset is equal to the previous entry's
          *                        offset + the previous entry's length).
@@ -947,8 +1011,14 @@ public class BTreeIndex {
          * @return A CompletableFuture that, when completed, will contain the current length (in bytes) of the index in the
          * external data source.
          */
-        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Collection<Long> obsoleteOffsets,
-                                      long truncateOffset, Duration timeout);
+        CompletableFuture<Long> apply(List<WritePage> pageContents, Collection<Long> obsoleteOffsets, long truncateOffset, Duration timeout);
+    }
+
+    @Data
+    public static class WritePage {
+        private final long offset;
+        private final ByteArraySegment contents;
+        private final boolean cache;
     }
 
     //endregion

@@ -111,6 +111,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
+        return this.controller.getStream(scopeName, streamName, requestIdGenerator.nextLong());
+    }
+
+    @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         return this.controller.createScope(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {
@@ -133,6 +138,19 @@ public class LocalController implements Controller {
     public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
                 controller.listStreams(scopeName, token, PAGE_LIMIT, requestIdGenerator.nextLong())
+                          .thenApply(result -> {
+                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
+                                                                .collect(Collectors.toList());
+                              return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
+                          });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
+                controller.listStreamsForTag(scopeName, tag, token, requestIdGenerator.nextLong())
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
                                                                 .collect(Collectors.toList());
@@ -647,6 +665,24 @@ public class LocalController implements Controller {
                         });
 
         return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return this.controller.getKeyValueTableConfiguration(scope, kvtName, requestIdGenerator.nextLong()).thenApply(x -> {
+            String scopedKvtName = NameUtils.getScopedKeyValueTableName(scope, kvtName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to get configuration for key-value table: " + scopedKvtName);
+                case TABLE_NOT_FOUND:
+                    throw new IllegalArgumentException("Key-value table does not exist: " + scopedKvtName);
+                case SUCCESS:
+                    return ModelHelper.encode(x.getConfig());
+                default:
+                    throw new ControllerFailureException("Unknown return status getting key-value table configuration " +
+                            scopedKvtName + " " + x.getStatus());
+            }
+        });
     }
 
     @Override

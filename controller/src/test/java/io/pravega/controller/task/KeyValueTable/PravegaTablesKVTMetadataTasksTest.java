@@ -15,45 +15,39 @@
  */
 package io.pravega.controller.task.KeyValueTable;
 
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.test.common.TestingServerStarter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
+import org.junit.ClassRule;
 
 public class PravegaTablesKVTMetadataTasksTest extends TableMetadataTasksTest {
-    private CuratorFramework zkClient;
-    private TestingServer zkServer;
+
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(8000, 5000, RETRY_POLICY);
+
     private SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
 
     @Override
     public void setupStores() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        int sessionTimeout = 8000;
-        int connectionTimeout = 5000;
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
-        zkClient.start();
         SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         // setup Stream Store, needed for creating scopes
         this.streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(),
-                zkClient, executor);
+                PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         // setup KVTable Store
         this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(),
-                zkClient, executor);
+                PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
     public void cleanupStores() throws Exception {
         kvtStore.close();
         streamStore.close();
-        zkClient.close();
-        zkServer.close();
     }
 
     @Override
