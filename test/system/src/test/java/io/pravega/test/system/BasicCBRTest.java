@@ -71,10 +71,11 @@ public class BasicCBRTest extends AbstractReadWriteTest {
     private static final String SCOPE = "testCBRScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testCBRStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP = "testCBRReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String SIZE_30_EVENT = "data of size 30";
 
     private static final int READ_TIMEOUT = 1000;
-    private static final int MAX = 300;
-    private static final int MIN = 30;
+    private static final int MAX_SIZE_IN_STREAM = 300;
+    private static final int MIN_SIZE_IN_STREAM = 30;
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
@@ -113,7 +114,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM,
                 StreamConfiguration.builder()
                         .scalingPolicy(ScalingPolicy.fixed(1))
-                        .retentionPolicy(RetentionPolicy.bySizeBytes(MIN, MAX)).build()));
+                        .retentionPolicy(RetentionPolicy.bySizeBytes(MIN_SIZE_IN_STREAM, MAX_SIZE_IN_STREAM)).build()));
     }
 
     @After
@@ -134,7 +135,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Write a single event.
         log.info("Writing event e1 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("e1", "data of size 30").join();
+        writer.writeEvent("e1", SIZE_30_EVENT).join();
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
@@ -158,7 +159,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
-        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        EventRead<String> emptyEvent = reader.readNextEvent(READ_TIMEOUT);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts, 10_000));
 
         Map<Stream, StreamCut> streamCuts = futureCuts.join();
@@ -167,9 +168,9 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Write two more events.
         log.info("Writing event e2 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("e2", "data of size 30").join();
+        writer.writeEvent("e2", SIZE_30_EVENT).join();
         log.info("Writing event e3 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("e3", "data of size 30").join();
+        writer.writeEvent("e3", SIZE_30_EVENT).join();
 
         // Check to make sure truncation happened after the first event.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
@@ -187,7 +188,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
-        EventRead<String> emptyEvent2 = reader.readNextEvent(100);
+        EventRead<String> emptyEvent2 = reader.readNextEvent(READ_TIMEOUT);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts2, 10_000));
 
         Map<Stream, StreamCut> streamCuts2 = futureCuts2.join();
