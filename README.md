@@ -91,7 +91,7 @@ Note GitHub Packages requires authentication to download packages thus credentia
 
 If you need a dedicated token to use in your repository (and GitHub Actions) please reach out to us.  
 
-As alternative option you can use JitPack (https://jitpack.io/#pravega/pravega) to get pre-release artifacts 
+As alternative option you can use JitPack (https://jitpack.io/#pravega/pravega) to get pre-release artifacts. 
 
 ## Quick Start
 
