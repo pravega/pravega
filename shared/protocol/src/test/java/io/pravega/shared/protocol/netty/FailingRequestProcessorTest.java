@@ -64,21 +64,21 @@ public class FailingRequestProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.createSegment(new CreateSegment(0, "", (byte) 0, 0, "")));
         assertThrows(IllegalStateException.class, () -> rp.updateSegmentPolicy(new UpdateSegmentPolicy(0, "", (byte) 0, 0, "")));
-        assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, "")));
+        assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, 0, "")));
         assertThrows(IllegalStateException.class, () -> rp.deleteTableSegment(new DeleteTableSegment(0, "", false,  "")));
         assertThrows(IllegalStateException.class, () -> rp.updateTableEntries(new UpdateTableEntries(0, "", "", null, 0)));
         assertThrows(IllegalStateException.class, () -> rp.removeTableKeys(new RemoveTableKeys(0, "", "", null, 0)));
         assertThrows(IllegalStateException.class, () -> rp.readTable(new ReadTable(0, "", "", null)));
-        assertThrows(IllegalStateException.class, () -> rp.readTableKeys(new ReadTableKeys(0, "", "", 0, null, null)));
-        assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null, null)));
+        assertThrows(IllegalStateException.class, () -> rp.readTableKeys(new ReadTableKeys(0, "", "", 0, null)));
+        assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null)));
         assertThrows(IllegalStateException.class, () -> rp.mergeSegments(new MergeSegments(0, "", "", "")));
         assertThrows(IllegalStateException.class, () -> rp.mergeTableSegments(new MergeTableSegments(0, "", "", "")));
         assertThrows(IllegalStateException.class, () -> rp.sealSegment(new SealSegment(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.sealTableSegment(new SealTableSegment(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.truncateSegment(new TruncateSegment(0, "", 0, "")));
         assertThrows(IllegalStateException.class, () -> rp.deleteSegment(new DeleteSegment(0, "", "")));
-        assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null, null)));
-        assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, "")));
+        assertThrows(IllegalStateException.class, () -> rp.readTableEntries(new ReadTableEntries(0, "", "", 0, null)));
+        assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, 0, "")));
         assertThrows(IllegalStateException.class, () -> rp.readTableEntriesDelta(new ReadTableEntriesDelta(0, "", "", 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.createTransientSegment(new CreateTransientSegment(0, new UUID(0, 0), "", "")));
     }
