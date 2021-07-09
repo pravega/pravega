@@ -200,6 +200,16 @@ class TableSegmentImpl implements TableSegment {
                 .asSequential(this.connectionPool.getInternalExecutor());
     }
 
+    @Override
+    public CompletableFuture<Long> getEntryCount() {
+        return this.readContext.execute((state, requestId) -> {
+            val request = new WireCommands.GetTableSegmentInfo(requestId, this.segmentName, state.getToken());
+
+            return sendRequest(request, state, WireCommands.TableSegmentInfo.class)
+                    .thenApply(WireCommands.TableSegmentInfo::getEntryCount);
+        });
+    }
+
     /**
      * Fetches a collection of items as part of an async iterator.
      *

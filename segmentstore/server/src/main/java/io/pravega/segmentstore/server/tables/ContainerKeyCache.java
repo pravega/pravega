@@ -290,6 +290,17 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         return forSegmentCache(segmentId, SegmentKeyCache::getTailBucketOffsets, Collections.emptyMap());
     }
 
+    /**
+     * Gets a number representing the expected change in number of entries to the index once all the tail cache entries
+     * are included in it.
+     *
+     * @param segmentId The Id of the Segment to get the entry count delta.
+     * @return The tail entry update count delta.
+     */
+    int getTailUpdateDelta(long segmentId) {
+        return forSegmentCache(segmentId, SegmentKeyCache::getTailEntryCountDelta, 0);
+    }
+
     private <T> T forSegmentCache(long segmentId, Function<SegmentKeyCache, T> ifExists, T ifNotExists) {
         SegmentKeyCache cache;
         synchronized (this.segmentCaches) {
