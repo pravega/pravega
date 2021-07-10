@@ -20,10 +20,12 @@ import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -33,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -216,10 +217,6 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     public void execute(Runnable command) {
         runner.execute(new ScheduledRunnable<>(Executors.callable(command)));
     }
-    
-    private <V> void execute(Callable<V> callable) {
-        runner.execute(new ScheduledRunnable<>(callable));
-    }
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
@@ -255,7 +252,6 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     private abstract class ScheduleLoop implements Callable<Void>, ScheduledFuture<Void> {
         final Runnable command;
         final AtomicBoolean canceled = new AtomicBoolean(false);
-        final AtomicReference<ScheduledRunnable<?>> current = new AtomicReference<>();
         final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>(); 
 
         @Override
@@ -269,10 +265,16 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                     shutdownFuture.completeExceptionally(t);
                     return null;
                 }
-                schedule();
-            } else {
-                shutdownFuture.complete(null);
-            }
+                if (!canceled.get()) {
+                    try {
+                        schedule();
+                    } catch (RejectedExecutionException e) {
+                        //Pool has shutdown
+                        log.debug("Shutting down task {} because pool {} has shutdown.", command, runner);
+                        cancel(false);
+                    }
+                }
+            } 
             return null;
         }
 
@@ -289,14 +291,11 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
 
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
-            if (!canceled.getAndSet(true)) {
-                ScheduledRunnable<?> runnable = current.get();
-                if (runnable != null) {
-                    ThreadPoolScheduledExecutorService.this.cancel(runnable);
-                }
-                return true;
+            if (canceled.getAndSet(true)) {
+                return false;
             }
-            return false;
+            shutdownFuture.completeExceptionally(new CancellationException());
+            return true;
         }
 
         @Override
