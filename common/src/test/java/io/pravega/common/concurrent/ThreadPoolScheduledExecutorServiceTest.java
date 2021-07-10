@@ -286,8 +286,8 @@ public class ThreadPoolScheduledExecutorServiceTest {
     @Test(timeout = 10000)
     public void testDelays() throws Exception {
         ThreadPoolScheduledExecutorService pool = createPool(1, 1);
-        ScheduledFuture<?> f20 = pool.schedule(() -> {} , 20, SECONDS);
-        ScheduledFuture<?> f30 = pool.schedule(() -> {} , 30, SECONDS);
+        ScheduledFuture<?> f20 = pool.schedule(() -> { }, 20, SECONDS);
+        ScheduledFuture<?> f30 = pool.schedule(() -> { }, 30, SECONDS);
         assertTrue(f20.getDelay(SECONDS) <= 20);
         assertTrue(f20.getDelay(SECONDS) > 18);
         assertTrue(f30.getDelay(SECONDS) <= 30);

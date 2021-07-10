@@ -151,16 +151,6 @@ final class ExecutorServiceFactory {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
         ThreadPoolScheduledExecutorService result = this.createScheduledExecutor.apply(size, threadFactory);
 
-        //These aren't needed anymore as ThreadPoolScheduledExecutorService mandates all of them
-//        // Do not execute any periodic tasks after shutdown.
-//        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-//
-//        // Do not execute any delayed tasks after shutdown.
-//        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-//
-//        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
-//        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
-//        result.setRemoveOnCancelPolicy(true);
         return result;
     }
 

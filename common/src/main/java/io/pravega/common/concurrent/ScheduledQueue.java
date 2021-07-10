@@ -52,12 +52,13 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
 
         @Override
         public int compareTo(FireTime other) {
-            if (this.timeNanos < other.timeNanos)
+            if (this.timeNanos < other.timeNanos) {
                 return -1;
-            else if (this.timeNanos > other.timeNanos)
+            } else if (this.timeNanos > other.timeNanos) {
                 return 1;
-            else
+            } else {
                 return Long.compare(this.sequenceNumber, other.sequenceNumber);
+            }
         }
     }
 
@@ -111,15 +112,6 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
         }
         return null;
     }
-
-
-    private long sleepTimeout(long timeout, long startTime, long now, Entry<FireTime, E> delayed) {
-        long sleepTimeout = timeout - (now - startTime);
-        if (delayed != null) {
-            sleepTimeout = Math.min(sleepTimeout, delayed.getKey().getTimeNanos() - now);
-        }
-        return sleepTimeout;
-    }
     
     @Override
     public E poll() {
@@ -139,6 +131,14 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
                 return delayed.getValue();
             }
         }
+    }
+
+    private long sleepTimeout(long timeout, long startTime, long now, Entry<FireTime, E> delayed) {
+        long sleepTimeout = timeout - (now - startTime);
+        if (delayed != null) {
+            sleepTimeout = Math.min(sleepTimeout, delayed.getKey().getTimeNanos() - now);
+        }
+        return sleepTimeout;
     }
     
     /**
@@ -168,22 +168,11 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
         } else {
             delayedTasks.put(new FireTime(e.getScheduledTimeNanos(), seq), e);
         }
-        blocker.release(); // This is done unconditionally even if delayed because it could be the
-                           // new shortest delay in which case some thread should wake up to
-                           // re-schedule its sleep.
+        // This is done unconditionally even if delayed because it could be the
+        // new shortest delay in which case some thread should wake up to
+        // re-schedule its sleep.
+        blocker.release();
         return true;
-    }
-    
-    /**
-     * Inserts the specified element into this delay queue. As the queue is
-     * unbounded this method will never block.
-     *
-     * @param e the element to add
-     * @throws NullPointerException {@inheritDoc}
-     */
-    @Override
-    public void put(E e) {
-        offer(e);
     }
 
     /**
@@ -200,7 +189,18 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
     public boolean offer(E e, long timeout, TimeUnit unit) {
         return offer(e);
     }
-
+    
+    /**
+     * Inserts the specified element into this delay queue. As the queue is
+     * unbounded this method will never block.
+     *
+     * @param e the element to add
+     * @throws NullPointerException {@inheritDoc}
+     */
+    @Override
+    public void put(E e) {
+        offer(e);
+    }
 
     /**
      * Retrieves, but does not remove, the head of this queue, or
@@ -248,7 +248,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
     }
 
     /**
-     * Returns an array containing all of the elements in this queue
+     * Returns an array containing all of the elements in this queue.
      *
      * @param a the array into which the elements of the queue are to
      *          be stored, if it is big enough; otherwise, a new array of the
