@@ -150,7 +150,10 @@ final class ExecutorServiceFactory {
 
         // Caller runs only occurs after shutdown, as queue size is unbounded.
         ThreadPoolScheduledExecutorService result = this.createScheduledExecutor.apply(size, threadFactory);
-
+        // ThreadPoolScheduledExecutorService implies:
+        // setContinueExistingPeriodicTasksAfterShutdownPolicy(false),
+        // setExecuteExistingDelayedTasksAfterShutdownPolicy(false),
+        // setRemoveOnCancelPolicy(true);
         return result;
     }
 
