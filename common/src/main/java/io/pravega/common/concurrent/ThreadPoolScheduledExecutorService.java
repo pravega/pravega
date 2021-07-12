@@ -82,6 +82,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     }
 
     @RequiredArgsConstructor
+    @EqualsAndHashCode
     private final class CancelableFuture<R> implements ScheduledFuture<R> {
 
         private final ScheduledRunnable<R> task;

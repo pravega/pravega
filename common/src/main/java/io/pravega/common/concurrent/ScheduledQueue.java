@@ -77,7 +77,8 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
 
     @Override
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
-        blocker.tryAcquire();
+        @SuppressWarnings("unused")
+        boolean ignored = blocker.tryAcquire();
         E result = readyTasks.poll();
         if (result != null) {
             this.itemsRemoved.incrementAndGet();
@@ -101,7 +102,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
                 }
             } else {
                 //If readyTasks is non-empty then blocker must have permits.
-                blocker.tryAcquire(sleepTimeout(timeout, startTime, now, delayed), TimeUnit.NANOSECONDS);
+                ignored = blocker.tryAcquire(sleepTimeout(timeout, startTime, now, delayed), TimeUnit.NANOSECONDS);
                 result = readyTasks.poll();
                 if (result != null) {
                     this.itemsRemoved.incrementAndGet();
@@ -115,7 +116,8 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
     
     @Override
     public E poll() {
-        blocker.tryAcquire();
+        @SuppressWarnings("unused")
+        boolean ignored = blocker.tryAcquire();
         E result = readyTasks.poll();
         if (result != null) {
             this.itemsRemoved.incrementAndGet();

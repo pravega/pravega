@@ -211,7 +211,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         AssertExtensions.assertThrows(RejectedExecutionException.class,
                                       () -> pool.submit(() -> count.incrementAndGet()));
         //No need to call latch.release() because thread should be interupted
-        assertTrue(pool.awaitTermination(1, SECONDS));
+        assertTrue(pool.awaitTermination(5, SECONDS));
         assertTrue(pool.isTerminated());
         assertNotNull(error.get());
         assertEquals(InterruptedException.class, error.get().getClass());
@@ -292,8 +292,8 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertTrue(f20.getDelay(SECONDS) > 18);
         assertTrue(f30.getDelay(SECONDS) <= 30);
         assertTrue(f30.getDelay(SECONDS) > 28);
-        assertTrue(f20.compareTo(f30) == -1);
-        assertTrue(f30.compareTo(f20) == 1);
+        assertTrue(f20.compareTo(f30) < 0);
+        assertTrue(f30.compareTo(f20) > 0);
         assertTrue(f30.compareTo(f30) == 0);
         pool.shutdown();
         assertTrue(pool.awaitTermination(1, SECONDS));
