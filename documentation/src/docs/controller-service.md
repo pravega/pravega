@@ -128,7 +128,11 @@ have two policies that users can define, namely [**Scaling** **Policy**](https:/
        - **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of Segments.  
        - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time-based Retention*) and data **size** (*Size-based Retention*).
 
-  3. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing Transactions requires the manipulation of Stream Segments. With
+  3. **Tag Management**: The Controller is responsible for storing user-defined Tags for a given Stream.
+     Tags are singleton labels that are useful to specify identifying attributes of a Stream, meaningful and relevant to users.
+     The Controller indexes these Tags and provides APIs by which the user can organize and select a subset of Streams under a given Scope that share the same tag.
+
+  4. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing Transactions requires the manipulation of Stream Segments. With
 each Transaction, Pravega creates a set of Transaction Segments, which
 are later merged onto the Stream Segments upon commit or discarded upon
 aborts. The Controller performs the role of Transaction manager and is
@@ -247,7 +251,7 @@ to describe the change in generation of Segments in the Stream.
 The Controller maintains the Stream: it stores the information about all epochs that constitute a given Stream and also about their transitions. The metadata store is designed to persist the information pertaining to Stream Segments, and to enable queries over this information.
 
 Apart from the epoch information, it keeps some additional metadata,
-such as [state](#stream-state) and its [policies](#stream-policy-manager) and ongoing Transactions on the Stream. Various sub-components of Controller access the stored metadata for each
+such as [state](#stream-state), its [policies](#stream-policy-manager), its Tags and ongoing Transactions on the Stream. Various sub-components of Controller access the stored metadata for each
 Stream via a well-defined
 [interface](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java).
 We currently have two concrete implementations of the Stream store
@@ -309,8 +313,9 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
 
 #### Stream Configuration
  Stream configuration is stored against the StreamConfiguration key in the metadata table. The value against this key has the Stream configuration serialized and persisted. A
- Stream configuration contains Stream policies that need to be enforced.
+ Stream configuration contains Stream policies that need to be enforced and the Stream Tags associated with the Stream.
  [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java) are supplied by the application at the time of Stream creation and enforced by Controller by monitoring the rate and size of data in the Stream.
+ The Stream Tags too can be specified by the application at the time of Stream creation.
 
    - The Scaling policy describes if and when to automatically scale is based on incoming traffic conditions into the Stream. The policy supports two
  flavors - _traffic as the rate of Events per second_ and _traffic as the rate of
@@ -634,7 +639,7 @@ and `updateStream()` operation is performed.
 - Once the update Stream processing starts, it first sets the Stream state to *Updating*.
 - Then, the Stream configuration is updated in the metadata store followed by notifying
 Segment Stores for all _active_ Stream Segments of the Stream, about the change in
-policy. Now the state is reset to *Active*.
+policy. Any Tag related changes causes the Tag indexes (a reverse index of a Tag to Stream for a Scope) to be updated. Now the state is reset to *Active*.
 
 ### Scale Stream
 
