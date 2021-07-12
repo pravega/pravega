@@ -120,11 +120,12 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private void logEnd() {
         val elapsed = timer.getElapsed();
-        SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
-        SLTS_TRUNCATE_COUNT.inc();
         if (segmentMetadata.isStorageSystemSegment()) {
             SLTS_SYSTEM_TRUNCATE_COUNT.inc();
             chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        } else {
+            SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_TRUNCATE_COUNT.inc();
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",

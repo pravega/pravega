@@ -55,6 +55,8 @@ public class ChunkStorageMetrics {
     static final Counter WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
     static final Counter CONCAT_BYTES = STATS_LOGGER.createCounter(MetricsNames.STORAGE_CONCAT_BYTES);
 
+    static final Counter READ_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_READ_COUNT);
+    static final Counter WRITE_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_COUNT);
     static final Counter CREATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_CREATE_COUNT);
     static final Counter DELETE_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_DELETE_COUNT);
     static final Counter CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_CONCAT_COUNT);
@@ -73,10 +75,14 @@ public class ChunkStorageMetrics {
     static final OpStatsLogger SLTS_READ_INSTANT_TPUT = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INSTANT_TPUT);
     static final OpStatsLogger SLTS_WRITE_INSTANT_TPUT = STATS_LOGGER.createStats(MetricsNames.SLTS_WRITE_INSTANT_TPUT);
 
+    static final Counter SLTS_READ_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_READ_COUNT);
+    static final Counter SLTS_WRITE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_WRITE_COUNT);
     static final Counter SLTS_CREATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_CREATE_COUNT);
     static final Counter SLTS_DELETE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_DELETE_COUNT);
     static final Counter SLTS_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_COUNT);
     static final Counter SLTS_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_TRUNCATE_COUNT);
+    static final Counter SLTS_SYSTEM_READ_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_READ_COUNT);
+    static final Counter SLTS_SYSTEM_WRITE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_WRITE_COUNT);
     static final Counter SLTS_SYSTEM_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_TRUNCATE_COUNT);
 
     static final Counter LARGE_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_LARGE_CONCAT_COUNT);
