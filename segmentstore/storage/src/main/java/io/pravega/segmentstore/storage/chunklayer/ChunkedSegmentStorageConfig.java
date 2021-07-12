@@ -43,6 +43,8 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
+    public static final Property<Integer> FRAGMENTED_COUNT_MAX = Property.named("defrag.fragmented.chunks.count.max", 0);
+    public static final Property<Long> FRAGMENTED_SIZE_MAX = Property.named("defrag.fragmented.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
@@ -73,6 +75,8 @@ public class ChunkedSegmentStorageConfig {
             .appendEnabled(true)
             .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
+            .maxFragmentedCount(100)
+            .maxFragmentedSize(Long.MAX_VALUE)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionMaxConcurrency(10)
@@ -162,6 +166,16 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private boolean inlineDefragEnabled;
 
+    /**
+     */
+    @Getter
+    final private long maxFragmentedSize;
+
+    /**
+     */
+    @Getter
+    final private int maxFragmentedCount;
+
     @Getter
     final private int lateWarningThresholdInMillis;
 
@@ -248,6 +262,8 @@ public class ChunkedSegmentStorageConfig {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
         this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
+        this.maxFragmentedSize = properties.getLong(FRAGMENTED_SIZE_MAX);
+        this.maxFragmentedCount = properties.getInt(FRAGMENTED_COUNT_MAX);
         this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
         this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;

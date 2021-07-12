@@ -210,20 +210,24 @@ class ReadIndexCache implements StatsReporter {
     }
 
     /**
-     * Truncates the read index for given segment by removing all the chunks that are below given offset.
-     *  @param streamSegmentName Name of the segment to truncate.
-     * @param startOffset       Start offset after truncation.
+     * Truncates the read index for given segment by removing all the chunks that are below or above given offset.
+     * @param streamSegmentName Name of the segment to truncate.
+     * @param offset       Offset for truncation.
+     * @param isTail       Whether this is a tail truncate or head truncate.
      */
-    public void truncateReadIndex(String streamSegmentName, long startOffset) {
+    public void truncateReadIndex(String streamSegmentName, long offset, boolean isTail) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative. Segment=%s startOffset=%s", streamSegmentName, startOffset);
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Segment=%s offset=%s", streamSegmentName, offset);
 
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, false);
         if (null != segmentReadIndex) {
             if (segmentReadIndex.offsetToChunkNameIndex.size() > 0) {
-                val headMap = segmentReadIndex.offsetToChunkNameIndex.headMap(startOffset);
-                if (null != headMap) {
-                    val keysToRemove = new ArrayList<Long>(headMap.keySet());
+                val keysToRemove = new ArrayList<Long>();
+                val map = isTail ?
+                        segmentReadIndex.offsetToChunkNameIndex.tailMap(offset) : segmentReadIndex.offsetToChunkNameIndex.headMap(offset);
+
+                if (null != map) {
+                    keysToRemove.addAll(map.keySet());
                     for (val keyToRemove : keysToRemove) {
                         // Remove entry from cache
                         val indexEntry = segmentReadIndex.offsetToChunkNameIndex.get(keyToRemove);

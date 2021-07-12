@@ -695,6 +695,13 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         }
     }
 
+    boolean shouldDefrag(SegmentMetadata segmentMetadata) {
+        return (shouldAppend() || chunkStorage.supportsConcat())
+                && config.isInlineDefragEnabled()
+                && (segmentMetadata.getDefragPendingChunkCount() > config.getMaxFragmentedCount()
+                && !segmentMetadata.isStorageSystemSegment());
+    }
+
     /**
      * Adds block index entries for given chunk.
      */

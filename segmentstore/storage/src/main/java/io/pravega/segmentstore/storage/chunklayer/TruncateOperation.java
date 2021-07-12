@@ -113,7 +113,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         // Collect garbage.
         chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
         // Update the read index by removing all entries below truncate offset.
-        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset());
+        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset(), false);
 
         logEnd();
     }
@@ -194,6 +194,17 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             segmentMetadata.setFirstChunk(currentChunkName);
             segmentMetadata.setStartOffset(offset);
             segmentMetadata.setFirstChunkStartOffset(startOffset.get());
+            if (null != segmentMetadata.getDefragStartChunk() && segmentMetadata.getDefragStartOffset() < offset) {
+                if (currentChunkName == null) {
+                    segmentMetadata.setDefragStartChunk(null);
+                    segmentMetadata.setDefragStartOffset(0);
+                    segmentMetadata.setDefragPendingChunkCount(0);
+                } else {
+                    segmentMetadata.setDefragStartChunk(currentChunkName);
+                    segmentMetadata.setDefragStartOffset(startOffset.get());
+                    segmentMetadata.setDefragPendingChunkCount(segmentMetadata.getDefragPendingChunkCount() - chunksToDelete.size());
+                }
+            }
         }, chunkedSegmentStorage.getExecutor());
     }
 

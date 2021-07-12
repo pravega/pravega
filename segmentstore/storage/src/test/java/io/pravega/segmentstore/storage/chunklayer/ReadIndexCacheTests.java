@@ -72,7 +72,7 @@ public class ReadIndexCacheTests {
         }
 
         // Truncate
-        cache.truncateReadIndex(segmentName, 15);
+        cache.truncateReadIndex(segmentName, 15, false);
         cache.cleanUp();
         // Check that chunks are really evicted.
         for (int i = 10; i < 15; i++) {
@@ -256,10 +256,10 @@ public class ReadIndexCacheTests {
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows("truncateReadIndex() allowed for invalid parameters",
-                () -> cache.truncateReadIndex(null, 0),
+                () -> cache.truncateReadIndex(null, 0, false),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("truncateReadIndex() allowed for invalid parameters",
-                () -> cache.truncateReadIndex("segment", -1),
+                () -> cache.truncateReadIndex("segment", -1, false),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows("remove() allowed for invalid parameters",

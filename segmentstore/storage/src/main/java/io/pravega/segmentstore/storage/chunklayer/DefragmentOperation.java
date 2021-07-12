@@ -205,6 +205,11 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
                 .thenComposeAsync(vvv -> {
+                    segmentMetadata.setDefragPendingChunkCount(0);
+                    if (lastChunkName == null) {
+                        segmentMetadata.setDefragStartChunk(null);
+                        segmentMetadata.setDefragStartOffset(0);
+                    }
                     segmentMetadata.checkInvariants();
                     return updateReadIndex();
                 }, chunkedSegmentStorage.getExecutor());

@@ -137,6 +137,7 @@ public class TestUtils {
             TreeMap<Long, String> index = new TreeMap<>();
             String current = segmentMetadata.getFirstChunk();
             long offset = segmentMetadata.getFirstChunkStartOffset();
+            val chunkList = getChunkList(metadataStore, segmentName);
             while (null != current) {
                 val chunk = (ChunkMetadata) txn.get(current).get();
                 Assert.assertNotNull(chunk);
