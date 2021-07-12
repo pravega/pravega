@@ -99,10 +99,14 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 // Remove read index block entries.
                                                 chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
 
-                                                // Finally commit.
-                                                return commit(txn)
-                                                        .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
-                                                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                                                // Collect garbage.
+                                                return chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete)
+                                                        .thenComposeAsync( vv ->  {
+                                                            // Finally commit.
+                                                            return commit(txn)
+                                                                    .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
+                                                                    .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                                                        }, chunkedSegmentStorage.getExecutor());
                                             }, chunkedSegmentStorage.getExecutor()),
                                     chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
@@ -110,11 +114,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void postCommit() {
-        // Collect garbage.
-        chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
         // Update the read index by removing all entries below truncate offset.
         chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset());
-
         logEnd();
     }
 

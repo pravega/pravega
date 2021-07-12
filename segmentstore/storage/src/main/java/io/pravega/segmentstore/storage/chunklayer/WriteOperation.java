@@ -42,7 +42,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_ADDED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_ADDED;
@@ -132,7 +131,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                                                                 postCommit(), chunkedSegmentStorage.getExecutor())
                                                                                         .exceptionally(this::handleException),
                                                                         chunkedSegmentStorage.getExecutor())
-                                                                .whenCompleteAsync((value, e) -> collectGarbage(), chunkedSegmentStorage.getExecutor())
                                                                 .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
                                                 chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
@@ -188,13 +186,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
         }
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset);
-    }
-
-    private void collectGarbage() {
-        if (!isCommitted && chunksAddedCount.get() > 0) {
-            // Collect garbage.
-            chunkedSegmentStorage.getGarbageCollector().addToGarbage(newReadIndexEntries.stream().map(ChunkNameOffsetPair::getChunkName).collect(Collectors.toList()));
-        }
     }
 
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
@@ -271,44 +262,48 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         // Create new chunk
         String newChunkName = getNewChunkName(handle.getSegmentName(),
                 segmentMetadata.getLength());
-        CompletableFuture<ChunkHandle> createdHandle;
-        if (chunkedSegmentStorage.shouldAppend()) {
-            createdHandle = chunkedSegmentStorage.getChunkStorage().create(newChunkName);
-        } else {
-            createdHandle = CompletableFuture.completedFuture(ChunkHandle.writeHandle(newChunkName));
-        }
-        return createdHandle
-                .thenAcceptAsync(h -> {
-                    chunkHandle = h;
-                    String previousLastChunkName = lastChunkMetadata.get() == null ? null : lastChunkMetadata.get().getName();
 
-                    // update first and last chunks.
-                    lastChunkMetadata.set(updateMetadataForChunkAddition(txn,
-                            segmentMetadata,
-                            newChunkName,
-                            isFirstWriteAfterFailover,
-                            lastChunkMetadata.get()));
-
-                    // Record the creation of new chunk.
-                    if (isSystemSegment) {
-                        addSystemLogRecord(systemLogRecords,
-                                handle.getSegmentName(),
-                                segmentMetadata.getLength(),
-                                previousLastChunkName,
-                                newChunkName);
-                        txn.markPinned(lastChunkMetadata.get());
+        return chunkedSegmentStorage.getGarbageCollector().trackNewChunk(txn.getVersion(), newChunkName)
+                .thenComposeAsync( v -> {
+                    CompletableFuture<ChunkHandle> createdHandle;
+                    if (chunkedSegmentStorage.shouldAppend()) {
+                        createdHandle = chunkedSegmentStorage.getChunkStorage().create(newChunkName);
+                    } else {
+                        createdHandle = CompletableFuture.completedFuture(ChunkHandle.writeHandle(newChunkName));
                     }
-                    // Update read index.
-                    newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
+                    return createdHandle
+                            .thenAcceptAsync(h -> {
+                                chunkHandle = h;
+                                String previousLastChunkName = lastChunkMetadata.get() == null ? null : lastChunkMetadata.get().getName();
 
-                    isFirstWriteAfterFailover = false;
-                    skipOverFailedChunk = false;
-                    didSegmentLayoutChange = true;
-                    chunksAddedCount.incrementAndGet();
+                                // update first and last chunks.
+                                lastChunkMetadata.set(updateMetadataForChunkAddition(txn,
+                                        segmentMetadata,
+                                        newChunkName,
+                                        isFirstWriteAfterFailover,
+                                        lastChunkMetadata.get()));
 
-                    log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
-                            chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
-                }, chunkedSegmentStorage.getExecutor());
+                                // Record the creation of new chunk.
+                                if (isSystemSegment) {
+                                    addSystemLogRecord(systemLogRecords,
+                                            handle.getSegmentName(),
+                                            segmentMetadata.getLength(),
+                                            previousLastChunkName,
+                                            newChunkName);
+                                    txn.markPinned(lastChunkMetadata.get());
+                                }
+                                // Update read index.
+                                newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
+
+                                isFirstWriteAfterFailover = false;
+                                skipOverFailedChunk = false;
+                                didSegmentLayoutChange = true;
+                                chunksAddedCount.incrementAndGet();
+
+                                log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
+                            }, chunkedSegmentStorage.getExecutor());
+        }, chunkedSegmentStorage.getExecutor());
     }
 
     private void checkState() {

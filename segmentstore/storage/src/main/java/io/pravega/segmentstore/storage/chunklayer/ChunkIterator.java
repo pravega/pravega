@@ -22,28 +22,29 @@ import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
 /**
  * Helper class for iterating over list of chunks.
  */
 class ChunkIterator {
-    private final ChunkedSegmentStorage chunkedSegmentStorage;
+    private final Executor executor;
     private final MetadataTransaction txn;
     private volatile String currentChunkName;
     private volatile String lastChunkName;
     private volatile ChunkMetadata currentMetadata;
 
-    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata) {
-        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+    ChunkIterator(Executor executor, MetadataTransaction txn, SegmentMetadata segmentMetadata) {
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         this.txn = Preconditions.checkNotNull(txn, "txn");
         Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         // The following can be null.
         this.currentChunkName = segmentMetadata.getFirstChunk();
     }
 
-    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, String startChunkName, String lastChunkName) {
-        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+    ChunkIterator(Executor executor, MetadataTransaction txn, String startChunkName, String lastChunkName) {
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         this.txn = Preconditions.checkNotNull(txn, "txn");
         // The following can be null.
         this.currentChunkName = startChunkName;
@@ -59,7 +60,7 @@ class ChunkIterator {
                             consumer.accept(currentMetadata, currentChunkName);
                             // Move next
                             currentChunkName = currentMetadata.getNextChunk();
-                        }, chunkedSegmentStorage.getExecutor()),
-                chunkedSegmentStorage.getExecutor());
+                        }, executor),
+                executor);
     }
 }

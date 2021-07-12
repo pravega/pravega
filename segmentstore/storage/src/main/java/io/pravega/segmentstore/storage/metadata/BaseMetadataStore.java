@@ -149,6 +149,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     private final ConcurrentHashMap<String, TransactionData> bufferedTxnData;
 
+    private final ConcurrentHashMap<Long, MetadataTransaction> activeTxns;
+
     /**
      * Set of active records from commits that are in-flight. These records should not be evicted until the active commits finish.
      */
@@ -218,6 +220,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         version = new AtomicLong(System.currentTimeMillis()); // Start with unique number.
         fenced = new AtomicBoolean(false);
         bufferedTxnData = new ConcurrentHashMap<>(); // Don't think we need anything fancy here. But we'll measure and see.
+        activeTxns = new ConcurrentHashMap<>();
         activeKeys = ConcurrentHashMultiset.create();
         maxEntriesInTxnBuffer = config.getMaxEntriesInTxnBuffer();
         maxEntriesInCache = config.getMaxEntriesInCache();
@@ -235,7 +238,23 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     @Override
     public MetadataTransaction beginTransaction(boolean isReadonly, String... keysToLock) {
         // Each transaction gets a unique number which is monotonically increasing.
-        return new MetadataTransaction(this, isReadonly, version.incrementAndGet(), keysToLock);
+        val txn = new MetadataTransaction(this, isReadonly, version.incrementAndGet(), keysToLock);
+        activeTxns.put(txn.getVersion(), txn);
+        return txn;
+    }
+
+    /**
+     * Closes the transaction.
+     * @param txn transaction to close.
+     */
+    @Override
+    public void closeTransaction(MetadataTransaction txn) {
+        activeTxns.remove(txn.getVersion());
+    }
+
+    @Override
+    public boolean isTransactionActive(long txnId) {
+        return activeTxns.containsKey(txnId);
     }
 
     /**
