@@ -19,11 +19,11 @@ package io.pravega.segmentstore.storage.chunklayer;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Represents background task queue.
+ * Manages group of background task queues.
  *
- * @param <TaskType>
+ * @param <TaskType> Type of tasks.
  */
-public interface AbstractTaskQueue<TaskType> extends AutoCloseable {
+public interface AbstractTaskQueueManager<TaskType> extends AutoCloseable {
     /**
      * Adds a queue by the given name.
      * @param queueName Name of the queue.

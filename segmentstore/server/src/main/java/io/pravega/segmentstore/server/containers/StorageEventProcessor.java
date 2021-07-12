@@ -18,7 +18,7 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
-import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueue;
+import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueueManager;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.GarbageCollector;
 import lombok.Getter;
@@ -33,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public class StorageEventProcessor implements AbstractTaskQueue<GarbageCollector.TaskInfo> {
+public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCollector.TaskInfo> {
     private final int containerID;
     private final ContainerEventProcessor eventProcessor;
     private final ChunkedSegmentStorage chunkedSegmentStorage;

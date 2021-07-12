@@ -111,7 +111,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
     private final ScheduledExecutorService storageExecutor;
 
     @Getter
-    private AbstractTaskQueue<TaskInfo> taskQueue;
+    private AbstractTaskQueueManager<TaskInfo> taskQueue;
 
     private final String traceObjectId;
 
@@ -177,7 +177,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * Initializes this instance.
      * @param taskQueue Task queue to use.
      */
-    public CompletableFuture<Void> initialize(AbstractTaskQueue<TaskInfo> taskQueue) {
+    public CompletableFuture<Void> initialize(AbstractTaskQueueManager<TaskInfo> taskQueue) {
         this.taskQueue = Preconditions.checkNotNull(taskQueue, "taskQueue");
         return taskQueue.addQueue(this.taskQueueName, false)
                 .thenComposeAsync(v -> taskQueue.addQueue(this.failedQueueName, true), storageExecutor);

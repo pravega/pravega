@@ -87,7 +87,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueue)} ()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)} ()}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -118,7 +118,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueue)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)}.
      */
     @Getter
     private final int containerId;
@@ -154,7 +154,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     private final ScheduledFuture<?> reporter;
 
-    private AbstractTaskQueue<GarbageCollector.TaskInfo> taskQueue;
+    private AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue;
 
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
@@ -198,7 +198,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
      * @param taskQueue  Task queue to use for garbage collection.
      */
-    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore, AbstractTaskQueue<GarbageCollector.TaskInfo> taskQueue) {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore, AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
         this.taskQueue = taskQueue;

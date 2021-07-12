@@ -35,7 +35,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
-import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueue;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -2912,7 +2912,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         protected ScheduledExecutorService executor;
 
         @Getter
-        protected AbstractTaskQueue<GarbageCollector.TaskInfo> taskQueue;
+        protected AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue;
 
         protected TestContext() {
         }
@@ -2984,8 +2984,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             return new NoOpChunkStorage(executor);
         }
 
-        public AbstractTaskQueue<GarbageCollector.TaskInfo> createTaskQueue() throws Exception {
-            return new InMemoryTaskQueue();
+        public AbstractTaskQueueManager<GarbageCollector.TaskInfo> createTaskQueue() throws Exception {
+            return new InMemoryTaskQueueManager();
         }
 
         /**

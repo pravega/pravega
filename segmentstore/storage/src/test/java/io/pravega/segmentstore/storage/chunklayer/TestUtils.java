@@ -20,7 +20,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
-import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueue;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import lombok.val;
 import org.junit.Assert;
@@ -273,7 +273,7 @@ public class TestUtils {
         // Get the enqueued tasks.
         // Need to de-dup
         val tasks = new HashMap<String, GarbageCollector.TaskInfo>();
-        val tasksList = ((InMemoryTaskQueue) chunkedSegmentStorage.getGarbageCollector().getTaskQueue())
+        val tasksList = ((InMemoryTaskQueueManager) chunkedSegmentStorage.getGarbageCollector().getTaskQueue())
                 .drain(chunkedSegmentStorage.getGarbageCollector().getTaskQueueName(), Integer.MAX_VALUE).stream()
                 .collect(Collectors.toList());
         for (val task : tasksList) {

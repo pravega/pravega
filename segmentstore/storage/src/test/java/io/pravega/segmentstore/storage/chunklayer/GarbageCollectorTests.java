@@ -25,7 +25,7 @@ import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
-import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueue;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -50,7 +50,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 /**
  * Tests for {@link GarbageCollector}.
@@ -103,7 +104,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
-        garbageCollector.initialize(new InMemoryTaskQueue());
+        garbageCollector.initialize(new InMemoryTaskQueueManager());
 
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
@@ -128,7 +129,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                 executorService(),
                 System::currentTimeMillis,
                 d -> CompletableFuture.completedFuture(null));
-        garbageCollector.initialize(new InMemoryTaskQueue());
+        garbageCollector.initialize(new InMemoryTaskQueueManager());
 
         AssertExtensions.assertThrows("Should not allow null chunkStorage",
                 () -> {
@@ -247,7 +248,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "activeChunk", dataSize, 1);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -303,7 +304,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -358,7 +359,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
@@ -409,7 +410,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         int containerId = CONTAINER_ID;
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -460,7 +461,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         int dataSize = 1;
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -514,7 +515,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         int containerId = CONTAINER_ID;
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
         int dataSize = 1;
 
         @Cleanup
@@ -575,7 +576,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "activeChunk", dataSize, 1);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -629,7 +630,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
 
@@ -682,7 +683,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "missingChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -736,7 +737,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         metadataStore.markFenced();
 
@@ -786,7 +787,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         int containerId = CONTAINER_ID;
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -843,7 +844,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         int dataSize = 1;
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -900,7 +901,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         int dataSize = 1;
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -961,7 +962,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         int dataSize = 1;
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -1018,7 +1019,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
 
@@ -1082,7 +1083,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         int dataSize = 1;
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
-        val testTaskQueue = new InMemoryTaskQueue();
+        val testTaskQueue = new InMemoryTaskQueueManager();
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -1182,7 +1183,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals("name", obj2.getName());
     }
 
-    private void assertQueueEquals(String queueName, InMemoryTaskQueue garbageCollector, String[] expected) {
+    private void assertQueueEquals(String queueName, InMemoryTaskQueueManager garbageCollector, String[] expected) {
         HashSet<String> visited = new HashSet<>();
         val queue = garbageCollector.getTaskQueueMap().get(queueName).stream().peek(info -> visited.add(info.getName())).collect(Collectors.counting());
         Assert.assertEquals(expected.length, visited.size());

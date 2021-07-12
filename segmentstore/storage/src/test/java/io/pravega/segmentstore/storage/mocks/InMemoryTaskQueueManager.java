@@ -15,7 +15,8 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueue;
+import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueueManager;
 import io.pravega.segmentstore.storage.chunklayer.GarbageCollector;
 import lombok.Getter;
 import lombok.val;
@@ -25,25 +26,29 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class InMemoryTaskQueue implements AbstractTaskQueue<GarbageCollector.TaskInfo> {
+public class InMemoryTaskQueueManager implements AbstractTaskQueueManager<GarbageCollector.TaskInfo> {
     @Getter
     private final ConcurrentHashMap<String, LinkedBlockingQueue<GarbageCollector.TaskInfo>> taskQueueMap = new ConcurrentHashMap<>();
 
     @Override
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
-        taskQueueMap.put(queueName, new LinkedBlockingQueue<GarbageCollector.TaskInfo>());
+        taskQueueMap.putIfAbsent(queueName, new LinkedBlockingQueue<GarbageCollector.TaskInfo>());
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public synchronized CompletableFuture<Void> addTask(String queueName, GarbageCollector.TaskInfo task) {
-        taskQueueMap.get(queueName).add(task);
+        val queue = taskQueueMap.get(queueName);
+        Preconditions.checkState(null != queue, "Attempt to access non existent queue.");
+        queue.add(task);
         return CompletableFuture.completedFuture(null);
     }
 
     public ArrayList<GarbageCollector.TaskInfo> drain(String queueName, int maxElements) {
         val list = new ArrayList<GarbageCollector.TaskInfo>();
-        taskQueueMap.get(queueName).drainTo(list, maxElements);
+        val queue = taskQueueMap.get(queueName);
+        Preconditions.checkState(null != queue, "Attempt to access non existent queue.");
+        queue.drainTo(list, maxElements);
         return list;
     }
 
