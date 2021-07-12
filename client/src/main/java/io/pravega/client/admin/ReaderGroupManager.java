@@ -18,7 +18,6 @@ package io.pravega.client.admin;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.stream.ConfigMismatchException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -73,11 +72,10 @@ public interface ReaderGroupManager extends AutoCloseable {
      * may block.
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
-     * @return True if ReaderGroup was created.
-     * @throws ConfigMismatchException If the reader group already exists with a different configuration. Use {@link ReaderGroup#resetReaderGroup} to change
-     * the reader group configuration.
+     * @return The {@link ReaderGroupConfig} of the ReaderGroup. If a ReaderGroup already exists then the older configuration
+     * is returned.
      */
-    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException;
+    ReaderGroupConfig createReaderGroup(String groupName, ReaderGroupConfig config);
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left

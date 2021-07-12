@@ -27,7 +27,6 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.stream.ConfigMismatchException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
@@ -87,7 +86,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     @Override
-    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException {
+    public ReaderGroupConfig createReaderGroup(String groupName, ReaderGroupConfig config) {
         log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
@@ -98,18 +97,16 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         if (!controllerConfig.equals(config)) {
             log.warn("ReaderGroup {} already exists with pre-existing configuration {}", groupName, controllerConfig);
-            throw new ConfigMismatchException(groupName, controllerConfig);
         } else if (controllerConfig.getGeneration() > 0 ) {
             log.info("ReaderGroup {} already exists", groupName);
-            return false;
         } else {
             @Cleanup
             StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                                                                                      new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
             Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
             synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
-            return true;
         }
+        return controllerConfig;
     }
 
     @Override
