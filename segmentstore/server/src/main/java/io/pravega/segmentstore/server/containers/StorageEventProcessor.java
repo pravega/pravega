@@ -92,12 +92,13 @@ public class StorageEventProcessor implements AbstractTaskQueue<GarbageCollector
     }
 
     CompletableFuture<Void> processEvents(List<BufferView> events) {
-        log.info("{}: processEvents called with {} events", traceObjectId, events.size());
+        log.debug("{}: processEvents called with {} events", traceObjectId, events.size());
         ArrayList<GarbageCollector.TaskInfo> batch = new ArrayList<>();
         for (val event : events) {
             try {
                 batch.add(serializer.deserialize(event));
             } catch (IOException e) {
+                log.error("{}: processEvents failed.", traceObjectId, e);
                 return CompletableFuture.failedFuture(e);
             }
         }

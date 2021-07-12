@@ -206,6 +206,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         return this.systemJournal.bootstrap(epoch, snapshotInfoStore);
     }
 
+    /**
+     * Concludes and finalizes the boostrap.
+     * @return
+     */
     public CompletableFuture<Void> finishBootstrap() {
         return garbageCollector.initialize(taskQueue);
     }
@@ -521,7 +525,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                         txn.update(segmentMetadata);
                         // Collect garbage
                         return garbageCollector.addSegmentToGarbage(txn.getVersion(), streamSegmentName)
-                                .thenComposeAsync( vv -> {
+                                .thenComposeAsync(vv -> {
                                     // Commit metadata.
                                     return txn.commit()
                                             .thenRunAsync(() -> {

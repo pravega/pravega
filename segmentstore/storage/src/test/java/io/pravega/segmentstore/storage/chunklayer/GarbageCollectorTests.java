@@ -226,7 +226,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         garbageCollector.trackNewChunk(1, "chunk2");
         garbageCollector.addSegmentToGarbage(1, "segment");
         garbageCollector.addSegmentToGarbage(GarbageCollector.TaskInfo.builder()
-                .scheduledDeleteTime(11)
+                .scheduledTime(11)
                 .name("segment2")
                 .attempts(0).build());
     }
