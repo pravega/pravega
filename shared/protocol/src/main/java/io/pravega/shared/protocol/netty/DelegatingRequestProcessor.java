@@ -150,4 +150,9 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
         getNextRequestProcessor().readTableEntriesDelta(readTableEntriesDelta);
     }
+
+    @Override
+    public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
+        getNextRequestProcessor().createTransientSegment(createTransientSegment);
+    }
 }

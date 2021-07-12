@@ -417,5 +417,10 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         public void errorMessage(WireCommands.ErrorMessage errorMessage) {
             execute(ReplyProcessor::errorMessage, errorMessage);
         }
+
+        @Override
+        public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated) {
+            execute(ReplyProcessor::transientSegmentCreated, transientSegmentCreated);
+        }
     }
 }
