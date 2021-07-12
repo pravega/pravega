@@ -16,6 +16,7 @@
 package io.pravega.client.admin;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import lombok.Data;
 
@@ -48,6 +49,16 @@ public class StreamInfo {
      * @return Stream name.
      */
     private final String streamName;
+
+    /**
+     * Stream Configuration.
+     * This includes the {@link io.pravega.client.stream.ScalingPolicy}, {@link io.pravega.client.stream.RetentionPolicy}
+     * and the tags associated with the stream.
+     *
+     * @param streamConfiguration Stream configuration.
+     * @return Stream configuration.
+     */
+    private final StreamConfiguration streamConfiguration;
 
     /**
      * {@link StreamCut} representing the current TAIL of the stream.

@@ -15,29 +15,19 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import lombok.Data;
 
 /**
- * An iteration result item returned by {@link AsyncIterator} when invoking {@link KeyValueTable#entryIterator}
- * or {@link KeyValueTable#keyIterator}.
+ * An iteration result item returned by {@link AsyncIterator} when invoking {@link KeyValueTable#iterator()}.
  *
  * @param <T> Iterator Item type.
  */
 @Data
+@Beta
 public class IteratorItem<T> {
-    /**
-     * Gets an {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
-     * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted (by losing the pointer to the
-     * {@link AsyncIterator}), system restart, etc.
-     *
-     * @param state {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
-     * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted.
-     * @return {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
-     * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted
-     */
-    private final IteratorState state;
     /**
      * A List of items that are contained in this instance.
      *

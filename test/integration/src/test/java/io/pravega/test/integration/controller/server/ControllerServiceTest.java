@@ -28,6 +28,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -41,12 +42,17 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -71,7 +77,8 @@ public class ControllerServiceTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    
+    private ScheduledExecutorService executor;
+
     @Before
     public void setUp() throws Exception {
         zkTestServer = new TestingServerStarter().start();
@@ -87,17 +94,67 @@ public class ControllerServiceTest {
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                                                                     controllerPort, serviceHost, servicePort, containerCount);
         controllerWrapper.awaitRunning();
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "collector");
     }
     
     @After
     public void tearDown() throws Exception {
+        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
     }
-    
-    
+
+    @Test
+    public void streamTagTest() {
+        final String scope = "sc";
+        final String stream = "st";
+        final String stream2 = "st2";
+
+        Controller controller = controllerWrapper.getController();
+        controller.createScope(scope).join();
+        System.out.println("scope created");
+        // Create Stream with tags t1, t2
+        StreamConfiguration strCfg = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build();
+        controller.createStream(scope, stream, strCfg).join();
+        assertEquals(Set.of("t1", "t2"), controller.getStreamConfiguration(scope, stream).join().getTags());
+        // Update stream to have tags t2, t3
+        StreamConfiguration strCfgNew = strCfg.toBuilder().clearTags().tags(Set.of("t2", "t3")).build();
+        controller.updateStream(scope, stream, strCfgNew).join();
+        // Check if the stream tags are infact t2, t3
+        assertEquals(Set.of("t2", "t3"), controller.getStreamConfiguration(scope, stream).join().getTags());
+
+        // List Streams with tag t2. only one stream should be listed
+        assertEquals(Collections.singletonList(stream), listStreamsForTag(scope, controller, "t2"));
+
+        // Create stream2 with tags t1, t2
+        controller.createStream(scope, stream2, strCfg).join();
+
+        // List Streams with tag t2. two stream should be listed
+        assertEquals(Arrays.asList(stream2, stream), listStreamsForTag(scope, controller, "t2"));
+
+        controller.sealStream(scope, stream2).join();
+        controller.deleteStream(scope, stream2).join();
+
+        // List Streams with tag t2. two stream should be listed
+        assertEquals(Arrays.asList(stream), listStreamsForTag(scope, controller, "t2"));
+        assertEquals(strCfgNew, controller.getStreamConfiguration(scope, stream).join());
+
+        controller.sealStream(scope, stream).join();
+        controller.deleteStream(scope, stream).join();
+        assertEquals(Collections.emptyList(), listStreamsForTag(scope, controller, "t2"));
+
+    }
+
+    private ArrayList<String> listStreamsForTag(String scope, Controller controller, String tag) {
+        ArrayList<String> resultList = new ArrayList<String>();
+        controller.listStreamsForTag(scope, tag)
+                  .collectRemaining(stream1 -> resultList.add(stream1.getStreamName()))
+                  .join();
+        return resultList;
+    }
+
     @Test(timeout = 40000)
     public void streamMetadataTest() throws Exception {
         final String scope = "testScope";
@@ -174,19 +231,14 @@ public class ControllerServiceTest {
 
         final String kvtName1 = "kvtable1";
         final String kvtName2 = "kvtable2";
-        final String kvtZero = "kvtableZero";
         final KeyValueTableConfiguration kvtConfig1 = KeyValueTableConfiguration.builder()
-                .partitionCount(2).build();
-        final KeyValueTableConfiguration kvtConfigZeroPC = KeyValueTableConfiguration.builder()
-                .partitionCount(0).build();
+                .partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         createAKeyValueTable(scope1, kvtName1, controller, kvtConfig1);
         //Same name in different scope
         createAKeyValueTable(scope2, kvtName1, controller, kvtConfig1);
         //Different name in different scope
         createAKeyValueTable(scope2, kvtName2, controller, kvtConfig1);
-        //KVTable with 0 partitions should fail
-        createAKeyValueTableZeroPC(scope2, kvtZero, controller, kvtConfigZeroPC);
 
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
@@ -246,7 +298,6 @@ public class ControllerServiceTest {
                                                                            ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() - 36000);
         assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() == 1);
-       
     }
 
     private static void getSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
@@ -254,7 +305,6 @@ public class ControllerServiceTest {
         try {
             CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(stream, System.currentTimeMillis());
             assertTrue("FAILURE: Fetching positions for non existent stream", segments.get().isEmpty());
-            
             log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         } catch (ExecutionException | CompletionException e) {
             assertTrue("FAILURE: Fetching positions for non existent stream", Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);

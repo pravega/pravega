@@ -45,6 +45,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public Iterator<Stream> listStreams(String scopeName) {
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
         return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Iterator<Stream> listStreams(String scopeName, String tagName) {
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsForTag(scopeName, tagName);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Collection<String> getStreamTags(String scopeName, String streamName) {
+        return Futures.getAndHandleExceptions(controller.getStreamConfiguration(scopeName, streamName),
+                                              RuntimeException::new).getTags();
     }
 
     @Override

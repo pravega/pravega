@@ -107,7 +107,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.Timeout;
 
-import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
+import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

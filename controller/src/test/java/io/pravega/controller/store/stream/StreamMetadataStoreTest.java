@@ -1227,6 +1227,52 @@ public abstract class StreamMetadataStoreTest {
     }
     
     @Test
+    public void txnCommitBatchLimitMaxLimitExceedingTest() throws Exception {
+        final String scope = "txnCommitBatchMax";
+        final String stream = "txnCommitBatchMax";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope, null, executor).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        
+        // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
+        UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx00,
+                100, 100, null, executor).get();
+        UUID tx01 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx01,
+                100, 100, null, executor).get();
+        UUID tx02 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx02,
+                100, 100, null, executor).get();
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        // duplicate for tx00
+        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null),
+                streamObj, 0L);
+        streamObj.addTxnToCommitOrder(tx00, context).join();
+        
+        // committing
+        store.sealTransaction(scope, stream, tx00, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+        store.sealTransaction(scope, stream, tx01, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+        store.sealTransaction(scope, stream, tx02, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+
+        // verify that when we retrieve transactions from lowest epoch we get tx00, tx01
+        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
+        List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        assertEquals(2, ordered.size());
+        assertEquals(tx00, ordered.get(0));
+        assertEquals(tx01, ordered.get(1));
+    }
+    
+    @Test
     public void txnCommitBatchLimitOrderTest() throws Exception {
         final String scope = "txnCommitBatch2";
         final String stream = "txnCommitBatch2";

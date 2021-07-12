@@ -367,6 +367,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String scopeName, String tag, String continuationToken,
+                                                                           Executor executor, OperationContext ctx) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getScope(scopeName, context).listStreamsForTag(tag, continuationToken, executor, context), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> startTruncation(final String scope,
                                                    final String name,
                                                    final Map<Long, Long> streamCut,

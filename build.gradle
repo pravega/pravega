@@ -21,7 +21,6 @@ buildscript {
     // log the current JVM version.
     println "Build JVM Version is : " + Jvm.current()
     repositories {
-        jcenter()
         maven {
             url "https://plugins.gradle.org/m2/"
         }
@@ -89,7 +88,6 @@ allprojects {
     apply from: "$rootDir/gradle/rat.gradle"
 
     repositories {
-        jcenter()
         mavenCentral()
         mavenLocal()
     }
@@ -188,6 +186,8 @@ def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
 
 project('shared:authplugin') {
     dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(":shared:security")
     }
 
     tasks.withType(JavaCompile) {
@@ -304,6 +304,64 @@ project('shared:protocol') {
     }
 }
 
+project ('shared:rest') {
+    sourceSets {
+        main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/config"
+    }
+
+    dependencies {
+        compile project(':common')
+        compile "io.grpc:grpc-core:" + grpcVersion
+        compile project(":shared:authplugin")
+        compile project(":shared:basic-authplugin")
+        compile project(":shared:security")
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        testCompile project(':test:testcommon')
+        testCompile project(":shared:authplugin").sourceSets.test.output
+        testCompile "io.grpc:grpc-netty:" + grpcVersion
+    }
+}
+
+project ('shared:health') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
+project ('shared:health-bindings') {
+    dependencies {
+        compile project(':shared:health')
+        compile project(':shared:rest')
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile(group: 'io.swagger', name: 'swagger-jersey2-jaxrs', version: swaggerJersey2JaxrsVersion) {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        testCompile project(':test:testcommon')
+
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('client') {
     dependencies {
         compile project(':common')
@@ -359,6 +417,7 @@ project('test:testcommon') {
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -449,6 +508,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile project(':shared:rest')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -492,7 +552,10 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':shared:health')
+        compile project(':shared:rest')
         compile project(':bindings')
+        compile project(':shared:health-bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -720,6 +783,9 @@ project('controller') {
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
+        compile project(":shared:rest")
+        compile project(":shared:health")
+        compile project(":shared:health-bindings")
         runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -729,16 +795,16 @@ project('controller') {
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
-        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile project(':shared:basic-authplugin')
+        testCompile project(":shared:authplugin").sourceSets.test.output
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -828,6 +894,7 @@ project('cli:user') {
         compile project(':shared:protocol')
         compile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
     }

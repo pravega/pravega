@@ -21,6 +21,7 @@ import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -63,5 +64,9 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     public CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed) {
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
+    }
+
+    final UpdateableContainerMetadata getMetadata() {
+        return super.metadata;
     }
 }

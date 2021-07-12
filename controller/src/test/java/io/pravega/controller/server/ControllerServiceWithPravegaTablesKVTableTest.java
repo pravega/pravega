@@ -27,12 +27,12 @@ public class ControllerServiceWithPravegaTablesKVTableTest extends ControllerSer
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createPravegaTablesStore(segmentHelperMock,
-                GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                GrpcAuthHelper.getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
     KVTableMetadataStore getKVTStore() {
         return KVTableStoreFactory.createPravegaTablesStore(segmentHelperMock,
-                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), zkClient, executor);
+                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 }

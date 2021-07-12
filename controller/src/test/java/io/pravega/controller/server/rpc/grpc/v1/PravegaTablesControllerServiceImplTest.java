@@ -26,6 +26,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -49,8 +50,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Creat
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.client.StoreClient;
-import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
@@ -67,21 +66,22 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
+import org.junit.ClassRule;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -90,9 +90,8 @@ import static org.mockito.Mockito.*;
  */
 public class PravegaTablesControllerServiceImplTest extends ControllerServiceImplTest {
 
-    private TestingServer zkServer;
-    private CuratorFramework zkClient;
-    private StoreClient storeClient;
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
     private TaskMetadataStore taskMetadataStore;
@@ -112,19 +111,12 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-
-        storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
-        taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
-        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), 
-                zkClient, executorService);
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executorService);
+        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+                PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
+        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
@@ -148,7 +140,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
 
         // KVTable
         this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
-                zkClient, executorService);
+                PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
@@ -158,7 +150,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                 executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 
-        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        cluster = new ClusterZKImpl(PRAVEGA_ZK_CURATOR_RESOURCE.client, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
         cluster.addListener((type, host) -> latch.countDown());
         cluster.registerHost(new Host("localhost", 9090, null));
@@ -183,9 +175,6 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         if (cluster != null) {
             cluster.close();
         }
-        storeClient.close();
-        zkClient.close();
-        zkServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
@@ -232,5 +221,123 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         AssertExtensions.assertThrows("Timeout did not happen", result2::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
         streamMetadataTasks.setCompletionTimeoutMillis(Duration.ofMinutes(2).toMillis());
+    }
+
+    @Test
+    public void streamsInScopeForTagTest() {
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
+        final StreamConfiguration cfgWithTag = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                  .tag("tag1")
+                                                                  .build();
+
+        // Create Scope
+        ResultObserver<Controller.CreateScopeStatus> result = new ResultObserver<>();
+        Controller.ScopeInfo scopeInfo = Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), Controller.CreateScopeStatus.Status.SUCCESS);
+
+        // Create Streams
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), createStreamStatus1);
+        Controller.CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, cfgWithTag), createStreamStatus2);
+        status = createStreamStatus2.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, cfgWithTags), createStreamStatus3);
+        status = createStreamStatus3.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        // Verify with valid tag.
+        Controller.StreamsInScopeWithTagRequest request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag2").build();
+        ResultObserver<Controller.StreamsInScopeResponse> response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+
+        List<Controller.StreamInfo> streams = response.get().getStreamsList();
+        assertEquals(1, streams.size());
+        assertEquals(STREAM3, streams.get(0).getStream());
+
+        // Verify with missing tag.
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tagx").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+        streams = response.get().getStreamsList();
+        assertEquals(0, streams.size());
+
+        // Verify with nonExistentScope
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(Controller.ScopeInfo.newBuilder()
+                                                                                                    .setScope("NonExistent")
+                                                                                                    .build())
+                                                         .setTag("tagx").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+        assertEquals(response.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
+
+        // Verify with multiple streams.
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag1").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+
+        List<Controller.StreamInfo> resultStreams = new ArrayList<>();
+        resultStreams.addAll(response.get().getStreamsList());
+        if (resultStreams.size() == 1) {
+            request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag1").setContinuationToken(response.get().getContinuationToken()).build();
+            response = new ResultObserver<>();
+            this.controllerService.listStreamsInScopeForTag(request, response);
+            resultStreams.addAll(response.get().getStreamsList());
+        }
+        assertEquals(2, resultStreams.size());
+        Controller.StreamInfo streamInfo = Controller.StreamInfo.newBuilder().setStream(STREAM3).setScope(SCOPE1).build();
+        assertTrue(resultStreams.contains(streamInfo));
+        streamInfo = Controller.StreamInfo.newBuilder().setStream(STREAM2).setScope(SCOPE1).build();
+        assertTrue(resultStreams.contains(streamInfo));
+    }
+
+    @Test
+    public void deleteStreamWithTagsTest() {
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
+
+        // Create Scope
+        ResultObserver<Controller.CreateScopeStatus> result = new ResultObserver<>();
+        Controller.ScopeInfo scopeInfo = Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), Controller.CreateScopeStatus.Status.SUCCESS);
+
+        // Create Stream
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, cfgWithTags), createStreamStatus1);
+        Controller.CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        Controller.StreamInfo streamInfo = Controller.StreamInfo.newBuilder().setScope(SCOPE1).setStream(STREAM1).build();
+
+        // Get Stream Configuration
+        ResultObserver<Controller.StreamConfig> getStreamConfigResult = new ResultObserver<>();
+        this.controllerService.getStreamConfiguration(streamInfo, getStreamConfigResult);
+        assertEquals(cfgWithTags, ModelHelper.encode(getStreamConfigResult.get()));
+
+        // Seal Stream.
+        ResultObserver<Controller.UpdateStreamStatus> sealStreamResult = new ResultObserver<>();
+        this.controllerService.sealStream(streamInfo, sealStreamResult);
+        assertEquals(Controller.UpdateStreamStatus.Status.SUCCESS, sealStreamResult.get().getStatus());
+
+        // Delete Stream
+        ResultObserver<Controller.DeleteStreamStatus> deleteStreamResult = new ResultObserver<>();
+        this.controllerService.deleteStream(streamInfo, deleteStreamResult);
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStreamResult.get().getStatus());
     }
 }
