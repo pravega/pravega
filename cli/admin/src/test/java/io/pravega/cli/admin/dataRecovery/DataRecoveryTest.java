@@ -238,6 +238,59 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests read segments command.
+     * @throws Exception    In case of any exception thrown while execution.
+     */
+    @Test
+    public void testReadSegmentCommand() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        String streamName = "testReadSegmentsCommand";
+        String segmentToBeRead = SCOPE + "/" + streamName + "/" + "0.#epoch.0";
+
+        @Cleanup
+        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
+
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
+
+        // Flush all Tier 1 to LTS
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+        }
+
+        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
+        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
+
+        // set pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute the command for read segment
+        String commandResult = TestUtils.executeCommand("storage read-segment " + segmentToBeRead + " " +
+                this.logsDir.getAbsolutePath() + "/", STATE.get());
+        // There should be a file created for storing events in  segment
+        Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "segmentContent.txt").exists());
+        // Check if the file has segments listed in it
+        Path path = Paths.get(this.logsDir.getAbsolutePath() + "/segmentContent.txt");
+        long lines = Files.lines(path).count();
+        Assert.assertEquals("Number of events found and written should match.", TestUtils.getNUM_EVENTS(), lines);
+        Assert.assertTrue(commandResult.contains("Number of events found = " + TestUtils.getNUM_EVENTS()));
+        Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
+    }
+
+    /**
      * Sets up a new BookKeeper & ZooKeeper.
      */
     private static class BookKeeperRunner implements AutoCloseable {
