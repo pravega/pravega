@@ -639,7 +639,7 @@ and `updateStream()` operation is performed.
 - Once the update Stream processing starts, it first sets the Stream state to *Updating*.
 - Then, the Stream configuration is updated in the metadata store followed by notifying
 Segment Stores for all _active_ Stream Segments of the Stream, about the change in
-policy. Any Tag related updates causes the Tag reverse indexes to be updated with the newer Tags. Now the state is reset to *Active*.
+policy. Any Tag related changes causes the Tag indexes (a reverse index of a Tag to Stream for a Scope) to be updated. Now the state is reset to *Active*.
 
 ### Scale Stream
 
