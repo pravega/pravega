@@ -456,7 +456,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                     return v;
                                 }, storageExecutor);
                     } else {
-                        log.info("{}: deleteGarbage - Chunk is not marked as garbage chunk={}.", traceObjectId, chunkToDelete);
+                        log.debug("{}: deleteGarbage - Chunk is not marked as garbage chunk={}.", traceObjectId, chunkToDelete);
                         return CompletableFuture.completedFuture(null);
                     }
                 }, storageExecutor)
