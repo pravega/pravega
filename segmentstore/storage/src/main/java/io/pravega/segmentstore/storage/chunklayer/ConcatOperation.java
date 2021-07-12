@@ -116,9 +116,9 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private Void handleException(Throwable e) {
-        log.debug("{} concat - exception op={}, target={}, source={}, offset={}.",
-                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset);
         val ex = Exceptions.unwrap(e);
+        log.error("{} concat - exception op={}, target={}, source={}, offset={}.",
+                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset, ex);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(targetHandle.getSegmentName(), ex));
         }
@@ -140,7 +140,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         SLTS_CONCAT_LATENCY.reportSuccessEvent(elapsed);
         SLTS_CONCAT_COUNT.inc();
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} concat - late op={}, target={}, source={}, offset={}, latency={}.",
+            log.warn("{} concat - finished late op={}, target={}, source={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset, elapsed.toMillis());
         } else {
             log.debug("{} concat - finished op={}, target={}, source={}, offset={}, latency={}.",

@@ -127,7 +127,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
+            log.warn("{} truncate - finished late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
         } else {
             log.debug("{} truncate - finished op={}, segment={}, offset={}, latency={}.",
@@ -138,8 +138,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private Void handleException(Void value, Throwable e) {
         if (null != e) {
-            log.debug("{} truncate - exception op={}, segment={}, offset={}.",
-                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset);
+            log.error("{} truncate - exception op={}, segment={}, offset={}.",
+                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, e);
             val ex = Exceptions.unwrap(e);
             if (ex instanceof StorageMetadataWritesFencedOutException) {
                 throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));

@@ -111,8 +111,9 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                         return readData(txn);
                                     }, chunkedSegmentStorage.getExecutor())
                                     .exceptionally(ex -> {
-                                        log.debug("{} read - exception op={}, segment={}, offset={}, bytesRead={}.",
-                                                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
+                                        log.error("{} read - exception op={}, segment={}, offset={}, bytesRead={}.",
+                                                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                                handle.getSegmentName(), offset, totalBytesRead, ex);
                                         if (ex instanceof CompletionException) {
                                             throw (CompletionException) ex;
                                         }
@@ -142,7 +143,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         }
 
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} read - late op={}, segment={}, offset={}, bytesRead={}, latency={}.",
+            log.warn("{} read - finished late op={}, segment={}, offset={}, bytesRead={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead, elapsed.toMillis());
         } else {
             log.debug("{} read - finished op={}, segment={}, offset={}, bytesRead={}, latency={}.",

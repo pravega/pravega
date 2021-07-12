@@ -140,8 +140,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private Object handleException(Throwable e) {
-        log.debug("{} write - exception op={}, segment={}, offset={}, length={}.",
-                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length);
+        log.error("{} write - exception op={}, segment={}, offset={}, length={}.",
+                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, e);
         val ex = Exceptions.unwrap(e);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
@@ -181,7 +181,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} write - late op={}, segment={}, offset={}, length={}, latency={}.",
+            log.warn("{} write - finished late op={}, segment={}, offset={}, length={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
         } else {
             log.debug("{} write - finished op={}, segment={}, offset={}, length={}, latency={}.",
