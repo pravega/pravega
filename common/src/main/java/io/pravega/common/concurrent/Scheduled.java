@@ -16,7 +16,11 @@
 
 package io.pravega.common.concurrent;
 
-public interface Scheduled {
+/**
+ * An item scheduled for a point in time in the future. 
+ * This is used by {@link ThreadPoolScheduledExecutorService}
+ */
+interface Scheduled {
     
     /**
      * Returns the time in nanos (as defined by {@link System#nanoTime()} that this item is

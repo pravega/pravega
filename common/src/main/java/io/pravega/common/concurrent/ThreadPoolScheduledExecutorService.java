@@ -44,6 +44,18 @@ import lombok.extern.slf4j.Slf4j;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+/**
+ * An implementation of {@link ScheduledExecutorService} which uses a thread pool. 
+ * 
+ * This class is similar to ScheduledThreadPoolExecutor but differs in the following ways:
+ * 
+ * 1. The thread pool supports growing. IE: {@code maxPoolSize} and {@code corePoolSize} don't have to be the same.
+ * 2. Queued tasks are stored in a lock-free queue so that no bottlenecks can occur on submit.
+ * 3. Scheduling a task without a delay is O(1) as opposed to O(log(n))
+ * 4. Canceling a task actually removes it from the queue and is O(n) as opposed to a no-op which leaves it in the queue or O(log(n)) when {@code setRemoveOnCancelPolicy(true)}.
+ * 5. The {@code mayInteruptIfRunning} flag on cancel is ignored and assumed to be false.
+ * 6. {@code ContinueExistingPeriodicTasksAfterShutdown} and {@code ExecuteExistingDelayedTasksAfterShutdown} are always false.
+ */
 @Slf4j
 @ToString(of = "runner")
 public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
@@ -55,7 +67,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     public ThreadPoolScheduledExecutorService(int corePoolSize, int maxPoolSize, long keepAliveMillis,
             ThreadFactory threadFactory, RejectedExecutionHandler handler) {
         this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
-        // While this cast looks sketchy as hell, its ok because runner is private and will only
+        // While this cast looks invalid, it is ok because runner is private and will only
         // be given ScheduledRunnable which by definition implement runnable.
         @SuppressWarnings("unchecked")
         BlockingQueue<Runnable> queue = (BlockingQueue) this.queue;
