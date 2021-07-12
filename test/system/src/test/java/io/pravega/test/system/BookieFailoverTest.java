@@ -58,7 +58,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private static final String SCOPE = "testBookieFailoverScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 15 * 1000;
+    private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 60 * 1000;
     private static final int IO_PROGRESS_CHECK_TIMEOUT = 120 * 1000;
     private static final int EVENTS_TO_WAIT_FOR = 100;
 
