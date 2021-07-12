@@ -28,13 +28,13 @@ public class TLSConfigChangeFileConsumerTests {
 
     @Test(expected = NullPointerException.class)
     public void testNullCtorArgumentsAreRejected() {
-        new TLSConfigChangeFileConsumer(new AtomicReference<>(null), null, null);
+        new TLSConfigChangeFileConsumer(new AtomicReference<>(null), null, null, null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToCertificateFileIsRejected() {
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
-                    "", "non-existent");
+                    "", "non-existent", "non-existent");
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
@@ -43,7 +43,7 @@ public class TLSConfigChangeFileConsumerTests {
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToKeyFileIsRejected() {
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
-                "non-existent", "");
+                "non-existent", "", "non-existent");
         subjectUnderTest.accept(null);
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
@@ -52,12 +52,13 @@ public class TLSConfigChangeFileConsumerTests {
     public void testInvocationIncrementsReloadCounter() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
-                new File(pathToCertificateFile), new File(pathToKeyFile)));
+                new File(pathToCertificateFile), new File(pathToKeyFile), tlsProtocolVersion));
 
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(sslCtx, pathToCertificateFile,
-                pathToKeyFile);
+                pathToKeyFile, tlsProtocolVersion);
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());

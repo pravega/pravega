@@ -86,6 +86,7 @@ public class EndToEndTransactionOrderTest {
     final int controllerPort = TestUtils.getAvailableListenPort();
     final String serviceHost = "localhost";
     final int servicePort = TestUtils.getAvailableListenPort();
+    final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
@@ -135,7 +136,7 @@ public class EndToEndTransactionOrderTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
-                true, serviceBuilder.getLowPriorityExecutor());
+                true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         controllerWrapper.awaitRunning();

@@ -76,6 +76,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
+    protected final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     protected final int servicePort = TestUtils.getAvailableListenPort();
     protected final int containerCount = 4;
 
@@ -102,7 +103,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         // Create and start controller service

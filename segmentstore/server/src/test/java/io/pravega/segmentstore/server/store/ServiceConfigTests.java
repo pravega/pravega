@@ -73,6 +73,7 @@ public class ServiceConfigTests {
         assertFalse(config.isEnableTlsReload());
         assertEquals("", config.getCertFile());
         assertEquals("", config.getKeyFile());
+        assertEquals("TLSv1.2,TLSv1.3", config.getTlsProtocolVersion());
     }
 
     // region Tests that verify the toString() method.

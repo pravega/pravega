@@ -262,6 +262,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                                                                                             .port(grpcPort)
                                                                                             .authorizationEnabled(false)
                                                                                             .tlsEnabled(false)
+                                                                                            .tlsProtocolVersion("TLSv1.2,TLSv1.3")
                                                                                             .build()))
                                           .restServerConfig(Optional.empty())
                                           .build();

@@ -45,6 +45,7 @@ public class ControllerBootstrapTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private TestingServer zkTestServer;
     private ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server;
@@ -91,7 +92,7 @@ public class ControllerBootstrapTest {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         // Create test scope. This operation should succeed.

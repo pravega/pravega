@@ -76,6 +76,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
     private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final String serviceHost = ENDPOINT;
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
@@ -92,7 +93,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         serviceBuilder.initialize();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService());
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService(), tlsProtocolVersion);
         this.serverListener.startListening();
 
         // 3. Start Pravega Controller service

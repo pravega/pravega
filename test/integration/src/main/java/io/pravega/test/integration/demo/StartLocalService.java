@@ -28,6 +28,7 @@ public class StartLocalService {
     static final int SERVICE_PORT = 6000;
     static final String SCOPE = "Scope";
     static final String STREAM_NAME = "Foo";
+    static final String TLS_PROTOCOL_VERSION = "TLSv1.2,TLSv1.3";
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -37,7 +38,7 @@ public class StartLocalService {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT,
-                store, tableStore, serviceBuilder.getLowPriorityExecutor());
+                store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
         
         @Cleanup

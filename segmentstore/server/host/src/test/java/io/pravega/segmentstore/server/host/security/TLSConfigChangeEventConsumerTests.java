@@ -29,20 +29,20 @@ public class TLSConfigChangeEventConsumerTests {
 
     @Test (expected = NullPointerException.class)
     public void testNullCtorArgumentsAreRejected() {
-        new TLSConfigChangeEventConsumer(new AtomicReference<>(null), null, null);
+        new TLSConfigChangeEventConsumer(new AtomicReference<>(null), null, null, null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToCertificateFileIsRejected() {
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
-                "", "non-existent");
+                "", "non-existent", "TLSv1.2,TLSv1.3");
         subjectUnderTest.accept(null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToKeyFileIsRejected() {
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
-                "non-existent", "");
+                "non-existent", "", "TLSv1.2,TLSv1.3");
         subjectUnderTest.accept(null);
     }
 
@@ -50,12 +50,13 @@ public class TLSConfigChangeEventConsumerTests {
     public void testInvocationIncrementsReloadCounter() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
-                new File(pathToCertificateFile), new File(pathToKeyFile)));
+                new File(pathToCertificateFile), new File(pathToKeyFile), tlsProtocolVersion));
 
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(sslCtx, pathToCertificateFile,
-                pathToKeyFile);
+                pathToKeyFile, tlsProtocolVersion);
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());

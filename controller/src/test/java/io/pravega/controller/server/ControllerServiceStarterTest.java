@@ -126,6 +126,7 @@ public abstract class ControllerServiceStarterTest {
                                                                   .port(grpcPort)
                                                                   .authorizationEnabled(enableAuth)
                                                                   .tlsEnabled(enableAuth)
+                                                                  .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                                                   .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
                                                                   .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                                                                   .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)

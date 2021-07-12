@@ -52,11 +52,12 @@ public class StreamMetadataTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup

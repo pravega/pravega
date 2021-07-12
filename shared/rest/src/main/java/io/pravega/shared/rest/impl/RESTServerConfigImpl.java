@@ -34,12 +34,13 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
+    private final String tlsProtocolVersion;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
     @Builder
     RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
-                         boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
+                         boolean tlsEnabled, String tlsProtocolVersion, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
@@ -48,6 +49,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.host = host;
         this.port = port;
         this.tlsEnabled = tlsEnabled;
+        this.tlsProtocolVersion = tlsProtocolVersion;
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
         this.authorizationEnabled = authorizationEnabled;
@@ -63,6 +65,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                 .append(String.format("host: %s, ", host))
                 .append(String.format("port: %d, ", port))
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
                 .append(String.format("keyFilePath is %s, ",
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",
@@ -82,6 +85,11 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     @Override
     public boolean isTlsEnabled() {
         return this.tlsEnabled;
+    }
+
+    @Override
+    public String tlsProtocolVersion() {
+        return this.tlsProtocolVersion;
     }
 
     @Override

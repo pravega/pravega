@@ -74,6 +74,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     public void reconnectOnSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocol = TestUtils.getTlsProtocolVersion();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";
@@ -81,7 +82,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocol);
         server.startListening();
 
         @Cleanup
@@ -117,6 +118,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     public void reconnectThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";
@@ -124,7 +126,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         @Cleanup

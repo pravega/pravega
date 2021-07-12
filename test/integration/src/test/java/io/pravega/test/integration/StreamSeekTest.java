@@ -73,6 +73,7 @@ public class StreamSeekTest extends ThreadPooledTestSuite {
     private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final int containerCount = 4;
     private final Serializer<String> serializer = new JavaSerializer<>();
     private final Random random = RandomFactory.create();
@@ -97,7 +98,7 @@ public class StreamSeekTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

@@ -44,6 +44,7 @@ public class ControllerFailoverTest {
     private static final String STREAM = "testStream";
 
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ServiceBuilder serviceBuilder;
@@ -59,7 +60,7 @@ public class ControllerFailoverTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
     }
 

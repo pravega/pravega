@@ -28,14 +28,14 @@ public class RESTServerConfigImplTests {
 
     @Test
     public void testToStringIsSuccessfulWithAllConfigSpecified() {
-        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true, "/passwd", true,
+        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true, "/passwd", true, "TLSv1.2,TLSv1.3",
                 "/rest.keystore.jks", "/keystore.jks.passwd");
         assertNotNull(config.toString());
     }
 
     @Test
     public void testToStringIsSuccessfulWithTlsDisabled() {
-        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, false, null, false,
+        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, false, null, false, null,
                 null, null);
         assertNotNull(config.toString());
     }

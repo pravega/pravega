@@ -51,6 +51,7 @@ public class AutoCheckpointTest {
         String readerName = "reader";
         String readerGroup = "group";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup
@@ -59,7 +60,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -104,6 +105,7 @@ public class AutoCheckpointTest {
         String streamName = "abc";
         String readerGroup = "group";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup
@@ -112,7 +114,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

@@ -321,6 +321,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      */
     private static class SegmentStoreRunner implements AutoCloseable {
         private final int servicePort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+        private final String tlsProtocolVersion = io.pravega.test.common.TestUtils.getTlsProtocolVersion();
         @Getter
         private final ServiceBuilder serviceBuilder;
         private final PravegaConnectionListener server;
@@ -353,7 +354,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             this.tableStore = this.serviceBuilder.createTableStoreService();
             this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor());
+                    this.serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
             this.server.startListening();
         }
 
