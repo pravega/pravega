@@ -1,9 +1,9 @@
-# Pravega Controller REST API
+# Pravega Controller APIs
 
 
 <a name="overview"></a>
 ## Overview
-List of admin REST APIs for the Pravega Controller service.
+List of admin REST APIs for the pravega controller service.
 
 
 ### Version information
@@ -365,6 +365,7 @@ Create a new stream
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 #### Responses
@@ -424,7 +425,8 @@ Create a new stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "streamTags" : { }
 }
 ```
 
@@ -456,7 +458,8 @@ Create a new stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -473,7 +476,8 @@ List streams within the given scope
 |Type|Name|Description|Schema|
 |---|---|---|---|
 |**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Query**|**showInternalStreams**  <br>*optional*|Optional flag whether to display system created streams. If not specified only user created streams will be returned|string|
+|**Query**|**filter_type**  <br>*optional*|Filter options|enum (showInternalStreams, tag)|
+|**Query**|**filter_value**  <br>*optional*|value to be passed. must match the type passed with it.|string|
 
 
 #### Responses
@@ -531,7 +535,8 @@ List streams within the given scope
         "hours" : 0,
         "minutes" : 0
       }
-    }
+    },
+    "tags" : { }
   } ]
 }
 ```
@@ -606,7 +611,8 @@ Fetch the properties of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -633,6 +639,7 @@ Update configuration of an existing stream
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 #### Responses
@@ -690,7 +697,8 @@ Update configuration of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "streamTags" : { }
 }
 ```
 
@@ -722,7 +730,8 @@ Update configuration of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -1004,6 +1013,7 @@ Updates the current state of the stream
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**scopeName**  <br>*optional*|**Example** : `"string"`|string|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**tags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 <a name="streamstate"></a>
@@ -1020,6 +1030,11 @@ Updates the current state of the stream
 |Name|Description|Schema|
 |---|---|---|
 |**streams**  <br>*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
+
+
+<a name="tagslist"></a>
+### TagsList
+*Type* : < string > array
 
 
 <a name="timebasedretention"></a>

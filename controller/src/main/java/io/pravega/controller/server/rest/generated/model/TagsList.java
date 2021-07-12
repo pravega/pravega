@@ -14,39 +14,15 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import java.util.ArrayList;
+import java.util.List;
 import javax.validation.constraints.*;
 
 /**
- * CreateScopeRequest
+ * TagsList
  */
 
-public class CreateScopeRequest   {
-  @JsonProperty("scopeName")
-  private String scopeName = null;
-
-  public CreateScopeRequest scopeName(String scopeName) {
-    this.scopeName = scopeName;
-    return this;
-  }
-
-  /**
-   * Get scopeName
-   * @return scopeName
-   **/
-  @JsonProperty("scopeName")
-  @ApiModelProperty(value = "")
-  public String getScopeName() {
-    return scopeName;
-  }
-
-  public void setScopeName(String scopeName) {
-    this.scopeName = scopeName;
-  }
-
+public class TagsList extends ArrayList<String>  {
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -56,22 +32,20 @@ public class CreateScopeRequest   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    CreateScopeRequest createScopeRequest = (CreateScopeRequest) o;
-    return Objects.equals(this.scopeName, createScopeRequest.scopeName);
+    return true;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scopeName);
+    return Objects.hash(super.hashCode());
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class CreateScopeRequest {\n");
-    
-    sb.append("    scopeName: ").append(toIndentedString(scopeName)).append("\n");
+    sb.append("class TagsList {\n");
+    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
     sb.append("}");
     return sb.toString();
   }
