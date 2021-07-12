@@ -48,7 +48,7 @@ public class GetSegmentAttributeCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentAttribute> reply = segmentHelper.getSegmentAttribute(fullyQualifiedSegmentName,
-                attributeId, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
+                attributeId, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         output("GetSegmentAttribute: %s", reply.join().toString());
     }
 

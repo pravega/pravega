@@ -50,7 +50,7 @@ public class UpdateSegmentAttributeCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentAttributeUpdated> reply = segmentHelper.updateSegmentAttribute(fullyQualifiedSegmentName,
-                attributeId, newValue, existingValue, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
+                attributeId, newValue, existingValue, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         output("UpdateSegmentAttribute: %s", reply.join().toString());
     }
 

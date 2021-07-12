@@ -65,18 +65,20 @@ Pravega Admin CLI.
    
 Initial configuration:
     cli.store.metadata.backend=segmentstore
-    cli.controller.connect.credentials.username=admin
+    cli.credentials.username=admin
     pravegaservice.admin.gateway.port=9999
     pravegaservice.storage.impl.name=FILESYSTEM
-    cli.controller.connect.credentials.pwd=1111_aaaa
+    cli.credentials.pwd=1111_aaaa
     bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
-    cli.controller.connect.channel.auth=false
-    cli.controller.connect.channel.tls=false
+    cli.channel.auth=false
+    cli.channel.tls=false
     pravegaservice.clusterName=pravega/pravega
     pravegaservice.zk.connect.uri=localhost:2181
     cli.controller.connect.rest.uri=localhost:9091
     cli.controller.connect.grpc.uri=localhost:9090
-    cli.controller.connect.trustStore.location=conf/ca-cert.crt
+    cli.trustStore.location=conf/ca-cert.crt
+    cli.trustStore.signing.key=conf/ca-cert.key
+    cli.trustStore.access.token.ttl.seconds=300
     pravegaservice.container.count=4
 ```
 

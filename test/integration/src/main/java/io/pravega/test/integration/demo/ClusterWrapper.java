@@ -141,6 +141,10 @@ public class ClusterWrapper implements AutoCloseable {
     @Getter
     private String tlsServerKeystorePasswordPath;
 
+    @Getter
+    @Builder.Default
+    private int accessTokenTtlInSeconds = 300;
+
     private ClusterWrapper() {}
 
     @SneakyThrows
