@@ -24,7 +24,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-class UpdateOrInit<StateT extends Revisioned> {
+public class UpdateOrInit<StateT extends Revisioned> {
     private final List<? extends Update<StateT>> updates;
     private final InitialUpdate<StateT> init;
 
