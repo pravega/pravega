@@ -130,7 +130,7 @@ have two policies that users can define, namely [**Scaling** **Policy**](https:/
 
   3. **Tag Management**: The Controller is responsible for storing user-defined Tags for a given Stream.
      Tags are singleton labels that are useful to specify identifying attributes of a Stream, meaningful and relevant to users.
-     The Controller indexes these Tags and provides APIs by which the user  can organize and select a subset of Streams under a given Scope.
+     The Controller indexes these Tags and provides APIs by which the user can organize and select a subset of Streams under a given Scope that share the same tag.
 
   4. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing Transactions requires the manipulation of Stream Segments. With
 each Transaction, Pravega creates a set of Transaction Segments, which
