@@ -469,7 +469,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
-        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
+
+        // Populate the AttributeUpdates for this mergeSegments operation, if any.
+        AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
+        if (mergeSegments.getAttributeUpdates() != null) {
+            for (WireCommands.ConditionalAttributeUpdate update : mergeSegments.getAttributeUpdates()) {
+                attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(update.getAttributeId()),
+                    AttributeUpdateType.get(update.getAttributeUpdateType()), update.getNewValue(), update.getOldValue()));
+            }
+        }
+
+        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),

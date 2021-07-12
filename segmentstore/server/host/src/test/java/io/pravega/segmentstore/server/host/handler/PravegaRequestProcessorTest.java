@@ -29,7 +29,6 @@ import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -497,7 +496,7 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
-                anyString(), anyString(), any());
+                anyString(), anyString(), any(), any());
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
@@ -521,7 +520,7 @@ public class PravegaRequestProcessorTest {
 
         //test txn segment merge
         CompletableFuture<MergeStreamSegmentResult> txnFuture = CompletableFuture.completedFuture(createMergeStreamSegmentResult(streamSegmentName, txnId));
-        doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
+        doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any(), any());
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
                 recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
@@ -530,7 +529,7 @@ public class PravegaRequestProcessorTest {
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());
+        verify(recorderMock).merge(streamSegmentName, 100L, 10, streamSegmentName.hashCode());
     }
 
     private MergeStreamSegmentResult createMergeStreamSegmentResult(String streamSegmentName, UUID txnId) {
@@ -538,23 +537,6 @@ public class PravegaRequestProcessorTest {
         attributes.put(Attributes.EVENT_COUNT, 10L);
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
         return new MergeStreamSegmentResult(100, 100, attributes);
-    }
-
-    private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
-
-        Map<AttributeId, Long> attributes = new HashMap<>();
-        attributes.put(Attributes.EVENT_COUNT, 10L);
-        attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
-
-        return StreamSegmentInformation.builder()
-                .name(txnId == null ? streamSegmentName + "#." : streamSegmentName + "#transaction." + txnId)
-                .sealed(true)
-                .deleted(false)
-                .lastModified(null)
-                .startOffset(0)
-                .length(100)
-                .attributes(attributes)
-                .build();
     }
 
     @Test(timeout = 20000)

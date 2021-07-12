@@ -36,7 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -1302,6 +1304,7 @@ public final class WireCommands {
     }
 
     @Data
+    @AllArgsConstructor
     public static final class MergeSegments implements Request, WireCommand {
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
         final long requestId;
@@ -1309,6 +1312,16 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
+        final List<ConditionalAttributeUpdate> attributeUpdates;
+
+        // Constructor to keep compatibility with all the calls not requiring attributes to merge Segments.
+        public MergeSegments(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+            this.attributeUpdates = Collections.emptyList();
+        }
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1321,14 +1334,21 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            for (ConditionalAttributeUpdate entry : attributeUpdates) {
+                entry.writeFields(out);
+            }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            return new MergeSegments(requestId, target, source, delegationToken);
+            List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
+            while (in.available() > 0) {
+                attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
+            }
+            return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
         }
     }
 
@@ -2165,7 +2185,6 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
@@ -2538,5 +2557,39 @@ public final class WireCommands {
          * against multiple invocations.
          */
         abstract void releaseInternal();
+    }
+
+    /**
+     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
+     * WireCommand.
+     */
+    @Data
+    public static final class ConditionalAttributeUpdate {
+        public static final int LENGTH = 4 * Long.BYTES + 1; // UUID (2 longs) + oldValue + newValue + updateType (1 byte)
+
+        private final UUID attributeId;
+        private final byte attributeUpdateType;
+        private final long newValue;
+        private final long oldValue;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(attributeId.getMostSignificantBits());
+            out.writeLong(attributeId.getLeastSignificantBits());
+            out.writeByte(attributeUpdateType);
+            out.writeLong(newValue);
+            out.writeLong(oldValue);
+        }
+
+        public static ConditionalAttributeUpdate readFrom(DataInput in, int length) throws IOException {
+            UUID attributeId = new UUID(in.readLong(), in.readLong());
+            byte attributeUpdateType = in.readByte();
+            long newValue = in.readLong();
+            long oldValue = in.readLong();
+            return new ConditionalAttributeUpdate(attributeId, attributeUpdateType, newValue, oldValue);
+        }
+
+        public int size() {
+            return LENGTH;
+        }
     }
 }
