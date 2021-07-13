@@ -32,8 +32,8 @@ import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper methods for ExecutorService.
@@ -111,7 +111,7 @@ public final class ExecutorServiceHelpers {
      * @param threadTimeout the number of milliseconds that a thread should sit idle before shutting down.
      * @param poolName The name of the threadpool.
      */
-    public static ThreadPoolExecutor getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
+    public static ExecutorService getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
         return FACTORY.newShrinkingExecutor(maxThreadCount, threadTimeout, poolName);
     }
 
