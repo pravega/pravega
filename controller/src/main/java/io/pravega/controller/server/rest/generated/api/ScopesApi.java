@@ -49,7 +49,7 @@ public class ScopesApi  {
          String implClass = servletContext.getInitParameter("ScopesApi.implementation");
          if (implClass != null && !"".equals(implClass.trim())) {
             try {
-               delegate = (ScopesApiService) Class.forName(implClass).getConstructor().newInstance();
+               delegate = (ScopesApiService) Class.forName(implClass).newInstance();
             } catch (Exception e) {
                throw new RuntimeException(e);
             }
@@ -224,7 +224,7 @@ public class ScopesApi  {
     
     
     @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "List all available scopes in pravega", response = ScopesList.class, tags={ "Scopes", })
+    @io.swagger.annotations.ApiOperation(value = "", notes = "List all available scopes in Pravega", response = ScopesList.class, tags={ "Scopes", })
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 200, message = "List of currently available scopes", response = ScopesList.class),
         
@@ -245,10 +245,11 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the list of streams for the given scope", response = StreamsList.class) })
     public Response listStreams(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
-,@ApiParam(value = "Optional flag whether to display system created streams. If not specified only user created streams will be returned") @QueryParam("showInternalStreams") String showInternalStreams
+,@ApiParam(value = "Filter options", allowableValues="showInternalStreams, tag") @QueryParam("filter_type") String filterType
+,@ApiParam(value = "value to be passed. must match the type passed with it.") @QueryParam("filter_value") String filterValue
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
-        return delegate.listStreams(scopeName,showInternalStreams,securityContext);
+        return delegate.listStreams(scopeName,filterType,filterValue,securityContext);
     }
     @PUT
     @Path("/{scopeName}/streams/{streamName}")

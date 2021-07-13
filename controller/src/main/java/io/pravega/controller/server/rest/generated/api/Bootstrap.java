@@ -10,13 +10,12 @@ import javax.servlet.ServletContext;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 
-@SuppressWarnings("all")
 public class Bootstrap extends HttpServlet {
   @Override
   public void init(ServletConfig config) throws ServletException {
     Info info = new Info()
       .title("Swagger Server")
-      .description("List of admin REST APIs for the pravega controller service.")
+      .description("List of admin REST APIs for the Pravega controller service.")
       .termsOfService("")
       .contact(new Contact()
         .email(""))
