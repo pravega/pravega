@@ -1170,11 +1170,6 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        long scaleTs = System.currentTimeMillis();
-        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 0.75);
-        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.75, 1.0);
-        List<Long> scale1SealedSegments = Collections.singletonList(1L);
-
         // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
         UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx00,
@@ -1212,11 +1207,10 @@ public abstract class StreamMetadataStoreTest {
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx00, null, executor).join();
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx01, null, executor).join();
 
+        streamObj.removeTxnsFromCommitOrder(List.of(0L, 1L), context);
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000, context).join();
         assertEquals(1, orderedRecords.size());
         assertEquals(tx02, orderedRecords.get(0).getId());
-        
-        // scale and create transaction on new epoch too. 
     }
     
     @Test
@@ -1297,7 +1291,8 @@ public abstract class StreamMetadataStoreTest {
             assertEquals(limit, ordered.size());
             for (int i = 0; i < limit; i++) {
                 assertEquals(txns.remove(0), ordered.get(i).getId());
-                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i).getId(), null, executor).join();
+                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i).getId(), context, executor).join();
+                streamObj.removeTxnsFromCommitOrder(ordered.stream().map(txn -> txn.getCommitOrder()).collect(Collectors.toList()), context);
             }
         }
     }
