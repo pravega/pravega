@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.batch.impl;
 
@@ -51,8 +57,9 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
-        long length = metadataClient.getSegmentInfo().getWriteOffset();
+        long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertTrue(iter.hasNext());
@@ -76,9 +83,10 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
-        long length = metadataClient.getSegmentInfo().getWriteOffset();
+        long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertEquals(0, iter.getOffset());
@@ -105,15 +113,16 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
-        long length = metadataClient.getSegmentInfo().getWriteOffset();
+        long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertEquals("1", iter.next());
-        long segmentLength = metadataClient.fetchCurrentSegmentLength();
+        long segmentLength = metadataClient.fetchCurrentSegmentLength().join();
         assertEquals(0, segmentLength % 3);
-        metadataClient.truncateSegment(segmentLength * 2 / 3);
+        metadataClient.truncateSegment(segmentLength * 2 / 3).join();
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iter.next());
         @Cleanup
         SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, segment, stringSerializer,

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.admin.controller;
 
@@ -135,14 +141,18 @@ public class SecureControllerCommandsTest {
         command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
     }
 
+    @Test
+    @SneakyThrows
+    public void testDescribeReaderGroupCommand() {
+        // Check that the system reader group can be listed.
+        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", cliConfig());
+        Assert.assertTrue(commandResult.contains("commitStreamReaders"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+    }
+
     // TODO: Test controller describe-stream command in the secure scenario (auth+TLS).
     // Cannot at this point due to the following issue:
     // Issue 3821: Create describeStream REST call in Controller
     // https://github.com/pravega/pravega/issues/3821
-
-    // TODO: Test controller describe-readergroup command in the secure scenario (auth+TLS).
-    // Cannot at this point due to the following issue:
-    // Issue 5196: REST call for fetching readergroup properties does not work when TLS is enabled in the standalone
-    // https://github.com/pravega/pravega/issues/5196
 }
 

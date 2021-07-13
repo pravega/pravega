@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -14,6 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -28,7 +35,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -160,13 +166,13 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
             m.setLength(4000 + i);
             m.setLastUsed(truncationSeqNo - 1); // So we can evict some attributes.
             for (int j = 0; j < CONFIG.getMaxCachedExtendedAttributeCount(); j++) {
-                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), (long) j));
+                m.updateAttributes(Collections.singletonMap(AttributeId.randomUUID(), (long) j));
             }
 
             // This will make the segment non-evictable, and the same with the rest of the attributes.
             m.setLastUsed(truncationSeqNo + 1);
             for (int j = CONFIG.getMaxCachedExtendedAttributeCount(); j < attributeCount; j++) {
-                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), attributeCount + (long) j));
+                m.updateAttributes(Collections.singletonMap(AttributeId.randomUUID(), attributeCount + (long) j));
             }
         }
 

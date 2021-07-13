@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rpc.grpc;
 
@@ -14,11 +20,13 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import io.grpc.netty.NettyServerBuilder;
+import io.netty.channel.ChannelOption;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
@@ -50,14 +58,15 @@ public class GRPCServer extends AbstractIdleService {
         this.config = serverConfig;
         GrpcAuthHelper authHelper = new GrpcAuthHelper(serverConfig.isAuthorizationEnabled(),
                 serverConfig.getTokenSigningKey(), serverConfig.getAccessTokenTTLInSeconds());
-        ServerBuilder<?> builder = ServerBuilder
+        ServerBuilder<?> builder = NettyServerBuilder
                 .forPort(serverConfig.getPort())
+                .withChildOption(ChannelOption.SO_REUSEADDR, true)
                 .addService(ServerInterceptors.intercept(new ControllerServiceImpl(controllerService, authHelper, requestTracker,
                                 serverConfig.isReplyWithStackTraceOnError(), serverConfig.isRGWritesWithReadPermEnabled()),
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.authHandlerManager = new AuthHandlerManager(serverConfig);
-            this.authHandlerManager.registerInterceptors(builder);
+            GrpcAuthHelper.registerInterceptors(authHandlerManager.getHandlerMap(), builder);
         } else {
             this.authHandlerManager = null;
         }

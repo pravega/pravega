@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.controller.event.kvtable;
 
@@ -31,6 +37,8 @@ public class CreateTableEvent implements ControllerEvent {
     private final String scopeName;
     private final String kvtName;
     private final int partitionCount;
+    private final int primaryKeyLength;
+    private final int secondaryKeyLength;
     private final long timestamp;
     private final long requestId;
     private final UUID tableId;
@@ -72,6 +80,8 @@ public class CreateTableEvent implements ControllerEvent {
             target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
             target.writeUUID(e.tableId);
+            target.writeInt(e.primaryKeyLength);
+            target.writeInt(e.secondaryKeyLength);
         }
 
         private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
@@ -81,6 +91,8 @@ public class CreateTableEvent implements ControllerEvent {
             eb.timestamp(source.readLong());
             eb.requestId(source.readLong());
             eb.tableId(source.readUUID());
+            eb.primaryKeyLength(source.readInt());
+            eb.secondaryKeyLength(source.readInt());
         }
     }
     //endregion

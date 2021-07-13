@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util.btree;
 
@@ -61,7 +67,8 @@ public class BTreePageTests {
 
             // Apply to the page.
             val updateValues = updateKeys.stream().collect(Collectors.toMap(key -> key, key -> ((long) entries.size() << 32) + key));
-            page.update(serialize(updateValues, true));
+            int delta = page.update(serialize(updateValues, true));
+            Assert.assertEquals("Unexpected number of entries reported as inserted.", half, delta);
 
             // Update our expected values.
             entries.putAll(updateValues);
@@ -99,7 +106,10 @@ public class BTreePageTests {
                 }
             }
 
-            page.update(toDelete(serialize(deleteKeys, true)));
+            val keys = serialize(deleteKeys, true);
+            val existingKeys = keys.stream().filter(k -> page.searchExact(k) != null).count();
+            int delta = page.update(toDelete(keys));
+            Assert.assertEquals("Unexpected number of entries reported as deleted.", -existingKeys, delta);
             deleteKeys.forEach(remainingEntries::remove);
 
             checkPage(page, remainingEntries);
@@ -129,6 +139,7 @@ public class BTreePageTests {
         val rnd = new Random(0);
         for (int iteration = 0; iteration < iterationCount; iteration++) {
             val changes = new HashMap<Integer, Long>();
+            int expectedDelta = 0;
 
             // Generate inserts. We want to make sure we don't insert existing values.
             for (int i = 0; i < insertsPerIteration; i++) {
@@ -138,10 +149,13 @@ public class BTreePageTests {
                 } while (expectedValues.containsKey(key) && changes.containsKey(key));
 
                 changes.put(key, (long) key + 1);
+                if (page.searchExact(serializeInt(key)) == null) {
+                    expectedDelta++;
+                }
             }
 
             // Generate updates.
-            val allKeys = new ArrayList<Integer>(expectedValues.keySet());
+            val allKeys = new ArrayList<>(expectedValues.keySet());
             for (int i = 0; i < updatesPerIteration; i++) {
                 if (allKeys.size() == 0) {
                     break;
@@ -163,6 +177,7 @@ public class BTreePageTests {
                 int key = allKeys.get(idx);
                 allKeys.remove(idx); // Remove at index.
                 changes.put(key, null);
+                expectedDelta--;
             }
 
             // Store changes.
@@ -175,7 +190,8 @@ public class BTreePageTests {
             });
 
             // Apply changes.
-            page.update(serialize(changes, true));
+            int delta = page.update(serialize(changes, true));
+            Assert.assertEquals("Unexpected number of entries reported as changed.", expectedDelta, delta);
             checkPage(page, expectedValues);
         }
 

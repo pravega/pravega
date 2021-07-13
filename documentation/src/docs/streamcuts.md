@@ -1,11 +1,17 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Working with Pravega: StreamCuts
 
@@ -61,11 +67,11 @@ shows the different ways to use `StreamCut`s as part of the Reader Group configu
  *   - Stream "s4" from the current head of the stream upto the tail of the stream.
  */
 ReaderGroupConfig.builder()
-                .stream("scope/s1", startStreamCut1, endStreamCut1)
-                .stream("scope/s2", startStreamCut2)
-                .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
-                .stream("scope/s4")
-                .build();
+        .stream("scope/s1", startStreamCut1, endStreamCut1)
+        .stream("scope/s2", startStreamCut2)
+        .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
+        .stream("scope/s4")
+        .build();
 ```
 
 The below API can be used to reset an existing Reader Group with a new Reader Group configuration instead creating a Reader Group.
@@ -82,15 +88,14 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 
 ```java
 /**
-
-     * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
-     *
-     * @param scopeName The scope of the stream.
-     * @param streamName The stream name.
-     * @return stream information.
-     */
-    StreamInfo getStreamInfo(String scopeName, String streamName);
+ * Get information about a given Stream, {@link StreamInfo}.
+ * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+ *
+ * @param scopeName The scope of the stream.
+ * @param streamName The stream name.
+ * @return stream information.
+ */
+StreamInfo getStreamInfo(String scopeName, String streamName);
 
 ```
 ## StreamCut with BatchClient

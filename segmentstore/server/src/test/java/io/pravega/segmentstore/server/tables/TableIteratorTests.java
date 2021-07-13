@@ -1,21 +1,30 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.collect.Maps;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -170,14 +179,21 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
         return builder.expectedResult(expectedResult.values().stream()
                                                     .sorted(Comparator.comparing(TableBucket::getHash))
                                                     .collect(Collectors.toList()))
-                      .executor(executorService())
-                      .build();
+                .executor(executorService())
+                .build();
     }
 
     private static <T> List<T> filter(List<T> items, Function<T, UUID> getHash, UUID fromId, UUID toId) {
         return items.stream()
-                    .filter(e -> getHash.apply(e).compareTo(fromId) >= 0 && getHash.apply(e).compareTo(toId) <= 0)
-                    .collect(Collectors.toList());
+                .filter(e -> getHash.apply(e).compareTo(fromId) >= 0 && getHash.apply(e).compareTo(toId) <= 0)
+                .collect(Collectors.toList());
+    }
+
+    private static List<Map.Entry<AttributeId, Long>> toAttributeIterator(List<Map.Entry<UUID, Long>> items, AttributeId fromId, AttributeId toId) {
+        return items.stream()
+                .map(e -> new AbstractMap.SimpleImmutableEntry<>(AttributeId.fromUUID(e.getKey()), e.getValue()))
+                .filter(e -> e.getKey().compareTo(fromId) >= 0 && e.getKey().compareTo(toId) <= 0)
+                .collect(Collectors.toList());
     }
 
     @RequiredArgsConstructor
@@ -202,11 +218,11 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
             }
 
             @Override
-            public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
-                Assert.assertEquals("toId must always be KeyHasher.MAX_HASH.", KeyHasher.MAX_HASH, toId);
+            public CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout) {
+                Assert.assertEquals("toId must always be KeyHasher.MAX_HASH.", KeyHasher.MAX_HASH, ((AttributeId.UUID) toId).toUUID());
                 val iterator = baseIteratorHashes.iterator();
                 return CompletableFuture.completedFuture(() -> CompletableFuture.completedFuture(
-                        iterator.hasNext() ? filter(iterator.next(), Map.Entry::getKey, fromId, toId) : null));
+                        iterator.hasNext() ? toAttributeIterator(iterator.next(), fromId, toId) : null));
             }
         }
     }

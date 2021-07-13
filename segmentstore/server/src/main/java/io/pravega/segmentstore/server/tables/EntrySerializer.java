@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -39,7 +45,16 @@ import lombok.val;
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+    /**
+     * Maximum size allowed for any single Table Segment Update (update or removal).
+     * NOTE: If changing this, consider other dependent values that are calculated based on it. Use your IDE to find them.
+     */
     static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+    /**
+     * Maximum size allowed for any Table Segment update (single or multiple entry). No update (or removal) serialization
+     * may exceed this.
+     * NOTE: If changing this, consider other dependent values that are calculated based on it. Use your IDE to find them.
+     */
     static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;

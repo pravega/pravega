@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.admin;
 
@@ -17,6 +23,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
+import java.util.Collection;
 import java.util.Iterator;
 
 /**
@@ -132,6 +139,25 @@ public interface StreamManager extends AutoCloseable {
     Iterator<Stream> listStreams(String scopeName);
 
     /**
+     * Gets an iterator to list all streams with the provided tag.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @param tagName The name of the tag.
+     *
+     * @return Iterator of Stream to iterator over all streams in scope with the provided tag.
+     */
+    Iterator<Stream> listStreams(String scopeName, String tagName);
+
+    /**
+     * Gets the Tags associated with a stream.
+     *
+     * @param scopeName Scope name.
+     * @param streamName Stream name.
+     * @return Tags associated with the stream.
+     */
+    Collection<String> getStreamTags(String scopeName, String streamName);
+
+    /**
      * Checks if a stream exists in scope. 
      *
      * @param scopeName  The name of the scope to check the stream in.
@@ -155,15 +181,16 @@ public interface StreamManager extends AutoCloseable {
      * delete scope is retry-able.  
      *
      * @param scopeName  The name of the scope to delete.
-     * @param deleteStreams To list and delete streams in scope before attempting to delete scope. 
+     * @param forceDelete To list and delete streams, key-value tables and reader groups in scope before attempting to delete scope.
      * @return True if scope is deleted, false otherwise. 
      * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.  
      */
-    boolean deleteScope(String scopeName, boolean deleteStreams) throws DeleteScopeFailedException;
+    boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException;
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current
+     * {@link StreamConfiguration}
      *
      * @param scopeName The scope of the stream.
      * @param streamName The stream name.

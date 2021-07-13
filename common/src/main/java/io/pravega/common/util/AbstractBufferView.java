@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -26,6 +32,19 @@ import lombok.Getter;
 public abstract class AbstractBufferView implements BufferView {
     static final BufferView EMPTY = new EmptyBufferView();
     private static final HashHelper HASH = HashHelper.seededWith(AbstractBufferView.class.getName());
+
+    /**
+     * Generates a hash code for the given array. This hash code is identical to that of a {@link BufferView} containing
+     * the same data as in this byte array.
+     *
+     * @param array The array to generate hash code for.
+     * @return The hash code.
+     */
+    public static int hashCode(byte[] array) {
+        HashHelper.HashBuilder builder = HASH.newBuilder();
+        builder.put(ByteBuffer.wrap(array));
+        return builder.getAsInt();
+    }
 
     @Override
     public int hashCode() {
@@ -163,6 +182,11 @@ public abstract class AbstractBufferView implements BufferView {
 
         @Override
         public int getLength() {
+            return 0;
+        }
+
+        @Override
+        public int getAllocatedLength() {
             return 0;
         }
 

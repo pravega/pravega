@@ -1,17 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -81,7 +87,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      *
      * @param attributeValues The values to set/update.
      */
-    void updateAttributes(Map<UUID, Long> attributeValues);
+    void updateAttributes(Map<AttributeId, Long> attributeValues);
 
     /**
      * Sets the Last Modified date.
@@ -107,7 +113,8 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void setLastUsed(long value);
 
     /**
-     * Refreshes the {@link #getType()} property based on the current {@link #getAttributes()} values.
+     * Refreshes those properties that are derived from the current {@link #getAttributes()} values. For example,
+     * {@link #getType()} and {@link #getAttributeIdLength()}.
      */
-    void refreshType();
+    void refreshDerivedProperties();
 }

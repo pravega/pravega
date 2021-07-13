@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.admin;
 
@@ -20,7 +26,9 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperCleanupCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperDetailsCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperDisableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
+import io.pravega.cli.admin.bookkeeper.BookKeeperListAllLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
+import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
@@ -36,20 +44,38 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
+import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
+import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
+import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostMonitorConfig;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.io.PrintStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import io.pravega.shared.security.auth.DefaultCredentials;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -137,11 +163,13 @@ public abstract class AdminCommand {
     }
 
     protected void prettyJSONOutput(String jsonString) {
+        @SuppressWarnings("deprecation")
         JsonElement je = new JsonParser().parse(jsonString);
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
     protected void prettyJSONOutput(String key, Object value) {
+        @SuppressWarnings("deprecation")
         JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
@@ -167,6 +195,18 @@ public abstract class AdminCommand {
 
     protected int getIntArg(int index) {
         return getArg(index, Integer::parseInt);
+    }
+
+    protected long getLongArg(int index) {
+        return getArg(index, Long::parseLong);
+    }
+
+    protected UUID getUUIDArg(int index) {
+        return getArg(index, UUID::fromString);
+    }
+
+    protected String getArg(int index) {
+        return getArg(index, String::toString);
     }
 
     private <T> T getArg(int index, Function<String, T> converter) {
@@ -227,6 +267,8 @@ public abstract class AdminCommand {
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
                         .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
                         .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(BookKeeperLogReconcileCommand::descriptor, BookKeeperLogReconcileCommand::new)
+                        .put(BookKeeperListAllLedgersCommand::descriptor, BookKeeperListAllLedgersCommand::new)
                         .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
                         .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
@@ -240,6 +282,10 @@ public abstract class AdminCommand {
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
+                        .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
+                        .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
+                        .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
+                        .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
                         .build());
 
         /**
@@ -333,6 +379,23 @@ public abstract class AdminCommand {
     @SneakyThrows
     private String objectToJSON(Object object) {
         return new ObjectMapper().writeValueAsString(object);
+    }
+
+    @VisibleForTesting
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .containerCount(getServiceConfig().getContainerCount())
+                .build();
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
+                .validateHostName(getCLIControllerConfig().isAuthEnabled())
+                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
+                .build();
+        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
     //endregion

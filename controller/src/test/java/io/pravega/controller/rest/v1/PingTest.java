@@ -1,25 +1,29 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.controller.server.rest.resources.PingImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.ProcessingException;
@@ -35,7 +39,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
 
 /**
  * Test for ping API.
@@ -49,15 +52,11 @@ public abstract class PingTest {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private ConnectionFactory connectionFactory;
-    
+
     @Before
     public void setup() throws Exception {
-        ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory);
+        restServer = new RESTServer(serverConfig, Set.of(new PingImpl()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
@@ -73,7 +72,6 @@ public abstract class PingTest {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
-        connectionFactory.close();
     }
 
     @Test

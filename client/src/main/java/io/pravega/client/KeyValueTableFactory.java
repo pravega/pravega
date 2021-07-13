@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client;
 
@@ -16,7 +22,6 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
@@ -46,19 +51,12 @@ public interface KeyValueTableFactory extends AutoCloseable {
      * Creates a new {@link KeyValueTable} that provides access to a Pravega Key-Value Table.
      *
      * @param keyValueTableName   Name of the {@link KeyValueTable}.
-     * @param keySerializer       A {@link Serializer} for {@link KeyValueTable} Keys. Refer to the {@link KeyValueTable}
-     *                            Javadoc for constraints relating to the size of the serialization.
-     * @param valueSerializer     A {@link Serializer} for {@link KeyValueTable} Values. Refer to the {@link KeyValueTable}
-     *                            Javadoc for constraints relating to the size of the serialization.
      * @param clientConfiguration A {@link KeyValueTableClientConfiguration} to use for configuring the
      *                            {@link KeyValueTable} client.
-     * @param <KeyT>              Key Type.
-     * @param <ValueT>            Value Type.
      * @return A {@link KeyValueTable} that provides access to the requested Key-Value Table.
      */
-    <KeyT, ValueT> KeyValueTable<KeyT, ValueT> forKeyValueTable(
-            @NonNull String keyValueTableName, @NonNull Serializer<KeyT> keySerializer,
-            @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration);
+    KeyValueTable forKeyValueTable(
+            @NonNull String keyValueTableName, @NonNull KeyValueTableClientConfiguration clientConfiguration);
 
     /**
      * Closes the {@link KeyValueTableFactory}. This will close any connections created through it.

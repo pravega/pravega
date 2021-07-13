@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.util;
 
@@ -168,7 +174,7 @@ public final class Config {
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
     public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
-            "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
+            "transaction.lease.count.max", 600000L, "transaction.maxLeaseValue");
 
     public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
             "transaction.execution.timeBound.days", 1);
@@ -190,6 +196,9 @@ public final class Config {
 
     public static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
+
+    public static final Property<Integer> PROPERTY_HEALTH_CHECK_FREQUENCY = Property.named(
+            "health.frequency.seconds", 10);
 
     public static final String COMPONENT_CODE = "controller";
 
@@ -279,8 +288,9 @@ public final class Config {
 
     public static final Integer REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE;
 
-    private static final String METRICS_PATH = "controller.metrics.";
+    public static final int HEALTH_CHECK_FREQUENCY;
 
+    private static final String METRICS_PATH = "controller.metrics.";
 
     //endregion
 
@@ -348,6 +358,7 @@ public final class Config {
         METRICS_CONFIG = createMetricsConfig(properties);
 
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
+        HEALTH_CHECK_FREQUENCY = p.getInt(PROPERTY_HEALTH_CHECK_FREQUENCY);
     }
 
     private static Properties loadConfiguration() {

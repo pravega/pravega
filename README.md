@@ -1,11 +1,17 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Pravega [![Build Status](https://github.com/pravega/pravega/workflows/build/badge.svg?branch=master)](https://github.com/pravega/pravega/actions?query=branch%3Amaster) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Version](https://img.shields.io/github/release/pravega/pravega.svg)](https://github.com/pravega/pravega/releases) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4178/badge)](https://bestpractices.coreinfrastructure.org/projects/4178)
 
@@ -66,9 +72,26 @@ For eclipse, you can generate eclipse project files by running `./gradlew eclips
 
 The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
+## Snapshot artifacts 
+
+All snapshot artifacts from `master` and `release` branches are available in GitHUB Packages Registry 
+
+Add the following to your repositories list and import dependencies as usual. 
+
+```
+maven {
+    url "https://maven.pkg.github.com/pravega/pravega"
+    credentials {
+        username = "pravega-public"
+        password = "&#103;&#104;&#112;&#95;&#52;&#108;&#97;&#103;&#74;&#122;&#116;&#112;&#85;&#57;&#65;&#113;&#110;&#105;&#79;&#109;&#56;&#84;&#88;&#57;&#73;&#110;&#56;&#81;&#71;&#71;&#113;&#56;&#101;&#106;&#52;&#68;&#74;&#90;&#52;&#52;"
+    }
+}
+```
+Note GitHub Packages requires authentication to download packages thus credentials above are required
+
 ## Quick Start
 
-Read [Getting Started](documentation/src/docs/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
+Read [Getting Started](documentation/src/docs/getting-started/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Running Pravega
 

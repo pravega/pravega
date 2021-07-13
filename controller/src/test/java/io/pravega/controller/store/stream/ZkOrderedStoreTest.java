@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -70,25 +76,25 @@ public class ZkOrderedStoreTest {
         ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
         
         // add 5 entities
-        long position1 = store.addEntity(scope, stream, test + 1).join();
+        long position1 = store.addEntity(scope, stream, test + 1, 0L).join();
         assertEquals(0L, position1);
         // verify that set 0 is not sealed
         assertFalse(store.isSealed(scope, stream, 0).join());
         
-        long position2 = store.addEntity(scope, stream, test + 2).join();
+        long position2 = store.addEntity(scope, stream, test + 2, 0L).join();
         assertEquals(1L, position2);
         // verify that set 0 is still not sealed
         assertFalse(store.isSealed(scope, stream, 0).join());
 
-        long position3 = store.addEntity(scope, stream, test + 3).join();
+        long position3 = store.addEntity(scope, stream, test + 3, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(1, 0), position3);
         // verify that set 0 is sealed
         assertTrue(store.isSealed(scope, stream, 0).join());
 
-        long position4 = store.addEntity(scope, stream, test + 4).join();
+        long position4 = store.addEntity(scope, stream, test + 4, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(1, 1), position4);
         
-        long position5 = store.addEntity(scope, stream, test + 5).join();
+        long position5 = store.addEntity(scope, stream, test + 5, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(2, 0), position5);
         // verify that set 1 is sealed
         assertTrue(store.isSealed(scope, stream, 1).join());
@@ -143,7 +149,7 @@ public class ZkOrderedStoreTest {
         ZKStoreHelper zkStoreHelper = spy(this.zkStoreHelper);
         ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
         
-        store.addEntity(scope, stream, test + 1).join();
+        store.addEntity(scope, stream, test + 1, 0L).join();
         store.getEntitiesWithPosition(scope, stream).join();
         
         verify(zkStoreHelper, times(1)).sync(any());

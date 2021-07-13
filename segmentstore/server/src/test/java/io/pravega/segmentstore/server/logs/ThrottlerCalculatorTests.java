@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -119,6 +125,21 @@ public class ThrottlerCalculatorTests {
         testThrottling(tc, queueStats, noThrottling, gradualThrottling, maxThrottling);
     }
 
+    /**
+     * Tests the ability to properly calculate throttling delays caused by OperationLog overflows.
+     */
+    @Test
+    public void testOperationLog() {
+        val targetSize = ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE;
+        val maxSize = ThrottlerCalculator.OPERATION_LOG_MAX_SIZE;
+        val logSize = new AtomicReference<Integer>(0);
+        val tc = ThrottlerCalculator.builder().operationLogThrottler(logSize::get).build();
+        testThrottling(tc, logSize,
+                new Integer[]{-1, 0, targetSize / 2, targetSize},
+                new Integer[]{targetSize + 10, (maxSize + targetSize) / 2, maxSize},
+                new Integer[]{maxSize, maxSize + 10, maxSize * 2, Integer.MAX_VALUE});
+    }
+
     private QueueStats createStats(int queueSize, double fillRatio, int expectedProcessingTimeMillis) {
         int totalLength = (int) (fillRatio * MAX_APPEND_LENGTH * queueSize);
         return new QueueStats(queueSize, totalLength, MAX_APPEND_LENGTH, expectedProcessingTimeMillis);
@@ -127,14 +148,14 @@ public class ThrottlerCalculatorTests {
     private <T> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
         // Test for values where we don't expect throttling.
         Arrays.stream(noThrottleValues)
-              .forEach(v -> {
-                  inputValue.set(v);
-                  Assert.assertFalse("Unexpected value from isThrottlingRequired() when no throttling expected: " + v,
-                          tc.isThrottlingRequired());
-                  ThrottlerCalculator.DelayResult r = tc.getThrottlingDelay();
-                  Assert.assertEquals("Unexpected value from getDurationMillis() when no throttling expected " + v, 0, r.getDurationMillis());
-                  Assert.assertFalse("Unexpected value from isMaximum() when no throttling expected " + v, r.isMaximum());
-              });
+                .forEach(v -> {
+                    inputValue.set(v);
+                    Assert.assertFalse("Unexpected value from isThrottlingRequired() when no throttling expected: " + v,
+                            tc.isThrottlingRequired());
+                    ThrottlerCalculator.DelayResult r = tc.getThrottlingDelay();
+                    Assert.assertEquals("Unexpected value from getDurationMillis() when no throttling expected " + v, 0, r.getDurationMillis());
+                    Assert.assertFalse("Unexpected value from isMaximum() when no throttling expected " + v, r.isMaximum());
+                });
 
         // Test for values where we expect gradual throttling, up to max.
         AtomicInteger lastValue = new AtomicInteger();

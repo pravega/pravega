@@ -1,15 +1,24 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
@@ -120,6 +129,34 @@ public class TypedPropertiesTests {
         String config = typedProps.get(Property.named(
                 "newPropertyKey", "default", "legacyPropertyKey"));
         assertEquals("old", config);
+    }
+
+    @Test
+    public void testGetPositiveInt() {
+        Properties props = new Properties();
+        props.setProperty("getPositiveInteger.positiveInteger", "1000");
+        props.setProperty("getPositiveInteger.zero", "0");
+        props.setProperty("getPositiveInteger.negativeInteger", "-1");
+        props.setProperty("getPositiveInteger.notAnInteger", "hello");
+        TypedProperties typedProps = new TypedProperties(props, "getPositiveInteger");
+        Assert.assertEquals(1000, typedProps.getPositiveInt(Property.named("positiveInteger")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("zero")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("negativeInteger")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("notAnInteger")));
+    }
+
+    @Test
+    public void testGetDuration() {
+        Properties props = new Properties();
+        props.setProperty("getDuration.positiveInteger", "1000");
+        props.setProperty("getDuration.zero", "0");
+        props.setProperty("getDuration.negativeInteger", "-1");
+        props.setProperty("getDuration.notAnInteger", "hello");
+        TypedProperties typedProps = new TypedProperties(props, "getDuration");
+        Assert.assertEquals(Duration.of(1000, ChronoUnit.SECONDS), typedProps.getDuration(Property.named("positiveInteger"), ChronoUnit.SECONDS));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getDuration(Property.named("zero"), ChronoUnit.SECONDS));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getDuration(Property.named("negativeInteger"), ChronoUnit.SECONDS));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getDuration(Property.named("notAnInteger"), ChronoUnit.SECONDS));
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {

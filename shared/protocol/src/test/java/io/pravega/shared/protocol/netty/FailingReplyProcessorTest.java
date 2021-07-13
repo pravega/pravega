@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -13,6 +19,7 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
@@ -39,7 +46,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TableKeysRemoved;
 import io.pravega.shared.protocol.netty.WireCommands.TableRead;
 import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -78,6 +84,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.segmentsMerged(new SegmentsMerged(0, "", "", 2)));
         assertThrows(IllegalStateException.class, () -> rp.segmentTruncated(new SegmentTruncated(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.streamSegmentInfo(new StreamSegmentInfo(0, "", false, false, false, 0, 0, 0)));
+        assertThrows(IllegalStateException.class, () -> rp.tableSegmentInfo(new WireCommands.TableSegmentInfo(0, "", 0, 0, 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesDeltaRead(new TableEntriesDeltaRead(0, "", null, false, true, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesRead(new TableEntriesRead(0, "", null, null)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesUpdated(new TableEntriesUpdated(0, null)));

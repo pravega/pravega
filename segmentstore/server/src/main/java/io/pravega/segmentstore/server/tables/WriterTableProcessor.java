@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -17,7 +23,6 @@ import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -55,7 +60,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private final AtomicLong lastAddedOffset;
     private final AtomicBoolean closed;
     private final String traceObjectId;
-    private final TableCompactor compactor;
+    private final TableCompactor.Config tableCompactorConfig;
 
     //endregion
 
@@ -71,11 +76,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.connector = connector;
         this.executor = executor;
         this.indexWriter = new IndexWriter(connector.getKeyHasher(), executor);
-        this.aggregator = new OperationAggregator(this.indexWriter.getLastIndexedOffset(this.connector.getMetadata()));
+        this.aggregator = new OperationAggregator(IndexReader.getLastIndexedOffset(this.connector.getMetadata()));
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
-        this.compactor = new TableCompactor(connector, this.indexWriter, this.executor);
+        this.tableCompactorConfig = new TableCompactor.Config(this.connector.getMaxCompactionSize());
     }
 
     //endregion
@@ -156,12 +161,16 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @Override
     public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        if (!force && !mustFlush()) {
+            return CompletableFuture.completedFuture(new WriterFlushResult());
+        }
+
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.connector
                 .getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
                                 .thenComposeAsync(flushResult -> {
-                                    flushComplete(flushResult.lastIndexedOffset);
+                                    flushComplete(flushResult);
                                     return compactIfNeeded(segment, flushResult.highestCopiedOffset, timer)
                                             .thenApply(v -> flushResult);
                                 }, this.executor),
@@ -194,21 +203,25 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * future will always complete normally; any exceptions are logged but not otherwise bubbled up.
      */
     private CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, long highestCopiedOffset, TimeoutTimer timer) {
-        // Decide if compaction is needed. If not, bail out early.
-        SegmentProperties info = segment.getInfo();
+        // Creating a compactor every time is lightweight, so we don't need to cache a reference to it, which would in
+        // turn require a long-lived reference to DirectSegmentAccess.
+        val compactor = new HashTableCompactor(segment, this.tableCompactorConfig, this.indexWriter, this.connector.getKeyHasher(), this.executor);
 
-        CompletableFuture<Void> result;
-        if (this.compactor.isCompactionRequired(info)) {
-            result = this.compactor.compact(segment, timer);
-        } else {
-            log.debug("{}: No compaction required at this time.", this.traceObjectId);
-            result = CompletableFuture.completedFuture(null);
-        }
-
-        return result
+        // Compaction may not be needed any time. Only perform it if necessary.
+        return compactor.isCompactionRequired()
+                .thenComposeAsync(isRequired -> {
+                    if (isRequired) {
+                        return compactor.compact(timer);
+                    } else {
+                        // Note: we should not bail out early; even if no compaction occurred, as a result of our indexing
+                        // it may be that we can truncate the segment, so we have to execute the subsequent callbacks.
+                        log.debug("{}: No compaction required at this time.", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
                 .thenComposeAsync(v -> {
                     // Calculate the safe truncation offset.
-                    long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), highestCopiedOffset);
+                    long truncateOffset = compactor.calculateTruncationOffset(highestCopiedOffset);
 
                     // Truncate if necessary.
                     if (truncateOffset > 0) {
@@ -226,7 +239,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     return null;
                 });
     }
-
 
     /**
      * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the
@@ -258,13 +270,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Updates the internal state post flush and notifies the {@link TableWriterConnector} of the fact.
      *
-     * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
+     * @param flushResult The {@link TableWriterFlushResult} that indicates what has been updated.
      */
-    private void flushComplete(long lastIndexedOffset) {
+    private void flushComplete(TableWriterFlushResult flushResult) {
         log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
         this.aggregator.reset();
-        this.aggregator.setLastIndexedOffset(lastIndexedOffset);
-        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+        this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset(), flushResult.processedBytes);
     }
 
     /**
@@ -292,20 +304,17 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                 .thenComposeAsync(v -> {
                                     val bucketUpdates = builders.stream().map(BucketUpdate.Builder::build).collect(Collectors.toList());
                                     logBucketUpdates(bucketUpdates);
-                                    return this.connector.getSortedKeyIndex().persistUpdate(bucketUpdates, timer.getRemaining())
-                                            .thenComposeAsync(v2 ->
-                                                    this.indexWriter.updateBuckets(segment, bucketUpdates,
-                                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
-                                                    this.executor);
+                                    return this.indexWriter.updateBuckets(segment, bucketUpdates,
+                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining());
                                 }, this.executor),
                         this.executor)
-                .thenApply(updateCount -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset(), updateCount));
+                .thenApply(updateCount -> new TableWriterFlushResult(keyUpdates, updateCount));
     }
 
     @SneakyThrows(DataCorruptionException.class)
     private void reconcileTableIndexOffset() {
-        long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.connector.getMetadata());
+        long tableIndexOffset = IndexReader.getLastIndexedOffset(this.connector.getMetadata());
         if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
             // This should not happen, ever!
             throw new DataCorruptionException(String.format("Cannot reconcile INDEX_OFFSET attribute (%s) for Segment '%s'. "
@@ -342,7 +351,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     @SneakyThrows(SerializationException.class)
     private KeyUpdateCollection readKeysFromSegment(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
-        KeyUpdateCollection keyUpdates = new KeyUpdateCollection();
+        KeyUpdateCollection keyUpdates = new KeyUpdateCollection((int) (lastOffset - firstOffset));
         val memoryRead = readFromInMemorySegment(segment, firstOffset, lastOffset, timer).getBufferViewReader();
         long segmentOffset = firstOffset;
         while (segmentOffset < lastOffset) {
@@ -383,18 +392,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private BufferView readFromInMemorySegment(DirectSegmentAccess segment, long startOffset, long endOffset, TimeoutTimer timer) {
         long readOffset = startOffset;
         long remainingLength = endOffset - startOffset;
-        ArrayList<BufferView> inputs = new ArrayList<>();
+        val builder = BufferView.builder();
         while (remainingLength > 0) {
             int readLength = (int) Math.min(remainingLength, Integer.MAX_VALUE);
             try (ReadResult readResult = segment.read(readOffset, readLength, timer.getRemaining())) {
-                inputs.addAll(readResult.readRemaining(readLength, timer.getRemaining()));
+                readResult.readRemaining(readLength, timer.getRemaining()).forEach(builder::add);
                 assert readResult.getConsumedLength() == readLength : "Expecting a full read (from memory).";
                 remainingLength -= readResult.getConsumedLength();
                 readOffset += readResult.getConsumedLength();
             }
         }
 
-        return BufferView.wrap(inputs);
+        return builder.build();
     }
 
     /**
@@ -544,11 +553,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
         final long highestCopiedOffset;
+        final int processedBytes;
 
-        TableWriterFlushResult(long lastIndexedOffset, long highestCopiedOffset, int updateCount) {
-            this.lastIndexedOffset = lastIndexedOffset;
-            this.highestCopiedOffset = highestCopiedOffset;
-            withFlushedAttributes(updateCount);
+        TableWriterFlushResult(KeyUpdateCollection keyUpdates, int attributeUpdateCount) {
+            this.lastIndexedOffset = keyUpdates.getLastIndexedOffset();
+            this.highestCopiedOffset = keyUpdates.getHighestCopiedOffset();
+            this.processedBytes = keyUpdates.getLength();
+            withFlushedAttributes(attributeUpdateCount);
         }
     }
 

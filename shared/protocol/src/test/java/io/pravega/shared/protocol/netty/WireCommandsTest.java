@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -597,8 +603,18 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testGetTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.GetTableSegmentInfo(l, testString1, ""));
+    }
+
+    @Test
+    public void testTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.TableSegmentInfo(l, testString1, l + 1, l + 2, 3, 4));
+    }
+
+    @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, ""));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, ""));
     }
 
     @Test
@@ -612,11 +628,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testMergeTableSegments() throws IOException {
-        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
-    }
-
-    @Test
     public void testSegmentsMerged() throws IOException {
         testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2, -l));
     }
@@ -624,11 +635,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
-    }
-
-    @Test
-    public void testSealTableSegment() throws IOException {
-        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test
@@ -799,35 +805,31 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testGetTableKeys() throws IOException {
-        ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, buf2);
-        testCommand(cmd);
-
-        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
-        testCommand(cmd);
-
-        // Test that we are able to read fields from an older version.
-        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, Unpooled.EMPTY_BUFFER);
-        ByteBufferOutputStream bout = new ByteBufferOutputStream();
-        cmd.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
+    public void testTableIterators() throws IOException {
+        testTableIterators(args -> new WireCommands.ReadTableKeys(l, testString1, "", 100, args));
+        testTableIterators(args -> new WireCommands.ReadTableEntries(l, testString1, "", 100, args));
     }
 
-    @Test
-    public void testGetTableEntries() throws IOException {
+    private <T extends WireCommand> void testTableIterators(Function<WireCommands.TableIteratorArgs, T> createWireCommand) throws IOException {
+        // Continuation Token.
         ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, buf2);
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        T cmd = createWireCommand.apply(args);
         testCommand(cmd);
 
-        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
+        // From/To.
+        args = new WireCommands.TableIteratorArgs(Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, buf, buf2);
+        cmd = createWireCommand.apply(args);
         testCommand(cmd);
 
         // Test that we are able to read fields from an older version.
-        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, Unpooled.EMPTY_BUFFER);
+        ByteBuf buf3 = buf.copy().setInt(0, Integer.MAX_VALUE - 1);
+        args = new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, buf2, buf3);
+        cmd = createWireCommand.apply(args);
         ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
+        T cmd2 = createWireCommand.apply(new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
+        testCommandFromByteArray(bout.getData().slice(0, bout.size() - 2 * Integer.BYTES - buf2.readableBytes() - buf3.readableBytes()).getCopy(), cmd2);
     }
 
     @Test

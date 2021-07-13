@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -16,7 +22,9 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -60,7 +68,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -110,7 +117,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
      * Tests the initialize() method.
      */
     @Test
-    public void testInitialize() {
+    public void testInitialize() throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -125,6 +132,28 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.transactionAggregators[3].initialize(TIMEOUT).join();
         Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", sm3.isDeleted());
         Assert.assertTrue("isDeletedInStorage() flag not set on metadata for deleted segment.", sm3.isDeletedInStorage());
+
+        // Check behavior for already-deleted segments (in Metadata) that are also deleted from Storage.
+        val sm4  = (UpdateableSegmentMetadata) context.transactionAggregators[4].getMetadata();
+        sm4.markDeleted(); // We do not mark it as deleted in Storage.
+        val ag4 = context.transactionAggregators[4];
+        ag4.initialize(TIMEOUT).join();
+        Assert.assertTrue("Expected SegmentMetadata.isDeletedInStorage to be set to true post init.", sm4.isDeletedInStorage());
+        sm4.markSealed();
+        ag4.add(generateSealAndUpdateMetadata(sm4.getId(), context));
+        Assert.assertFalse("SegmentAggregator should have ignored new operation for deleted segment.", ag4.mustFlush());
+
+        // Check behavior for already-deleted segments (in Metadata) that are still present in Storage.
+        val sm5  = (UpdateableSegmentMetadata) context.transactionAggregators[5].getMetadata();
+        context.storage.create(sm5.getName(), TIMEOUT).join();
+        sm5.markDeleted(); // We do not mark it as deleted in Storage.
+        val ag5 = context.transactionAggregators[5];
+        ag5.initialize(TIMEOUT).join();
+        Assert.assertTrue("Expected SegmentMetadata.isDeletedInStorage to be set to true post init.", sm5.isDeletedInStorage());
+        Assert.assertFalse("Expected Segment to have been deleted from Storage.", context.storage.exists(sm5.getName(), TIMEOUT).join());
+        sm5.markSealed();
+        ag5.add(generateSealAndUpdateMetadata(sm5.getId(), context));
+        Assert.assertFalse("SegmentAggregator should have ignored new operation for deleted segment.", ag5.mustFlush());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
         context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
@@ -225,7 +254,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // This should have no effect and not throw any errors.
         context.segmentAggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
-                Collections.singleton(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1))));
+                AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, 1))));
     }
 
     /**
@@ -1333,21 +1362,21 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                        .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[]{1}), 1, TIMEOUT))
                        .join();
         ((UpdateableSegmentMetadata) notSealed.getMetadata()).setLength(1L);
-        context.dataSource.persistAttributes(notSealed.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        context.dataSource.persistAttributes(notSealed.getMetadata().getId(), Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT).join();
 
         // Seal the sealed segment.
         ((UpdateableSegmentMetadata) sealed.getMetadata()).markSealed();
         context.storage.openWrite(sealed.getMetadata().getName())
                        .thenCompose(handle -> context.storage.seal(handle, TIMEOUT))
                        .join();
-        context.dataSource.persistAttributes(sealed.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        context.dataSource.persistAttributes(sealed.getMetadata().getId(), Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT).join();
 
         // Create a source segment; we'll verify this was also deleted when its target was.
         context.storage.create(withMergerSource.getMetadata().getName(), TIMEOUT).join();
-        context.dataSource.persistAttributes(withMergerSource.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT).join();
+        context.dataSource.persistAttributes(withMergerSource.getMetadata().getId(), Collections.singletonMap(AttributeId.randomUUID(), 2L), TIMEOUT).join();
 
         // This segment has an attribute index, but no segment has been created yet (since no data has been written to it).
-        context.dataSource.persistAttributes(emptyWithAttributes.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 3L), TIMEOUT).join();
+        context.dataSource.persistAttributes(emptyWithAttributes.getMetadata().getId(), Collections.singletonMap(AttributeId.randomUUID(), 3L), TIMEOUT).join();
 
         for (val a : allAggregators) {
             // Initialize the Aggregator and add the DeleteSegmentOperation.

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -38,8 +44,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
-import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -47,8 +53,8 @@ import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -65,7 +71,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -353,20 +358,20 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         if (checkPointedPositions.isPresent()) {
             log.debug("Computing unread bytes based on the last checkPoint position");
-            return getUnreadBytes(checkPointedPositions.get(), synchronizer.getState().getEndSegments(), metaFactory);
+            return getUnreadBytes(checkPointedPositions.get(), synchronizer.getState().getEndSegments());
         } else {
             log.info("No checkpoints found, using the last known offset to compute unread bytes");
-            return getUnreadBytesIgnoringRange(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments(), metaFactory);
+            return getUnreadBytesIgnoringRange(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments());
         }
     }
 
-    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
+    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments) {
         log.debug("Compute unread bytes from position {}", positions);
         final List<CompletableFuture<Long>> futures = new ArrayList<>(positions.size());
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
             StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
-            futures.add(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut));
+            futures.add(getRemainingBytes(streamPosition.getKey(), fromStreamCut, toStreamCut));
         }
         return Futures.getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfLong -> {
             return listOfLong.stream()
@@ -376,13 +381,13 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
     
     private long getUnreadBytesIgnoringRange(Map<Stream, Map<SegmentWithRange, Long>> positions,
-                                             Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
+                                             Map<Segment, Long> endSegments) {
         log.debug("Compute unread bytes from position {}", positions);
         long totalLength = 0;
         for (Entry<Stream, Map<SegmentWithRange, Long>> streamPosition : positions.entrySet()) {
             StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), dropRange(streamPosition.getValue()));
             StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
-            totalLength += Futures.getAndHandleExceptions(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut), RuntimeException::new).longValue();
+            totalLength += Futures.getAndHandleExceptions(getRemainingBytes(streamPosition.getKey(), fromStreamCut, toStreamCut), RuntimeException::new).longValue();
         }
         return totalLength;
     }
@@ -398,7 +403,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return toPositions.isEmpty() ? StreamCut.UNBOUNDED : new StreamCutImpl(stream, toPositions);
     }
 
-    private CompletableFuture<Long> getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut fromStreamCut, StreamCut toStreamCut) {
+    private CompletableFuture<Long> getRemainingBytes(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
         //fetch StreamSegmentSuccessors
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
@@ -409,20 +414,23 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
         }
-        return unread.thenApply(unreadVal -> {
-            long totalLength = 0;
-            DelegationTokenProvider tokenProvider = null;
-            for (Segment s : unreadVal.getSegments()) {
+        return unread.thenCompose(unreadVal -> {
+            DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
+            return Futures.allOfWithResults(unreadVal.getSegments().stream().map(s -> {
                 if (endPositions.containsKey(s)) {
-                    totalLength += endPositions.get(s);
+                    return CompletableFuture.completedFuture(endPositions.get(s));
                 } else {
-                    if (tokenProvider == null) {
-                        tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.READ);
-                    }
-                    @Cleanup
                     SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);
-                    totalLength += metadataClient.fetchCurrentSegmentLength();
+                    CompletableFuture<Long> result = metadataClient.fetchCurrentSegmentLength();
+                    result.whenComplete((r, e) -> metadataClient.close());
+                    return result;
                 }
+            }).collect(Collectors.toList()));
+        }).thenApply(sizes -> {
+            long totalLength = 0;
+            for (long bytesRemaining : sizes) {
+                totalLength += bytesRemaining;
             }
             for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
                 totalLength -= bytesRead;

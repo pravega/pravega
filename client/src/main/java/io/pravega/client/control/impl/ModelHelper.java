@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -123,9 +129,10 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                .scalingPolicy(encode(config.getScalingPolicy()))
-                .retentionPolicy(encode(config.getRetentionPolicy()))
-                .build();
+                                  .scalingPolicy(encode(config.getScalingPolicy()))
+                                  .retentionPolicy(encode(config.getRetentionPolicy()))
+                                  .tags(config.getTags().getTagList())
+                                  .build();
     }
 
     /**
@@ -139,7 +146,13 @@ public final class ModelHelper {
         Preconditions.checkNotNull(config.getScope(), "scope");
         Preconditions.checkNotNull(config.getKvtName(), "kvtName");
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
-        return KeyValueTableConfiguration.builder().partitionCount(config.getPartitionCount()).build();
+        Preconditions.checkArgument(config.getPrimaryKeyLength() > 0, "Length of primary key should be > 0.");
+        Preconditions.checkArgument(config.getSecondaryKeyLength() >= 0, "Length of secondary key should be >= 0.");
+        return KeyValueTableConfiguration.builder()
+                .partitionCount(config.getPartitionCount())
+                .primaryKeyLength(config.getPrimaryKeyLength())
+                .secondaryKeyLength(config.getSecondaryKeyLength())
+                .build();
     }
 
     /**
@@ -198,7 +211,7 @@ public final class ModelHelper {
                 result = Transaction.Status.COMMITTING;
                 break;
             case UNKNOWN:
-                throw new RuntimeException("Unknown transaction: " + logString);
+                throw new StatusRuntimeException(Status.NOT_FOUND);
             case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);
@@ -366,11 +379,12 @@ public final class ModelHelper {
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
+        builder.setTags(Controller.Tags.newBuilder().addAllTag(configModel.getTags()).build());
         return builder.build();
     }
 
     /**
-     * Converts StreamConfiguration into StreamConfig.
+     * Converts Subscriber into StreamSubscriberInfo.
      *
      * @param scope the stream's scope
      * @param streamName The Stream Name
@@ -425,8 +439,13 @@ public final class ModelHelper {
         Preconditions.checkNotNull(scopeName, "scopeName");
         Preconditions.checkNotNull(kvtName, "kvtName");
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
+        Preconditions.checkArgument(config.getPrimaryKeyLength() > 0, "Length of primary key should be > 0.");
+        Preconditions.checkArgument(config.getSecondaryKeyLength() >= 0, "Length of secondary key should be >= 0.");
         return KeyValueTableConfig.newBuilder().setScope(scopeName)
-                .setKvtName(kvtName).setPartitionCount(config.getPartitionCount()).build();
+                .setKvtName(kvtName)
+                .setPartitionCount(config.getPartitionCount())
+                .setPrimaryKeyLength(config.getPrimaryKeyLength())
+                .setSecondaryKeyLength(config.getSecondaryKeyLength()).build();
     }
 
     /**

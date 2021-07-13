@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -304,7 +310,10 @@ public abstract class BufferViewTestBase {
             for (int length = 0; length < data.getLength() - offset; length += 11) {
                 val expected = new byte[length];
                 System.arraycopy(data.array(), data.arrayOffset() + offset, expected, 0, length);
-                val slice = bufferView.slice(offset, length).getCopy();
+                val sliceBuffer = bufferView.slice(offset, length);
+                checkAllocatedSize(sliceBuffer, bufferView);
+
+                val slice = sliceBuffer.getCopy();
                 Assert.assertArrayEquals("Unexpected slice() result for offset " + offset + ", length " + length, expected, slice);
                 if (length == 0) {
                     Assert.assertEquals("Unexpected getReader() result for offset " + offset + ", length " + length,
@@ -338,6 +347,12 @@ public abstract class BufferViewTestBase {
 
     protected List<ByteBuffer> getContents(BufferView bufferView) {
         return Lists.newArrayList(bufferView.iterateBuffers());
+    }
+
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        Assert.assertEquals("Unexpected allocated length for slice.", slice.getAllocatedLength(), base.getLength());
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
     }
 
     protected abstract BufferView toBufferView(ArrayView data);
