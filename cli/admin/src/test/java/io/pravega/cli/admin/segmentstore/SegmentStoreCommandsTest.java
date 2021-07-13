@@ -44,16 +44,16 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
 
     public void setupSegmentStore(boolean isSecure) {
         if(isSecure) {
-            Properties pravegaProperties = new Properties();
-            pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(true));
-            pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-            pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-            pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
-            pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-            pravegaProperties.setProperty("cli.trustStore.signing.key", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
-            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
-
-            STATE.get().getConfigBuilder().include(pravegaProperties);
+//            Properties pravegaProperties = new Properties();
+//            pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(true));
+//            pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+//            pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+//            pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
+//            pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+//            pravegaProperties.setProperty("cli.trustStore.signing.key", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
+//            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
+//
+//            STATE.get().getConfigBuilder().include(pravegaProperties);
         }
     }
 

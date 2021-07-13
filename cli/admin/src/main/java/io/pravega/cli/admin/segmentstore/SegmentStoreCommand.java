@@ -43,7 +43,7 @@ public abstract class SegmentStoreCommand extends AdminCommand {
 //                "super-secret",
 //                cliConfig.getAccessTokenTtlInSeconds());
         authHelper = new GrpcAuthHelper(true,
-                "super-secret",
+                "secret",
                 600);
     }
 }

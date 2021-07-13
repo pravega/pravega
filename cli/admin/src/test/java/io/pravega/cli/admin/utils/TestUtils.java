@@ -39,6 +39,8 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import lombok.Cleanup;
@@ -54,12 +56,7 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -109,7 +106,12 @@ public final class TestUtils {
      * @return A local Pravega cluster
      */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
-        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder().authEnabled(authEnabled);
+        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder();
+        if(authEnabled) {
+            clusterWrapperBuilder
+                    .authEnabled(authEnabled);
+        }
+
         if (tlsEnabled) {
             clusterWrapperBuilder
                     .tlsEnabled(true)
@@ -117,7 +119,8 @@ public final class TestUtils {
                     .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                     .tlsHostVerificationEnabled(false)
                     .tlsServerKeystorePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
-                    .tlsServerKeystorePasswordPath(pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+                    .tlsServerKeystorePasswordPath(pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME)
+                    .tokenSigningKeyBasis("secret");
         }
         return clusterWrapperBuilder.controllerRestEnabled(true).build();
     }
@@ -147,7 +150,7 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        pravegaProperties.setProperty("cli.trustStore.signing.key", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
+//        pravegaProperties.setProperty("cli.trustStore.signing.key", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
         pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(accessTokenTtlInSeconds));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
@@ -259,5 +262,23 @@ public final class TestUtils {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
         }
+    }
+
+    /**
+     * Prepares a list of password auth handler user account database file entries. The
+     * {@link io.pravega.test.integration.demo.ClusterWrapper} accepts entries in the returned format.
+     *
+     * @param entries ACLs by user
+     * @param password the plaintext password for each user
+     * @return Password auth handler user account database entries
+     */
+    @SneakyThrows
+    public static List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(
+            Map<String, String> entries, String password) {
+        StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
+        String encryptedPassword = passwordProcessor.encryptPassword(password);
+        List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
+        entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
+        return result;
     }
 }

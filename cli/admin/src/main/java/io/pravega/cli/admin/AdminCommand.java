@@ -404,8 +404,9 @@ public abstract class AdminCommand {
                     .validateHostName(false);
         }
 
+        ClientConfig clientConfig = clientConfigBuilder.build();
 
-        ConnectionPool pool = new ConnectionPoolImpl(clientConfigBuilder.build(), new SocketConnectionFactoryImpl(clientConfigBuilder.build()));
+        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 

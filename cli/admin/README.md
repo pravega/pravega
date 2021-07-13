@@ -77,7 +77,6 @@ Initial configuration:
     cli.controller.connect.rest.uri=localhost:9091
     cli.controller.connect.grpc.uri=localhost:9090
     cli.trustStore.location=conf/ca-cert.crt
-    cli.trustStore.signing.key=conf/ca-cert.key
     cli.trustStore.access.token.ttl.seconds=300
     pravegaservice.container.count=4
 ```
