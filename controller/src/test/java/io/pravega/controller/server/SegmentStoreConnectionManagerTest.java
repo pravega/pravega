@@ -359,6 +359,11 @@ public class SegmentStoreConnectionManagerTest {
             public void errorMessage(WireCommands.ErrorMessage errorMessage) {
 
             }
+
+            @Override
+            public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated) {
+
+            }
         };
     }
 
