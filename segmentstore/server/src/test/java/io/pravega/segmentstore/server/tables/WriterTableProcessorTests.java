@@ -23,7 +23,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -31,7 +30,6 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
-import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -513,7 +511,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         final TableWriterConnectorImpl connector;
         final WriterTableProcessor processor;
         final IndexReader indexReader;
-        final TableStoreMock tableStoreMock;
         final Random random;
         final AtomicLong sequenceNumber;
 
@@ -526,7 +523,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.serializer = new EntrySerializer();
             this.keyHasher = hasher;
             this.segmentMock = new SegmentMock(this.metadata, executorService());
-            this.tableStoreMock = new TableStoreMock(executorService());
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
@@ -562,9 +558,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)),
                     TIMEOUT).join();
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
-
-            // Create the Table Segment Mock.
-            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {
