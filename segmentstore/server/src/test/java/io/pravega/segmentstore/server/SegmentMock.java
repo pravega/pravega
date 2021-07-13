@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.tables;
+package io.pravega.segmentstore.server;
 
 import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ArrayView;
@@ -26,10 +26,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.server.AttributeIterator;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
@@ -62,7 +58,7 @@ import lombok.val;
  */
 @ThreadSafe
 @RequiredArgsConstructor
-class SegmentMock implements DirectSegmentAccess {
+public class SegmentMock implements DirectSegmentAccess {
     @Getter
     private final UpdateableSegmentMetadata metadata;
     @GuardedBy("this")
@@ -73,7 +69,7 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     private BiConsumer<Long, Integer> appendCallback;
 
-    SegmentMock(ScheduledExecutorService executor) {
+    public SegmentMock(ScheduledExecutorService executor) {
         this(new StreamSegmentMetadata("Mock", 0, 0), executor);
         this.metadata.setLength(0);
         this.metadata.setStorageLength(0);
@@ -82,14 +78,16 @@ class SegmentMock implements DirectSegmentAccess {
     /**
      * Gets the number of non-deleted attributes.
      */
-    int getAttributeCount() {
+    public int getAttributeCount() {
         return getAttributeCount((k, v) -> v != Attributes.NULL_ATTRIBUTE_VALUE);
     }
 
     /**
      * Gets the number of attributes that match the given filter.
+     *
+     * @param tester Filter function applied to count Attributes.
      */
-    synchronized int getAttributeCount(BiPredicate<AttributeId, Long> tester) {
+    public synchronized int getAttributeCount(BiPredicate<AttributeId, Long> tester) {
         return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
     }
 
@@ -98,7 +96,7 @@ class SegmentMock implements DirectSegmentAccess {
      *
      * @param appendCallback The callback to register.
      */
-    synchronized void setAppendCallback(BiConsumer<Long, Integer> appendCallback) {
+    public synchronized void setAppendCallback(BiConsumer<Long, Integer> appendCallback) {
         this.appendCallback = appendCallback;
     }
 
@@ -153,8 +151,8 @@ class SegmentMock implements DirectSegmentAccess {
             dataView = this.contents.getData();
         }
 
-        // We get a slice of the data view, and return a ReadResultMock with entry lengths of 3.
-        return new TruncateableReadResultMock(offset, dataView.slice((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+        // We get a slice of the data view, and return a ReadResultMock with entry lengths of maxLength.
+        return new TruncateableReadResultMock(offset, dataView.slice((int) offset, dataView.getLength() - (int) offset), maxLength, maxLength);
     }
 
     @Override
@@ -188,7 +186,7 @@ class SegmentMock implements DirectSegmentAccess {
         }, this.executor);
     }
 
-    synchronized void updateAttributes(Map<AttributeId, Long> attributeValues) {
+    public synchronized void updateAttributes(Map<AttributeId, Long> attributeValues) {
         this.metadata.updateAttributes(attributeValues);
     }
 
