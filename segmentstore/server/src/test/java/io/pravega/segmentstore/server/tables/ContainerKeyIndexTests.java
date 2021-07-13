@@ -952,9 +952,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.segment = new SegmentMock(executorService());
             this.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
             this.defaultConfig = TableExtensionConfig.builder()
-                    .maxTailCachePreIndexLength(TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
-                    .maxUnindexedLength(maxUnindexedSize)
-                    .recoveryTimeout(Duration.ofMillis(ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS))
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, maxUnindexedSize)
+                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
                     .build();
             this.index = createIndex(this.defaultConfig, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);

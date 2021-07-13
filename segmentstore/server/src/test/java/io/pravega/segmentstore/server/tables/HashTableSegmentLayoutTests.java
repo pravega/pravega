@@ -258,7 +258,7 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
 
         // We set up throttling such that we allow 'unthrottledCount' through, but block (throttle) on the next one.
         val config = TableExtensionConfig.builder()
-                .maxUnindexedLength(unthrottledCount * (keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
+                .with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, unthrottledCount * (keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
                 .build();
 
         val s = new EntrySerializer();
