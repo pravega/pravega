@@ -36,6 +36,9 @@ import lombok.val;
 /**
  * Provides a unbounded blocking queue which {@link Scheduled} items can be added to.
  * Items which are scheduled will not be returned from {@link #poll()} or {@link #take()} until their scheduled time.
+ * 
+ * This class is similar to DelayQueue but it allows a delay to be optional. This allows adding and polling non-delayed tasks in O(1).
+ * It also it lock-free, and may offer higher throughput under contention. 
  */
 public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implements BlockingQueue<E> {
    
@@ -240,7 +243,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
 
     /**
      * Always returns {@code Integer.MAX_VALUE} because
-     * a {@code OptionalDealyQueue} is not capacity constrained.
+     * a {@code ScheduledQueue} is not capacity constrained.
      *
      * @return {@code Integer.MAX_VALUE}
      */
