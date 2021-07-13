@@ -18,6 +18,7 @@ package io.pravega.common.concurrent;
 
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
@@ -206,7 +207,9 @@ public class ThreadPoolScheduledExecutorServiceTest {
         pool.submit(() -> count.incrementAndGet());
         assertFalse(pool.isShutdown());
         assertFalse(pool.isTerminated());
-        pool.shutdownNow();
+        AssertExtensions.assertEventuallyEquals(1, count::get, 5000);
+        List<Runnable> remaining = pool.shutdownNow();
+        assertEquals(1, remaining.size());
         assertTrue(pool.isShutdown());
         AssertExtensions.assertThrows(RejectedExecutionException.class,
                                       () -> pool.submit(() -> count.incrementAndGet()));
