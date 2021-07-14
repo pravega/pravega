@@ -146,7 +146,7 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Long> getNumberOfOngoingTransactions(OperationContext context) {
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture((long)activeTxns.size());
+            return CompletableFuture.completedFuture((long) activeTxns.size());
         }
     }
 
