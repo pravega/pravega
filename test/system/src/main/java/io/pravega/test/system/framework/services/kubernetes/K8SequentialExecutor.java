@@ -29,7 +29,7 @@ import io.kubernetes.client.openapi.models.V1VolumeMountBuilder;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
 import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.RbacV1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
 import io.pravega.test.system.framework.TestFrameworkException;
@@ -230,7 +230,7 @@ public class K8SequentialExecutor implements TestExecutor {
                         .withName(CLUSTER_ROLE_BINDING)
                         .withNamespace(NAMESPACE)
                         .build())
-                .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")
+                .withSubjects(new RbacV1beta1SubjectBuilder()
                         .withName(SERVICE_ACCOUNT)
                         .withNamespace(NAMESPACE)
                         .build())

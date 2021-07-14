@@ -193,7 +193,7 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                                   null, null, false, callback);
+                                   null, null, null, false, callback);
         return callback.getFuture()
                .thenApply(v1PodList -> {
                    Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
@@ -244,7 +244,7 @@ public class K8sClient {
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
-                                   null, null, false, callback);
+                                   null, null, null, false, callback);
         return callback.getFuture();
     }
 
@@ -308,7 +308,7 @@ public class K8sClient {
                                                         String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject");
-        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, callback);
+        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
         return callback.getFuture();
     }
 
@@ -342,6 +342,9 @@ public class K8sClient {
                                         plural,
                                         name,
                                         request,
+                                        DRY_RUN,
+                                        FIELD_MANAGER,
+                                        false,
                                         cb1),
                                 V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH);
                         return cb1.getFuture();
@@ -354,7 +357,7 @@ public class K8sClient {
                     try {
                         //create object
                         K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
-                        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, cb);
+                        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, cb);
                         return cb.getFuture();
                     } catch (ApiException e) {
                         throw Exceptions.sneakyThrow(e);
@@ -398,7 +401,7 @@ public class K8sClient {
         options.setOrphanDependents(false);
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
         api.deleteNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name,
-                0, false, null, options, callback);
+                0, false, null, DRY_RUN, options, callback);
 
         return callback.getFuture();
     }
@@ -550,7 +553,7 @@ public class K8sClient {
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
                 api.listNamespacedPodCall(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                        null, null, Boolean.TRUE, callback),
+                        null, null, null, Boolean.TRUE, callback),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
 
