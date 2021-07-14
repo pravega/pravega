@@ -1121,7 +1121,7 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            //cp.getTableSegmentInfo(this);
+            cp.getTableSegmentInfo(this);
         }
 
         @Override
@@ -1151,7 +1151,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            //cp.tableSegmentInfo(this);
+            cp.tableSegmentInfo(this);
         }
 
         @Override
@@ -1333,37 +1333,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class MergeTableSegments implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.MERGE_TABLE_SEGMENTS;
-        final long requestId;
-        final String target;
-        final String source;
-        @ToString.Exclude
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.mergeTableSegments(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(target);
-            out.writeUTF(source);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String target = in.readUTF();
-            String source = in.readUTF();
-            String delegationToken = in.readUTF();
-            return new MergeTableSegments(requestId, target, source, delegationToken);
-        }
-    }
-
-    @Data
     public static final class SegmentsMerged implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENTS_MERGED;
         final long requestId;
@@ -1418,34 +1387,6 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             return new SealSegment(requestId, segment, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class SealTableSegment implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.SEAL_TABLE_SEGMENT;
-        final long requestId;
-        final String segment;
-        @ToString.Exclude
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.sealTableSegment(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String delegationToken = in.readUTF();
-            return new SealTableSegment(requestId, segment, delegationToken);
         }
     }
 

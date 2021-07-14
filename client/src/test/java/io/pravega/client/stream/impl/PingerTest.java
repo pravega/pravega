@@ -124,7 +124,7 @@ public class PingerTest {
         pinger.startPing(txnID);
 
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 50000), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
     }
 
@@ -138,7 +138,7 @@ public class PingerTest {
         pinger.startPing(txnID1);
         pinger.startPing(txnID2);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 50000), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
