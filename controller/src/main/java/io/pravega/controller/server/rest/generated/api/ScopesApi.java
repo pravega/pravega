@@ -49,7 +49,7 @@ public class ScopesApi  {
          String implClass = servletContext.getInitParameter("ScopesApi.implementation");
          if (implClass != null && !"".equals(implClass.trim())) {
             try {
-               delegate = (ScopesApiService) Class.forName(implClass).newInstance();
+               delegate = (ScopesApiService) Class.forName(implClass).getConstructor().newInstance();
             } catch (Exception e) {
                throw new RuntimeException(e);
             }
@@ -224,7 +224,7 @@ public class ScopesApi  {
     
     
     @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "List all available scopes in Pravega", response = ScopesList.class, tags={ "Scopes", })
+    @io.swagger.annotations.ApiOperation(value = "", notes = "List all available scopes in pravega", response = ScopesList.class, tags={ "Scopes", })
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 200, message = "List of currently available scopes", response = ScopesList.class),
         
