@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
 public class RPCTracingHelpersTest {
 
     @Test
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInterceptors() {
         String requestDescriptor = "createStream-myScope-myStream";
         long requestId = 1234L;
