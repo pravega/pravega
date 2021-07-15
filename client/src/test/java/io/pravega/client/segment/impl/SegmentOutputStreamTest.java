@@ -618,7 +618,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testReconnectDoesNotSetupAppendOnTokenCheckFailure() throws ConnectionFailedException, SegmentSealedException{
+    public void testReconnectDoesNotSetupAppendOnTokenCheckFailure() throws ConnectionFailedException, SegmentSealedException {
         UUID writerId = UUID.randomUUID();
         PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
