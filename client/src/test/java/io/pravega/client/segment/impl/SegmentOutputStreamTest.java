@@ -1372,7 +1372,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testConnectAndSendWithoutConnectionPooling() throws SegmentSealedException, ConnectionFailedException {
+    public void testConnectAndSendWithoutConnectionPooling() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();

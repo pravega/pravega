@@ -73,7 +73,7 @@ public class ToStringUtilsTest {
     }
 
     @Test
-    public void testCompressBase64() throws IOException {
+    public void testCompressBase64() {
         //generate a random string.
         byte[] array = new byte[10];
         new Random().nextBytes(array);

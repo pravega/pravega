@@ -74,7 +74,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
      * @throws MarathonException When error in setup.
      */
     @Environment
-    public static void initialize() throws MarathonException, ExecutionException {
+    public static void initialize() throws MarathonException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = ensureControllerRunning(zkUri);
