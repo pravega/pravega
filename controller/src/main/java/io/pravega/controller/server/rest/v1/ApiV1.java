@@ -268,8 +268,8 @@ public final class ApiV1 {
                 @ApiResponse(
                         code = 500, message = "Server error", response = StreamsList.class) })
         void listStreams(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
-                         @ApiParam(value = "Filter options", allowableValues="showInternalStreams, tag") @QueryParam("filter_type") String filterType
-                ,@ApiParam(value = "value to be passed. must match the type passed with it.") @QueryParam("filter_value") String filterValue,
+                         @ApiParam(value = "Filter options", allowableValues = "showInternalStreams, tag") @QueryParam("filter_type") String filterType,
+                 @ApiParam(value = "value to be passed. must match the type passed with it.") @QueryParam("filter_value") String filterValue,
                          @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @PUT

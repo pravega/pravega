@@ -566,8 +566,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
         boolean showOnlyInternalStreams = filterType != null && filterType.equals("showInternalStreams");
         String tag = null;
-        if (filterType.equals("tag") && filterValue != null)
+        if (filterType.equals("tag") && filterValue != null) {
             tag = filterValue;
+        }
         if (tag != null) {
             List<Stream> streams = new ArrayList<>();
             StreamsList responseStreams = new StreamsList();
@@ -599,7 +600,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 }
             }).thenApply(asyncResponse::resume)
                     .thenAccept(x -> LoggerHelpers.traceLeave(log, "listStreams", traceId));
-        } else
+        } else {
             controllerService.listStreamsInScope(scopeName, requestId)
                     .thenApply(streamsList -> {
                         StreamsList streams = new StreamsList();
@@ -634,6 +635,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     }
                 }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "listStreams", traceId));
+        }
     }
 
     /**
