@@ -55,7 +55,7 @@ public class HealthTests {
 
     private static final int INTERVAL = 1000;
     @Rule
-    public final Timeout globalTimeout = new Timeout(10 * INTERVAL, TimeUnit.MILLISECONDS);
+    public final Timeout globalTimeout = new Timeout(20 * INTERVAL, TimeUnit.MILLISECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;

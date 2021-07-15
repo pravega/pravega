@@ -45,7 +45,7 @@ import org.junit.rules.Timeout;
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
  */
 public class SystemJournalTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
