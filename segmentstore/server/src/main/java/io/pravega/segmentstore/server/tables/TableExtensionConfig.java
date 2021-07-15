@@ -39,7 +39,8 @@ import lombok.Getter;
  */
 @Getter
 public class TableExtensionConfig {
-    public static final Property<Integer> MAX_TAIL_CACHE_PREINDEX_LENGTH = Property.named("preindex.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 4);
+    public static final Property<Long> MAX_TAIL_CACHE_PREINDEX_LENGTH = Property.named("preindex.bytes.max", (long) EntrySerializer.MAX_BATCH_SIZE * 4);
+    public static final Property<Integer> MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE = Property.named("preindex.batch.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 4);
     public static final Property<Integer> RECOVERY_TIMEOUT = Property.named("recovery.timeout.millis", 60000);
     public static final Property<Integer> MAX_UNINDEXED_LENGTH = Property.named("unindexed.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 4);
     public static final Property<Integer> MAX_COMPACTION_SIZE = Property.named("compaction.bytes.max", EntrySerializer.MAX_SERIALIZATION_LENGTH * 4);
@@ -53,7 +54,13 @@ public class TableExtensionConfig {
      * The maximum unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}}) of a
      * Segment for which {@link ContainerKeyIndex} {@code triggerCacheTailIndex} can be invoked.
      */
-    private final int maxTailCachePreIndexLength;
+    private final long maxTailCachePreIndexLength;
+
+    /**
+     * The maximum number of bytes to read and process at once from the segment while performing preindexing.
+     * See {@link #getMaxTailCachePreIndexLength()}.
+     */
+    private final int maxTailCachePreIndexBatchLength;
 
     /**
      * The maximum allowed unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}})
@@ -101,7 +108,8 @@ public class TableExtensionConfig {
     private final Duration recoveryTimeout;
 
     private TableExtensionConfig(TypedProperties properties) throws ConfigurationException {
-        this.maxTailCachePreIndexLength = properties.getPositiveInt(MAX_TAIL_CACHE_PREINDEX_LENGTH);
+        this.maxTailCachePreIndexLength = properties.getPositiveLong(MAX_TAIL_CACHE_PREINDEX_LENGTH);
+        this.maxTailCachePreIndexBatchLength = properties.getPositiveInt(MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, true);
         this.maxUnindexedLength = properties.getPositiveInt(MAX_UNINDEXED_LENGTH);
         this.maxCompactionSize = properties.getPositiveInt(MAX_COMPACTION_SIZE);
         this.compactionFrequency = properties.getDuration(COMPACTION_FREQUENCY, ChronoUnit.MILLIS);

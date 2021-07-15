@@ -185,8 +185,11 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
         // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
         // Process each TestEntryData in turn.  After each time, re-create the Extension.
         // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
+        val recoveryConfig = TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * 11)
+                .build();
         @Cleanup
-        val context = new TableContext(executorService());
+        val context = new TableContext(recoveryConfig, executorService());
 
         // Create the Segment.
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();

@@ -19,7 +19,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
@@ -78,7 +77,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
-    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(2 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -413,13 +411,36 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
     /**
      * Checks the ability for the {@link ContainerKeyIndex} class to properly handle recovery situations where the Table
-     * Segment may not have been fully indexed when the first request for it is received.
+     * Segment may not have been fully indexed when the first request for it is received. This test verifies the case
+     * when we can do preindexing all at once.
      */
     @Test
-    public void testRecovery() throws Exception {
+    public void testRecoveryOneBatch() throws Exception {
+        testRecovery(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build());
+    }
+
+    /**
+     * Checks the ability for the {@link ContainerKeyIndex} class to properly handle recovery situations where the Table
+     * Segment may not have been fully indexed when the first request for it is received. This test verifies the case
+     * when the unindexed part is too large to process at once so it needs to be broken down into batches.
+     */
+    @Test
+    public void testRecoveryMultipleBatches() throws Exception {
+        testRecovery(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, 1024)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build());
+    }
+
+    private void testRecovery(TableExtensionConfig config) throws Exception {
         val s = new EntrySerializer();
         @Cleanup
-        val context = new TestContext();
+        val context = new TestContext(config);
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
@@ -943,19 +964,22 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         TestContext() {
             // This is for most tests. Due to variability in test environments, we do not want to set a very small value
             // for most tests; we will customize this only for those tests that we want to test this feature on.
-            this(TableExtensionConfig.builder().build().getMaxUnindexedLength());
+            this(TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                    .build());
         }
 
         TestContext(int maxUnindexedSize) {
+            this(TableExtensionConfig.builder().with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, maxUnindexedSize).build());
+        }
+
+        TestContext(TableExtensionConfig config) {
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
             this.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
-            this.defaultConfig = TableExtensionConfig.builder()
-                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
-                    .with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, maxUnindexedSize)
-                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
-                    .build();
+            this.defaultConfig = config;
             this.index = createIndex(this.defaultConfig, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);

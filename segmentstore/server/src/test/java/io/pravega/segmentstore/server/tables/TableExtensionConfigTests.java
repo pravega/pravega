@@ -31,6 +31,7 @@ public class TableExtensionConfigTests {
         val b = TableExtensionConfig.builder();
         val defaultConfig = b.build();
         Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 4, defaultConfig.getMaxTailCachePreIndexLength());
+        Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 4, defaultConfig.getMaxTailCachePreIndexBatchLength());
         Assert.assertEquals(Duration.ofSeconds(60), defaultConfig.getRecoveryTimeout());
         Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 4, defaultConfig.getMaxUnindexedLength());
         Assert.assertEquals(EntrySerializer.MAX_SERIALIZATION_LENGTH * 4, defaultConfig.getMaxCompactionSize());
@@ -47,7 +48,8 @@ public class TableExtensionConfigTests {
         AssertExtensions.assertThrows(ConfigurationException.class, b::build); // 101 is out of the range [0, 100]
 
         b.with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, 10);
-        b.with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, 11);
+        b.with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, 11L);
+        b.with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, 111);
         b.with(TableExtensionConfig.RECOVERY_TIMEOUT, 12);
         b.with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, 13);
         b.with(TableExtensionConfig.MAX_COMPACTION_SIZE, 14);
@@ -57,7 +59,8 @@ public class TableExtensionConfigTests {
 
         val c = b.build();
         Assert.assertEquals(10, c.getDefaultMinUtilization());
-        Assert.assertEquals(11, c.getMaxTailCachePreIndexLength());
+        Assert.assertEquals(11L, c.getMaxTailCachePreIndexLength());
+        Assert.assertEquals(111, c.getMaxTailCachePreIndexBatchLength());
         Assert.assertEquals(Duration.ofMillis(12), c.getRecoveryTimeout());
         Assert.assertEquals(13, c.getMaxUnindexedLength());
         Assert.assertEquals(14, c.getMaxCompactionSize());
