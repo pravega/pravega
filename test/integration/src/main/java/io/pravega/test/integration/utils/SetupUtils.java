@@ -93,8 +93,7 @@ public final class SetupUtils {
     private final int servicePort = TestUtils.getAvailableListenPort();
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
-    private ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
-            .controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
+    private ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder();
 
     /**
      *
@@ -144,7 +143,10 @@ public final class SetupUtils {
 
         if (enableTls) {
             clientConfigBuilder = clientConfigBuilder.trustStore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
+                    .controllerURI(URI.create("tls://localhost:" + controllerRPCPort))
                     .validateHostName(false);
+        } else {
+            clientConfigBuilder = clientConfigBuilder.controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
         }
 
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
@@ -162,7 +164,7 @@ public final class SetupUtils {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        this.server = new PravegaConnectionListener(true, false, "localhost",
+        this.server = new PravegaConnectionListener(enableTls, false, "localhost",
                 servicePort, store, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),  new PassingTokenVerifier(),
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, true,
@@ -189,7 +191,7 @@ public final class SetupUtils {
                 pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
 
 
-            this.controllerWrapper.awaitRunning();
+        this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
         log.info("Initialized Pravega Controller");
     }
