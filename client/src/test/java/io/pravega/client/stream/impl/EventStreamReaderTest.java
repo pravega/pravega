@@ -100,7 +100,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReaderNotInReaderGroupException {
+    public void testEndOfSegmentWithoutSuccessors() throws ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
