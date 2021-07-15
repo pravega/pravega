@@ -114,6 +114,16 @@ public final class SetupUtils {
     /**
      * Start all pravega related services required for the test deployment.
      *
+     * @param numThreads the number of threads for the internal client threadpool.
+     * @throws Exception on any errors.
+     */
+    public void startAllServices(Integer numThreads) throws Exception {
+        startAllServices(null, false, false);
+    }
+
+    /**
+     * Start all pravega related services required for the test deployment.
+     *
      * @param enableAuth set to enale authentication
      * @param enableTls set to enable tls
      * @throws Exception on any errors.
