@@ -339,7 +339,7 @@ public abstract class StreamMetadataStoreTest {
             return result;
         }).when(streamObjSpied).getConfiguration(any());
 
-        ((TestStore) store).setStream(streamObjSpied);
+        store.setStream(streamObjSpied);
 
         // verify that when we do list stream in scope we do not get partial. 
         streamInScope = store.listStreamsInScope("Scope", null, executor).get();

@@ -382,7 +382,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         final long baseSegmentId = 1000;
         final long minSegmentLength = 1;
         final int segmentCount = 50;
-        Function<String, Long> getSegmentLength = segmentName -> minSegmentLength + (long) MathHelpers.abs(segmentName.hashCode());
+        Function<String, Long> getSegmentLength = segmentName -> minSegmentLength + MathHelpers.abs(segmentName.hashCode());
         Function<String, Long> getSegmentStartOffset = segmentName -> getSegmentLength.apply(segmentName) / 2;
 
         @Cleanup

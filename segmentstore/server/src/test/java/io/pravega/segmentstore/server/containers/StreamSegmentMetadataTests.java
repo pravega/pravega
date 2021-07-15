@@ -153,7 +153,7 @@ public class StreamSegmentMetadataTests {
         expectedValues.put(coreAttributeId, 1000L);
         metadata.updateAttributes(Collections.singletonMap(coreAttributeId, 1000L));
         for (int i = 0; i < attributeCount; i++) {
-            AttributeId attributeId = AttributeId.uuid(0, (long) i);
+            AttributeId attributeId = AttributeId.uuid(0, i);
             extendedAttributes.add(attributeId);
             metadata.setLastUsed(i);
             metadata.updateAttributes(Collections.singletonMap(attributeId, (long) i));

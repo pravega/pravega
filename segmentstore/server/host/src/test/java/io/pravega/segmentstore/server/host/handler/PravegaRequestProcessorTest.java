@@ -531,7 +531,7 @@ public class PravegaRequestProcessorTest {
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());
+        verify(recorderMock).merge(streamSegmentName, 100L, 10, streamSegmentName.hashCode());
     }
 
     private MergeStreamSegmentResult createMergeStreamSegmentResult(String streamSegmentName, UUID txnId) {

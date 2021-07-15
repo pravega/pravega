@@ -232,7 +232,7 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
 
         for (int i = 0; i < DEFAULT_CONFIG.getSecondaryKeyLength(); i++) {
             Assert.assertEquals(0, fromSK.get(i));
-            Assert.assertEquals(0xFF, (int) toSK.get(i) & 0xFF);
+            Assert.assertEquals(0xFF, toSK.get(i) & 0xFF);
         }
     }
 
