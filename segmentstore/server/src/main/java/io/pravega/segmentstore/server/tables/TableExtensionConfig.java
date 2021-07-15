@@ -109,11 +109,11 @@ public class TableExtensionConfig {
 
     private TableExtensionConfig(TypedProperties properties) throws ConfigurationException {
         this.maxTailCachePreIndexLength = properties.getPositiveLong(MAX_TAIL_CACHE_PREINDEX_LENGTH);
-        this.maxTailCachePreIndexBatchLength = properties.getPositiveInt(MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, true);
+        this.maxTailCachePreIndexBatchLength = properties.getPositiveInt(MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE);
         this.maxUnindexedLength = properties.getPositiveInt(MAX_UNINDEXED_LENGTH);
         this.maxCompactionSize = properties.getPositiveInt(MAX_COMPACTION_SIZE);
         this.compactionFrequency = properties.getDuration(COMPACTION_FREQUENCY, ChronoUnit.MILLIS);
-        this.defaultMinUtilization = properties.getPositiveInt(DEFAULT_MIN_UTILIZATION, false);
+        this.defaultMinUtilization = properties.getNonNegativeInt(DEFAULT_MIN_UTILIZATION);
         if (this.defaultMinUtilization > 100) {
             throw new ConfigurationException(String.format("Property '%s' must be a value within [0, 100].", DEFAULT_MIN_UTILIZATION));
         }

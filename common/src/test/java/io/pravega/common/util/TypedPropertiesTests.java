@@ -140,9 +140,9 @@ public class TypedPropertiesTests {
         TypedProperties typedProps = new TypedProperties(props, "getPositiveInteger");
         Assert.assertEquals(1000, typedProps.getPositiveInt(Property.named("positiveInteger")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("zero")));
-        Assert.assertEquals(0, typedProps.getPositiveInt(Property.named("zero"), false));
+        Assert.assertEquals(0, typedProps.getNonNegativeInt(Property.named("zero")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("negativeInteger")));
-        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("negativeInteger"), false));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getNonNegativeInt(Property.named("negativeInteger")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("notAnInteger")));
     }
 
