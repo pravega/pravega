@@ -113,7 +113,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testRecvErrorMessage() throws SegmentSealedException, ConnectionFailedException {
+    public void testRecvErrorMessage() throws SegmentSealedException {
         int requestId = 0;
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -122,6 +122,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -135,7 +136,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
 
     @Test(timeout = 10000)
-    public void testReconnectWorksWithTokenTaskInInternalExecutor() {
+    public void testReconnectWorksWithTokenTaskInInternalExecutor() throws SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
@@ -151,6 +152,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.create(controller, "scope", "stream", AccessOperation.ANY));
         output.reconnect();
@@ -284,6 +286,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -331,6 +334,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
