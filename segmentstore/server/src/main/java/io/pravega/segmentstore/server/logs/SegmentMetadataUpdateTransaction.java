@@ -46,6 +46,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
+
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -478,6 +480,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             if (Attributes.isUnmodifiable(u.getAttributeId())) {
                 throw new MetadataUpdateException(this.containerId,
                         String.format("Attribute Id '%s' on Segment Id %s ('%s') may not be modified.", u.getAttributeId(), this.id, this.name));
+            } else if (NameUtils.isTransientSegment(this.name) && !Attributes.isCoreAttribute(u.getAttributeId())) {
+                throw new MetadataUpdateException(this.containerId,
+                        String.format("Extended Attribute '%s' may not be used on Transient Segment '%s'.", u.getAttributeId(), this.name));
             }
 
             AttributeUpdateType updateType = u.getUpdateType();
