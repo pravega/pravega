@@ -188,7 +188,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 result4.complete(null);
             }
         });
-
+        @Cleanup
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)

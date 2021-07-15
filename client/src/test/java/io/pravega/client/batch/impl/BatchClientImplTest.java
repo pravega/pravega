@@ -86,6 +86,7 @@ public class BatchClientImplTest {
         MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
+        @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
 
         Iterator<SegmentRange> boundedSegments = client.getSegments(stream, getStreamCut(5L, 0, 1, 2), getStreamCut(15L, 0, 1, 2)).getIterator();
