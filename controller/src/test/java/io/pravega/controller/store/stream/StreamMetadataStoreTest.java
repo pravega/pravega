@@ -97,7 +97,7 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 30 seconds.
     @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected TestStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");

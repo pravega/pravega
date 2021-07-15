@@ -73,7 +73,7 @@ import static org.mockito.Mockito.spy;
 public class ZkStreamTest {
     private static final String SCOPE = "scope";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private StreamMetadataStore storePartialMock;

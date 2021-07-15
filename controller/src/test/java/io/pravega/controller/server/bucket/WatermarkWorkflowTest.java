@@ -91,7 +91,7 @@ public class WatermarkWorkflowTest {
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(10000, 1000, RETRY_POLICY);
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;

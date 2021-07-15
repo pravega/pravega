@@ -41,7 +41,7 @@ import org.junit.rules.Timeout;
 public abstract class ControllerServiceMainTest {
     private static final CompletableFuture<Void> INVOKED = new CompletableFuture<>();
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StoreClientConfig storeClientConfig;
 
     private final boolean disableControllerCluster;
