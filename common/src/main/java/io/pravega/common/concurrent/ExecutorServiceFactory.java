@@ -20,6 +20,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.NonNull;
@@ -67,18 +68,18 @@ final class ExecutorServiceFactory {
 
         // In all of the below, the ThreadFactory is created in this class, and its toString() returns the pool name.
         if (this.detectionLevel == ThreadLeakDetectionLevel.None) {
-            this.createScheduledExecutor = (size, factory) -> new ThreadPoolScheduledExecutorService(size, size, 100, factory, new CallerRuns(factory.toString()));
+            this.createScheduledExecutor = (size, factory) -> new ThreadPoolScheduledExecutorService(size, size, 100, factory, new AbortPolicy());
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) ->
-                    new ThreadPoolScheduledExecutorService(0, maxThreadCount, threadTimeout, factory, new CallerRuns(factory.toString()));
+                    new ThreadPoolScheduledExecutorService(0, maxThreadCount, threadTimeout, factory, new AbortPolicy());
         } else {
             // Light and Aggressive need a special executor that overrides the finalize() method.
             this.createScheduledExecutor = (size, factory) -> {
                 logNewThreadPoolCreated(factory.toString());
-                return new LeakDetectorScheduledExecutorService(size, factory, new CallerRuns(factory.toString()));
+                return new LeakDetectorScheduledExecutorService(size, factory, new AbortPolicy());
             };
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) -> {
                 logNewThreadPoolCreated(factory.toString());
-                return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, factory, new CallerRuns(factory.toString()));
+                return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, factory, new AbortPolicy());
             };
         }
     }
