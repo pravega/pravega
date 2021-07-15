@@ -18,7 +18,6 @@ package io.pravega.client.watermark;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.junit.Test;
 
