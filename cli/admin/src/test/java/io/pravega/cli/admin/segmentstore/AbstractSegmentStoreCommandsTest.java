@@ -15,7 +15,6 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
-import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
@@ -35,7 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.*;
 import org.junit.rules.Timeout;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.UUID;
@@ -44,8 +42,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
+
+/**
+ *  This test is for testing the segment store cli commands.
+ */
 @Slf4j
-public abstract class SegmentStoreCommandsTest {
+public abstract class AbstractSegmentStoreCommandsTest {
 
     // Setup utility.
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
@@ -53,8 +55,8 @@ public abstract class SegmentStoreCommandsTest {
 
     private static ClientConfig clientConfig;
 
-//    @Rule
-//    public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
+    @Rule
+    public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
 
     public void setup(boolean enableAuth, boolean enableTls) throws Exception {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri());
@@ -193,14 +195,14 @@ public abstract class SegmentStoreCommandsTest {
 
     //region Actual Test Implementations
 
-    public static class SecureSegmentStoreCommandsTest extends SegmentStoreCommandsTest {
+    public static class SecureAbstractSegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
             setup(true, true);
         }
     }
 
-    public static class RegularSegmentStoreCommandsTest extends SegmentStoreCommandsTest {
+    public static class RegularAbstractSegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
             setup(false, false);

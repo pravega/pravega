@@ -96,7 +96,7 @@ public final class SetupUtils {
     private ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder();
 
     /**
-     *
+     * Returns the cli config for this instance.
      */
     public ClientConfig getClientConfig() {
         return clientConfigBuilder.build();
