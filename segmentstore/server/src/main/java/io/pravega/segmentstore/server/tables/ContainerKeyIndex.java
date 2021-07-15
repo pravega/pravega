@@ -35,6 +35,7 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
 import java.time.Duration;
@@ -578,6 +579,26 @@ class ContainerKeyIndex implements AutoCloseable {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.segmentTracker.waitIfNeeded(segment,
                 ignored -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
+    }
+
+    /**
+     * Gets the approximate number of unique entries in the Table Segment with given {@link SegmentMetadata}.
+     *
+     * The accuracy of this number depends on how the entries in the Tail Cache have been updated/removed.
+     *
+     * If unconditionally, then the Key Index cannot determine easily if those keys previously existed or not, so it will
+     * assume that every unconditional update adds a key and every unconditional removal removes a key. In this case,
+     * this value will be eventually consistent (it will converge once the background indexer processes the tail).
+     *
+     * If the values have been updated/removed using conditional operations, then this is an accurate representation of
+     * the number of entries in the index. Conditional updates/removals pre-validate the keys with the index so the
+     * Key Index can accurately tell how it will be modified.
+     *
+     * @param segmentMetadata The {@link SegmentMetadata} for the segment to query.
+     * @return The approximate number of unique entries.
+     */
+    long getUniqueEntryCount(SegmentMetadata segmentMetadata) {
+        return IndexReader.getEntryCount(segmentMetadata) + this.cache.getTailUpdateDelta(segmentMetadata.getId());
     }
 
     /**

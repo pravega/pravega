@@ -603,6 +603,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testGetTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.GetTableSegmentInfo(l, testString1, ""));
+    }
+
+    @Test
+    public void testTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.TableSegmentInfo(l, testString1, l + 1, l + 2, 3, 4));
+    }
+
+    @Test
     public void testCreateTableSegment() throws IOException {
         testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, ""));
     }
@@ -618,11 +628,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testMergeTableSegments() throws IOException {
-        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
-    }
-
-    @Test
     public void testSegmentsMerged() throws IOException {
         testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2, -l));
     }
@@ -630,11 +635,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
-    }
-
-    @Test
-    public void testSealTableSegment() throws IOException {
-        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test

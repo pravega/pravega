@@ -37,6 +37,7 @@ public final class MetricsTags {
     public static final String TAG_CLASS = "class";
     public static final String TAG_EXCEPTION = "exception";
     public static final String TAG_THROTTLER = "throttler";
+    public static final String TAG_EVENT_PROCESSOR = "eventprocessor";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -110,6 +111,17 @@ public final class MetricsTags {
      */
     public static String[] transactionTags(String scope, String stream, String transactionId) {
         return new String[] {TAG_SCOPE, scope, TAG_STREAM, stream, TAG_TRANSACTION, transactionId};
+    }
+
+    /**
+     * Generate EventProcessor tags (String array) given the event processor name and container id.
+     *
+     * @param containerId         Container id for this EventProcessor.
+     * @param eventProcessorName  Name of the EventProcessor.
+     * @return                    String array with the EventProcessor tags.
+     */
+    public static String[] eventProcessorTag(int containerId, String eventProcessorName) {
+        return new String[] {TAG_CONTAINER, String.valueOf(containerId), TAG_EVENT_PROCESSOR, eventProcessorName};
     }
 
     /**

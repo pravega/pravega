@@ -73,8 +73,8 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
     }
 
     @Override
-    protected WriterTableProcessor createWriterTableProcessor(TableContext context) {
-        val p = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+    protected WriterTableProcessor createWriterTableProcessor(ContainerTableExtension ext, TableContext context) {
+        val p = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
         Assert.assertNotNull(p);
         context.segment().setAppendCallback((offset, length) -> addToProcessor(offset, length, p));
         return p;
