@@ -128,9 +128,11 @@ public class WatermarkWorkflowTest {
         Stream stream = new StreamImpl("scope", "stream");
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         
+        @Cleanup
         MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
         doAnswer(x -> revisionedClient).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
+        @Cleanup
         PeriodicWatermarking.WatermarkClient client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
         // iteration 1 ==> null -> w1
         client.reinitialize();

@@ -83,6 +83,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testUsingInvalidArgs() {
+        @Cleanup
         TableContext context = new TableContext(CONFIG, executorService());
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
