@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 @Data
 @AllArgsConstructor
 public class CreateReaderGroupEvent implements ControllerEvent {
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 1L;
     private final long requestId;
     private final String scope;
