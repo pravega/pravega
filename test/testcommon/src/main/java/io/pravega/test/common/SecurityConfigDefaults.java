@@ -41,8 +41,6 @@ public class SecurityConfigDefaults {
 
     public static final String TLS_CA_CERT_FILE_NAME = "ca-cert.crt";
 
-    public static final String TLS_CA_CERT_KEY_FILE_NAME = "ca-cert.key";
-
     public static final String TLS_CA_CERT_PATH = "../config/" + TLS_CA_CERT_FILE_NAME;
 
     public static final String AUTH_HANDLER_INPUT_FILE_NAME = "passwd";

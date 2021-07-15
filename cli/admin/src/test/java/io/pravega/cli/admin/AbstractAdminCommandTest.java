@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin;
 
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SetupUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -44,8 +45,8 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
-        STATE.get().getConfigBuilder().include(pravegaProperties);
 
+        STATE.get().getConfigBuilder().include(pravegaProperties);
     }
 
     @AfterClass

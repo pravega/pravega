@@ -26,35 +26,65 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.Timeout;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
 @Slf4j
-public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
+public abstract class SegmentStoreCommandsTest {
 
+    // Setup utility.
+    protected static final SetupUtils SETUP_UTILS = new SetupUtils();
+    protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
-    public void setupSegmentStore(boolean isSecure) {
-        if(isSecure) {
-//            Properties pravegaProperties = new Properties();
-//            pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(true));
-//            pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-//            pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-//            pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
-//            pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-//            pravegaProperties.setProperty("cli.trustStore.signing.key", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
-//            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
-//
-//            STATE.get().getConfigBuilder().include(pravegaProperties);
+    private static ClientConfig clientConfig;
+
+//    @Rule
+//    public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
+
+    public void setup(boolean enableAuth, boolean enableTls) throws Exception {
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri());
+
+        STATE.set(new AdminCommandState());
+        SETUP_UTILS.startAllServices(enableAuth, enableTls);
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
+        pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
+        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+
+        if (enableAuth) {
+            clientConfigBuilder = clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
+            pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(true));
+            pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+            pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         }
+        if (enableTls) {
+            clientConfigBuilder = clientConfigBuilder.trustStore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
+                    .validateHostName(false);
+            pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
+            pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
+        }
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        clientConfig = clientConfigBuilder.build();
     }
 
     @Test
@@ -84,7 +114,7 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
     @Test
     public void testReadSegmentRangeCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "readsegment", StreamConfiguration.builder().build());
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+
         @Cleanup
         EventStreamClientFactory factory = EventStreamClientFactory.withScope("segmentstore", clientConfig);
         @Cleanup
@@ -153,7 +183,11 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotNull(UpdateSegmentAttributeCommand.descriptor());
     }
 
-
+    @After
+    public void tearDown() throws Exception {
+        SETUP_UTILS.stopAllServices();
+        STATE.get().close();
+    }
 
     //endregion
 
@@ -162,14 +196,14 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
     public static class SecureSegmentStoreCommandsTest extends SegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
-            setupSegmentStore(true);
+            setup(true, true);
         }
     }
 
-    public static class RegularSegmentStoreCommandsTest extends SecureSegmentStoreCommandsTest {
+    public static class RegularSegmentStoreCommandsTest extends SegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
-            setupSegmentStore(false);
+            setup(false, false);
         }
     }
 
