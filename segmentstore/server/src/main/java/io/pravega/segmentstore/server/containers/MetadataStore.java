@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.netty.util.concurrent.CompleteFuture;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
@@ -32,6 +33,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -58,6 +60,8 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -141,6 +145,10 @@ public abstract class MetadataStore implements AutoCloseable {
      * </ul>
      */
     CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
+        if (segmentType.isTransient() && !NameUtils.isTransientSegment(segmentName)) {
+            return Futures.failedFuture(new IllegalStateException("Invalid name '" + segmentName + "' for SegmentType: Transient"));
+        }
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createSegment", segmentName);
         long segmentId = this.connector.containerMetadata.getStreamSegmentId(segmentName, true);
         if (isValidSegmentId(segmentId)) {
@@ -149,7 +157,12 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, segmentType, attributes));
-        CompletableFuture<Void> result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
+        CompletableFuture<Void> result;
+        if (segmentType.isTransient()) {
+            result = registerPinnedSegment(segmentName, segmentType, attributes, timeout).thenApply(null);
+        } else {
+            result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
+        }
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createSegment", traceId, segmentName));
         }

@@ -115,11 +115,11 @@ public class SegmentType {
     }
 
     /**
-     * Whether this {@link SegmentType} refers to a Transient Segment (which implies {@link #isTransientSegment()}.
+     * Whether this {@link SegmentType} refers to a Transient Segment (which implies {@link #isTransient()}.
      *
      * @return True if Transient Segment, false otherwise.
      */
-    public boolean isTransientSegment() {
+    public boolean isTransient() {
         return (this.flags & ROLE_TRANSIENT) == ROLE_TRANSIENT;
     }
 

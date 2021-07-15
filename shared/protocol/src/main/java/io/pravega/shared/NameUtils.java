@@ -86,6 +86,11 @@ public final class NameUtils {
     private static final String TRANSACTION_DELIMITER = "#transaction.";
 
     /**
+     * This is appened to the end of the Parent Segment Name, then we append a unique identifier.
+     */
+    private static final String TRANSIENT_DELIMITER = "#transient.";
+
+    /**
      * This is appended to the end of the Primary Segment Name, followed by epoch.
      */
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -136,9 +141,19 @@ public final class NameUtils {
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
 
     /**
+     * The Transient unique identifier is made of two parts, ecah having a length of 16 bytes (64 bits in Hex).
+     */
+    private static final int TRANSIENT_PART_LENGTH = TRANSACTION_PART_LENGTH;
+
+    /**
      * The length of the Transaction unique identifier, in bytes (it is made of two parts).
      */
     private static final int TRANSACTION_ID_LENGTH = 2 * TRANSACTION_PART_LENGTH;
+
+    /**
+     * The length of the Transient Segments unique identifier, in bytes (it is made of two parts).
+     */
+    private static final int TRANSIENT_ID_LENGTH = 2 * TRANSIENT_PART_LENGTH;
 
     /**
      * Custom String format that converts a 64 bit integer into a hex number, with leading zeroes.
@@ -185,6 +200,22 @@ public final class NameUtils {
     }
 
     /**
+     * Returns the transient name for a TransientSegment based on the name of the current Parent StreamSegment, and the transientId.
+     *
+     * @param parentStreamSegmentName The name of the Parent StreamSegment for this transient segment.
+     * @param transientId             The unique Id for the transient segment.
+     * @return The name of the Transient StreamSegmentId.
+     */
+    public static String getTransientNameFromId(String parentStreamSegmentName, UUID transientId) {
+        StringBuilder result = new StringBuilder();
+        result.append(parentStreamSegmentName);
+        result.append(TRANSIENT_DELIMITER);
+        result.append(String.format(FULL_HEX_FORMAT, transientId.getMostSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, transientId.getLeastSignificantBits()));
+        return result.toString();
+    }
+
+    /**
      * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
      * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
      *
@@ -211,6 +242,20 @@ public final class NameUtils {
         // Check to see if the given name is a properly formatted Transaction.
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSACTION_DELIMITER);
         if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > streamSegmentName.length()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks if the given stream segment name is formatted for a Transient Segment or not.
+     * @param streamSegmentName The name of the StreamSegment to check for the transient delimiter.
+     * @return true if stream segment name contains transient delimiter, false otherwise.
+     */
+    public static boolean isTransientSegment(String streamSegmentName) {
+        // Check to see if the given name is a properly formatted Transient Segment.
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSIENT_DELIMITER);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSIENT_DELIMITER.length() + TRANSIENT_ID_LENGTH > streamSegmentName.length()) {
             return false;
         }
         return true;
