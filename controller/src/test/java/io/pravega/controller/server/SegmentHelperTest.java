@@ -803,7 +803,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     public void testProcessAndRethrowExceptions() {
         // The wire-command itself we use for this test is immaterial, so we are using the simplest one here.
         WireCommands.Hello dummyRequest = new WireCommands.Hello(0, 0);
-        @Cleanup
+        @SuppressWarnings("resource")
         SegmentHelper objectUnderTest = new SegmentHelper(null, null, null);
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
