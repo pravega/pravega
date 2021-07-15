@@ -179,9 +179,17 @@ public final class SetupUtils {
 
         // Start Controller.
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, enableAuth, pathToConfig() + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME, "secret");
-        this.controllerWrapper.awaitRunning();
+                this.zkTestServer.getConnectString(), false, true, controllerRPCPort,
+                "localhost", servicePort, Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, enableAuth,
+                pathToConfig() + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME,
+                "secret", true, 600, enableTls,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+
+
+            this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
         log.info("Initialized Pravega Controller");
     }
