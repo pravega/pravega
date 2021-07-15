@@ -65,6 +65,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         super(1);
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
@@ -100,6 +101,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setOut(new PrintStream(outContent));
     }
 
+    @Override
     @After
     public void tearDown() {
         System.setOut(originalOut);

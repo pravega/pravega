@@ -286,6 +286,7 @@ public abstract class KeyValueTableCommand extends Command {
 
         protected abstract void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception;
 
+        @Override
         public void execute() throws Exception {
             ensurePreconditions();
             val kvtName = getScopedNameArg(0);

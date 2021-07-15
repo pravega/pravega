@@ -66,12 +66,14 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
+    @Override
     @Before
     public void before() throws Exception {
         super.before();
         FlakySnapshotInfoStore.clear();
     }
 
+    @Override
     @After
     public void after() throws Exception {
         super.after();
@@ -1197,6 +1199,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     static class FlakySnapshotInfoStore extends InMemorySnapshotInfoStore {
         final FlakyInterceptor  interceptor = new FlakyInterceptor();
 
+        @Override
         @SneakyThrows
         public CompletableFuture<SnapshotInfo> getSnapshotId(int containerId) {
             try {
@@ -1209,6 +1212,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             }
         }
 
+        @Override
         @SneakyThrows
         public CompletableFuture<Void> setSnapshotId(int containerId, SnapshotInfo checkpoint) {
             try {
@@ -1226,16 +1230,19 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      * Runs {@link SystemJournalOperationsTests} for Non-appendable storage.
      */
     public static class NonAppendableChunkStorageSystemJournalOperationsTests extends SystemJournalOperationsTests {
+        @Override
         @Before
         public void before() throws Exception {
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             super.after();
         }
 
+        @Override
         protected ChunkStorage createChunkStorage() throws Exception {
             val chunkStorage = new InMemoryChunkStorage(executorService());
             chunkStorage.setShouldSupportAppend(false);

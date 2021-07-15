@@ -64,6 +64,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
      * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth()} calls.
      * @return The latest {@link Health} result.
      */
+    @Override
     public Health getLatestHealth() {
         return latest.get();
     }

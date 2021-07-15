@@ -51,12 +51,14 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
+    @Override
     @Before
     public void before() throws Exception {
         super.before();
         InMemorySnapshotInfoStore.clear();
     }
 
+    @Override
     @After
     public void after() throws Exception {
         super.after();
@@ -1426,16 +1428,19 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      * Tests {@link SystemJournal}  with non Appendable {@link ChunkStorage} using {@link SystemJournalTests}.
      */
     public static class NonAppendableChunkStorageSystemJournalTests extends SystemJournalTests {
+        @Override
         @Before
         public void before() throws Exception {
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             super.after();
         }
 
+        @Override
         protected ChunkStorage getChunkStorage() throws Exception {
             val chunkStorage = new InMemoryChunkStorage(executorService());
             chunkStorage.setShouldSupportAppend(false);
