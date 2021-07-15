@@ -193,7 +193,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.unwrapDataCorruptionException(new DataCorruptionException("test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
-        command.unwrapDataCorruptionException(new DataCorruptionException("test", null));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", (DataCorruptionException) null));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
