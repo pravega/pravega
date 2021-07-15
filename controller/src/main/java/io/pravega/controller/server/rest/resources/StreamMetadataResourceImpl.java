@@ -565,8 +565,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
         boolean showOnlyInternalStreams = filterType != null && filterType.equals("showInternalStreams");
+        boolean showStreamsWithTag = filterType != null && filterType.equals("tag");
         String tag = null;
-        if (filterType.equals("tag") && filterValue != null) {
+        if (showStreamsWithTag && filterValue != null) {
             tag = filterValue;
         }
         if (tag != null) {
