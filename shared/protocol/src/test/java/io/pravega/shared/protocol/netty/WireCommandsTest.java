@@ -897,7 +897,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testErrorMessage() throws IOException {
         for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
-            Class exceptionType = code.getExceptionType();
+            Class<? extends Exception> exceptionType = code.getExceptionType();
             WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
             testCommand(cmd);
             assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
