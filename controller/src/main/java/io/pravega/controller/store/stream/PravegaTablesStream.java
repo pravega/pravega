@@ -834,10 +834,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions(OperationContext context) {
+    public CompletableFuture<Long> getNumberOfOngoingTransactions(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
-        List<CompletableFuture<Integer>> futures = new ArrayList<>();
+        List<CompletableFuture<Long>> futures = new ArrayList<>();
         // first get the number of ongoing transactions from the cache. 
         return getEpochsWithTransactionsTable(context)
                 .thenCompose(epochsWithTxn -> storeHelper.getAllKeys(epochsWithTxn, context.getRequestId())
@@ -848,17 +848,15 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                          .thenCompose(v -> Futures.allOfWithResults(futures)
                                                                                   .thenApply(list -> list
                                                                                           .stream()
-                                                                                          .reduce(0, Integer::sum))));
+                                                                                          .reduce(0L, Long::sum))));
     }
 
-    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch, OperationContext context) {
+    private CompletableFuture<Long> getNumberOfOngoingTransactions(int epoch, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         AtomicInteger count = new AtomicInteger(0);
         return getTransactionsInEpochTable(epoch, context)
-                .thenCompose(epochTableName -> storeHelper.getAllKeys(epochTableName, context.getRequestId())
-                                                          .forEachRemaining(x -> count.incrementAndGet(), executor)
-                                                          .thenApply(x -> count.get()));
+                .thenCompose(epochTableName -> storeHelper.getEntryCount(epochTableName, context.getRequestId()));
     }
 
     @Override
