@@ -756,7 +756,7 @@ public class StreamMetaDataTests {
         assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
         response.close();
 
-        response = addAuthHeaders(client.target(resourceURI).queryParam("showInternalStreams", "true").request()).buildGet().invoke();
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "showInternalStreams").request()).buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
         streamsListResp = response.readEntity(StreamsList.class);
