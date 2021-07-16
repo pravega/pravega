@@ -679,7 +679,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
-        close("chunkStorage", this.chunkStorage);
+        // taskQueue is per instance so safe to close this here.
+        close("taskQueue", this.taskQueue);
         this.reporter.cancel(true);
         this.closed.set(true);
     }
