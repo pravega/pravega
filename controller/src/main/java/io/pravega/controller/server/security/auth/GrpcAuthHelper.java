@@ -133,12 +133,8 @@ public class GrpcAuthHelper {
         Map<String, Object> customClaims = new HashMap<>();
         customClaims.put("*", String.valueOf(READ_UPDATE));
 
-        JsonWebToken token = new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                customClaims, null);
-
-        System.out.println("the token compact string is " + token.toCompactString());
-
-        return token.toCompactString();
+        return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
+                customClaims, null).toCompactString();
     }
 
     public static void registerInterceptors(Map<String, AuthHandler> handlers, ServerBuilder<?> builder) {

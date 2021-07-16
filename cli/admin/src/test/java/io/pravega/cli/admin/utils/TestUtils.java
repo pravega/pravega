@@ -150,7 +150,6 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-//        pravegaProperties.setProperty("cli.trustStore.signing.key", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
         pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(accessTokenTtlInSeconds));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
@@ -262,23 +261,5 @@ public final class TestUtils {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
         }
-    }
-
-    /**
-     * Prepares a list of password auth handler user account database file entries. The
-     * {@link io.pravega.test.integration.demo.ClusterWrapper} accepts entries in the returned format.
-     *
-     * @param entries ACLs by user
-     * @param password the plaintext password for each user
-     * @return Password auth handler user account database entries
-     */
-    @SneakyThrows
-    public static List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(
-            Map<String, String> entries, String password) {
-        StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
-        String encryptedPassword = passwordProcessor.encryptPassword(password);
-        List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
-        entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
-        return result;
     }
 }

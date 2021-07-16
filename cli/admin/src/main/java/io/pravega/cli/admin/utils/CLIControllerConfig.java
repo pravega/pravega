@@ -37,27 +37,25 @@ public final class CLIControllerConfig {
     private static final Property<String> CONTROLLER_PASSWORD = Property.named("credentials.pwd", "");
     private static final Property<Boolean> TLS_ENABLED = Property.named("channel.tls", false);
     private static final Property<String> TRUSTSTORE_JKS = Property.named("trustStore.location", "");
-    private static final Property<String> TRUSTSTORE_JKS_KEY = Property.named("trustStore.signing.key", "");
     private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS = Property.named("trustStore.access.token.ttl.seconds", 10);
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
-
 
     private static final String COMPONENT_CODE = "cli";
 
     /**
-     * The Controller REST URI. Recall to set "http" or "https" depending on the TLS configuration of the Controller.
+     * The Controller REST URI. Recall to set "http" or "https" depending on the TLS configuration of the CLI.
      */
     @Getter
     private final String controllerRestURI;
 
     /**
-     * The Controller GRPC URI. Recall to set "tcp" or "tls" depending on the TLS configuration of the Controller.
+     * The Controller GRPC URI. Recall to set "tcp" or "tls" depending on the TLS configuration of the CLI.
      */
     @Getter
     private final String controllerGrpcURI;
 
     /**
-     * Defines whether or not to use authentication in Controller requests.
+     * Defines whether or not to use authentication in CLI requests.
      */
     @Getter
     private final boolean authEnabled;
@@ -69,31 +67,25 @@ public final class CLIControllerConfig {
     private final boolean tlsEnabled;
 
     /**
-     * User name if authentication is configured in the Controller.
+     * User name if authentication is configured in the CLI.
      */
     @Getter
     private final String userName;
 
     /**
-     * Password if authentication is configured in the Controller.
+     * Password if authentication is configured in the CLI.
      */
     @Getter
     private final String password;
 
     /**
-     * Truststore if TLS is configured in the Controller.
+     * Truststore if TLS is configured in the CLI.
      */
     @Getter
     private final String truststore;
 
     /**
-     * Truststore signing key if TLS is configured in the Controller.
-     */
-    @Getter
-    private final String truststoreSignKey;
-
-    /**
-     * Truststore access token ttl in seconds if TLS is configured in the Controller.
+     * Truststore access token ttl in seconds if TLS is configured in the CLI.
      */
     @Getter
     private final int accessTokenTtlInSeconds;
@@ -112,7 +104,6 @@ public final class CLIControllerConfig {
         this.userName = properties.get(CONTROLLER_USER_NAME);
         this.password = properties.get(CONTROLLER_PASSWORD);
         this.truststore = properties.get(TRUSTSTORE_JKS);
-        this.truststoreSignKey = properties.get(TRUSTSTORE_JKS_KEY);
         this.accessTokenTtlInSeconds = properties.getInt(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }

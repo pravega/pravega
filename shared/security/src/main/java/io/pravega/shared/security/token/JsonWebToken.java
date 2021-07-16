@@ -151,7 +151,6 @@ public class JsonWebToken {
             builder.setExpiration(expirationTime);
         }
         builder.signWith(signatureAlgorithm, signingKey);
-        log.info("builder compact is ", builder.compact());
         return builder.compact();
     }
 

@@ -387,14 +387,10 @@ public abstract class AdminCommand {
                 .containerCount(getServiceConfig().getContainerCount())
                 .build();
         HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
-//        ClientConfig clientConfig = ClientConfig.builder()
-//                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
-//                .validateHostName(getCLIControllerConfig().isAuthEnabled())
-//                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
-//                .build();
 
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
                 .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()));
+
         if (getCLIControllerConfig().isAuthEnabled()) {
             clientConfigBuilder.credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(),
                     getCLIControllerConfig().getUserName()));

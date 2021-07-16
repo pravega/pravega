@@ -30,7 +30,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.*;
 import org.junit.rules.Timeout;
 
@@ -46,7 +45,6 @@ import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 /**
  *  This test is for testing the segment store cli commands.
  */
-@Slf4j
 public abstract class AbstractSegmentStoreCommandsTest {
 
     // Setup utility.
@@ -195,14 +193,14 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     //region Actual Test Implementations
 
-    public static class SecureAbstractSegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
+    public static class SecureSegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
             setup(true, true);
         }
     }
 
-    public static class RegularAbstractSegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
+    public static class SegmentStoreCommandsTest extends AbstractSegmentStoreCommandsTest {
         @Before
         public void startUp() throws Exception {
             setup(false, false);
