@@ -68,7 +68,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         Future<Boolean> future = pool.schedule(() -> result.complete(System.nanoTime()), 100, MILLISECONDS);
         long runTime = result.get(5, SECONDS);
         assertTrue(runTime > startTime + 50 * 1000 * 1000);
-        assertTrue(future.get(0, MILLISECONDS));
+        assertTrue(future.get(5, SECONDS));
         pool.shutdown();
         assertTrue(pool.awaitTermination(5, SECONDS));
     }
