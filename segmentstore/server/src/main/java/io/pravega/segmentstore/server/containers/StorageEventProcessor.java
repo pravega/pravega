@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueueManager;
@@ -77,11 +78,9 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
         try {
             val processor = eventProcessorMap.get(queueName);
             if (null != processor) {
-                return processor.add(serializer.serialize(task), Duration.ofMillis(1000)).thenAccept( l -> {
-
-                });
+                return Futures.toVoid(processor.add(serializer.serialize(task), Duration.ofMillis(1000)));
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             return CompletableFuture.failedFuture(e);
         }
         return CompletableFuture.completedFuture(null);

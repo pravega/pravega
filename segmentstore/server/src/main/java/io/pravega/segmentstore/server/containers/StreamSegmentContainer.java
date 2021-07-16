@@ -307,8 +307,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         // Delayed start. Secondary services need not be started in order for us to accept requests.
-        delayedStart
-                .thenComposeAsync( v -> {
+        delayedStart.thenComposeAsync(v -> {
                     if (this.storage instanceof ChunkedSegmentStorage) {
                         return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
                     }
