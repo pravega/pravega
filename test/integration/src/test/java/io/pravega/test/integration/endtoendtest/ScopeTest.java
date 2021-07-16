@@ -15,6 +15,8 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -39,13 +41,18 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -53,6 +60,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.NameUtils.getScopedStreamName;
+import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -93,6 +104,61 @@ public class ScopeTest {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+    }
+
+    @Test(timeout = 30000)
+    public void testListStreamForTag() {
+        final String scope = "sc";
+        final String stream1 = "s1";
+        final String stream2 = "s2";
+        final String stream3 = "s3";
+        final Set<String> tagSet1 = Set.of("t1", "t2", "t3");
+        final Set<String> tagSet2 = Set.of("t2", "t3", "t4");
+        final Set<String> tagSet3 = Set.of("t3", "t4", "t5");
+        StreamConfiguration cfg = StreamConfiguration.builder()
+                                                     .scalingPolicy(ScalingPolicy.byDataRate(10, 2, 4))
+                                                     .build();
+
+        @Cleanup
+        StreamManager manager = StreamManager.create(URI.create("tcp://localhost:" + this.controllerPort));
+        manager.createScope(scope);
+        // fetch tags of a non-existent stream.
+        AssertExtensions.assertThrows("Non-existent Stream",
+                                      () -> manager.getStreamTags(scope, stream1),
+                                      t -> t instanceof StatusRuntimeException && (((StatusRuntimeException) t).getStatus().getCode().equals(Status.Code.NOT_FOUND)));
+
+        manager.createStream(scope, stream1, cfg.toBuilder().tags(tagSet1).build());
+        manager.createStream(scope, stream2, cfg.toBuilder().tags(tagSet2).build());
+        manager.createStream(scope, stream3, cfg.toBuilder().tags(tagSet3).build());
+        assertEquals(tagSet1, manager.getStreamTags(scope, stream1));
+        assertEquals(tagSet2, manager.getStreamTags(scope, stream2));
+        assertEquals(tagSet3, manager.getStreamTags(scope, stream3));
+        assertEquals(singletonList(Stream.of(scope, stream1)), newArrayList(manager.listStreams(scope, "t1")));
+        List<Stream> listedStreams = newArrayList(manager.listStreams(scope, "t3"));
+        List<Stream> expectedStreams = Arrays.asList(Stream.of(scope, stream3), Stream.of(scope, stream2), Stream.of(scope, stream1));
+        assertTrue((listedStreams.size() == expectedStreams.size()) && listedStreams.containsAll(expectedStreams) &&
+                           expectedStreams.containsAll(listedStreams));
+
+        // update a stream tag and verify if it is reflected.
+        manager.updateStream(scope, stream3, cfg.toBuilder().clearTags().tag("t4").tag("t5").build());
+        listedStreams = newArrayList(manager.listStreams(scope, "t3"));
+        expectedStreams = Arrays.asList(Stream.of(scope, stream2), Stream.of(scope, stream1));
+        assertTrue((listedStreams.size() == expectedStreams.size()) && listedStreams.containsAll(expectedStreams) &&
+                           expectedStreams.containsAll(listedStreams));
+
+        // seal and delete stream
+        manager.sealStream(scope, stream2);
+        manager.deleteStream(scope, stream2);
+        //check if list streams is updated.
+        assertEquals(singletonList(Stream.of(scope, stream1)), newArrayList(manager.listStreams(scope, "t3")));
+
+        manager.sealStream(scope, stream1);
+        manager.deleteStream(scope, stream1);
+        assertEquals(emptyList(), newArrayList(manager.listStreams(scope, "t3")));
+
+        manager.sealStream(scope, stream3);
+        manager.deleteStream(scope, stream3);
+        assertEquals(emptyList(), newArrayList(manager.listStreams(scope, "t4")));
     }
 
     @Test(timeout = 30000)
@@ -213,8 +279,9 @@ public class ScopeTest {
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
 
-        keyValueTableManager.createKeyValueTable(scope, kvtName1, KeyValueTableConfiguration.builder().partitionCount(1).build());
-        keyValueTableManager.createKeyValueTable(scope, kvtName2, KeyValueTableConfiguration.builder().partitionCount(1).build());
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
+        keyValueTableManager.createKeyValueTable(scope, kvtName1, kvtConfig);
+        keyValueTableManager.createKeyValueTable(scope, kvtName2, kvtConfig);
 
         readerGroupManager.createReaderGroup(groupName1, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName1)).build());

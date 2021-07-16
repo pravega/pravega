@@ -80,13 +80,14 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return deleteAssociatedStreams(scope, stream, requestId)
-                        .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
+                            .thenCompose(v -> removeTagsFromIndex(context, scope, stream, requestId))
+                            .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
                 }, executor)
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    log.warn(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e.getMessage());
+                    log.warn(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
                     throw new CompletionException(e);
                 });
     }
@@ -96,6 +97,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         OperationContext context = streamMetadataStore.createStreamContext(scope, markStream, requestId);
         return Futures.exceptionallyExpecting(notifyAndDelete(context, scope, markStream, requestId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
+    }
+
+    private CompletableFuture<Void> removeTagsFromIndex(OperationContext context, String scope, String stream, long requestId) {
+        return Futures.exceptionallyExpecting(streamMetadataStore.getConfiguration(scope, stream, context, executor)
+                                                                 .thenCompose(cfg -> streamMetadataStore.removeTagsFromIndex(scope, stream, cfg.getTags(), context, executor)), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {

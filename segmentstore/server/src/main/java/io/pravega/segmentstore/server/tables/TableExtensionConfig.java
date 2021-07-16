@@ -17,12 +17,12 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import java.time.Duration;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import lombok.Builder;
 import lombok.Data;
@@ -59,6 +59,13 @@ public class TableExtensionConfig {
     private final int maxCompactionSize = EntrySerializer.MAX_SERIALIZATION_LENGTH * 4;
 
     /**
+     * The amount of time to wait between successive compaction attempts on the same Table Segment. This may not apply
+     * to all Table Segment Layouts (i.e., it only applies to Fixed-Key-Length Table Segments).
+     */
+    @Builder.Default
+    private final Duration compactionFrequency = Duration.ofSeconds(30);
+
+    /**
      * Default value to set for the {@link TableAttributes#MIN_UTILIZATION} for every new Table Segment.
      */
     @Builder.Default
@@ -88,7 +95,7 @@ public class TableExtensionConfig {
      * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
-    public Map<UUID, Long> getDefaultCompactionAttributes() {
+    public Map<AttributeId, Long> getDefaultCompactionAttributes() {
         return ImmutableMap.of(TableAttributes.MIN_UTILIZATION, getDefaultMinUtilization(),
                 Attributes.ROLLOVER_SIZE, getDefaultRolloverSize());
     }

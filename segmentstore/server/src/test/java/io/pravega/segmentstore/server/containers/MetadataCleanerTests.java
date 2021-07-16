@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -34,7 +35,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -166,13 +166,13 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
             m.setLength(4000 + i);
             m.setLastUsed(truncationSeqNo - 1); // So we can evict some attributes.
             for (int j = 0; j < CONFIG.getMaxCachedExtendedAttributeCount(); j++) {
-                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), (long) j));
+                m.updateAttributes(Collections.singletonMap(AttributeId.randomUUID(), (long) j));
             }
 
             // This will make the segment non-evictable, and the same with the rest of the attributes.
             m.setLastUsed(truncationSeqNo + 1);
             for (int j = CONFIG.getMaxCachedExtendedAttributeCount(); j < attributeCount; j++) {
-                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), attributeCount + (long) j));
+                m.updateAttributes(Collections.singletonMap(AttributeId.randomUUID(), attributeCount + (long) j));
             }
         }
 

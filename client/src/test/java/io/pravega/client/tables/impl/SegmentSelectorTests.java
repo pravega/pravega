@@ -21,12 +21,11 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.test.common.AssertExtensions;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 import lombok.Cleanup;
 import lombok.EqualsAndHashCode;
 import lombok.val;
@@ -35,7 +34,6 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,54 +44,15 @@ public class SegmentSelectorTests {
     private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "Stream");
 
     /**
-     * Tests the {@link SegmentSelector#getTableSegment(String)} method.
-     */
-    @Test
-    public void testGetSegmentByKeyFamily() {
-        @Cleanup
-        val context = new TestContext(10, (s, segments) -> {
-            String kf = Integer.toString((int) s.getSegmentId());
-            segments.byKeyFamily.put(kf, s);
-        });
-
-        for (val e : context.segments.byKeyFamily.entrySet()) {
-            TableSegment s = context.selector.getTableSegment(e.getKey());
-            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
-        }
-
-        // This verifies that we cannot possibly get away with a null result from SegmentsByRange.getSegmentForKey().
-        when(context.tsFactory.forSegment(isNull())).thenThrow(NullPointerException.class);
-        AssertExtensions.assertThrows(
-                "",
-                () -> context.selector.getTableSegment("abc"),
-                ex -> ex instanceof NullPointerException);
-    }
-
-    /**
-     * Tests the {@link SegmentSelector#getTableSegment(String, ByteBuf)} method.
+     * Tests the {@link SegmentSelector#getTableSegment(java.nio.ByteBuffer)} method.
      */
     @Test
     public void testGetSegmentByKeyOrKeyFamily() {
-        Function<Integer, ByteBuf> getKey = i -> Unpooled.wrappedBuffer(new byte[Integer.BYTES]).setInt(0, i);
         @Cleanup
-        val context = new TestContext(10, (s, segments) -> {
-            if (s.getSegmentId() % 2 == 0) {
-                // Even segments are by key family.
-                String kf = Integer.toString((int) s.getSegmentId());
-                segments.byKeyFamily.put(kf, s);
-            } else {
-                // Odd segments are by key.
-                segments.byKey.put(getKey.apply((int) s.getSegmentId()), s);
-            }
-        });
-
-        for (val e : context.segments.byKeyFamily.entrySet()) {
-            TableSegment s = context.selector.getTableSegment(e.getKey(), getKey.apply(123456));
-            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
-        }
+        val context = new TestContext(10);
 
         for (val e : context.segments.byKey.entrySet()) {
-            TableSegment s = context.selector.getTableSegment(null, e.getKey());
+            TableSegment s = context.selector.getTableSegment(e.getKey().nioBuffer());
             Assert.assertEquals("Unexpected segment returned for Key " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
     }
@@ -104,19 +63,19 @@ public class SegmentSelectorTests {
     @Test
     public void testClose() {
         @Cleanup
-        val context = new TestContext(10, (s, segments) -> {
-            String kf = Integer.toString((int) s.getSegmentId());
-            segments.byKeyFamily.put(kf, s);
-        });
-
-        for (val e : context.segments.byKeyFamily.entrySet()) {
-            TableSegment s = context.selector.getTableSegment(e.getKey());
+        val context = new TestContext(10);
+        for (val e : context.segments.byKey.entrySet()) {
+            TableSegment s = context.selector.getTableSegment(e.getKey().nioBuffer());
             Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
-
         int expectedClosed = context.segments.getSegmentCount();
+        AssertExtensions.assertGreaterThanOrEqual("", 0, expectedClosed);
         context.selector.close();
         Assert.assertEquals("Unexpected number of segments closed.", expectedClosed, context.closedCount.get());
+    }
+
+    private static ByteBuf getKey(int keyId) {
+        return Unpooled.wrappedBuffer(new byte[Integer.BYTES]).setInt(0, keyId);
     }
 
     private static class TestContext implements AutoCloseable {
@@ -126,7 +85,7 @@ public class SegmentSelectorTests {
         final SegmentSelector selector;
         final AtomicInteger closedCount;
 
-        TestContext(int segmentCount, BiConsumer<Segment, TestKeyValueTableSegments> segmentCreated) {
+        TestContext(int segmentCount) {
             this.controller = mock(Controller.class);
             this.segments = new TestKeyValueTableSegments();
             when(this.controller.getCurrentSegmentsForKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName()))
@@ -145,7 +104,7 @@ public class SegmentSelectorTests {
                     return null;
                 }).when(ts).close();
 
-                segmentCreated.accept(s, this.segments);
+                this.segments.byKey.put(getKey((int) s.getSegmentId()), s);
             }
 
             this.selector = new SegmentSelector(KVT, this.controller, this.tsFactory);
@@ -160,7 +119,6 @@ public class SegmentSelectorTests {
 
     @EqualsAndHashCode(callSuper = true)
     private static class TestKeyValueTableSegments extends KeyValueTableSegments {
-        private final HashMap<String, Segment> byKeyFamily = new HashMap<>();
         private final HashMap<ByteBuf, Segment> byKey = new HashMap<>();
 
         public TestKeyValueTableSegments() {
@@ -168,18 +126,13 @@ public class SegmentSelectorTests {
         }
 
         @Override
-        Segment getSegmentForKey(ByteBuf keySerialization) {
-            return this.byKey.get(keySerialization);
-        }
-
-        @Override
-        public Segment getSegmentForKey(String keyFamily) {
-            return this.byKeyFamily.get(keyFamily);
+        Segment getSegmentForKey(ByteBuffer keySerialization) {
+            return this.byKey.get(Unpooled.wrappedBuffer(keySerialization));
         }
 
         @Override
         int getSegmentCount() {
-            return this.byKey.size() + this.byKeyFamily.size();
+            return this.byKey.size();
         }
     }
 }

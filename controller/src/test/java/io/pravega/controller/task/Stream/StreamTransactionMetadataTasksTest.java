@@ -135,7 +135,7 @@ public class StreamTransactionMetadataTasksTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(1, TimeUnit.MINUTES);
 
     boolean authEnabled = false;
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");

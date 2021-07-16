@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -36,6 +37,8 @@ class UpdateablePageCollection extends PageCollection {
     private long incompleteNewPageOffset;
     @GuardedBy("this")
     private final HashSet<Long> deletedPageOffsets;
+    private final AtomicInteger entryCountDelta;
+    private final AtomicInteger pageCountDelta;
 
     //endregion
 
@@ -50,6 +53,8 @@ class UpdateablePageCollection extends PageCollection {
         super(indexLength);
         this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
         this.deletedPageOffsets = new HashSet<>();
+        this.entryCountDelta = new AtomicInteger(0);
+        this.pageCountDelta = new AtomicInteger(0);
     }
 
     //endregion
@@ -69,6 +74,7 @@ class UpdateablePageCollection extends PageCollection {
         Preconditions.checkArgument(this.incompleteNewPageOffset == PagePointer.NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
         if (page.isNewPage()) {
             this.incompleteNewPageOffset = page.getOffset();
+            this.pageCountDelta.incrementAndGet();
         }
 
         return super.insert(page);
@@ -88,6 +94,10 @@ class UpdateablePageCollection extends PageCollection {
 
         this.deletedPageOffsets.add(page.getOffset());
         page.setOffset(PagePointer.NO_OFFSET);
+        this.pageCountDelta.decrementAndGet();
+        if (!page.isIndexPage()) {
+            this.entryCountDelta.addAndGet(page.getEntryCountDelta());
+        }
     }
 
     /**
@@ -108,6 +118,10 @@ class UpdateablePageCollection extends PageCollection {
         this.pageByOffset.remove(page.getOffset());
         page.setOffset(pageOffset);
         this.pageByOffset.put(page.getOffset(), page);
+
+        if (!page.isIndexPage()) {
+            this.entryCountDelta.addAndGet(page.getEntryCountDelta());
+        }
     }
 
     /**
@@ -145,6 +159,7 @@ class UpdateablePageCollection extends PageCollection {
 
     /**
      * Gets a new List containing all the PageWrappers in this PageCollection, ordered by their offset.
+     *
      * @return The List.
      */
     synchronized List<PageWrapper> getPagesSortedByOffset() {
@@ -152,6 +167,14 @@ class UpdateablePageCollection extends PageCollection {
                 .values().stream()
                 .sorted(Comparator.comparingLong(PageWrapper::getOffset))
                 .collect(Collectors.toList());
+    }
+
+    int getEntryCountDelta() {
+        return this.entryCountDelta.get();
+    }
+
+    synchronized int getPageCountDelta() {
+        return this.pageCountDelta.get();
     }
 
     //endregion

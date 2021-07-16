@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -174,20 +175,30 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, 
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit,
                                                                     Executor executor, long requestId) {
         // Pagination not supported for zk based store. 
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId, 
+    public CompletableFuture<Void> addStreamTagsToIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String name, Set<String> tagsRemoved, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId,
                                                          OperationContext context, Executor executor) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName, OperationContext context, 
+    public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName, OperationContext context,
                                                              Executor executor) {
         throw new UnsupportedOperationException();
     }
@@ -196,7 +207,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, OperationContext context, Executor executor) {
         throw new UnsupportedOperationException();
     }
-    
+
     @Override
     public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration,
                                                                 long createTimestamp, OperationContext ctx, Executor executor) {
@@ -222,9 +233,9 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName, 
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName,
                                                                       OperationContext context, Executor executor) {
-        long requestId = getOperationContext(context).getRequestId(); 
+        long requestId = getOperationContext(context).getRequestId();
         return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)), x -> BitConverter.readInt(x, 0))
                           .handleAsync((data, ex) -> {
                               if (ex == null) {
@@ -255,8 +266,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
                               }
                           })
                           .thenCompose(data -> {
-                              log.debug(context.getRequestId(), 
-                                      "Recording last segment {} for stream {}/{} on deletion.", 
+                              log.debug(context.getRequestId(),
+                                      "Recording last segment {} for stream {}/{} on deletion.",
                                       lastActiveSegment, scope, stream);
                               if (data == null) {
                                   return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));

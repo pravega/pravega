@@ -23,6 +23,8 @@ import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.store.SegmentContainerCollection;
@@ -55,10 +57,10 @@ public class TableService extends SegmentContainerCollection implements TableSto
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
         return invokeExtension(segmentName,
-                e -> e.createSegment(segmentName, segmentType, timeout),
-                "createSegment", segmentName, segmentType);
+                e -> e.createSegment(segmentName, segmentType, config, timeout),
+                "createSegment", segmentName, segmentType, config);
     }
 
     @Override
@@ -66,20 +68,6 @@ public class TableService extends SegmentContainerCollection implements TableSto
         return invokeExtension(segmentName,
                 e -> e.deleteSegment(segmentName, mustBeEmpty, timeout),
                 "deleteSegment", segmentName, mustBeEmpty);
-    }
-
-    @Override
-    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        return invokeExtension(targetSegmentName,
-                e -> e.merge(targetSegmentName, sourceSegmentName, timeout),
-                "merge", targetSegmentName, sourceSegmentName);
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        return invokeExtension(segmentName,
-                e -> e.seal(segmentName, timeout),
-                "seal", segmentName);
     }
 
     @Override
@@ -136,6 +124,13 @@ public class TableService extends SegmentContainerCollection implements TableSto
         return invokeExtension(segmentName,
                 e -> e.entryDeltaIterator(segmentName, fromPosition, fetchTimeout),
                 "entryDeltaIterator", segmentName, fromPosition, fetchTimeout);
+    }
+
+    @Override
+    public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.getInfo(segmentName, timeout),
+                "getInfo", segmentName, timeout);
     }
 
     //endregion
