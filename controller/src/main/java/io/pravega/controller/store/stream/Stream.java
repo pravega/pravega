@@ -609,7 +609,7 @@ interface Stream {
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
                                                            OperationContext context,
-                                                           Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks);
+                                                           Map<String, TxnWriterMark> writerMarks);
 
     /**
      * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 

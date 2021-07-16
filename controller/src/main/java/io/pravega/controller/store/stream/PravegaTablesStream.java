@@ -214,7 +214,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
                                                                   OperationContext context,
-                                                                  Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                                  Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // create all transaction entries in committing txn list.

@@ -30,7 +30,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
-import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
+import io.pravega.controller.store.stream.TxnWriterMark;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -164,7 +164,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final String stream,
                                                           final OperationContext context) {
         Timer timer = new Timer();
-        Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks = new HashMap<>();
+        Map<String, TxnWriterMark> writerMarks = new HashMap<>();
         Map<UUID, String> txnIdToWriterId = new HashMap<>();
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
@@ -212,7 +212,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                             if (!writerMarks.containsKey(txn.getWriterId())
                                                     || writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime()) {
                                             writerMarks.put(txn.getWriterId(),
-                                                    new AbstractStreamMetadataStore.TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
+                                                    new TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
                                             }
                                         }
                                     });
@@ -254,7 +254,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
             VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context,
             Map<UUID, String> txnIdToWriterId,
-            Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+            Map<String, TxnWriterMark> writerMarks) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(
@@ -276,7 +276,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                   EpochRecord activeEpoch, 
                                                   VersionedMetadata<CommittingTransactionsRecord> existing,
                                                   OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                  Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                  Map<String, TxnWriterMark> writerMarks) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 
@@ -323,7 +323,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      */
     private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
                                                                       List<Long> segmentIds, OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                                                            Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                                                            Map<String, TxnWriterMark> writerMarks) {
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
@@ -354,7 +354,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     private CompletableFuture<Void> commitTransactions(String scope, String stream, List<Long> segments,
                                                                              List<UUID> transactionsToCommit, OperationContext context,
                                                                              Map<UUID, String> txnIdToWriterId,
-                                                                             Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                                             Map<String, TxnWriterMark> writerMarks) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
         boolean noteTime = writerMarks.size() > 0;
@@ -367,8 +367,8 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     .thenAccept(txnOffsets -> {
                         String writerId = txnIdToWriterId.get(txnId);
                         if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
-                            AbstractStreamMetadataStore.TxnWriterMark mark = writerMarks.get(writerId);
-                            writerMarks.put(writerId, new AbstractStreamMetadataStore.TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
+                            TxnWriterMark mark = writerMarks.get(writerId);
+                            writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
                             }
                         }
             );

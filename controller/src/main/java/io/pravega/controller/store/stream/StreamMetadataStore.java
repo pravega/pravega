@@ -1384,7 +1384,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
                                                        final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor,
-                                                       Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks);
+                                                       Map<String, TxnWriterMark> writerMarks);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

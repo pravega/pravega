@@ -1736,7 +1736,7 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(OperationContext context,
-                                                         Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                         Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         Preconditions.checkArgument(writerMarks != null);
         
@@ -1980,7 +1980,7 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
                                                                   OperationContext context,
-                                                                  Map<String, AbstractStreamMetadataStore.TxnWriterMark> writerMarks) {
+                                                                  Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
