@@ -243,7 +243,7 @@ final class ExecutorServiceFactory {
             return;
         }
 
-        if (!e.isShutdown() || !e.isTerminated()) {
+        if (!e.isShutdown()) {
             log.warn("THREAD POOL LEAK: {} (ShutDown={}, Terminated={}) finalized without being properly shut down.",
                     e.getThreadFactory(), e.isShutdown(), e.isTerminated(), stackTraceEx);
             if (this.detectionLevel == ThreadLeakDetectionLevel.Aggressive) {
