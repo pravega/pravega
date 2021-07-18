@@ -126,7 +126,7 @@ public final class Config {
             "security.tls.enable", false, "auth.tlsEnabled");
 
     public static final Property<String> PROPERTY_TLS_PROTOCOL_VERSION = Property.named(
-            "security.tls.protocolVersion", "");
+            "security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
 
     public static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named(
             "security.tls.server.certificate.location", "", "auth.tlsCertFile");
