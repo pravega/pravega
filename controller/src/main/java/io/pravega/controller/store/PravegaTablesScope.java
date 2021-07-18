@@ -269,20 +269,24 @@ public class PravegaTablesScope implements Scope {
      * @return A future that returns a List of Streams and the token.
      */
     CompletableFuture<Pair<List<String>, String>> getStreamsFromNextTagChunk(String tag, String token, OperationContext context) {
-        return getAllStreamTagsInScopeTableNames(context).thenApply(
-                chunkTableList -> {
-                    if (token.isEmpty()) {
-                        // token is empty, try reading from the first tag table.
-                        return chunkTableList.get(0);
-                    } else {
-                        // return next index
-                        return chunkTableList.get(chunkTableList.indexOf(token) + 1);
+        if (token.contains(LAST_TAG_CHUNK)) {
+            return CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), token));
+        } else {
+            return getAllStreamTagsInScopeTableNames(context).thenApply(
+                    chunkTableList -> {
+                        if (token.isEmpty()) {
+                            // token is empty, try reading from the first tag table.
+                            return chunkTableList.get(0);
+                        } else {
+                            // return next index
+                            return chunkTableList.get(chunkTableList.indexOf(token) + 1);
+                        }
                     }
-                }
-        ).thenCompose(table -> storeHelper.expectingDataNotFound(
-                storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId())
-                           .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), table)),
-                new ImmutablePair<>(Collections.emptyList(), table)));
+            ).thenCompose(table -> storeHelper.expectingDataNotFound(
+                    storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId())
+                               .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), table)),
+                    new ImmutablePair<>(Collections.emptyList(), table)));
+        }
     }
 
     @Override
