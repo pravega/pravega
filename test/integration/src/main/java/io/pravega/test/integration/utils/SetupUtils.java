@@ -44,7 +44,6 @@ import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
-import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -199,7 +198,6 @@ public final class SetupUtils {
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
-
 
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
