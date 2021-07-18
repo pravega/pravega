@@ -118,6 +118,56 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertEquals("data1", eventRead.getEvent());
     }
 
+
+    @Test//(timeout = 30000)
+    public void testReaderOffline_bug() throws Exception {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String scopeName = "test";
+        String streamName = "testReaderOffline";
+        controller.createScope(scopeName).get();
+        controller.createStream(scopeName, streamName, config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                                                                                          .controllerURI(PRAVEGA.getControllerURI())
+                                                                                          .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                                                                           EventWriterConfig.builder().build());
+        writer.writeEvent("0", "data1").get();
+        writer.writeEvent("0", "data2").get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scopeName, controller, clientFactory);
+        String groupName = "testReaderOffline-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                   .stream(scopeName + "/" + streamName).build());
+
+        final ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
+
+        // create a reader
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader-x", groupName, new JavaSerializer<>(),
+                                                                       ReaderConfig.builder().build());
+
+        EventRead<String> eventRead = reader1.readNextEvent(1000);
+        assertEquals("data1", eventRead.getEvent());
+        reader1.close();
+
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader-x", groupName, new JavaSerializer<>(),
+                                                                       ReaderConfig.builder().build());
+
+
+        eventRead = reader2.readNextEvent(10000);
+        assertEquals("data1", eventRead.getEvent());
+
+        eventRead = reader2.readNextEvent(10000);
+        assertEquals("data2", eventRead.getEvent());
+    }
+
     @Test(timeout = 30000)
     public void testDeleteReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
@@ -591,7 +641,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     private StreamConfiguration getStreamConfig() {
         return StreamConfiguration.builder()
-                                  .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                                  .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                   .build();
     }
 
