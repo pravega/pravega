@@ -174,7 +174,7 @@ As mentioned earlier in this section, that an Event is written into one of the S
 
 It is also worth emphasizing that Events are written only on the active Stream
 Segments. Stream Segments that are sealed do not accept writes. In the figure above,
-at time **now**, only Stream **Segments 3**, **6** and **4** are active and the entire key space is covered between those three Stream Segments.  
+at time **now**, only Stream **Segments 3**, **6** and **4** are active and the entire key space is covered between those three Stream Segments.
 
 ### Stream Segments and Reader Groups
 
