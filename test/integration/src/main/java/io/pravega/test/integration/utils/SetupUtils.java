@@ -41,6 +41,7 @@ import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -87,7 +88,7 @@ public final class SetupUtils {
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
-    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
+    private final String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     
     /**
      * Start all pravega related services required for the test deployment.

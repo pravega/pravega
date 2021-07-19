@@ -37,18 +37,11 @@ public class TestUtils {
     private static final int BASE_PORT = 32768;
     private static final int MAX_PORT_COUNT = 28233;
     private static final Random RAND = new Random();
-    private static final String TLS_PROTOCOL_VERSION = "TLSv1.2,TLSv1.3";
 
     // We use a random start position here to avoid ports conflicts when this method is executed from multiple processes
     // in parallel. This is needed since the processes will contend for the same port sequence.
     private static final AtomicInteger NEXT_PORT = new AtomicInteger(RAND.nextInt());
 
-    /**
-     * Helper Method to return tlsProtocolVersion.
-     */
-    public static final String getTlsProtocolVersion() {
-        return TLS_PROTOCOL_VERSION;
-    }
 
     /**
      * A helper method to get a random free TCP port.
