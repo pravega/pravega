@@ -50,12 +50,12 @@ import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
  *  This test is for testing the segment store cli commands.
  */
 public abstract class AbstractSegmentStoreCommandsTest {
-    @Rule
-    public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
-
     // Setup utility.
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+
+    @Rule
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     private ClientConfig clientConfig;
 
