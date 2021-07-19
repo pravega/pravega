@@ -89,6 +89,9 @@ public enum WireCommandType {
     TABLE_SEGMENT_INFO(69, WireCommands.TableSegmentInfo::readFrom),
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
+    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
+    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
+
     UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
     TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
 
@@ -112,6 +115,8 @@ public enum WireCommandType {
     READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
+    MERGE_SEGMENTS_BATCH(90, WireCommands.MergeSegmentsBatch::readFrom),
+    SEGMENTS_MERGED_BATCH(91, WireCommands.SegmentsMergedBatch::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

@@ -26,6 +26,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -39,6 +40,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -72,6 +74,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
+import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -102,7 +105,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -496,6 +502,45 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        final String operation = "mergeSegmentsBatch";
+
+        List<String> sources = mergeSegments.getSources();
+        for (String s : sources) {
+            if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
+                return;
+            }
+        }
+
+        log.info(mergeSegments.getRequestId(), "Merging Segments batch {} ", mergeSegments);
+
+        Futures.allOfWithResults(sources.stream().map(source ->
+                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
+                        source, TIMEOUT), (r, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
+                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
+                                    sources);
+                            return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
+                                               .thenApply(SegmentProperties::getLength);
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        recordStatForTransaction(r, mergeSegments.getTarget());
+                        return CompletableFuture.completedFuture(r.getTargetSegmentLength());
+                    }
+                })).collect(toList()))
+               .thenAccept(mergeResults -> {
+                   connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
+                           mergeSegments.getTarget(),
+                           sources,
+                           mergeResults));
+               })
+               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         final String operation = "sealSegment";
@@ -639,6 +684,37 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
                   })
                   .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
+    }
+
+    @Override
+    public void mergeTableSegments(final MergeTableSegments mergeTableSegments) {
+        final String operation = "mergeTableSegments";
+
+        if (!verifyToken(mergeTableSegments.getSource(), mergeTableSegments.getRequestId(), mergeTableSegments.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(mergeTableSegments.getRequestId(), "Merging table segments {}.", mergeTableSegments);
+        tableStore.merge(mergeTableSegments.getTarget(), mergeTableSegments.getSource(), TIMEOUT)
+                  .thenRun(() -> connection.send(new WireCommands.SegmentsMerged(mergeTableSegments.getRequestId(),
+                                                                                 mergeTableSegments.getTarget(),
+                                                                                 mergeTableSegments.getSource(), -1)))
+                  .exceptionally(e -> handleException(mergeTableSegments.getRequestId(), mergeTableSegments.getSource(), operation, e));
+    }
+
+    @Override
+    public void sealTableSegment(final WireCommands.SealTableSegment sealTableSegment) {
+        String segment = sealTableSegment.getSegment();
+        final String operation = "sealTableSegment";
+
+        if (!verifyToken(segment, sealTableSegment.getRequestId(), sealTableSegment.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(sealTableSegment.getRequestId(), "Sealing table segment {}.", sealTableSegment);
+        tableStore.seal(segment, TIMEOUT)
+                  .thenRun(() -> connection.send(new SegmentSealed(sealTableSegment.getRequestId(), segment)))
+                  .exceptionally(e -> handleException(sealTableSegment.getRequestId(), segment, operation, e));
     }
 
     @Override

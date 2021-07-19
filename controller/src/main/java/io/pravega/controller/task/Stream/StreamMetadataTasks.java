@@ -1948,17 +1948,22 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Map<Long, Long>> notifyTxnCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final UUID txnId, long requestId) {
+    public CompletableFuture<Map<Long, List<Long>>> notifyTxnsCommit(final String scope, final String stream,
+                                                   final List<Long> segments, final List<UUID> txnId, long requestId) {
         Timer timer = new Timer();
         return Futures.allOfWithResults(segments.stream()
-                .collect(Collectors.toMap(x -> x, x -> notifyTxnCommit(scope, stream, x, txnId, requestId))))
-                .whenComplete((r, e) -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
+                .collect(Collectors.toMap(x -> x, x -> notifyTxnsCommit(scope, stream, x, txnId, requestId))))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        Duration elapsed = timer.getElapsed();
+                        TransactionMetrics.getInstance().commitTransactionSegments(elapsed);
+                    }
+                });
     }
 
-    private CompletableFuture<Long> notifyTxnCommit(final String scope, final String stream,
-                                                    final long segmentNumber, final UUID txnId, long requestId) {
-        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
+    private CompletableFuture<List<Long>> notifyTxnsCommit(final String scope, final String stream,
+                                                    final long segmentNumber, final List<UUID> txnId, long requestId) {
+        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransactions(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,

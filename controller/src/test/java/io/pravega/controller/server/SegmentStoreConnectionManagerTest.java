@@ -271,6 +271,11 @@ public class SegmentStoreConnectionManagerTest {
             }
 
             @Override
+            public void segmentsMergedBatch(WireCommands.SegmentsMergedBatch segmentsMerged) {
+
+            }
+
+            @Override
             public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
 
             }

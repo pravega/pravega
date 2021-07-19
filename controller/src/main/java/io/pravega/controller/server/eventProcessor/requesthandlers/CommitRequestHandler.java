@@ -36,6 +36,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import lombok.val;
 import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
@@ -357,27 +358,28 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                                              Map<String, TxnWriterMark> writerMarks) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
+        //Map<UUID, Map<Long, Long>> txnOffsets = new HashMap<>();
         boolean noteTime = writerMarks.size() > 0;
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
-        for (UUID txnId : transactionsToCommit) {
-            log.info(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, stream);
-            // commit transaction in segment store
-            future = future
-                    .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId, context.getRequestId()))
-                    .thenAccept(txnOffsets -> {
-                        String writerId = txnIdToWriterId.get(txnId);
-                        if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
-                            TxnWriterMark mark = writerMarks.get(writerId);
-                            writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
-                            }
-                        }
-            );
-        }
-        return future.thenAcceptAsync(x -> {
+        return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, context.getRequestId())
+        .thenCompose(segmentOffsets -> {
+            for (int i = 0; i < transactionsToCommit.size(); i++) {
+                int index = i;
+                val txnOffsets = segmentOffsets.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().get(index)));
+                val txnId = transactionsToCommit.get(i);
+                String writerId = txnIdToWriterId.get(txnId);
+                if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
+                    TxnWriterMark mark = writerMarks.get(writerId);
+                    writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
+                }
+            }
             if (noteTime) {
-                bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor);
+                return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
+                        stream, executor);
+            } else {
+                return CompletableFuture.completedFuture(null);
             }
         });
+
     }
 
     /**
