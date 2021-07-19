@@ -86,8 +86,8 @@ servers.
 - **Writer:** An application that creates Events and writes them into a Stream.
 All data is written by appending to the tail (front) of a Stream.
 
-- **Reader:** An application that reads Events from a Stream.  Readers can read
-from any point in the Stream.  Many Readers will be reading Events from the tail
+- **Reader:** An application that reads Events from a Stream. Readers can read
+from any point in the Stream. Many Readers will be reading Events from the tail
 of the Stream. Tail reads corresponding to recently written Events are immediately delivered to Readers.
 Some Readers will read from earlier parts of the Stream (called **catch-up reads**). The application developer has control over the Reader's start position in the Stream.
 
