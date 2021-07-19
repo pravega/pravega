@@ -16,15 +16,11 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 
 /**
  * Tracks outstanding data for a single connection and pauses or resumes reading from it as appropriate.
