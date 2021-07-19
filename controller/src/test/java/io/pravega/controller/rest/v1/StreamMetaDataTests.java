@@ -70,6 +70,7 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -763,6 +764,25 @@ public class StreamMetaDataTests {
         assertEquals("List count", 1, streamsListResp.getStreams().size());
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
                 streamsListResp.getStreams().get(0).getStreamName());
+        response.close();
+
+        // Test for tags
+        final StreamConfiguration streamConfigurationForTags = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L))).tag("testTag")
+                .build();
+        List<String> tagStream = new ArrayList<>();
+        tagStream.add("streamForTags");
+        ImmutablePair<List<String>, String> tagPair = new ImmutablePair<>(tagStream, "");
+        ImmutablePair<List<String>, String> emptyPair = new ImmutablePair<>(Collections.emptyList(), "");
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(CompletableFuture.completedFuture(tagPair)).thenReturn(CompletableFuture.completedFuture(emptyPair));
+        when(mockControllerService.getStream(eq("scope1"), eq("streamForTags"), anyLong())).thenReturn(CompletableFuture.completedFuture(streamConfigurationForTags));
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
+        final StreamsList streamsListForTags = response.readEntity(StreamsList.class);
+        assertEquals("List count", streamsListForTags.getStreams().size(), 1);
+        assertEquals("List element", streamsListForTags.getStreams().get(0).getStreamName(), "streamForTags");
         response.close();
 
         // Test to list large number of streams.
