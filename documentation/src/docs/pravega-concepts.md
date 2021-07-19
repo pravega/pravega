@@ -135,7 +135,7 @@ and time.
 
 ![Stream Segment](img/segment.split.merge.overtime.new.png) 
 
-- A Stream starts at time **t0** with a configurable number of Stream Segments.  If the
+- A Stream starts at time **t0** with a configurable number of Stream Segments. If the
 rate of data written to the Stream is constant, there will be no change in the number of Stream Segments. 
 
 - At time **t1**, the system noted an increase in the ingestion rate and splits Stream **Segment 1** into two parts. This process is referred as **Scale-Up** Event.
@@ -144,9 +144,9 @@ rate of data written to the Stream is constant, there will be no change in the n
 space (i.e., values ranging from **200-399**) would be placed in Stream **Segment 1** and those that hash into the
 lower part of the key space (i.e., values ranging from **0-199**) would be placed in Stream **Segment 0**.
 
-- After **t1**, Stream **Segment 1** is split into Stream **Segment 2** and Stream **Segment 3**. The Stream **Segment 1** is sealed and stops accepting writes.  At this point in time, Events with Routing Key **300** and _above_ are written to Stream **Segment 3** and those between **200** and **299** would be written into Stream **Segment 2**.
+- After **t1**, Stream **Segment 1** is split into Stream **Segment 2** and Stream **Segment 3**. The Stream **Segment 1** is sealed and stops accepting writes. At this point in time, Events with Routing Key **300** and _above_ are written to Stream **Segment 3** and those between **200** and **299** would be written into Stream **Segment 2**.
 
-- Stream **Segment 0** continues accepting the same range of Events as before **t1**.  
+- Stream **Segment 0** continues accepting the same range of Events as before **t1**.
 
 - Another scale-up Event occurs at time **t2**, as Stream **Segment 0**’s range of Routing
 Key is split into Stream **Segment 5** and Stream **Segment 4**. Also at this time, Stream **Segment 0** is sealed
