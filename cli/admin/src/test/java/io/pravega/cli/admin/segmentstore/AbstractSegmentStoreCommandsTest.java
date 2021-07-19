@@ -30,7 +30,11 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.Before;
+import org.junit.After;
 import org.junit.rules.Timeout;
 
 import java.util.Arrays;
@@ -51,7 +55,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
-    private static ClientConfig clientConfig;
+    private ClientConfig clientConfig;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);

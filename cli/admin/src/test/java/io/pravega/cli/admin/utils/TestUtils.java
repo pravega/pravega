@@ -39,8 +39,6 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
-import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
-import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import lombok.Cleanup;
@@ -56,7 +54,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Arrays;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -107,7 +110,7 @@ public final class TestUtils {
      */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
         ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder();
-        if(authEnabled) {
+        if (authEnabled) {
             clusterWrapperBuilder
                     .authEnabled(authEnabled);
         }
@@ -134,6 +137,7 @@ public final class TestUtils {
      * @param containerCount the container count.
      * @param authEnabled whether the cli requires authentication to access the cluster.
      * @param tlsEnabled whether the cli requires TLS to access the cluster.
+     * @param accessTokenTtlInSeconds how long the access token will last
      */
     @SneakyThrows
     public static AdminCommandState createAdminCLIConfig(String controllerRestUri, String controllerUri, String zkConnectUri,
