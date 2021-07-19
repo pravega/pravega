@@ -157,12 +157,7 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, segmentType, attributes));
-        CompletableFuture<Void> result;
-        if (segmentType.isTransient()) {
-            result = registerPinnedSegment(segmentName, segmentType, attributes, timeout).thenApply(null);
-        } else {
-            result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
-        }
+        CompletableFuture<Void> result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createSegment", traceId, segmentName));
         }

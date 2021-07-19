@@ -269,6 +269,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         );
         String parentSegment = createTransientSegment.getParentSegment();
         store.createStreamSegment(parentSegment, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT);
+        LoggerHelpers.traceLeave(log, "createTransientSegment", traceId);
     }
 
 
