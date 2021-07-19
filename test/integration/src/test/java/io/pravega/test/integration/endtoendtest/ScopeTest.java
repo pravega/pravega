@@ -28,16 +28,12 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -50,15 +46,12 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
@@ -113,57 +106,6 @@ public class ScopeTest {
         zkTestServer.close();
     }
 
-    @Test
-    public void testListStreamBug() {
-        final String scope = "sc";
-        final String stream1 = "st";
-        final String stream2 = "s2";
-        final String stream3 = "s3";
-        final Set<String> tagSet1 = Set.of("t1", "t2", "t3");
-        final Set<String> tagSet2 = Set.of("t2", "t3", "t4");
-        final Set<String> tagSet3 = Set.of("t3", "t4", "t5");
-        StreamConfiguration cfg = StreamConfiguration.builder()
-                                                     .scalingPolicy(ScalingPolicy.byDataRate(10, 2, 4))
-                                                     .build();
-
-        @Cleanup
-        StreamManager manager = StreamManager.create(URI.create("tcp://localhost:" + this.controllerPort));
-        manager.createScope(scope);
-        for(int i = 0; i < 100; i++) {
-            assertTrue(manager.createStream(scope, stream1 +i, cfg.toBuilder().tags(tagSet1).build()));
-        }
-        ArrayList<Stream> res = newArrayList(manager.listStreams(scope, "t1"));
-        assertEquals(100, res.size());
-        for(int i = 0; i < 100; i++) {
-            assertTrue(manager.updateStream(scope, stream1 +i, cfg.toBuilder().tags(tagSet2).build()));
-        }
-        res = newArrayList(manager.listStreams(scope, "t4"));
-        assertEquals(100, res.size());
-        System.out.println("completed");
-
-
-        ScheduledExecutorService exec = ExecutorServiceHelpers.newScheduledThreadPool(20, "ctrl");
-        ClientConfig ccfg = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + this.controllerPort)).build();
-
-        ControllerImpl ctrl = new ControllerImpl(ControllerImplConfig.builder().clientConfig(ccfg).build(), exec);
-        List<CompletableFuture<Boolean>> rCfs = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            CompletableFuture<Boolean> cf = ctrl.createStream(scope, stream2 + i, cfg.toBuilder().tags(tagSet1).build());
-            rCfs.add(cf);
-        }
-        Futures.allOf(rCfs).join();
-        rCfs = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            CompletableFuture<Boolean> cf = ctrl.updateStream(scope, stream2 + i, cfg.toBuilder().tags(tagSet2).build());
-            rCfs.add(cf);
-        }
-        Futures.allOf(rCfs).join();
-        res = newArrayList(manager.listStreams(scope, "t4"));
-        assertEquals(200, res.size());
-        exec.shutdownNow();
-
-        // fetch tags of a non-existent s
-    }
     @Test(timeout = 30000)
     public void testListStreamForTag() {
         final String scope = "sc";
