@@ -32,7 +32,7 @@ import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
@@ -42,6 +42,7 @@ public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
                                                                  .build();
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Test(timeout = 30000)
     public void testDeletedAndRecreatedStream() throws Exception {
@@ -53,12 +54,11 @@ public class ReadFromDeletedStreamTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         streamManager.createScope("test");

@@ -45,6 +45,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -79,6 +80,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTransactionOrderTest {
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     final StreamConfiguration config = StreamConfiguration.builder()
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
@@ -86,7 +88,6 @@ public class EndToEndTransactionOrderTest {
     final int controllerPort = TestUtils.getAvailableListenPort();
     final String serviceHost = "localhost";
     final int servicePort = TestUtils.getAvailableListenPort();
-    final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
@@ -136,7 +137,7 @@ public class EndToEndTransactionOrderTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
-                true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                true, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper.awaitRunning();

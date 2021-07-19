@@ -39,6 +39,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -78,11 +79,11 @@ import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 @RunWith(SerializedClassRunner.class)
 public class ControllerMetricsTest extends ThreadPooledTestSuite {
 
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
@@ -115,7 +116,7 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

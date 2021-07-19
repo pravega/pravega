@@ -37,6 +37,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -58,6 +59,7 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class RetentionTest {
 
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
     private int controllerPort;
@@ -80,8 +82,7 @@ public class RetentionTest {
         controllerPort = TestUtils.getAvailableListenPort();
         controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
         int servicePort = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

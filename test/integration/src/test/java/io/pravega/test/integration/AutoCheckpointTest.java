@@ -32,6 +32,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.mock;
 public class AutoCheckpointTest {
 
     private static final long NANOS_PER_SECOND = 1000000000;
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Test(timeout = 30000)
     public void testCheckpointsOccur() throws ReinitializationRequiredException, DurableDataLogException {
@@ -51,7 +53,6 @@ public class AutoCheckpointTest {
         String readerName = "reader";
         String readerGroup = "group";
         int port = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup
@@ -60,7 +61,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -105,7 +106,6 @@ public class AutoCheckpointTest {
         String streamName = "abc";
         String readerGroup = "group";
         int port = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup
@@ -114,7 +114,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

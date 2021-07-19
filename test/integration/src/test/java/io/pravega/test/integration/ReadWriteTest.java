@@ -44,6 +44,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -75,6 +76,7 @@ public class ReadWriteTest {
     private static final int NUM_READERS = 20;
     private static final int NUM_EVENTS_BY_WRITER = 500;
     private static final long TOTAL_NUM_EVENTS = NUM_WRITERS * NUM_EVENTS_BY_WRITER;
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
     private AtomicBoolean stopReadFlag;
@@ -93,7 +95,6 @@ public class ReadWriteTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
-        final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         final int containerCount = 4;
 
         // 1. Start ZK
@@ -105,7 +106,7 @@ public class ReadWriteTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         this.server.startListening();
 
         // 3. Start Pravega Controller service

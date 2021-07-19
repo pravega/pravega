@@ -38,6 +38,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -69,11 +70,11 @@ public class StreamSeekTest extends ThreadPooledTestSuite {
     private static final String SCOPE = "testScope";
     private static final String STREAM1 = "testStreamSeek1";
     private static final String STREAM2 = "testStreamSeek2";
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final int containerCount = 4;
     private final Serializer<String> serializer = new JavaSerializer<>();
     private final Random random = RandomFactory.create();
@@ -98,7 +99,7 @@ public class StreamSeekTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

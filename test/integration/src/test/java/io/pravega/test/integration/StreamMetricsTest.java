@@ -46,6 +46,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -75,6 +76,7 @@ import static org.junit.Assert.fail;
 @RunWith(SerializedClassRunner.class)
 public class StreamMetricsTest {
 
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     private TestingServer zkTestServer = null;
@@ -92,7 +94,6 @@ public class StreamMetricsTest {
         controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
-        final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         final int containerCount = 4;
 
         // 1. Start Metrics service
@@ -121,7 +122,7 @@ public class StreamMetricsTest {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         this.server.startListening();
 
         // 4. Start Pravega Controller service

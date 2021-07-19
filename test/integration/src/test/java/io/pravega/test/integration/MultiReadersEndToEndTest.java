@@ -37,6 +37,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.integration.utils.IntegerSerializer;
 import io.pravega.test.integration.utils.SetupUtils;
@@ -67,6 +68,9 @@ public class MultiReadersEndToEndTest {
 
     // The number of events to generate for each test.
     private static final int NUM_TEST_EVENTS = 1000;
+
+    //Default TLS protocol version
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -193,7 +197,6 @@ public class MultiReadersEndToEndTest {
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         int servicePort = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -201,7 +204,7 @@ public class MultiReadersEndToEndTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);

@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import io.pravega.test.common.SecurityConfigDefaults;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,6 +57,7 @@ import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
 
 public class AppendReconnectTest extends LeakDetectorTestSuite {
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
@@ -74,7 +76,6 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     public void reconnectOnSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
-        String tlsProtocol = TestUtils.getTlsProtocolVersion();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";
@@ -82,7 +83,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocol);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         @Cleanup
@@ -118,7 +119,6 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     public void reconnectThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";
@@ -126,7 +126,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         @Cleanup

@@ -32,6 +32,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -43,6 +44,7 @@ public class ReaderGroupTest {
     private static final String SCOPE = "scope";
     private static final String STREAM_NAME = "streamName";
     private static final String READER_GROUP = "ExampleReaderGroup";
+    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Data
     private static class ReaderThread implements Runnable {
@@ -77,7 +79,6 @@ public class ReaderGroupTest {
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
         int servicePort = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -85,7 +86,7 @@ public class ReaderGroupTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         @Cleanup
@@ -125,7 +126,6 @@ public class ReaderGroupTest {
     public void testMultiSegmentsPerReader() throws Exception {
         String endpoint = "localhost";
         int servicePort = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -134,7 +134,7 @@ public class ReaderGroupTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
         server.startListening();
 
         @Cleanup
