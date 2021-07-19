@@ -81,8 +81,6 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
-import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
