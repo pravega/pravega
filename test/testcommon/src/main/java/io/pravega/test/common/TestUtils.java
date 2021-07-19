@@ -42,7 +42,6 @@ public class TestUtils {
     // in parallel. This is needed since the processes will contend for the same port sequence.
     private static final AtomicInteger NEXT_PORT = new AtomicInteger(RAND.nextInt());
 
-
     /**
      * A helper method to get a random free TCP port.
      *
