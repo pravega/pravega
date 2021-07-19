@@ -220,7 +220,7 @@ This results in the following ordering guarantees:
 ## Reader Group Checkpoints
 
 Pravega provides the ability for an application to initiate a **Checkpoint** on a
-Reader Group.  The idea with a Checkpoint is to create a consistent "point in
+Reader Group. The idea with a Checkpoint is to create a consistent "point in
 time" persistence of the state of each Reader in the Reader Group, by using a
 specialized Event (_Checkpoint Event_) to signal each Reader to preserve its
 state. Once a Checkpoint has been completed, the application can use the
