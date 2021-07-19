@@ -518,11 +518,7 @@ public class SystemJournal {
                 shouldSave = false;
             }
             if (shouldSave) {
-                return writeSnapshotInfo(lastSavedSystemSnapshotId.get())
-                        .thenRunAsync(() -> {
-                            garbageCollector.addToGarbage(pendingGarbageChunks);
-                            pendingGarbageChunks.clear();
-                        }, executor);
+                return writeSnapshotInfo(lastSavedSystemSnapshotId.get());
             }
         }
 
@@ -548,6 +544,8 @@ public class SystemJournal {
                                     val oldSnapshotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, oldSnapshotInfo.getSnapshotId());
                                     pendingGarbageChunks.add(oldSnapshotFile);
                                 }
+                                garbageCollector.addToGarbage(pendingGarbageChunks);
+                                pendingGarbageChunks.clear();
                             }, executor)
                             .exceptionally(e -> {
                                 log.error("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
@@ -1280,6 +1278,8 @@ public class SystemJournal {
                                 attempt.incrementAndGet();
                                 if (e != null) {
                                     lastException.set(Exceptions.unwrap(e));
+                                    // Add failed file as garbage.
+                                    pendingGarbageChunks.add(snapshotFile);
                                     return null;
                                 } else {
                                     return v;
