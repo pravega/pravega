@@ -159,7 +159,7 @@ accommodate a decrease in the load on the Stream.
 When a Stream is created, it is configured with a **Scaling Policy** that
 determines how a Stream handles the varying changes in its load. Pravega has three kinds of Scaling Policy:
 
-1.  **Fixed**:  The number of Stream Segments does not vary with load.
+1.  **Fixed**: The number of Stream Segments does not vary with load.
 
 2.  **Data-based**: Pravega splits a Stream Segment into multiple ones (i.e., Scale-up Event) if the number of bytes per second written to that Stream Segment increases beyond a defined threshold. Similarly, Pravega merges two adjacent Stream Segments (i.e., Scale-down Event) if the number of bytes written to them fall below a defined threshold. Note that, even if the load for a Stream Segment reaches the defined threshold, Pravega does not immediately trigger a Scale-up/down Event. Instead, the load should be satisfying the scaling policy threshold for a [sufficient amount of time](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java).
 
