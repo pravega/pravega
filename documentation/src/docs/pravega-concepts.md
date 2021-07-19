@@ -291,14 +291,14 @@ The following figure depicts the components deployed by Pravega:
 ![pravega high level architecture](img/pravega.arch.new.png)
 
 Pravega is deployed as a distributed system – a cluster of servers and storage
-coordinated to run Pravega called a **Pravega cluster**.  
+coordinated to run Pravega called a **Pravega cluster**.
 
 Pravega presents a software-defined storage (SDS) architecture formed by **Controller** instances
 (_control plane_) and Pravega Servers (_data plane_). The set of Pravega Servers is collectively known as the **Segment Store**. 
 
 The set of Controller instances together forms the control plane of Pravega, providing
 functionality to _create, update_ and _delete_ Streams. Further, it extends the functionality to retrieve information about the Streams, monitor the health of the Pravega cluster, gather metrics, etc.  There
-are usually multiple (recommended at least 3) Controller instances running in a running in a cluster for high availability.  
+are usually multiple (recommended at least 3) Controller instances running in a running in a cluster for high availability.
 
 The [Segment Store](segment-store-service.md) implements the Pravega data plane.
 Pravega Servers provide the API to read and write data in Streams. Data storage is comprised of two tiers:
@@ -310,7 +310,7 @@ Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster.
 Storage tiering allows Pravega to achieve a sweet spot in the latency vs throughput trade-off. This makes Pravega an ideal storage substrate for serving data to both real-time and batch (analytics) applications. Moreover, as data in Tier 1 Storage ages, it is automatically moved into Tier 2 Storage. Thus, Pravega can store vasts amounts of Stream data and applications can read it at any time, while being oblivious to its actual location.
 
 Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
-coordination mechanism for the components in the Pravega cluster.  
+coordination mechanism for the components in the Pravega cluster.
 
 Pravega is a distributed storage system providing the Stream primitive first and foremost. Pravega is
 carefully designed to take advantage of software-defined storage, so that the
