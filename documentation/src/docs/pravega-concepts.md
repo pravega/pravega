@@ -265,7 +265,7 @@ mechanism for state shared between multiple processes running in a cluster and m
 
 State Synchronizer could be used to maintain a single, shared copy of an
 application's configuration property across all instances of that application in
-a cloud.  State Synchronizer could also be used to store one piece of data or a
+a cloud. State Synchronizer could also be used to store one piece of data or a
 map with thousands of different key value pairs. In Pravega, managing the state of Reader Groups and distribution of Readers throughout the network is implemented using State Synchronizer.
 
 An application developer creates a State Synchronizer on a Stream similar to the creation of a Writer. The State Synchronizer keeps a local copy of the shared state and allows faster access to the data for the application. State Synchronizer keeps track of all the changes happening in the shared state and it is responsible for performing any modification to the shared state in the Stream. Each application instance uses the State Synchronizer, to remain updated with the
