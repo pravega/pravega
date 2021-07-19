@@ -355,30 +355,30 @@ The concepts in Pravega are depicted in the following figure:
 ## A Note on Tiered Storage
 
 To deliver an efficient implementation of Streams, Pravega is based on a tiered
-storage model.  Events are persisted in low latency/high IOPS storage (Tier 1
+storage model. Events are persisted in low latency/high IOPS storage (Tier 1
 Storage, write-ahead log) and higher throughput Tier 2 storage (e.g., file system, object store). Writers and Readers are oblivious to the tiered storage model from an API perspective. 
 
-In Pravega, Tier 1 is based on an append-only **Log** data structure.  As Leigh Stewart
+In Pravega, Tier 1 is based on an append-only **Log** data structure. As Leigh Stewart
 [observed](https://blog.twitter.com/2015/building-distributedlog-twitter-s-high-performance-replicated-log-service),
 there are really three data access mechanisms in a Log:
 
 ![State synchroner](img/anatomy.of.log.png) 
 
 All of the write activity, and much of the read activity happens at the tail of
-the log.  Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real-time access to the published data by Readers.
+the log. Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real-time access to the published data by Readers.
 
 Please note that not all Readers read from the tail of the log. Some Readers read
-by starting at some arbitrary position in the log.  These reads are known as
-**catch-up reads**.  Access to historical data traditionally was done by batch
-analytics jobs, often using HDFS and Map/Reduce.  However with new streaming
+by starting at some arbitrary position in the log. These reads are known as
+**catch-up reads**. Access to historical data traditionally was done by batch
+analytics jobs, often using HDFS and Map/Reduce. However with new streaming
 applications, we can access historical data as well as current data by just
-accessing the log.  One approach would be to store all the historical data in
+accessing the log. One approach would be to store all the historical data in
 SSDs similar to tail data operations, but that leads to an expensive task and force
 customers to economize by deleting historical data.
 
 Pravega offers a mechanism that allows customers to use cost-effective, highly-scalable, high-throughput
 storage for the historical part of the log, that way they won’t have to decide on
-when to delete historical data.  Basically, if storage is cheap enough, why not
+when to delete historical data. Basically, if storage is cheap enough, why not
 keep all of the history?
 
 Tier 1 Storage aids in faster writes to the Streams by assuring durability and makes reading from the tail of a Stream much quicker. Tier 1 Storage is based on the open source Apache BookKeeper Project. Though not essential, we presume that the Tier 1 Storage will be typically implemented on faster SSDs or
