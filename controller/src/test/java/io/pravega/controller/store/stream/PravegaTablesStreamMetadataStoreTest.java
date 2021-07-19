@@ -520,8 +520,6 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                 e -> Exceptions.unwrap(e).equals(unknown));
     }
 
-
-    
     @Test
     public void testDeleteScopeWithEntries() {
         PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
