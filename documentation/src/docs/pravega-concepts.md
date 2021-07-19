@@ -79,7 +79,7 @@ machine). A Routing Key is important in defining the read and write semantics th
 ![Reader Client](img/producer.consumer.client.new.png)
 
 Pravega provides a client library, written in Java, that implements a convenient
-API for Writer and Reader applications.  The Pravega Java Client Library
+API for Writer and Reader applications. The Pravega Java Client Library
 encapsulates the Wire Protocol used to communicate Pravega clients and
 servers.
 
