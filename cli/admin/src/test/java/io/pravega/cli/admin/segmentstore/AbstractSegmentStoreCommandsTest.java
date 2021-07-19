@@ -51,11 +51,11 @@ import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
  */
 public abstract class AbstractSegmentStoreCommandsTest {
 
+    private ClientConfig clientConfig;
+
     // Setup utility.
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
-
-    private ClientConfig clientConfig;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
