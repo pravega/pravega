@@ -329,27 +329,26 @@ The concepts in Pravega are depicted in the following figure:
 
 ![State synchroner](img/putting.all.together.new.png) 
 
--   Pravega clients are Writers and Readers.  Writers write Events into a
+-   Pravega clients are Writers and Readers. Writers write Events into a
     Stream. Readers read Events from a Stream. Readers are grouped into
     Reader Groups to read from a Stream in parallel.
 
 -   The Controller is a server-side component that manages the control plane of
-    Pravega.  Streams are created, updated and listed using the Controller API.
+    Pravega. Streams are created, updated and listed using the Controller API.
 
 -   The Pravega Server is a server-side component that implements reads, writes
     and other data plane operations.
 
--   Streams are the fundamental storage primitive in Pravega.  Streams contain a
-    set of data elements called Events.  Events are appended to the “tail” of
-    the Stream by Writers.  Readers can read Events from anywhere in the Stream.
+-   Streams are the fundamental storage primitive in Pravega. Streams contain a
+    set of data elements called Events. Events are appended to the “tail” of
+    the Stream by Writers. Readers can read Events from anywhere in the Stream.
 
 -   A Stream is partitioned into a set of Stream Segments. The number of Stream
-    Segments in a Stream can change over time.  Events are written into exactly
-    one of the Stream Segments based on Routing Key.  For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
+    Segments in a Stream can change over time. Events are written into exactly
+    one of the Stream Segments based on Routing Key. For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
     Reader Group. 
 
--   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. 
-    The tail of the Stream Segment is stored in Tier 1 providing low latency reads and
+-   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. The tail of the Stream Segment is stored in Tier 1 providing low latency reads and
     writes. The rest of the Stream Segment is stored in Tier 2, providing high
     throughput read access with horizontal scalability and low cost. 
 
