@@ -100,7 +100,7 @@ Reader is created through the Pravega data plane API, the developer includes the
 name of the Reader Group associated with it. Pravega guarantees that each Event published
 to a Stream is sent to exactly one Reader within the Reader Group. There could
 be one or more Readers in the Reader Group and there could be many different Reader Groups simultaneously reading from any given Stream. A Reader Group can be considered as a "composite Reader" or "distributed Reader", that allows a distributed application to read and process Stream data
-in parallel. A large amount of Stream data can be consumed by a coordinated group of Readers in a Reader Group.  For example, a collection of Flink tasks processing Stream data in parallel using Reader Group.
+in parallel. A large amount of Stream data can be consumed by a coordinated group of Readers in a Reader Group. For example, a collection of Flink tasks processing Stream data in parallel using Reader Group.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
 Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
