@@ -212,6 +212,8 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
      * returns {@code null} if this queue is empty. 
      * 
      * Unlike {@code poll}, this method returns the elements who's scheduled time has not yet arrived.
+     * 
+     * (Items added concurrently may or may not be observed)
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
@@ -254,6 +256,7 @@ public class ScheduledQueue<E extends Scheduled> extends AbstractQueue<E> implem
 
     /**
      * Returns an array containing all of the elements in this queue.
+     * (Items added concurrently may or may not be included)
      *
      * @param a the array into which the elements of the queue are to
      *          be stored, if it is big enough; otherwise, a new array of the
