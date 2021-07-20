@@ -82,6 +82,21 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        getNextRequestProcessor().mergeSegmentsBatch(mergeSegments);
+    }
+
+    @Override
+    public void mergeTableSegments(WireCommands.MergeTableSegments tableSegments) {
+        getNextRequestProcessor().mergeTableSegments(tableSegments);
+    }
+
+    @Override
+    public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
+        getNextRequestProcessor().sealTableSegment(sealTableSegment);
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
         getNextRequestProcessor().sealSegment(sealSegment);
     }
