@@ -114,7 +114,7 @@ public class ControllerImplLBTest {
     }
 
     @After
-    public void tearDown() throws IOException {
+    public void tearDown() {
         testRPCServer1.shutdownNow();
         testRPCServer2.shutdownNow();
         testRPCServer3.shutdownNow();

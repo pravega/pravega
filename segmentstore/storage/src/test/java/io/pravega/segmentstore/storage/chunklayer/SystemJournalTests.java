@@ -22,14 +22,13 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 import lombok.Cleanup;
@@ -45,18 +44,20 @@ import org.junit.rules.Timeout;
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
  */
 public class SystemJournalTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(60);
+
     private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    public Timeout globalTimeout = Timeout.seconds(60);
 
+    @Override
     @Before
     public void before() throws Exception {
         super.before();
         InMemorySnapshotInfoStore.clear();
     }
 
+    @Override
     @After
     public void after() throws Exception {
         super.after();
@@ -1426,16 +1427,19 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      * Tests {@link SystemJournal}  with non Appendable {@link ChunkStorage} using {@link SystemJournalTests}.
      */
     public static class NonAppendableChunkStorageSystemJournalTests extends SystemJournalTests {
+        @Override
         @Before
         public void before() throws Exception {
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             super.after();
         }
 
+        @Override
         protected ChunkStorage getChunkStorage() throws Exception {
             val chunkStorage = new InMemoryChunkStorage(executorService());
             chunkStorage.setShouldSupportAppend(false);

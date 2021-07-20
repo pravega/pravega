@@ -35,6 +35,7 @@ import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.List;
+import lombok.Cleanup;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,7 +76,7 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
         when(fileSystemWrapper.exists(any())).thenReturn(true);
         when(fileSystemWrapper.isRegularFile(any())).thenReturn(false);
-
+        @Cleanup
         FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
         AssertExtensions.assertFutureThrows(
                 " openRead should throw ChunkStorageException.",
@@ -99,6 +100,7 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         when(fileSystemWrapper.createDirectories(any())).thenThrow(new IOException("Random"));
         doThrow(new IOException("Random")).when(fileSystemWrapper).delete(any());
 
+        @Cleanup
         FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
         AssertExtensions.assertThrows(
                 " doDelete should throw ChunkStorageException.",
@@ -169,6 +171,7 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         when(fileSystemWrapper.getFileChannel(any(), any())).thenReturn(channel);
         when(fileSystemWrapper.getFileSize(any())).thenReturn(2L * bufferSize);
 
+        @Cleanup
         FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
 
         ChunkHandle handle = ChunkHandle.readHandle(chunkName);

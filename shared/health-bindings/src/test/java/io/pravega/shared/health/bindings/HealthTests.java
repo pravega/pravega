@@ -60,7 +60,7 @@ public class HealthTests {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private  HealthServiceManager healthServiceManager;
+    private HealthServiceManager healthServiceManager;
 
     @Before
     public void setup() throws Exception {
@@ -328,6 +328,7 @@ public class HealthTests {
             super(name);
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
             Map<String, Object> details = new HashMap<>();
@@ -347,6 +348,7 @@ public class HealthTests {
             super("static-contributor-indicator");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.DOWN;
             Map<String, Object> details = new HashMap<>();

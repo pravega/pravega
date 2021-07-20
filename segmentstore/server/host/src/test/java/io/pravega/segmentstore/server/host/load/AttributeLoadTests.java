@@ -337,7 +337,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
     }
 
     private long getValue(int batchId, int indexInBatch, int batchSize) {
-        return (long) (batchId * batchSize + indexInBatch);
+        return batchId * batchSize + indexInBatch;
     }
 
     private double calculateExcessPercentage(long actualDataSize, long theoreticalDataSize) {
