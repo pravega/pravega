@@ -23,7 +23,6 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
@@ -72,7 +71,7 @@ final class ExecutorServiceFactory {
 
         // In all of the below, the ThreadFactory is created in this class, and its toString() returns the pool name.
         if (this.detectionLevel == ThreadLeakDetectionLevel.None) {
-            this.createScheduledExecutor = (size, factory) -> new ThreadPoolScheduledExecutorService(size, factory, new AbortPolicy());
+            this.createScheduledExecutor = (size, factory) -> new ThreadPoolScheduledExecutorService(size, factory);
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) ->
                     new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
                             new LinkedBlockingQueue<>(), factory, new CallerRuns(factory.toString()));
@@ -80,7 +79,7 @@ final class ExecutorServiceFactory {
             // Light and Aggressive need a special executor that overrides the finalize() method.
             this.createScheduledExecutor = (size, factory) -> {
                 logNewThreadPoolCreated(factory.toString());
-                return new LeakDetectorScheduledExecutorService(size, factory, new AbortPolicy());
+                return new LeakDetectorScheduledExecutorService(size, factory);
             };
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) -> {
                 logNewThreadPoolCreated(factory.toString());
@@ -208,8 +207,8 @@ final class ExecutorServiceFactory {
     private class LeakDetectorScheduledExecutorService extends ThreadPoolScheduledExecutorService {
         private final Exception stackTraceEx;
 
-        LeakDetectorScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-            super(corePoolSize, threadFactory, handler);
+        LeakDetectorScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory) {
+            super(corePoolSize, threadFactory);
             this.stackTraceEx = new Exception();
         }
 

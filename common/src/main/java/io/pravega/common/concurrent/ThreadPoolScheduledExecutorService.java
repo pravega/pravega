@@ -26,11 +26,11 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,8 +66,11 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
 
     /**
      * Creates a fixed size thread pool (Similar to ScheduledThreadPoolExecutor).
+     * 
+     * @param corePoolSize The number of threads in the pool
+     * @param threadFactory The factory used to create the threads.
      */
-    public ThreadPoolScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
+    public ThreadPoolScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory) {
         this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
         // While this cast looks invalid, it is ok because runner is private and will only
         // be given ScheduledRunnable which by definition implement runnable.
@@ -79,7 +82,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                                         MILLISECONDS,
                                         queue,
                                         threadFactory,
-                                        handler);
+                                        new AbortPolicy());
         runner.prestartAllCoreThreads();
     }
 

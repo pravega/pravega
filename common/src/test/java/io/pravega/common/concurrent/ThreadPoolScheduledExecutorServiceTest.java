@@ -25,7 +25,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
@@ -42,8 +41,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
 
     private static ThreadPoolScheduledExecutorService createPool(int threads) {
         return new ThreadPoolScheduledExecutorService(threads,
-                ExecutorServiceHelpers.getThreadFactory("ThreadPoolScheduledExecutorServiceTest"),
-                new AbortPolicy());
+                ExecutorServiceHelpers.getThreadFactory("ThreadPoolScheduledExecutorServiceTest"));
     }   
     
     @Test(timeout = 10000)
