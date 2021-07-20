@@ -22,6 +22,9 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -42,13 +45,14 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
     }
 
     @Override
-    public void execute() throws ExecutionException, InterruptedException, TimeoutException {
-        ensureArgCount(4);
+    public void execute() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+        ensureArgCount(5);
 
         final String fullyQualifiedSegmentName = getArg(0);
         final int offset = getIntArg(1);
         final int length = getIntArg(2);
         final String segmentStoreHost = getArg(3);
+        final String fileName = getArg(4);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -56,15 +60,28 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
                 offset, length, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
         WireCommands.SegmentRead segmentRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        output("ReadSegment: %s", segmentRead.toString());
-        output("SegmentRead content: %s", segmentRead.getData().toString(StandardCharsets.UTF_8));
+
+        File f = new File(fileName);
+        // Creating the file if it doesn't exist.
+        if (!f.exists()) {
+            if (!f.getParentFile().exists()) {
+                f.getParentFile().mkdirs();
+            }
+            f.createNewFile();
+        }
+
+        // Write data into the file.
+        @Cleanup
+        FileOutputStream fileStream = new FileOutputStream(f);
+        fileStream.write(segmentRead.getData().array());
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "read-segment", "Read a range from a given Segment.",
+        return new CommandDescriptor(COMPONENT, "read-segment", "Read a range from a given Segment into given file.",
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."),
                 new ArgDescriptor("offset", "Starting point of the read request within the target Segment."),
                 new ArgDescriptor("length", "Number of bytes to read."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
+                new ArgDescriptor("file-name", "Name of the file to write the contents into."));
     }
 }
