@@ -65,6 +65,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         super(1);
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
@@ -100,6 +101,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setOut(new PrintStream(outContent));
     }
 
+    @Override
     @After
     public void tearDown() {
         System.setOut(originalOut);
@@ -191,7 +193,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.unwrapDataCorruptionException(new DataCorruptionException("test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
-        command.unwrapDataCorruptionException(new DataCorruptionException("test", null));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", (DataCorruptionException) null));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));

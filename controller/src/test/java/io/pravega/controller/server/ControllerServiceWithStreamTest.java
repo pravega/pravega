@@ -104,7 +104,7 @@ public abstract class ControllerServiceWithStreamTest {
     private static final String STREAM = "stream";
     private static final String STREAM1 = "stream1";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 

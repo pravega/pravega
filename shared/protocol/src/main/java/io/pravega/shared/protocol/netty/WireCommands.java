@@ -1720,9 +1720,9 @@ public final class WireCommands {
             }
 
             private final int code;
-            private final Class exception;
+            private final Class<? extends Throwable> exception;
 
-            private ErrorCode(int code, Class exception) {
+            private ErrorCode(int code, Class<? extends Exception> exception) {
                 this.code = code;
                 this.exception = exception;
             }
@@ -1731,7 +1731,7 @@ public final class WireCommands {
                 return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.UNSPECIFIED);
             }
 
-            public static ErrorCode valueOf(Class exception) {
+            public static ErrorCode valueOf(Class<? extends Throwable> exception) {
                 return OBJECTS_BY_CLASS.getOrDefault(exception, ErrorCode.UNSPECIFIED);
             }
 
@@ -1739,7 +1739,7 @@ public final class WireCommands {
                 return this.code;
             }
 
-            public Class getExceptionType() {
+            public Class<? extends Throwable> getExceptionType() {
                 return this.exception;
             }
 

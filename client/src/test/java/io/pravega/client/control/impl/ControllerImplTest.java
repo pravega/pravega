@@ -1495,7 +1495,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testRetries() throws IOException, ExecutionException, InterruptedException {
+    public void testRetries() throws ExecutionException, InterruptedException {
 
         // Verify retries exhausted error after multiple attempts.
         @Cleanup

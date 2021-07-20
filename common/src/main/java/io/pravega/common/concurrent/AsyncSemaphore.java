@@ -49,7 +49,7 @@ public class AsyncSemaphore implements AutoCloseable {
     @GuardedBy("queue")
     private long usedCredits;
     @GuardedBy("queue")
-    private final ArrayDeque<PendingTask> queue;
+    private final ArrayDeque<PendingTask<?>> queue;
     @GuardedBy("queue")
     private boolean closed;
 
@@ -80,7 +80,7 @@ public class AsyncSemaphore implements AutoCloseable {
 
     @Override
     public void close() {
-        List<PendingTask> toCancel = null;
+        List<PendingTask<?>> toCancel = null;
         synchronized (this.queue) {
             if (!this.closed) {
                 toCancel = new ArrayList<>(this.queue);

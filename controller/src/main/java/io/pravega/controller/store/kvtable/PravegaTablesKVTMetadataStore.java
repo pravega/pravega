@@ -82,6 +82,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                 executor);
     }
 
+    @Override
     CompletableFuture<Void> recordLastKVTableSegment(final String scope, final String kvtable, int lastActiveSegment,
                                                      OperationContext ctx, final Executor executor) {
         OperationContext context = getOperationContext(ctx);

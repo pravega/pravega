@@ -43,7 +43,7 @@ import static org.junit.Assert.assertEquals;
 public class ZkGarbageCollectorTest extends ThreadPooledTestSuite {
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkServer;
     private CuratorFramework cli;
 
