@@ -40,18 +40,15 @@ import static org.junit.Assert.assertTrue;
 
 public class ThreadPoolScheduledExecutorServiceTest {
 
-    private static ThreadPoolScheduledExecutorService createPool(int min, int max) {
-        return new ThreadPoolScheduledExecutorService(min,
-                max,
-                100,
+    private static ThreadPoolScheduledExecutorService createPool(int threads) {
+        return new ThreadPoolScheduledExecutorService(threads,
                 ExecutorServiceHelpers.getThreadFactory("ThreadPoolScheduledExecutorServiceTest"),
                 new AbortPolicy());
-    }
-    
+    }   
     
     @Test(timeout = 10000)
     public void testRunsTask() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         CompletableFuture<Integer> result = new CompletableFuture<Integer>();
         Future<Boolean> future = pool.submit(() -> result.complete(5));
         assertEquals(Integer.valueOf(5), result.get(5, SECONDS));
@@ -62,7 +59,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testRunsDelayTask() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         CompletableFuture<Long> result = new CompletableFuture<Long>();
         long startTime = System.nanoTime();
         Future<Boolean> future = pool.schedule(() -> result.complete(System.nanoTime()), 100, MILLISECONDS);
@@ -75,7 +72,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testCancelsDelayTask() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         ScheduledFuture<Integer> future = pool.schedule(() -> count.incrementAndGet(), 100, SECONDS);
         assertTrue(future.cancel(false));
@@ -88,7 +85,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testSpawnsOptionalThreads() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(3, 3);
+        ThreadPoolScheduledExecutorService pool = createPool(3);
         AtomicInteger count = new AtomicInteger(0);
         CyclicBarrier barrior = new CyclicBarrier(4);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -125,7 +122,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testRunsDelayLoop() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         long startTime = System.nanoTime();
         ScheduledFuture<?> future = pool.scheduleWithFixedDelay(() -> {
@@ -145,7 +142,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testRunsRateLoop() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         long startTime = System.nanoTime();
         ScheduledFuture<?> future = pool.scheduleAtFixedRate(() -> {
@@ -164,7 +161,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testShutdown() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -192,7 +189,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testShutdownNow() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -223,7 +220,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testCancel() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
         ScheduledFuture<Integer> future = pool.schedule(() -> count.incrementAndGet(), 20, SECONDS);
         assertTrue(future.cancel(false));
@@ -235,7 +232,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testCancelRecurring() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicInteger count = new AtomicInteger(0);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -262,7 +259,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testShutdownWithRecurring() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicInteger count = new AtomicInteger(0);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -288,7 +285,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
     
     @Test(timeout = 10000)
     public void testDelays() throws Exception {
-        ThreadPoolScheduledExecutorService pool = createPool(1, 1);
+        ThreadPoolScheduledExecutorService pool = createPool(1);
         ScheduledFuture<?> f20 = pool.schedule(() -> { }, 20, SECONDS);
         ScheduledFuture<?> f30 = pool.schedule(() -> { }, 30, SECONDS);
         assertTrue(f20.getDelay(SECONDS) <= 20);

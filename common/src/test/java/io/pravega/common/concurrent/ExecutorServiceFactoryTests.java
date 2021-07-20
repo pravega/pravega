@@ -16,6 +16,7 @@
 package io.pravega.common.concurrent;
 
 import io.pravega.test.common.IntentionalException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import lombok.Cleanup;
@@ -71,7 +72,7 @@ public class ExecutorServiceFactoryTests {
         testLeaks(factory -> factory.newShrinkingExecutor(1, 1, "test"));
     }
 
-    private void testLeaks(Function<ExecutorServiceFactory, ThreadPoolScheduledExecutorService> newExecutor) {
+    private void testLeaks(Function<ExecutorServiceFactory, ExecutorService> newExecutor) {
         for (val level : ExecutorServiceFactory.ThreadLeakDetectionLevel.values()) {
             val invoked = new AtomicBoolean(false);
             Runnable callback = () -> invoked.set(true);
