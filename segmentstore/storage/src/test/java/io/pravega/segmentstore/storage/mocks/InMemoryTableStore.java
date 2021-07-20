@@ -94,6 +94,18 @@ public class InMemoryTableStore implements TableStore {
     }
 
     @Override
+    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
+        //TODO: complete implementation for this method
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
+        //TODO: complete implementation for this method
+        return null;
+    }
+
+    @Override
     public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return CompletableFuture.supplyAsync(() -> getTableData(segmentName).put(entries), this.executor);
