@@ -63,12 +63,12 @@ public class ReadResultMock extends StreamSegmentReadResult implements ReadResul
     //region ReadResult Implementation
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return this.consumedLength < getMaxResultLength();
     }
 
     @Override
-    public ReadResultEntry next() {
+    public synchronized ReadResultEntry next() {
         if (!hasNext()) {
             return null;
         }

@@ -33,6 +33,6 @@ public class ControllerServiceWithPravegaTablesKVTableTest extends ControllerSer
     @Override
     KVTableMetadataStore getKVTStore() {
         return KVTableStoreFactory.createPravegaTablesStore(segmentHelperMock,
-                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
+                GrpcAuthHelper.getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 }

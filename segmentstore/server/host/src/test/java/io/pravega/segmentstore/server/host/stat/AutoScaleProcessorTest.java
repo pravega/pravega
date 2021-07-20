@@ -188,7 +188,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 result4.complete(null);
             }
         });
-
+        @Cleanup
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
@@ -389,6 +389,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         HashMap<String, Pair<Long, Long>> map = new HashMap<>();
         HashMap<String, Long> lastAccessedTime = new HashMap<>();
         List<String> evicted = new ArrayList<>();
+        @SuppressWarnings("unchecked")
         SimpleCache<String, Pair<Long, Long>> simpleCache = mock(SimpleCache.class);
         AtomicLong clock = new AtomicLong(0L);
         Function<Void, Void> cleanup = m -> {

@@ -56,6 +56,7 @@ public class SegmentStoreConnectionManagerTest {
         connectionCounter = new AtomicInteger();
     }
 
+    @SuppressWarnings("resource")
     @Test(timeout = 30000)
     public void connectionTest() {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);

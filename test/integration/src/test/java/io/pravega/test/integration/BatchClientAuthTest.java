@@ -156,6 +156,7 @@ public class BatchClientAuthTest extends BatchClientTest {
     }
 
     private static File createAuthFile() {
+        @SuppressWarnings("resource")
         PasswordAuthHandlerInput result = new PasswordAuthHandlerInput("BatchClientAuth", ".txt");
 
         StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();

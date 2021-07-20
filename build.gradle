@@ -187,7 +187,6 @@ def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
 project('shared:authplugin') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        testCompile project(":shared:security")
     }
 
     tasks.withType(JavaCompile) {
@@ -321,6 +320,7 @@ project ('shared:rest') {
         testCompile project(':test:testcommon')
         testCompile project(":shared:authplugin").sourceSets.test.output
         testCompile "io.grpc:grpc-netty:" + grpcVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 }
 

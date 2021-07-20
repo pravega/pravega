@@ -204,6 +204,7 @@ public final class TestUtils {
         ClientConfig clientConfig = ClientConfig.builder().build();
         @Cleanup
         ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @SuppressWarnings("resource") //Don't close the controller.
         StreamManager streamManager = new StreamManagerImpl(controller, cp);
         //create scope
         Boolean createScopeStatus = streamManager.createScope(scopeName);
