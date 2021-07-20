@@ -164,7 +164,6 @@ public class ConnectionTrackerTests {
 
         @Override
         public void close() {
-            throw new UnsupportedOperationException();
         }
 
         @Override
