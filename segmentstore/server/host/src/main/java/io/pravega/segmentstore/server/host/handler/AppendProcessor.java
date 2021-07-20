@@ -60,6 +60,8 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
+import io.pravega.shared.protocol.netty.WireCommands.TransientSegmentCreated;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -260,14 +262,24 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
     @Override
     public void createTransientSegment(CreateTransientSegment createTransientSegment) {
-        long traceId = LoggerHelpers.traceEnter(log, "createTransientSegment", createTransientSegment);
+        String operation = "createTransientSegment";
+        long traceId = LoggerHelpers.traceEnter(log, operation, createTransientSegment);
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.TRANSIENT_SEGMENT.getValue())
         );
-        String parentSegment = createTransientSegment.getParentSegment();
-        store.createStreamSegment(parentSegment, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT);
-        LoggerHelpers.traceLeave(log, "createTransientSegment", traceId);
+        String transientSegmentName = NameUtils.getTransientNameFromId(createTransientSegment.getParentSegment(), UUID.randomUUID());
+        store.createStreamSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT)
+                .thenAccept(v -> {
+                    connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
+                })
+                .exceptionally(e -> handleException(createTransientSegment.getWriterId(),
+                        createTransientSegment.getRequestId(),
+                        transientSegmentName,
+                        operation,
+                        e));
+
+        LoggerHelpers.traceLeave(log, operation, traceId);
     }
 
 
@@ -367,11 +379,11 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         }
     }
 
-    private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
-        handleException(writerId, requestId, segment, -1L, doingWhat, u);
+    private Void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
+        return handleException(writerId, requestId, segment, -1L, doingWhat, u);
     }
 
-    private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
+    private Void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error(requestId, "Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
@@ -417,6 +429,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
             logError(segment, u);
             connection.close(this::close); // Closing connection should reinitialize things, and hopefully fix the problem
         }
+
+        return null;
     }
 
     private void logError(String segment, Throwable u) {

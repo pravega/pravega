@@ -199,4 +199,22 @@ public class NameUtilsTest {
     public void testGetEventProcessorSegmentName() {
         Assert.assertEquals(NameUtils.getEventProcessorSegmentName(0, "test"), "_system/containers/event_processor_test_0");
     }
+
+    @Test
+    public void testIsTransientSegment() {
+        Assert.assertTrue(NameUtils.isTransientSegment("scope/stream/transientSegment#transient.01234567890123456789012345678901"));
+        Assert.assertFalse(NameUtils.isTransientSegment("scope/stream/transientSegment"));
+        Assert.assertTrue(NameUtils.isTransientSegment("#transient.01234567890123456789012345678901"));
+        Assert.assertFalse(NameUtils.isTransientSegment("#transient"));
+    }
+
+    @Test
+    public void testTransientSegmentName() {
+        UUID uuid = UUID.fromString("00000065-0000-000a-0000-000000000064");
+        Assert.assertEquals(String.format("scope/stream/parentSegment#transient.%s", uuid.toString().replace("-", "")),
+                NameUtils.getTransientNameFromId("scope/stream/parentSegment", uuid));
+
+    }
+
+
 }

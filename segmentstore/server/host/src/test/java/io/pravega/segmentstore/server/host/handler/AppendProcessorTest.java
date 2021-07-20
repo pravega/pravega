@@ -37,6 +37,11 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -55,10 +60,12 @@ import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
 import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.time.Instant;
@@ -159,6 +166,33 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
         assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
+    }
+
+    @Test
+    public void testCreateTransientSegment() throws Exception {
+
+        String parentSegmentName = "scope/stream/parentSegment";
+        UUID writerId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(new TrackedConnection(connection, tracker))
+                .statsRecorder(mockedRecorder)
+                .build();
+
+        CreateTransientSegment createTransientSegment = new CreateTransientSegment(1, writerId, parentSegmentName, "");
+        processor.createTransientSegment(createTransientSegment);
+
+        verify(connection).send(new WireCommands.TransientSegmentCreated(1, any()));
+
+        verifyNoMoreInteractions(connection);
     }
 
     @Test
@@ -1012,6 +1046,23 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
+    }
+
+
+    private static ServiceBuilderConfig getBuilderConfig() {
+        return ServiceBuilderConfig
+                .builder()
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.THREAD_POOL_SIZE, 3)
+                        .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
+                .build();
+    }
+
+    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+        return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
+                .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
+                        setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
 
     private <T> CompletableFuture<T> delayedResponse(T value) {

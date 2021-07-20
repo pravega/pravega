@@ -83,7 +83,6 @@ public class TrackedConnection implements AutoCloseable {
         Callbacks.invokeSafely(callback, ex -> log.error("Unable to run callback on TrackedConnection close.", ex));
     }
 
-
     @Override
     public String toString() {
         return String.format("%s [%s/%s]", this.connection, this.outstandingBytes, this.connectionTracker.getTotalOutstanding());
