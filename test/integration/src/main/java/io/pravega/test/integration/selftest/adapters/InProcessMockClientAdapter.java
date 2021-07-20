@@ -375,6 +375,18 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
+            //TODO: complete implementation for this method
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
+            //TODO: complete implementation for this method
+            return null;
+        }
+
+        @Override
         public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout) {
             return put(segmentName, entries, WireCommands.NULL_TABLE_SEGMENT_OFFSET, timeout);
         }
