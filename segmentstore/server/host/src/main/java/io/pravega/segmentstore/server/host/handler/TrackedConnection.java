@@ -16,16 +16,21 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.function.RunnableWithException;
 import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.common.function.Callbacks;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Tracks outstanding data for a single connection and pauses or resumes reading from it as appropriate.
  */
 @RequiredArgsConstructor
+@Slf4j
 public class TrackedConnection implements AutoCloseable {
     /**
      * The {@link ServerConnection} to manage.
@@ -73,9 +78,9 @@ public class TrackedConnection implements AutoCloseable {
         this.connection.close();
     }
 
-    public void close(Runnable callback) {
+    public void close(RunnableWithException callback) {
         this.close();
-        callback.run();
+        Callbacks.invokeSafely(callback, ex -> log.error("Unable to run callback on TrackedConnection close.", ex));
     }
 
 
