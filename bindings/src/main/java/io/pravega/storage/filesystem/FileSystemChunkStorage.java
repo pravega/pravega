@@ -197,16 +197,6 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset)
             throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
         Path path = getFilePath(handle.getChunkName());
-        try {
-            long fileSize = fileSystem.getFileSize(path);
-            if (fileSize < fromOffset) {
-                throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
-                        "current size of chunk (%d).", fromOffset, fileSize));
-            }
-        } catch (IOException e) {
-            throw convertException(handle.getChunkName(), "doRead", e);
-        }
-
         try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.READ)) {
             int totalBytesRead = 0;
             long readOffset = fromOffset;
@@ -221,6 +211,9 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             return totalBytesRead;
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doRead", e);
+        } catch (IndexOutOfBoundsException e) {
+            throw new IllegalArgumentException(String.format("doRead - %s - Reading at offset (%d) which is beyond the " +
+                    "current size of chunk.", handle.getChunkName(), fromOffset), e);
         }
     }
 
