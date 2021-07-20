@@ -59,6 +59,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
      */
     @Override
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
+        Preconditions.checkNotNull(queueName, "queueName");
         val config = new ContainerEventProcessor.EventProcessorConfig(chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency(),
                 Long.MAX_VALUE );
         val f =  ignoreProcessing ?
@@ -75,6 +76,8 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
      */
     @Override
     public CompletableFuture<Void> addTask(String queueName, GarbageCollector.TaskInfo task) {
+        Preconditions.checkNotNull(queueName, "queueName");
+        Preconditions.checkNotNull(task, "task");
         try {
             val processor = eventProcessorMap.get(queueName);
             if (null != processor) {
@@ -91,13 +94,14 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     }
 
     CompletableFuture<Void> processEvents(List<BufferView> events) {
+        Preconditions.checkNotNull(events, "events");
         log.debug("{}: processEvents called with {} events", traceObjectId, events.size());
         ArrayList<GarbageCollector.TaskInfo> batch = new ArrayList<>();
         for (val event : events) {
             try {
                 batch.add(serializer.deserialize(event));
             } catch (IOException e) {
-                log.error("{}: processEvents failed.", traceObjectId, e);
+                log.error("{}: processEvents failed while deserializing batch.", traceObjectId, e);
                 return CompletableFuture.failedFuture(e);
             }
         }
