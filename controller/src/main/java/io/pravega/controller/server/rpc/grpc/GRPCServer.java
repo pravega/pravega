@@ -33,6 +33,7 @@ import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.net.ssl.SSLException;
@@ -76,16 +77,19 @@ public class GRPCServer extends AbstractIdleService {
         }
 
         if (serverConfig.isTlsEnabled() && !Strings.isNullOrEmpty(serverConfig.getTlsCertFile())) {
-            try {
-                builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
-                        new File(serverConfig.getTlsKeyFile()));
-                SslContext ctx = GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile())).protocols(serverConfig.getTlsProtocolVersion().split(",")).build();
-                ((NettyServerBuilder) builder).sslContext(ctx);
-            } catch (SSLException ex) {
-                throw new RuntimeException(ex);
-            }
+            builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
+                    new File(serverConfig.getTlsKeyFile()));
+            SslContext ctx = getSSLContext(serverConfig);
+            ((NettyServerBuilder) builder).sslContext(ctx);
         }
         this.server = builder.build();
+    }
+
+    @SneakyThrows(SSLException.class)
+    private SslContext getSSLContext(GRPCServerConfig serverConfig) {
+        return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
+                .protocols(serverConfig.getTlsProtocolVersion().split(","))
+                .build();
     }
 
     /**
