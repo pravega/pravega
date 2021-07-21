@@ -30,7 +30,6 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +47,6 @@ import static org.mockito.Mockito.mock;
 public class StateSynchronizerTest extends LeakDetectorTestSuite {
 
     private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -92,7 +90,7 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -147,7 +145,7 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -175,7 +173,7 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);

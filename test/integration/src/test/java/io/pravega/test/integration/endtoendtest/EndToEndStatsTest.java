@@ -61,7 +61,6 @@ import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 @Slf4j
 public class EndToEndStatsTest {
 
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
@@ -85,7 +84,7 @@ public class EndToEndStatsTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 statsRecorder, TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

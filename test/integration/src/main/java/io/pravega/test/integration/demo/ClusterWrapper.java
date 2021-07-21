@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
@@ -124,7 +125,7 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     @Builder.Default
-    private String tlsProtocolVersion = "TLSv1.2,TLSv1.3";
+    private String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Builder.Default
     private boolean controllerRestEnabled = false;

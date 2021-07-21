@@ -54,6 +54,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.NoOpScheduledExecutor;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -79,7 +80,6 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
 
     private static final String LISTENING_ADDRESS = "localhost";
-    private static final String TLS_PROTOCOL_VERSION = "TLSv1.2,TLSv1.3";
     private final ScheduledExecutorService executor;
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
@@ -111,7 +111,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION);
+                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

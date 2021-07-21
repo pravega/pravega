@@ -56,10 +56,9 @@ public class EndToEndTransactionTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int port = Config.SERVICE_PORT;
-        String tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION;
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store,
-                serviceBuilder.createTableStoreService(), serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                serviceBuilder.createTableStoreService(), serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         Thread.sleep(1000);

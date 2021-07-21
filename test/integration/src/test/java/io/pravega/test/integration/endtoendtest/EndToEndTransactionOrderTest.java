@@ -80,7 +80,6 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTransactionOrderTest {
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     final StreamConfiguration config = StreamConfiguration.builder()
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
@@ -137,7 +136,7 @@ public class EndToEndTransactionOrderTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
-                true, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                true, serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper.awaitRunning();

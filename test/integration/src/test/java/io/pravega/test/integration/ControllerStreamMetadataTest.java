@@ -30,7 +30,6 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -51,7 +50,6 @@ import static org.junit.Assert.assertTrue;
 public class ControllerStreamMetadataTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
@@ -76,7 +74,7 @@ public class ControllerStreamMetadataTest {
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             TableStore tableStore = serviceBuilder.createTableStoreService();
 
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
 
             // 3. Start controller

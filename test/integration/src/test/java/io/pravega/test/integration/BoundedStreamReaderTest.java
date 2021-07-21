@@ -30,7 +30,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import io.pravega.test.common.SecurityConfigDefaults;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -79,7 +78,6 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
     private static final String STREAM1 = "testStream1";
     private static final String STREAM2 = "testStream2";
     private static final String STREAM3 = "testStream3";
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private final String serviceHost = "localhost";
@@ -109,7 +107,7 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

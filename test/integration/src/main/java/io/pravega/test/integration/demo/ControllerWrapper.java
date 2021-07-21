@@ -44,6 +44,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Builder;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -113,7 +114,7 @@ public class ControllerWrapper implements AutoCloseable {
                              int accessTokenTtlInSeconds) {
         this (connectionString, disableEventProcessor, disableControllerCluster, controllerPort, serviceHost,
                 servicePort, containerCount, restPort, enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
-                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "TLSv1.2,TLSv1.3", "", "", "", "");
+                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, SecurityConfigDefaults.TLS_PROTOCOL_VERSION, "", "", "", "");
     }
 
     @Builder

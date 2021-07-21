@@ -80,7 +80,6 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -163,9 +162,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
             .build();
-
-    // Default TLS protocol version
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
@@ -299,7 +295,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             this.tableStore = this.serviceBuilder.createTableStoreService();
             this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                    this.serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
         }
 

@@ -42,7 +42,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
@@ -77,7 +76,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     // Setup utility.
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
@@ -355,7 +353,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             this.tableStore = this.serviceBuilder.createTableStoreService();
             this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                    this.serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
         }
 

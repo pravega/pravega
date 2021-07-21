@@ -35,7 +35,6 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -68,7 +67,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
             .secondaryKeyLength(Integer.BYTES)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
     private PravegaConnectionListener serverListener = null;
@@ -95,7 +93,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         serviceBuilder.initialize();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService(), TLS_PROTOCOL_VERSION);
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService());
         this.serverListener.startListening();
 
         // 3. Start Pravega Controller service

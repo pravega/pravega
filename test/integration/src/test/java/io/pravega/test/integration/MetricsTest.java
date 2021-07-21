@@ -82,7 +82,6 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
     private static final String STREAM_NAME = "testMetricsStream" + new Random().nextInt(Integer.MAX_VALUE);
     private static final long TOTAL_NUM_EVENTS = 10;
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final String scope = "testMetricsScope";
     private final String readerGroupName = "testMetricsReaderGroup";
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
@@ -134,7 +133,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.server.startListening();
 
         // 4. Start Pravega Controller service

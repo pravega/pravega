@@ -42,7 +42,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -73,7 +72,6 @@ public class ScopeTest {
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
@@ -88,7 +86,7 @@ public class ScopeTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

@@ -79,6 +79,12 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                 null, true, tokenExpiryExecutor, tlsProtocolVersion);
     }
 
+    @VisibleForTesting
+    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
+                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
+        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, "TLSv1.2,TLSv1.3");
+    }
+
     /**
      * Creates a new instance of the PravegaConnectionListener class.
      *

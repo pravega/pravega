@@ -70,7 +70,6 @@ import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.NoOpScheduledExecutor;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -105,7 +104,6 @@ public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
     private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
     public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
@@ -210,7 +208,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -260,7 +258,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -307,7 +305,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -343,7 +341,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -396,7 +394,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

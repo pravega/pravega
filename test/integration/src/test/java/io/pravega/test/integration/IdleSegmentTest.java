@@ -35,7 +35,6 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -50,7 +49,6 @@ import static org.junit.Assert.assertEquals;
 
 public class IdleSegmentTest {
 
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private ServiceBuilder serviceBuilder;
 
     @Before
@@ -79,7 +77,7 @@ public class IdleSegmentTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

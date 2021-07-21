@@ -88,8 +88,7 @@ public final class SetupUtils {
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
-    private final String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
-    
+
     /**
      * Start all pravega related services required for the test deployment.
      *
@@ -125,12 +124,12 @@ public final class SetupUtils {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
         log.info("Started Pravega Service");
 
         this.adminListener = new AdminConnectionListener(false, false, "localhost", adminPort,
-                store, tableStore, new PassingTokenVerifier(), null, null, tlsProtocolVersion);
+                store, tableStore, new PassingTokenVerifier(), null, null, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.adminListener.startListening();
         log.info("AdminConnectionListener started successfully.");
 

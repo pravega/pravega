@@ -42,7 +42,6 @@ public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
                                                                  .build();
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Test(timeout = 30000)
     public void testDeletedAndRecreatedStream() throws Exception {
@@ -58,7 +57,7 @@ public class ReadFromDeletedStreamTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         streamManager.createScope("test");

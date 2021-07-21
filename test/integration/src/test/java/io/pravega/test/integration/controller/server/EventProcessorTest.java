@@ -56,7 +56,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -194,10 +193,9 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
-        String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
         tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
 

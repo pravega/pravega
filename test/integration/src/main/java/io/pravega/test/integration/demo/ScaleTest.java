@@ -60,10 +60,9 @@ public class ScaleTest {
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             TableStore tableStore = serviceBuilder.createTableStoreService();
             int port = Config.SERVICE_PORT;
-            String tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION;
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                    serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+                    serviceBuilder.getLowPriorityExecutor());
             server.startListening();
 
             // Create controller object for testing against a separate controller report.

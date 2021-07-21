@@ -40,7 +40,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -61,7 +60,6 @@ import static org.junit.Assert.assertTrue;
  */
 public class ControllerWatermarkingTest {
 
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
 
@@ -85,7 +83,7 @@ public class ControllerWatermarkingTest {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         // 2. Start controller
