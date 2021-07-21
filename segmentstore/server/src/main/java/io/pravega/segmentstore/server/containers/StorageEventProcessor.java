@@ -33,17 +33,31 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Implementation of {@link AbstractTaskQueueManager} that uses {@link io.pravega.segmentstore.server.ContainerEventProcessor.EventProcessor}
+ * as underlying implementation.
+ * This class acts as adaptor that converts calls on {@link io.pravega.segmentstore.server.ContainerEventProcessor.EventProcessor}
+ * into appropriate calls on {@link AbstractTaskQueueManager} and vice versa.
+ */
 @Slf4j
 public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCollector.TaskInfo> {
+
+    private final static GarbageCollector.TaskInfo.Serializer SERIALIZER = new GarbageCollector.TaskInfo.Serializer();
+
     private final int containerID;
     private final ContainerEventProcessor eventProcessor;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final GarbageCollector.TaskInfo.Serializer serializer = new GarbageCollector.TaskInfo.Serializer();
+
     private final String traceObjectId;
     @Getter
     private final ConcurrentHashMap<String, ContainerEventProcessor.EventProcessor> eventProcessorMap = new ConcurrentHashMap<>();
 
-
+    /**
+     * Constructor.
+     * @param containerID Container id.
+     * @param eventProcessor Instance of {@link ContainerEventProcessor} to use.
+     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage} to use.
+     */
     public StorageEventProcessor(int containerID, ContainerEventProcessor eventProcessor, ChunkedSegmentStorage chunkedSegmentStorage) {
         this.containerID = containerID;
         this.eventProcessor = Preconditions.checkNotNull(eventProcessor, "eventProcessor");
@@ -61,11 +75,11 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
         Preconditions.checkNotNull(queueName, "queueName");
         val config = new ContainerEventProcessor.EventProcessorConfig(chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency(),
-                Long.MAX_VALUE );
-        val f =  ignoreProcessing ?
+                Long.MAX_VALUE);
+        val f = ignoreProcessing ?
                 eventProcessor.forDurableQueue(queueName) :
-                eventProcessor.forConsumer(queueName,  this::processEvents, config);
-        return f.thenAccept( processor -> eventProcessorMap.put(queueName, processor));
+                eventProcessor.forConsumer(queueName, this::processEvents, config);
+        return f.thenAccept(processor -> eventProcessorMap.put(queueName, processor));
     }
 
     /**
@@ -80,26 +94,38 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
         Preconditions.checkNotNull(task, "task");
         try {
             val processor = eventProcessorMap.get(queueName);
-            if (null != processor) {
-                return Futures.toVoid(processor.add(serializer.serialize(task), Duration.ofMillis(1000)));
-            }
+            Preconditions.checkArgument(null != processor, "Attempt to add to non existent queue (%s).", queueName);
+            return Futures.toVoid(processor.add(SERIALIZER.serialize(task), Duration.ofMillis(1000)));
         } catch (Throwable e) {
             return CompletableFuture.failedFuture(e);
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void close() throws Exception {
+        for (val entry : eventProcessorMap.entrySet()) {
+            try {
+                entry.getValue().close();
+            } catch (Exception e) {
+                log.error("{}: Error while closing event processor name={}.", traceObjectId, entry.getKey(), e);
+            }
+        }
     }
 
+    /**
+     * Callback invoked by {@link io.pravega.segmentstore.server.ContainerEventProcessor.EventProcessor} when one or more
+     * events have been read from the internal Segment.
+     * @param events List of events to process.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     *         If the operation failed, it will contain the cause of the failure.
+     */
     CompletableFuture<Void> processEvents(List<BufferView> events) {
         Preconditions.checkNotNull(events, "events");
         log.debug("{}: processEvents called with {} events", traceObjectId, events.size());
         ArrayList<GarbageCollector.TaskInfo> batch = new ArrayList<>();
         for (val event : events) {
             try {
-                batch.add(serializer.deserialize(event));
+                batch.add(SERIALIZER.deserialize(event));
             } catch (IOException e) {
                 log.error("{}: processEvents failed while deserializing batch.", traceObjectId, e);
                 return CompletableFuture.failedFuture(e);

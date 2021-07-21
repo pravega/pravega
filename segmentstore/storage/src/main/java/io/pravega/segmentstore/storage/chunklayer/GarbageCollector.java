@@ -205,7 +205,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * @param startTime Start time.
      * @param attempts Number of attempts to delete this chunk so far.
      */
-    CompletableFuture<Void>  addChunkToGarbage(long transactionId, String chunkToDelete, long startTime, int attempts) {
+    CompletableFuture<Void> addChunkToGarbage(long transactionId, String chunkToDelete, long startTime, int attempts) {
         if (null != taskQueue) {
             return taskQueue.addTask(taskQueueName, new TaskInfo(chunkToDelete, startTime, attempts, TaskInfo.DELETE_CHUNK, transactionId))
                     .thenRunAsync(() -> {
@@ -228,7 +228,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return CompletableFuture.completedFuture(null);
     }
 
-    CompletableFuture<Void>  addSegmentToGarbage(TaskInfo taskInfo) {
+    CompletableFuture<Void> addSegmentToGarbage(TaskInfo taskInfo) {
         if (null != taskQueue) {
             return taskQueue.addTask(taskQueueName, taskInfo)
                     .thenRunAsync(() -> {
@@ -326,6 +326,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         }
     }
 
+    /**
+     * Process a batch of tasks.
+     * @param batch List of {@link TaskInfo} to process.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     *         If the operation failed, it will contain the cause of the failure.
+     */
     public CompletableFuture<Void> processBatch(List<TaskInfo> batch) {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (val infoToDelete : batch) {
@@ -397,10 +403,10 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
             return deleteChunk(infoToDelete);
         }
         if (infoToDelete.taskType == TaskInfo.DELETE_SEGMENT) {
-            return  deleteSegment(infoToDelete);
+            return deleteSegment(infoToDelete);
         }
         if (infoToDelete.taskType == TaskInfo.DELETE_JOURNAL) {
-            return  CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(null);
         }
         return null;
     }
@@ -457,7 +463,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                         return CompletableFuture.completedFuture(null);
                     }
                 }, storageExecutor)
-                .thenComposeAsync( v -> {
+                .thenComposeAsync(v -> {
                     if (failed.get() != null) {
                         if (infoToDelete.getAttempts() < config.getGarbageCollectionMaxAttempts()) {
                             log.debug("{}: deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);

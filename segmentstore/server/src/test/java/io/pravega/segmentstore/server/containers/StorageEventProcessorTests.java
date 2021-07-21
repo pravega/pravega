@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.containers;
 
 
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
@@ -45,12 +46,12 @@ public class StorageEventProcessorTests  extends ThreadPooledTestSuite {
     @Test
     public void testInvalidArgs() throws Exception {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
-        val storage = new ChunkedSegmentStorage(CONTAINER_ID,
+        @Cleanup val storage = new ChunkedSegmentStorage(CONTAINER_ID,
                 new InMemoryChunkStorage(executorService()),
                 new InMemoryMetadataStore(config, executorService()),
                 executorService(),
                 config);
-        val mockEventProcessor = mock(ContainerEventProcessor.class);
+        @Cleanup val mockEventProcessor = mock(ContainerEventProcessor.class);
         AssertExtensions.assertThrows("Should not allow null eventProcessor",
                 () -> {
                     @Cleanup val x = new StorageEventProcessor(CONTAINER_ID, null, storage);
@@ -73,7 +74,7 @@ public class StorageEventProcessorTests  extends ThreadPooledTestSuite {
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("Should not allow null queueName",
                 () -> {
-                    x.addTask(null, GarbageCollector.TaskInfo.builder().build());
+                    x.addTask(null, GarbageCollector.TaskInfo.builder().name("test").build());
                 },
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("Should not allow null task",
@@ -81,19 +82,22 @@ public class StorageEventProcessorTests  extends ThreadPooledTestSuite {
                     x.addTask("test", null);
                 },
                 ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertFutureThrows("Should not allow null task",
+                x.addTask("nonExistent", GarbageCollector.TaskInfo.builder().name("test").build()),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testForConsumerRegistration() throws Exception {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
-        val storage = new ChunkedSegmentStorage(CONTAINER_ID,
+        @Cleanup val storage = new ChunkedSegmentStorage(CONTAINER_ID,
                 new InMemoryChunkStorage(executorService()),
                 new InMemoryMetadataStore(config, executorService()),
                 executorService(),
                 config);
         storage.initialize(CONTAINER_ID);
-        val mockContainerEventProcessor = mock(ContainerEventProcessor.class);
-        val mockEventProcessor = mock(ContainerEventProcessor.EventProcessor.class);
+        @Cleanup val mockContainerEventProcessor = mock(ContainerEventProcessor.class);
+        @Cleanup val mockEventProcessor = mock(ContainerEventProcessor.EventProcessor.class);
         doReturn(CompletableFuture.completedFuture(mockEventProcessor)).when(mockContainerEventProcessor).forConsumer(eq("test"), any(), any());
         doReturn(CompletableFuture.completedFuture(111L)).when(mockEventProcessor).add(any(), any());
         @Cleanup val x = new StorageEventProcessor(CONTAINER_ID, mockContainerEventProcessor, storage);
@@ -125,25 +129,25 @@ public class StorageEventProcessorTests  extends ThreadPooledTestSuite {
         x.processEvents(data1).join();
 
         // Invalid data
-        val data2 = new ArrayList();
+        val data2 = new ArrayList<BufferView>();
         data2.add(new ByteArraySegment(new byte[0]));
 
         AssertExtensions.assertFutureThrows( "should throw parsing error",
-        x.processEvents(data2),
-                ex -> ex instanceof EOFException);
+            x.processEvents(data2),
+            ex -> ex instanceof EOFException);
     }
 
     @Test
     public void testDurableQueueRegistration() throws Exception {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
-        val storage = new ChunkedSegmentStorage(CONTAINER_ID,
+        @Cleanup val storage = new ChunkedSegmentStorage(CONTAINER_ID,
                 new InMemoryChunkStorage(executorService()),
                 new InMemoryMetadataStore(config, executorService()),
                 executorService(),
                 config);
 
-        val mockContainerEventProcessor = mock(ContainerEventProcessor.class);
-        val mockEventProcessor = mock(ContainerEventProcessor.EventProcessor.class);
+        @Cleanup val mockContainerEventProcessor = mock(ContainerEventProcessor.class);
+        @Cleanup val mockEventProcessor = mock(ContainerEventProcessor.EventProcessor.class);
         doReturn(CompletableFuture.completedFuture(mockEventProcessor)).when(mockContainerEventProcessor).forDurableQueue(eq("durable"));
         doReturn(CompletableFuture.completedFuture(222L)).when(mockEventProcessor).add(any(), any());
         @Cleanup val x = new StorageEventProcessor(CONTAINER_ID, mockContainerEventProcessor, storage);
@@ -158,7 +162,6 @@ public class StorageEventProcessorTests  extends ThreadPooledTestSuite {
                 .scheduledTime(3)
                 .build());
         verify(mockEventProcessor, times(1)).add(any(), any());
-
     }
 }
 
