@@ -20,23 +20,20 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NonNull;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NonNull;
+import lombok.SneakyThrows;
 
 /**
  * This is data class for storing stream cuts (starting and ending) related to a ReaderGroup.
  */
 @Data
-@Slf4j
 public class RGStreamCutRecord {
     public static final RGStreamCutRecordSerializer SERIALIZER = new RGStreamCutRecordSerializer();
     /**

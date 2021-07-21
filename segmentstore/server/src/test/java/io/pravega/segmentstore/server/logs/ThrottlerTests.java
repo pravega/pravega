@@ -250,7 +250,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // the duration supplied.
         AssertExtensions.assertLessThanOrEqual(
                 "Throttler should be at most the first supplied delay",
-                (int) suppliedDelays.get(0),
+                suppliedDelays.get(0),
                 (int) getThrottlerMetric(calculator.getName())
         );
     }

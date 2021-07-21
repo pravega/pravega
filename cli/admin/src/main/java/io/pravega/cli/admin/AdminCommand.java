@@ -176,6 +176,7 @@ public abstract class AdminCommand {
 
     protected boolean confirmContinue() {
         output("Do you want to continue?[yes|no]");
+        @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         String input = s.nextLine();
         return input.equals("yes");

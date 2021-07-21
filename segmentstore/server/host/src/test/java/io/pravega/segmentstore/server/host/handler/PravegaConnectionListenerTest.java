@@ -53,6 +53,7 @@ public class PravegaConnectionListenerTest {
     private String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     @Test
     public void testCtorSetsTlsReloadFalseByDefault() {
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, 6222,
                 mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get(), tlsProtocolVersion);
         assertFalse(listener.isEnableTlsReload());
@@ -60,6 +61,7 @@ public class PravegaConnectionListenerTest {
 
     @Test
     public void testCtorSetsTlsReloadFalseIfTlsIsDisabled() {
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, true,
                 "localhost", 6222, mock(StreamSegmentStore.class), mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
@@ -83,7 +85,7 @@ public class PravegaConnectionListenerTest {
     public void testUsesEventWatcherForNonSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
-
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
                 "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
@@ -102,7 +104,7 @@ public class PravegaConnectionListenerTest {
     public void testUsesPollingMonitorForSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
-
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
                 "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
@@ -121,7 +123,7 @@ public class PravegaConnectionListenerTest {
     public void testPrepareCertificateMonitorThrowsExceptionWithNonExistentFile() {
         String pathToCertificateFile = SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
-
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
                 "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
@@ -146,7 +148,7 @@ public class PravegaConnectionListenerTest {
     public void testEnableTlsContextReloadWhenStateIsValid() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
-
+        @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
                 "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),

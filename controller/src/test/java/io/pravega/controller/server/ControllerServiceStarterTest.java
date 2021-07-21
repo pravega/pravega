@@ -52,7 +52,7 @@ import org.junit.rules.Timeout;
 @Slf4j
 public abstract class ControllerServiceStarterTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
     protected final int grpcPort;

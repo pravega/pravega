@@ -43,7 +43,7 @@ import static org.junit.Assert.assertEquals;
 public abstract class RESTServerTest {
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;

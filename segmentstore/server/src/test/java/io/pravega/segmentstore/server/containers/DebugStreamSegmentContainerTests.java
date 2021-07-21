@@ -151,6 +151,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
+    @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_COUNT;
     }

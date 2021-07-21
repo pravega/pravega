@@ -61,7 +61,7 @@ public class AsyncSemaphoreTests {
                 "constructor: usedCredits < 0",
                 () -> new AsyncSemaphore(1, -1, ""),
                 ex -> ex instanceof IllegalArgumentException);
-
+        @Cleanup
         val s = new AsyncSemaphore(credits, 0, "");
         AssertExtensions.assertThrows(
                 "release: credits < 0",

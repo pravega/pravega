@@ -190,6 +190,7 @@ public class ZKHelper implements AutoCloseable {
     /**
      * Close the ZKHelper.
      */
+    @Override
     public void close() {
         zkClient.close();
     }

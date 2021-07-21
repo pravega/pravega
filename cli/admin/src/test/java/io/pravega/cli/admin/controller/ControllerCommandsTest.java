@@ -105,6 +105,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         assertTrue("Failed to create the stream ", isStreamCreated);
     }
 
+    @Override
     protected AdminCommandState cliConfig() {
         return STATE;
     }
@@ -117,6 +118,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         STATE.close();
     }
 
+    @Override
     @Test
     @SneakyThrows
     public void testDescribeReaderGroupCommand() {

@@ -87,6 +87,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Integer> call() {
         // Validate preconditions.
         checkPreconditions();

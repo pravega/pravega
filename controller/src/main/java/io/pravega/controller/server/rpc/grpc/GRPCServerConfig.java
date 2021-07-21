@@ -48,6 +48,7 @@ public interface GRPCServerConfig extends ServerConfig {
      *
      * @return Whether this deployment has auth enabled.
      */
+    @Override
     boolean isAuthorizationEnabled();
 
     /**
