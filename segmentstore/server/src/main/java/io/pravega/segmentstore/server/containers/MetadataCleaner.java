@@ -187,7 +187,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount())
                 .stream()
-                .filter(sm -> sm.getType() == SegmentType.TRANSIENT_SEGMENT && !sm.isDeleted() && !sm.isMerged())
+                .filter(sm -> sm.getType() == SegmentType.TRANSIENT_SEGMENT && sm.isDeleted())
                 .forEach(sm -> {
                     // Todo: AppendProcessor - isTransientSegmentActive()?
                 });
