@@ -897,9 +897,7 @@ public class SystemJournal {
                 },
                 v -> epochToRecover.incrementAndGet(),
                 executor)
-                .thenAcceptAsync(vv -> {
-                    pendingGarbageChunks.addAll(journalsProcessed);
-                }, executor);
+                .thenRunAsync(() -> pendingGarbageChunks.addAll(journalsProcessed), executor);
     }
 
     private CompletableFuture<Void> processJournalContents(MetadataTransaction txn, BootstrapState state, String systemLogName, ByteArrayInputStream input) {

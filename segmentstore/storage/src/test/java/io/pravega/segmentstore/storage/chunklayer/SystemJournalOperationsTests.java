@@ -300,7 +300,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 2, 2, 5);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
@@ -344,6 +346,23 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         }
     }
 
+    private void checkJournalsNotExistBefore(TestContext testContext, long epoch, long snapshotId, long journalIndex, long changeNumber) throws Exception {
+        // check snapshots
+        for (int i = 0; i < snapshotId; i++) {
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalSnapshotFileName(CONTAINER_ID, epoch, i)).get());
+        }
+        // Check journals
+        if (testContext.config.isAppendEnabled() && testContext.chunkStorage.supportsAppend()) {
+            for (int i = 0; i < journalIndex; i++) {
+                Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, epoch, i)).get());
+            }
+        } else {
+            for (int i = 0; i < changeNumber; i++) {
+                Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, epoch, i)).get());
+            }
+        }
+    }
+
     @Test
     public void testWithSnapshotsAndTime() throws Exception {
         val testContext = new TestContext(CONTAINER_ID);
@@ -370,7 +389,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         // Trigger Time and add chunk
         testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
         instance.append(testSegmentName, "C", 3, 3);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 2, 2, 3);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 3);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
@@ -382,7 +403,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 3, 3, 6);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 3, 6);
 
         // Bootstrap new instance.
         @Cleanup
@@ -895,8 +918,18 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config, executorService());
         }
 
+        /**
+         * Bootstrap
+         */
         void bootstrap() throws Exception {
             systemJournal.bootstrap(epoch, snapshotInfoStore).join();
+            garbageCollector.deleteGarbage(false, 1000).get();
+        }
+
+        /**
+         * Delete Garbage
+         */
+        void deleteGarbage() throws Exception {
             garbageCollector.deleteGarbage(false, 1000).get();
         }
 
