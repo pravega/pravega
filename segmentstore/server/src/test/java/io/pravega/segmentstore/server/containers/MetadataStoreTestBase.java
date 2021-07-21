@@ -722,6 +722,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Verifies that a {@link SegmentType} marked as {@link SegmentType#isTransient()} is rejected if it has an improperly
      * formatted name.
+     *
+     * @throws ExecutionException ExecutionException if any occurs.
+     * @throws InterruptedException InterruptedException if any occurs.
      */
     @Test
     public void testTransientSegmentFormat() throws ExecutionException, InterruptedException {
