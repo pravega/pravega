@@ -106,6 +106,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                 getKVTable(scopeName, name, null), requestId);
     }
 
+    @Override
     public KeyValueTable getKVTable(String scope, final String name, OperationContext context) {
         if (context instanceof KVTOperationContext) {
             return ((KVTOperationContext) context).getKvTable();

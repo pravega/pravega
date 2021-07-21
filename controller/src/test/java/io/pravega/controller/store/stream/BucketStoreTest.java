@@ -38,7 +38,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class BucketStoreTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     BucketStore bucketStore;
     ScheduledExecutorService executorService;
 

@@ -100,7 +100,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReaderNotInReaderGroupException {
+    public void testEndOfSegmentWithoutSuccessors() throws ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -322,7 +322,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
-    private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
+    private ByteBuffer writeInt(SegmentOutputStream stream, int value) {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
         stream.write(PendingEvent.withHeader(null, buffer, new CompletableFuture<Void>()));

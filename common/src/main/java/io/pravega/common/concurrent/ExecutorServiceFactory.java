@@ -216,6 +216,8 @@ final class ExecutorServiceFactory {
             this.stackTraceEx = new Exception();
         }
 
+        @SuppressWarnings("deprecation")
+        @Override
         protected void finalize() {
             checkThreadPoolLeak(this, this.stackTraceEx);
             super.finalize();
@@ -231,6 +233,8 @@ final class ExecutorServiceFactory {
             this.stackTraceEx = new Exception();
         }
 
+        @SuppressWarnings("deprecation")
+        @Override
         protected void finalize() {
             checkThreadPoolLeak(this, this.stackTraceEx);
             super.finalize();

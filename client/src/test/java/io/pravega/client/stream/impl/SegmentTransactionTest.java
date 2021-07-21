@@ -56,6 +56,7 @@ public class SegmentTransactionTest {
     public void testSegmentDoesNotExist() {
         UUID uuid = UUID.randomUUID();
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
+        @SuppressWarnings("resource")
         SegmentTransactionImpl<String> txn = new SegmentTransactionImpl<>(uuid, outputStream, new JavaSerializer<String>());
         Mockito.doAnswer(new Answer<Void>() {
             @Override

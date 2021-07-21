@@ -52,7 +52,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     BucketManager retentionService;
