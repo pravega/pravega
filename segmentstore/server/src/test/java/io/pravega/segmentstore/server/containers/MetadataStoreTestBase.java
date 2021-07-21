@@ -51,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -716,6 +717,25 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         SegmentType segmentType = SegmentType.builder().system().internal().critical().build();
         long segmentId = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
         Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
+    }
+
+    /**
+     * Verifies that a {@link SegmentType} marked as {@link SegmentType#isTransient()} is rejected if it has an improperly
+     * formatted name.
+     */
+    @Test
+    public void testTransientSegmentFormat() throws ExecutionException, InterruptedException {
+        final String validTransientSegment = "scope/stream/transient#transient.00000000000000000000000000000000";
+        final String invalidTransientSegment = "scope/stream/transient";
+        @Cleanup
+        TestContext context = createTestContext();
+        // Should complete successfully.
+        context.getMetadataStore().createSegment(validTransientSegment, SegmentType.TRANSIENT_SEGMENT, null, TIMEOUT).get();
+        AssertExtensions.assertThrows(
+            "createSegment did not throw an exception given an invalid Transient Segment name.",
+                () -> context.getMetadataStore().createSegment(invalidTransientSegment, SegmentType.TRANSIENT_SEGMENT, null, TIMEOUT).get(),
+                ex -> ex instanceof IllegalStateException
+        );
     }
 
     private String getName(long segmentId) {
