@@ -42,6 +42,7 @@ public class FileSystemSimpleStorageTest extends SimpleStorageTests {
                 executor);
     }
 
+    @Override
     protected ChunkStorage getChunkStorage()  throws Exception {
         return newChunkStorage(executorService());
     }
@@ -50,6 +51,7 @@ public class FileSystemSimpleStorageTest extends SimpleStorageTests {
      * {@link ChunkedRollingStorageTests} tests for {@link FileSystemChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class FileSystemRollingTests extends ChunkedRollingStorageTests {
+        @Override
         protected ChunkStorage getChunkStorage()  throws Exception {
             return newChunkStorage(executorService());
         }
@@ -68,6 +70,7 @@ public class FileSystemSimpleStorageTest extends SimpleStorageTests {
         /**
          * Test default capabilities.
          */
+        @Override
         @Test
         public void testCapabilities() {
             assertEquals(true, getChunkStorage().supportsAppend());

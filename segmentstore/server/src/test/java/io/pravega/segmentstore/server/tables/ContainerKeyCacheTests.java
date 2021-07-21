@@ -400,7 +400,7 @@ public class ContainerKeyCacheTests {
             keyCache.updateGenerations(i, 0, false);
             val keyHash = KEY_HASHER.hash(newTableKey(rnd).getKey());
             for (long segmentId = 0; segmentId < segmentCount; segmentId++) {
-                keyCache.includeExistingKey(segmentId, keyHash, (long) i);
+                keyCache.includeExistingKey(segmentId, keyHash, i);
                 expectedResult.put(new TestKey(segmentId, keyHash), new CacheBucketOffset(i, false));
             }
         }

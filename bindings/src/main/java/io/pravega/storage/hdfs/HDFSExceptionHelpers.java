@@ -39,7 +39,7 @@ final class HDFSExceptionHelpers {
      * @param e           The exception to be translated.
      * @return The exception to be thrown.
      */
-    static <T> StreamSegmentException convertException(String segmentName, Throwable e) {
+    static StreamSegmentException convertException(String segmentName, Throwable e) {
         if (e instanceof RemoteException) {
             e = ((RemoteException) e).unwrapRemoteException();
         }

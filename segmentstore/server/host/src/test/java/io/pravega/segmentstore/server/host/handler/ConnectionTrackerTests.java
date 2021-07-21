@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.host.handler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
@@ -104,8 +105,10 @@ public class ConnectionTrackerTests {
         val singleLimit = ConnectionTracker.LOW_WATERMARK * 2;
         val baseTracker = new ConnectionTracker(allLimit, singleLimit);
         val c1 = new MockConnection();
+        @Cleanup
         val t1 = new TrackedConnection(c1, baseTracker);
         val c2 = new MockConnection();
+        @Cleanup
         val t2 = new TrackedConnection(c2, baseTracker);
 
         // A connection increased, but it's under both the per-connection limit and total limit.
@@ -161,7 +164,6 @@ public class ConnectionTrackerTests {
 
         @Override
         public void close() {
-            throw new UnsupportedOperationException();
         }
 
         @Override

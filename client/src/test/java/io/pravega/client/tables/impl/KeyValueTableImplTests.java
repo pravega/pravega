@@ -54,6 +54,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         return new KeyValueTableImpl(kvt, segmentFactory, this.controller, executorService());
     }
 
+    @Override
     @Before
     public void setup() throws Exception {
         super.setup();

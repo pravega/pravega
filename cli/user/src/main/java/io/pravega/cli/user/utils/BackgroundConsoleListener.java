@@ -44,6 +44,7 @@ public class BackgroundConsoleListener implements AutoCloseable {
         this.triggered.set(false);
         val t = new Thread(() -> {
             System.out.println(String.format("Press '%s <enter>' to cancel ongoing operation.", this.token));
+            @SuppressWarnings("resource")
             Scanner s = new Scanner(System.in);
             while (!this.triggered.get()) {
                 String input = s.next();

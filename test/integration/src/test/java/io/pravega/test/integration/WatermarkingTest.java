@@ -89,6 +89,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public static final PravegaResource PRAVEGA = new PravegaResource();
     private final AtomicLong timer = new AtomicLong();
 
+    @Override
     protected int getThreadPoolSize() {
         return 5;
     }

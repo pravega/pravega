@@ -46,7 +46,7 @@ import static org.mockito.Mockito.verify;
 
 public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     public int getThreadPoolSize() {
