@@ -56,19 +56,17 @@ public class PravegaEmulatorResource extends ExternalResource {
 
     /**
      * Create an instance of Pravega Emulator resource.
-     * @param authEnabled Authorisation enable flag.
-     * @param tlsEnabled  Tls enable flag.
-     * @param restEnabled REST endpoint enable flag.
+     * @param pravegaEmulatorResourceBuilder PravegaEmulatorResourceBuilder
      */
-    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled) {
-        this.authEnabled = authEnabled;
-        this.tlsEnabled = tlsEnabled;
+    public PravegaEmulatorResource(PravegaEmulatorResourceBuilder pravegaEmulatorResourceBuilder) {
+        this.authEnabled = pravegaEmulatorResourceBuilder.authEnabled;
+        this.tlsEnabled = pravegaEmulatorResourceBuilder.tlsEnabled;
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(TestUtils.getAvailableListenPort())
                 .segmentStorePort(TestUtils.getAvailableListenPort())
                 .zkPort(TestUtils.getAvailableListenPort())
                 .restServerPort(TestUtils.getAvailableListenPort())
-                .enableRestServer(restEnabled)
+                .enableRestServer(pravegaEmulatorResourceBuilder.restEnabled)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled)
                 .enabledAdminGateway(true)
@@ -86,7 +84,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         }
         if (tlsEnabled) {
             emulatorBuilder.certFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
-                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
+                    .tlsProtocolVersion(pravegaEmulatorResourceBuilder.tlsProtocolVersion)
                     .keyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                     .jksKeyFile(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH)
                     .jksTrustFile(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH)
@@ -94,6 +92,32 @@ public class PravegaEmulatorResource extends ExternalResource {
         }
 
         pravega = emulatorBuilder.build();
+    }
+
+    /*
+    Implemented Builder pattern in java to make way for optional parameters such as "tlsProtocolVersion"
+     */
+    public static class PravegaEmulatorResourceBuilder {
+        final boolean authEnabled;
+        final boolean tlsEnabled;
+        final boolean restEnabled;
+        String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
+
+        public PravegaEmulatorResourceBuilder(boolean authEnabled, boolean tlsEnabled, boolean restEnabled) {
+            this.authEnabled = authEnabled;
+            this.tlsEnabled = tlsEnabled;
+            this.restEnabled = restEnabled;
+        }
+
+        public PravegaEmulatorResourceBuilder tlsProtocolVersion(String tlsProtocolVersion) {
+            this.tlsProtocolVersion = tlsProtocolVersion;
+            return this;
+        }
+
+        public PravegaEmulatorResource build() {
+            PravegaEmulatorResource per = new PravegaEmulatorResource(this);
+            return per;
+        }
     }
 
     @Override
