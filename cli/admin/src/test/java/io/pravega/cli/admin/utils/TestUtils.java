@@ -141,7 +141,7 @@ public final class TestUtils {
      */
     @SneakyThrows
     public static AdminCommandState createAdminCLIConfig(String controllerRestUri, String controllerUri, String zkConnectUri,
-                                                         int containerCount, boolean authEnabled, boolean tlsEnabled, int accessTokenTtlInSeconds) {
+                                                         int containerCount, boolean authEnabled, boolean tlsEnabled, Duration accessTokenTtlInSeconds) {
         AdminCommandState state = new AdminCommandState();
         Properties pravegaProperties = new Properties();
         System.out.println("REST URI: " + controllerRestUri);
@@ -154,7 +154,7 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(accessTokenTtlInSeconds));
+        pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Long.toString(accessTokenTtlInSeconds.toSeconds()));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
     }

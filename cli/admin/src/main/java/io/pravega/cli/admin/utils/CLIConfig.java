@@ -21,6 +21,9 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+
 /**
  * Configuration for CLI client.
  */
@@ -88,7 +91,7 @@ public final class CLIConfig {
      * Truststore access token ttl in seconds if TLS is configured in the CLI.
      */
     @Getter
-    private final int accessTokenTtlInSeconds;
+    private final Duration accessTokenTtlInSeconds;
 
     /**
      * Controller metadata backend. At the moment, its values can only be "segmentstore" or "zookeeper".
@@ -104,7 +107,7 @@ public final class CLIConfig {
         this.userName = properties.get(USER_NAME);
         this.password = properties.get(PASSWORD);
         this.truststore = properties.get(TRUSTSTORE_JKS);
-        this.accessTokenTtlInSeconds = properties.getInt(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS);
+        this.accessTokenTtlInSeconds = properties.getDuration(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS, ChronoUnit.SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }
 
