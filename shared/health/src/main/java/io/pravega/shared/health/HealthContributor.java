@@ -49,6 +49,7 @@ public interface HealthContributor extends AutoCloseable {
     /**
      * Closes the {@link HealthContributor} and forwards the closure to all its children.
      */
+    @Override
     void close();
 
     /**

@@ -283,7 +283,7 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testTokenRefreshFutureIsClearedUponFailure() throws InterruptedException {
+    public void testTokenRefreshFutureIsClearedUponFailure() {
         ClientConfig config = ClientConfig.builder().controllerURI(
                 URI.create("tcp://non-existent-cluster:9090")).build();
         @Cleanup("shutdownNow")

@@ -82,7 +82,7 @@ public class Flow {
      */
     @Synchronized
     public long asLong() {
-        return ((long) flowId << 32) | ((long) requestSequenceNumber & 0xFFFFFFFL);
+        return ((long) flowId << 32) | (requestSequenceNumber & 0xFFFFFFFL);
     }
 
     /**

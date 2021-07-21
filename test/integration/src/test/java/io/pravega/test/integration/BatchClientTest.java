@@ -300,7 +300,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         write30ByteEvents(3, writer);
     }
 
-    private void createStream() throws InterruptedException {
+    private void createStream() {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
