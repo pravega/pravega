@@ -16,6 +16,7 @@
 package io.pravega.controller.rest.v1;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -71,6 +72,7 @@ import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -783,6 +785,20 @@ public class StreamMetaDataTests {
         final StreamsList streamsListForTags = response.readEntity(StreamsList.class);
         assertEquals("List count", streamsListForTags.getStreams().size(), 1);
         assertEquals("List element", streamsListForTags.getStreams().get(0).getStreamName(), "streamForTags");
+        response.close();
+
+        final CompletableFuture<Pair<List<String>, String>> completableFutureForTag = new CompletableFuture<>();
+        completableFutureForTag.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(completableFutureForTag);
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 404, response.getStatus());
+        response.close();
+        
+        final CompletableFuture<Pair<List<String>, String>> completableFutureForTag1 = new CompletableFuture<>();
+        completableFutureForTag1.completeExceptionally(new Exception());
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(completableFutureForTag1);
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 500, response.getStatus());
         response.close();
 
         // Test to list large number of streams.
