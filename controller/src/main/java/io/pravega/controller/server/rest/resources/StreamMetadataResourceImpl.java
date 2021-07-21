@@ -579,7 +579,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     try {
                         if (restAuthHelper.isAuthorized(authHeader, authorizationResource.ofStreamInScope(scopeName, stream.getStreamName()),
                                 principal, READ)) {
-                            localController.getStreamConfiguration(scopeName, stream.getStreamName()).thenApply(config -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream.getStreamName(), config)));
+                            localController.getStreamConfiguration(scopeName, stream.getStreamName()).
+                                    thenApply(config -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream.getStreamName(), config)));
                         }
                     } catch (AuthException e) {
                         log.warn(requestId, "List Streams with tag {} for scope {} failed due to authentication failure.",
@@ -618,7 +619,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                 }
                             }
                         } catch (AuthException e) {
-                            log.warn(e.getMessage(), e);
+                            log.warn(requestId, "Read internal streams for scope {} failed due to authentication failure.",
+                                    scopeName);
                             // Ignore. This exception occurs under abnormal circumstances and not to determine
                             // whether the user is authorized. In case it does occur, we assume that the user
                             // is unauthorized.
