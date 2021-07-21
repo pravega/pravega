@@ -159,7 +159,7 @@ public abstract class MetadataStore implements AutoCloseable {
         if (segmentType != SegmentType.TRANSIENT_SEGMENT) {
             result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
         } else {
-            result = CompletableFuture.runAsync(() -> submitAssignment(newSegment(segmentName, segmentType, attributes), true, timeout));
+            result = CompletableFuture.runAsync(() -> submitAssignment(newSegment(segmentName, segmentType, attributes), false, timeout));
         }
 
         if (log.isTraceEnabled()) {
