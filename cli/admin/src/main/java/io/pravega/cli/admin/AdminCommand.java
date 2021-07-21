@@ -48,7 +48,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
-import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
@@ -136,10 +136,10 @@ public abstract class AdminCommand {
     }
 
     /**
-     * Creates a new instance of the CLIControllerConfig class from the shared AdminCommandState passed in via the Constructor.
+     * Creates a new instance of the CLIConfig class from the shared AdminCommandState passed in via the Constructor.
      */
-    protected CLIControllerConfig getCLIControllerConfig() {
-        return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIControllerConfig::builder);
+    protected CLIConfig getCLIControllerConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIConfig::builder);
     }
 
     /**

@@ -22,9 +22,9 @@ import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
 /**
- * Configuration for CLI client, specially related to the Controller service in Pravega.
+ * Configuration for CLI client.
  */
-public final class CLIControllerConfig {
+public final class CLIConfig {
 
     public enum MetadataBackends {
         SEGMENTSTORE, ZOOKEEPER
@@ -33,8 +33,8 @@ public final class CLIControllerConfig {
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
     private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", true);
-    private static final Property<String> CONTROLLER_USER_NAME = Property.named("credentials.username", "");
-    private static final Property<String> CONTROLLER_PASSWORD = Property.named("credentials.pwd", "");
+    private static final Property<String> USER_NAME = Property.named("credentials.username", "");
+    private static final Property<String> PASSWORD = Property.named("credentials.pwd", "");
     private static final Property<Boolean> TLS_ENABLED = Property.named("channel.tls", false);
     private static final Property<String> TRUSTSTORE_JKS = Property.named("trustStore.location", "");
     private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS = Property.named("trustStore.access.token.ttl.seconds", 10);
@@ -96,13 +96,13 @@ public final class CLIControllerConfig {
     @Getter
     private final String metadataBackend;
 
-    private CLIControllerConfig(TypedProperties properties) throws ConfigurationException {
+    private CLIConfig(TypedProperties properties) throws ConfigurationException {
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + properties.get(CONTROLLER_REST_URI);
         this.controllerGrpcURI = (this.isTlsEnabled() ? "tls://" : "tcp://") + properties.get(CONTROLLER_GRPC_URI);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
-        this.userName = properties.get(CONTROLLER_USER_NAME);
-        this.password = properties.get(CONTROLLER_PASSWORD);
+        this.userName = properties.get(USER_NAME);
+        this.password = properties.get(PASSWORD);
         this.truststore = properties.get(TRUSTSTORE_JKS);
         this.accessTokenTtlInSeconds = properties.getInt(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
@@ -113,7 +113,7 @@ public final class CLIControllerConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<CLIControllerConfig> builder() {
-        return new ConfigBuilder<>(COMPONENT_CODE, CLIControllerConfig::new);
+    public static ConfigBuilder<CLIConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, CLIConfig::new);
     }
 }
