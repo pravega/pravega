@@ -22,7 +22,6 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -54,7 +53,6 @@ import java.net.URI;
 public class PravegaResource extends ExternalResource {
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
 
@@ -74,7 +72,7 @@ public class PravegaResource extends ExternalResource {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         // 2. Start controller

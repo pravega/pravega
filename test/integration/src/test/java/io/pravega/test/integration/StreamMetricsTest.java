@@ -76,7 +76,6 @@ import static org.junit.Assert.fail;
 @RunWith(SerializedClassRunner.class)
 public class StreamMetricsTest {
 
-    private static final String TLS_PROTOCOL_VERSION = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     private TestingServer zkTestServer = null;
@@ -122,7 +121,7 @@ public class StreamMetricsTest {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), TLS_PROTOCOL_VERSION);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.server.startListening();
 
         // 4. Start Pravega Controller service

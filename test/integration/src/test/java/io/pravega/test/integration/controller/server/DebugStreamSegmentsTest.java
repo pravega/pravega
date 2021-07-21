@@ -67,7 +67,6 @@ public class DebugStreamSegmentsTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream1";
     private static final int NUMBER_OF_WRITERS = 3;
-
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
     private final String serviceHost = "localhost";
