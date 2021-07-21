@@ -268,7 +268,6 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return txn.get(streamSegmentName)
                 .thenComposeAsync(storageMetadata -> {
                     val segmentMetadata = (SegmentMetadata) storageMetadata;
-                    val failed = new AtomicBoolean();
                     if (null == segmentMetadata) {
                         log.debug("{}: deleteGarbage - Segment metadata does not exist. segment={}.", traceObjectId, streamSegmentName);
                         return CompletableFuture.completedFuture(null);
@@ -283,8 +282,8 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                     chunksToDelete.add(name);
                                 })
                                 .thenComposeAsync(v -> this.addChunksToGarbage(txn.getVersion(), chunksToDelete), storageExecutor)
-                                .thenRunAsync(() -> deleteBlockIndexEntriesForChunk(txn, streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()), storageExecutor)
                                 .thenComposeAsync(v -> {
+                                    deleteBlockIndexEntriesForChunk(txn, streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength());
                                     txn.delete(segmentMetadata.getName());
                                     return txn.commit();
                                 }, storageExecutor)
@@ -292,12 +291,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                     if (null != e) {
                                         log.error(String.format("%s deleteGarbage - Could not delete metadata for garbage segment=%s.",
                                                 traceObjectId, streamSegmentName), e);
-                                        failed.set(true);
+                                        return true;
                                     }
-                                    return null;
+                                    return false;
                                 }, storageExecutor)
-                                .thenComposeAsync(v -> {
-                                    if (failed.get()) {
+                                .thenComposeAsync(failed -> {
+                                    if (failed) {
                                         if (taskInfo.getAttempts() < config.getGarbageCollectionMaxAttempts()) {
                                             val attempts = taskInfo.attempts + 1;
                                             SLTS_GC_SEGMENT_RETRY.inc();
@@ -340,14 +339,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                 taskQueue.addTask(taskQueueName, infoToDelete);
             } else {
                 val f = executeSerialized(() -> processTask(infoToDelete), infoToDelete.name);
-                if (null != f) {
-                    val now = currentTimeSupplier.get();
-                    if (infoToDelete.scheduledTime > currentTimeSupplier.get()) {
-                        futures.add(delaySupplier.apply(Duration.ofMillis(infoToDelete.scheduledTime - now))
-                                .thenComposeAsync(v -> f, storageExecutor));
-                    } else {
-                        futures.add(f);
-                    }
+                val now = currentTimeSupplier.get();
+                if (infoToDelete.scheduledTime > currentTimeSupplier.get()) {
+                    futures.add(delaySupplier.apply(Duration.ofMillis(infoToDelete.scheduledTime - now))
+                            .thenComposeAsync(v -> f, storageExecutor));
+                } else {
+                    futures.add(f);
                 }
             }
         }
@@ -389,10 +386,8 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
                 return operation.call();
-            } catch (CompletionException e) {
-                throw new CompletionException(Exceptions.unwrap(e));
             } catch (Exception e) {
-                throw new CompletionException(e);
+                throw new CompletionException(Exceptions.unwrap(e));
             }
         }, this.storageExecutor);
     }
@@ -406,9 +401,10 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
             return deleteSegment(infoToDelete);
         }
         if (infoToDelete.taskType == TaskInfo.DELETE_JOURNAL) {
-            return CompletableFuture.completedFuture(null);
+            return deleteChunk(infoToDelete);
         }
-        return null;
+        log.info("{}: processTask - Ignoring unknown type of task {}.", traceObjectId, infoToDelete);
+        return CompletableFuture.completedFuture(null);
     }
 
     private CompletableFuture<Void> deleteChunk(TaskInfo infoToDelete) {
