@@ -16,7 +16,6 @@
 package io.pravega.controller.rest.v1;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.auth.AuthenticationException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -793,7 +792,7 @@ public class StreamMetaDataTests {
         response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
         assertEquals("List Streams response code", 404, response.getStatus());
         response.close();
-        
+
         final CompletableFuture<Pair<List<String>, String>> completableFutureForTag1 = new CompletableFuture<>();
         completableFutureForTag1.completeExceptionally(new Exception());
         when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(completableFutureForTag1);
