@@ -120,6 +120,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
@@ -146,7 +147,7 @@ public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
@@ -279,6 +280,7 @@ public abstract class StreamMetadataTasksTest {
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", 
                 ((AbstractStreamMetadataStore) streamMetadataStore).getHostTaskIndex());
 
+        @Cleanup
         StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore, bucketStore,
                 taskMetadataStore, segmentHelperMock, executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), helper);
@@ -2883,9 +2885,10 @@ public abstract class StreamMetadataTasksTest {
     }
     
     @Test(timeout = 30000)
-    public void concurrentCreateStreamTest() {
+    public void concurrentCreateStreamTest() throws Exception {
         TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
 
+        @Cleanup
         StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));

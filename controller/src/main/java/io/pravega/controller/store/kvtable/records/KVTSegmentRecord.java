@@ -46,6 +46,7 @@ public class KVTSegmentRecord implements SegmentRecord {
     public static class KVTSegmentRecordBuilder implements ObjectBuilder<KVTSegmentRecord> {
     }
 
+    @Override
     public long segmentId() {
         return NameUtils.computeSegmentId(segmentNumber, creationEpoch);
     }

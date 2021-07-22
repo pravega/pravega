@@ -93,8 +93,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         URI controllerGRPCUri = controllerURIs.get(0);
         URI controllerRESTUri = controllerURIs.get(1);
         Invocation.Builder builder;
-        @Cleanup
-        Response response = null;
+
         String protocol = Utils.TLS_AND_AUTH_ENABLED ? "https://" : "http://";
         restServerURI = protocol + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
         log.info("REST Server URI: {}", restServerURI);
@@ -103,7 +102,8 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         resourceURl = new StringBuilder(restServerURI).append("/ping").toString();
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
-        response = builder.get();
+        @Cleanup
+        Response response = builder.get();
         assertEquals(String.format("Received unexpected status code: %s in response to 'ping' request.", response.getStatus()),
                 OK.getStatusCode(),
                 response.getStatus());

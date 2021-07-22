@@ -137,6 +137,7 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     /**
      * Tests the {@link CompositeByteArraySegment#copyTo(ByteBuffer)} method.
      */
+    @Override
     @Test
     public void testCopyToByteBuffer() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
@@ -149,6 +150,7 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     /**
      * Tests the functionality of {@link CompositeByteArraySegment#copyTo(OutputStream)}.
      */
+    @Override
     @Test
     public void testCopyToStream() {
         testProgressiveCopies((expectedData, s, offset, length) -> {

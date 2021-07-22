@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 @Data
 @AllArgsConstructor
 public class CreateTableEvent implements ControllerEvent {
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 1L;
     private final String scopeName;
     private final String kvtName;
