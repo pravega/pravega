@@ -216,6 +216,13 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Adds segment to the GC.
+     * @param transactionId Transaction id.
+     * @param segmentToDelete Name of segment to delete.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     * If the operation failed, it will contain the cause of the failure.
+     */
     CompletableFuture<Void> addSegmentToGarbage(long transactionId, String segmentToDelete) {
         if (null != taskQueue) {
             val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
@@ -228,6 +235,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Adds segment to the GC.
+     * @param taskInfo Task info
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     * If the operation failed, it will contain the cause of the failure.
+     */
     CompletableFuture<Void> addSegmentToGarbage(TaskInfo taskInfo) {
         if (null != taskQueue) {
             return taskQueue.addTask(taskQueueName, taskInfo)
@@ -239,6 +252,13 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Adds new chunk to track
+     * @param transactionId TransactionId
+     * @param chunktoTrack Name of chunk to track.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     * If the operation failed, it will contain the cause of the failure.
+     */
     CompletableFuture<Void> trackNewChunk(long transactionId, String chunktoTrack) {
         if (null != taskQueue) {
             val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
@@ -252,14 +272,17 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Add the task to failed queue.
+     */
     private CompletableFuture<Void> failTask(TaskInfo infoToRetire) {
         Preconditions.checkState(null != taskQueue, "taskQueue");
-        if (null != taskQueue) {
-            return taskQueue.addTask(failedQueueName, infoToRetire);
-        }
-        return CompletableFuture.completedFuture(null);
+        return taskQueue.addTask(failedQueueName, infoToRetire);
     }
 
+    /**
+     * Perform delete segment related tasks.
+     */
     private CompletableFuture<Void> deleteSegment(TaskInfo taskInfo) {
         val streamSegmentName = taskInfo.getName();
         ArrayList<String> chunksToDelete = new ArrayList<>();
