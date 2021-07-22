@@ -241,9 +241,9 @@ time window, the Flink job can commit the Transaction and therefore
 make the results of the processing available for downstream processing, or in
 the case of an error, the Transaction is aborted and the results disappear.
 
-A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a Transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the Transaction are _not_ visible to Readers until the Transaction is committed by the Writer. A Transaction is similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
-Transaction, the Event itself is appended to a Stream Segment of the
-Transaction. 
+
+A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a Transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the Transaction are _not_ visible to Readers until the Transaction is committed by the Writer. A Transaction is similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a 
+Transaction, the Event itself is appended to a Stream Segment of the Transaction. 
 
 For example, a Stream has five Stream Segments, when a Transaction is created on that
 Stream, conceptually that Transaction also has five Stream Segments. When an Event is
