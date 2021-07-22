@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -82,7 +83,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
-        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, "TLSv1.2,TLSv1.3");
+        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, ServiceConfig.builder().build().getTlsProtocolVersion());
     }
 
     /**
