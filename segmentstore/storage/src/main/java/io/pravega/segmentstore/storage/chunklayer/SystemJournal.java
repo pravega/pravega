@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -174,6 +175,11 @@ public class SystemJournal {
      * Handle to current journal file.
      */
     final private AtomicReference<ChunkHandle> currentHandle = new AtomicReference<>();
+
+    /**
+     * List of chunks (journals & snapshots) to delete after snapshot.
+     */
+    final private List<String> pendingGarbageChunks = Collections.synchronizedList(new ArrayList<>());
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -525,8 +531,15 @@ public class SystemJournal {
                             .build();
                     return snapshotInfoStore.writeSnapshotInfo(info)
                             .thenAcceptAsync(v1 -> {
+                                val oldSnapshotInfo = lastSavedSnapshotInfo.get();
                                 log.info("SystemJournal[{}] Snapshot info saved.{}", containerId, info);
                                 lastSavedSnapshotInfo.set(info);
+                                if (null != oldSnapshotInfo) {
+                                    val oldSnapshotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, oldSnapshotInfo.getSnapshotId());
+                                    pendingGarbageChunks.add(oldSnapshotFile);
+                                }
+                                garbageCollector.addToGarbage(pendingGarbageChunks);
+                                pendingGarbageChunks.clear();
                             }, executor)
                             .exceptionally(e -> {
                                 log.error("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
@@ -582,7 +595,8 @@ public class SystemJournal {
         } catch (Exception e) {
             val ex = Exceptions.unwrap(e);
             if (ex instanceof EOFException) {
-                log.warn("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, snapshotInfo, e);
+                log.error("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, snapshotInfo, e);
+                throw new CompletionException(e);
             } else if (ex instanceof ChunkNotFoundException) {
                 log.warn("SystemJournal[{}] Missing snapshot, skipping {}.", containerId, snapshotInfo, e);
             } else {
@@ -827,6 +841,7 @@ public class SystemJournal {
 
         val epochToStartScanning = new AtomicLong();
         val fileIndexToRecover = new AtomicInteger(1);
+        val journalsProcessed = Collections.synchronizedList(new ArrayList<String>());
         // Starting with journal file after last snapshot,
         if (null != systemSnapshotRecord) {
             epochToStartScanning.set(systemSnapshotRecord.epoch);
@@ -859,6 +874,7 @@ public class SystemJournal {
                                                         containerId, epochToRecover.get(), fileIndexToRecover.get());
                                                 return CompletableFuture.completedFuture(null);
                                             } else {
+                                                journalsProcessed.add(systemLogName);
                                                 // Read contents.
                                                 return getContents(systemLogName)
                                                         // Apply record batches from the file.
@@ -874,7 +890,8 @@ public class SystemJournal {
                             executor);
                 },
                 v -> epochToRecover.incrementAndGet(),
-                executor);
+                executor)
+                .thenRunAsync(() -> pendingGarbageChunks.addAll(journalsProcessed), executor);
     }
 
     private CompletableFuture<Void> processJournalContents(MetadataTransaction txn, BootstrapState state, String systemLogName, ByteArrayInputStream input) {
@@ -1253,6 +1270,8 @@ public class SystemJournal {
                                 attempt.incrementAndGet();
                                 if (e != null) {
                                     lastException.set(Exceptions.unwrap(e));
+                                    // Add failed file as garbage.
+                                    pendingGarbageChunks.add(snapshotFile);
                                     return null;
                                 } else {
                                     return v;
@@ -1281,6 +1300,7 @@ public class SystemJournal {
                     new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()))
                     .thenAcceptAsync(h -> {
                         currentHandle.set(h);
+                        pendingGarbageChunks.add(h.getChunkName());
                         systemJournalOffset.addAndGet(bytes.getLength());
                         newChunkRequired.set(false);
                     }, executor);
