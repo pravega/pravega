@@ -37,7 +37,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
-    private final String tlsProtocolVersion;
+    private final String[] tlsProtocolVersion;
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
@@ -74,7 +74,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.authorizationEnabled = authorizationEnabled;
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion = tlsProtocolVersion;
+        this.tlsProtocolVersion = tlsProtocolVersion.split(",");
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
@@ -110,7 +110,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
+                .append(String.format("tlsProtocolVersion: %b, ", (Object) tlsProtocolVersion))
                 .append(String.format("tlsCertFile is %s, ",
                         Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
                 .append(String.format("tlsKeyFile is %s, ",

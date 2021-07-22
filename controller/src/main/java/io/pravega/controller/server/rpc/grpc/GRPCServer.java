@@ -88,7 +88,7 @@ public class GRPCServer extends AbstractIdleService {
     @SneakyThrows(SSLException.class)
     private SslContext getSSLContext(GRPCServerConfig serverConfig) {
         return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
-                .protocols(serverConfig.getTlsProtocolVersion().split(","))
+                .protocols(serverConfig.getTlsProtocolVersion())
                 .build();
     }
 
