@@ -295,10 +295,10 @@ public class ClientConfig implements Serializable {
             Map<String, String> retVal = env.entrySet()
                                             .stream()
                                             .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_PREFIX_ENV))
-                                            .collect(Collectors.toMap(entry -> (String) entry.getKey().toString()
+                                            .collect(Collectors.toMap(entry -> entry.getKey().toString()
                                                                                      .replace("_", ".")
                                                                                      .substring(AUTH_PROPS_PREFIX.length()),
-                                                    value -> (String) value.getValue()));
+                                                    value -> value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
             } else {

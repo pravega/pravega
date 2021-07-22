@@ -26,7 +26,6 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -49,7 +48,7 @@ public class ByteStreamWriterTest {
     private ByteStreamClientFactory clientFactory;
 
     @Before
-    public void setup() throws ConnectionFailedException {
+    public void setup() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = Mockito.mock(ClientConnection.class);

@@ -120,7 +120,7 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
 
     @SuppressWarnings("unchecked")
     private SimpleDeque<T> getQueue(int index) {
-        return (SimpleDeque<T>) this.queues[index];
+        return this.queues[index];
     }
 
     @SuppressWarnings("unchecked")

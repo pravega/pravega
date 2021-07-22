@@ -70,7 +70,7 @@ public class FileModificationEventWatcherTests extends FileModificationMonitorTe
 
     @Test(timeout = 15000)
     public void testInvokesCallBackForFileModification() throws IOException, InterruptedException {
-        File tempFile = this.createTempFile();
+        File tempFile = FileModificationMonitorTests.createTempFile();
 
         AtomicBoolean isCallbackInvoked = new AtomicBoolean(false);
         FileModificationEventWatcher watcher = new FileModificationEventWatcher(tempFile.toPath(),

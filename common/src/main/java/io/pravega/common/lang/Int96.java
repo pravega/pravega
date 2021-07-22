@@ -25,7 +25,7 @@ import lombok.Data;
  * first compariging msbs and if msbs are equal then we compare lsbs.
  */
 @Data
-public class Int96 implements Comparable {
+public class Int96 implements Comparable<Int96> {
     public static final Int96 ZERO = new Int96(0, 0L);
     private final int msb;
     private final long lsb;
@@ -39,12 +39,7 @@ public class Int96 implements Comparable {
     }
 
     @Override
-    public int compareTo(Object o) {
-        if (!(o instanceof Int96)) {
-            throw new RuntimeException("incomparable objects");
-        }
-        Int96 other = (Int96) o;
-
+    public int compareTo(Int96 other) {
         if (msb != other.msb) {
             return Integer.compare(msb, other.msb);
         } else {

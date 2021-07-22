@@ -80,7 +80,7 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
         }
     }
 
-    public static void main(String... args) throws ClassNotFoundException {
+    public static void main(String... args) {
         String[] classAndMethod = args[0].split("#");
         //The return value is used to update the mesos task execution status. The mesos task is set to failed state when
         // return value is non-zero.

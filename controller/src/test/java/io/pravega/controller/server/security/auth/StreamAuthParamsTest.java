@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamAuthParamsTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Test
     public void rejectsConstructionWhenInputIsInvalid() {

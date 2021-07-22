@@ -271,7 +271,7 @@ public abstract class AbstractService implements Service {
             data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         }
         Yaml.addModelMap("v1", "Secret", V1Secret.class);
-        V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
+        V1Secret yamlSecret = Yaml.loadAs(data, V1Secret.class);
         return yamlSecret;
     }
 
