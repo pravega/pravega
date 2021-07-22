@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -62,13 +63,15 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         WireCommands.SegmentRead segmentRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         File f = new File(fileName);
-        // Creating the file if it doesn't exist.
-        if (!f.exists()) {
-            if (!f.getParentFile().exists()) {
-                f.getParentFile().mkdirs();
-            }
-            f.createNewFile();
+        // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
+        if (f.exists()) {
+            throw new FileAlreadyExistsException("Cannot write segment data into a file that already exists.");
         }
+
+        if (!f.getParentFile().exists()) {
+            f.getParentFile().mkdirs();
+        }
+        f.createNewFile();
 
         // Write data into the file.
         @Cleanup
