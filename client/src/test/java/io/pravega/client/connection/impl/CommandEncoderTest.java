@@ -19,8 +19,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
@@ -43,6 +44,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class CommandEncoderTest {
+    private static final int SERVICE_PORT = 12345;
 
     @RequiredArgsConstructor
     private static class FixedBatchSizeTracker implements AppendBatchSizeTracker {
@@ -93,7 +95,8 @@ public class CommandEncoderTest {
     public void testRoundTrip() throws IOException {
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         WireCommand command = new WireCommands.Hello(0, 1);
         commandEncoder.write(command);
         assertEquals(output.decoded.remove(0), command);
@@ -109,7 +112,8 @@ public class CommandEncoderTest {
     public void testAppendsAreBatched() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
         commandEncoder.write(setupAppend);
@@ -136,7 +140,8 @@ public class CommandEncoderTest {
     public void testExactBatch() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
         commandEncoder.write(setupAppend);
@@ -159,7 +164,8 @@ public class CommandEncoderTest {
     public void testOverBatchSize() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
         commandEncoder.write(setupAppend);
@@ -182,7 +188,8 @@ public class CommandEncoderTest {
     public void testBatchInterupted() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
         commandEncoder.write(setupAppend);
@@ -210,7 +217,8 @@ public class CommandEncoderTest {
     public void testBatchTimeout() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
         commandEncoder.write(setupAppend);
@@ -238,7 +246,8 @@ public class CommandEncoderTest {
     public void testAppendsQueued() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId1 = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId1, "seg", "");
         commandEncoder.write(setupAppend);
@@ -281,7 +290,8 @@ public class CommandEncoderTest {
     public void testAppendsQueuedBreak() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId1 = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId1, "seg", "");
         commandEncoder.write(setupAppend);
@@ -326,7 +336,8 @@ public class CommandEncoderTest {
     public void testAppendSizeQueuedBreak() throws IOException {
         AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
         DecodingOutputStream output = new DecodingOutputStream();
-        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, null, endpoint);
         UUID writerId1 = UUID.randomUUID();
         WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId1, "seg", "");
         commandEncoder.write(setupAppend);
@@ -382,6 +393,7 @@ public class CommandEncoderTest {
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
         DecodingOutputStream output = new DecodingOutputStream();
         AtomicInteger counter = new AtomicInteger(0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output, new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
@@ -392,7 +404,7 @@ public class CommandEncoderTest {
             public void processingFailure(Exception error) {
 
             }
-        });
+        }, endpoint);
 
         // maximum setup requests
         for (int i = 0; i < CommandEncoder.MAX_SETUP_SEGMENTS_SIZE; i++) {
