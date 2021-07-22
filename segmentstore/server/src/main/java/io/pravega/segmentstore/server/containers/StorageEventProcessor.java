@@ -15,12 +15,12 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.storage.chunklayer.AbstractTaskQueueManager;
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.GarbageCollector;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -46,8 +46,8 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
 
     private final int containerID;
     private final ContainerEventProcessor eventProcessor;
-    private final ChunkedSegmentStorage chunkedSegmentStorage;
-
+    private final Function<List<GarbageCollector.TaskInfo>, CompletableFuture<Void>> callBack;
+    private final int maxItemsAtOnce;
     private final String traceObjectId;
     @Getter
     private final ConcurrentHashMap<String, ContainerEventProcessor.EventProcessor> eventProcessorMap = new ConcurrentHashMap<>();
@@ -56,12 +56,18 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
      * Constructor.
      * @param containerID Container id.
      * @param eventProcessor Instance of {@link ContainerEventProcessor} to use.
-     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage} to use.
+     * @param callBack Function which is called to process batch of events.
+     * @param maxItemsAtOnce Maximum nuber of
      */
-    public StorageEventProcessor(int containerID, ContainerEventProcessor eventProcessor, ChunkedSegmentStorage chunkedSegmentStorage) {
+    public StorageEventProcessor(int containerID,
+                                 ContainerEventProcessor eventProcessor,
+                                 Function<List<GarbageCollector.TaskInfo>,
+                                 CompletableFuture<Void>> callBack,
+                                 int maxItemsAtOnce) {
         this.containerID = containerID;
         this.eventProcessor = Preconditions.checkNotNull(eventProcessor, "eventProcessor");
-        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+        this.callBack = Preconditions.checkNotNull(callBack, "callBack");
+        this.maxItemsAtOnce = maxItemsAtOnce;
         this.traceObjectId = String.format("StorageEventProcessor[%d]", containerID);
     }
 
@@ -74,8 +80,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     @Override
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
         Preconditions.checkNotNull(queueName, "queueName");
-        val config = new ContainerEventProcessor.EventProcessorConfig(chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency(),
-                Long.MAX_VALUE);
+        val config = new ContainerEventProcessor.EventProcessorConfig(maxItemsAtOnce, Long.MAX_VALUE);
         val f = ignoreProcessing ?
                 eventProcessor.forDurableQueue(queueName) :
                 eventProcessor.forConsumer(queueName, this::processEvents, config);
@@ -131,6 +136,6 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
                 return CompletableFuture.failedFuture(e);
             }
         }
-        return chunkedSegmentStorage.getGarbageCollector().processBatch(batch);
+        return callBack.apply(batch);
     }
 }

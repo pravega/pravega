@@ -226,11 +226,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
+            ChunkedSegmentStorage chunkedSegmentStorage = (ChunkedSegmentStorage) this.storage;
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(), this.containerEventProcessor, chunkedStorage);
-            return chunkedStorage.bootstrap(snapshotInfoStore, eventProcessor);
+            StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
+                    this.containerEventProcessor,
+                    batch -> chunkedSegmentStorage.getGarbageCollector().processBatch(batch),
+                    chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency());
+            return chunkedSegmentStorage.bootstrap(snapshotInfoStore, eventProcessor);
         }
         return CompletableFuture.completedFuture(null);
     }
