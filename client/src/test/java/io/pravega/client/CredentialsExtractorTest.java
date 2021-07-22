@@ -273,6 +273,7 @@ public class CredentialsExtractorTest {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public static class LegacyCredentials1 implements io.pravega.client.stream.impl.Credentials {
         private static final String TOKEN = "custom-token-legacy";
         private static final String AUTHENTICATION_METHOD = "custom-method-legacy";
@@ -293,6 +294,7 @@ public class CredentialsExtractorTest {
      * See how they are loaded differently in the corresponding service definition files under
      * resources/META-INF/services.
      */
+    @SuppressWarnings("deprecation")
     public static class LegacyCredentials2 implements io.pravega.client.stream.impl.Credentials {
         private static final String TOKEN = "custom-token-legacy-2";
         private static final String AUTHENTICATION_METHOD = "custom-method-legacy-2";

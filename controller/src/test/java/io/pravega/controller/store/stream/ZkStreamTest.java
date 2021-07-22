@@ -47,6 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -73,7 +74,7 @@ import static org.mockito.Mockito.spy;
 public class ZkStreamTest {
     private static final String SCOPE = "scope";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private StreamMetadataStore storePartialMock;
@@ -119,6 +120,7 @@ public class ZkStreamTest {
     public void testCreateStreamState() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
 
@@ -141,6 +143,7 @@ public class ZkStreamTest {
     public void testZkCreateScope() throws Exception {
 
         // create new scope test
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
         CompletableFuture<CreateScopeStatus> createScopeStatus = store.createScope(scopeName, null, executor);
@@ -174,6 +177,7 @@ public class ZkStreamTest {
     @Test
     public void testZkDeleteScope() throws Exception {
         // create new scope
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
         store.createScope(scopeName, null, executor).get();
@@ -203,6 +207,7 @@ public class ZkStreamTest {
 
     @Test
     public void testGetScope() throws Exception {
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scope1 = "Scope1";
         final String scope2 = "Scope2";
@@ -224,6 +229,7 @@ public class ZkStreamTest {
     @Test
     public void testZkListScope() throws Exception {
         // list scope test
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         store.createScope("Scope1", null, executor).get();
         store.createScope("Scope2", null, executor).get();
@@ -242,6 +248,7 @@ public class ZkStreamTest {
         double keyChunk = 1.0 / 5;
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
+        @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
         store.createScope(SCOPE, null, executor).get();

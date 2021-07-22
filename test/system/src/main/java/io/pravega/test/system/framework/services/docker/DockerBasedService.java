@@ -131,7 +131,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             long replicas = getReplicas();
             log.info("Replicas {}", replicas);
             log.info("Task running count {}", taskRunningCount);
-            if (((long) taskRunningCount) == replicas) {
+            if (taskRunningCount == replicas) {
                 return true;
             }
         } catch (DockerException e) {

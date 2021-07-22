@@ -35,7 +35,7 @@ public class GRPCServerConfigImplTest {
     // Note: It might seem odd that we are unit testing the toString() method of the code under test. The reason we are
     // doing that is that the method is hand-rolled and there is a bit of logic there that isn't entirely unlikely to fail.
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Test
     public void testToStringReturnsSuccessfullyWithAllConfigSpecified() {
