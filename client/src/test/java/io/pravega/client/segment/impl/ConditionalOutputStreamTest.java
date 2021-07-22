@@ -89,7 +89,7 @@ public class ConditionalOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testClose() throws SegmentSealedException {
+    public void testClose() {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
@@ -155,7 +155,7 @@ public class ConditionalOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
+    public void testSegmentSealed() throws ConnectionFailedException {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup

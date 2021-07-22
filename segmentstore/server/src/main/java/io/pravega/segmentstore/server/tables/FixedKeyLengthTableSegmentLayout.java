@@ -491,6 +491,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
          *
          * @return The {@link ArrayView} that was used for serialization.
          */
+        @Override
         @SneakyThrows(IOException.class)
         public ArrayView serialize() {
             return SERIALIZER.serialize(this);

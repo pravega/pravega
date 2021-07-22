@@ -22,12 +22,14 @@ import static org.junit.Assert.assertEquals;
 
 public class DefaultCredentialsTest {
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testObjectIsAssignableToBothInterfaces() {
         io.pravega.shared.security.auth.Credentials credentials = new DefaultCredentials("pwd", "user");
         Credentials legacyCredentials = new DefaultCredentials("pwd", "username");
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testLegacyObjectDelegatesToNewObject() {
         io.pravega.shared.security.auth.Credentials credentials =
@@ -37,6 +39,7 @@ public class DefaultCredentialsTest {
         assertEquals(AuthConstants.BASIC, credentials.getAuthenticationType());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testEqualsAndHashCode() {
         io.pravega.shared.security.auth.Credentials credentials1 = new DefaultCredentials("pwd", "user");

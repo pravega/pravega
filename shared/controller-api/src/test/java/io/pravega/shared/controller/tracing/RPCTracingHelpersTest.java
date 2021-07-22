@@ -27,7 +27,6 @@ import io.grpc.ServerInterceptor;
 import io.grpc.netty.NettyChannelBuilder;
 import io.pravega.common.tracing.RequestTracker;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -38,11 +37,10 @@ import static org.junit.Assert.assertTrue;
 /**
  * Test to check the correct management of tracing request headers by the client/server interceptors.
  */
-@Slf4j
 public class RPCTracingHelpersTest {
 
     @Test
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInterceptors() {
         String requestDescriptor = "createStream-myScope-myStream";
         long requestId = 1234L;

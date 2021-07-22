@@ -18,7 +18,7 @@ package io.pravega.client.state.impl;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.state.InitialUpdate;
@@ -35,7 +35,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -232,7 +231,7 @@ public class SynchronizerTest {
     }
 
     @Test(timeout = 20000)
-    public void testCompaction() throws EndOfSegmentException {
+    public void testCompaction() {
         String streamName = "streamName";
         String scope = "scope";
 
@@ -332,7 +331,7 @@ public class SynchronizerTest {
     }
     
     @Test(timeout = 20000)
-    public void testReturnValue() throws EndOfSegmentException {
+    public void testReturnValue() {
         String streamName = "streamName";
         String scope = "scope";
         
@@ -386,7 +385,7 @@ public class SynchronizerTest {
     }
     
     @Test(timeout = 20000)
-    public void testCompactionShrinksSet() throws EndOfSegmentException {
+    public void testCompactionShrinksSet() {
         String streamName = "testCompactionShrinksSet";
         String scope = "scope";
         
@@ -414,7 +413,7 @@ public class SynchronizerTest {
     }
 
     @Test(timeout = 20000)
-    public void testSetOperations() throws EndOfSegmentException {
+    public void testSetOperations() {
         String streamName = "testCompactionShrinksSet";
         String scope = "scope";
         
@@ -446,7 +445,7 @@ public class SynchronizerTest {
     }
 
     @Test(timeout = 20000)
-    public void testCompactWithTruncation() throws EndOfSegmentException {
+    public void testCompactWithTruncation() {
         String streamName = "streamName";
         String scope = "scope";
 
@@ -600,9 +599,9 @@ public class SynchronizerTest {
         String streamName = "streamName";
         String scope = "scope";
 
-        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedClient =
-                (RevisionedStreamClient<UpdateOrInit<RevisionedImpl>>) mock(RevisionedStreamClient.class);
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedClient = mock(RevisionedStreamClient.class);
         final Segment segment = new Segment(scope, streamName, 0L);
+        @Cleanup
         StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedClient);
 
         Revision firstMark = new RevisionImpl(segment, 10L, 1);

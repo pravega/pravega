@@ -129,6 +129,7 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
         }, opContext);
     }
 
+    @Override
     protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
         return execute(() -> doTruncate(handle, offset), opContext);
     }
