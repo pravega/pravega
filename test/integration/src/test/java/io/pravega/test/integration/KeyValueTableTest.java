@@ -80,6 +80,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
 
+    @Override
     @Before
     public void setup() throws Exception {
         super.setup();

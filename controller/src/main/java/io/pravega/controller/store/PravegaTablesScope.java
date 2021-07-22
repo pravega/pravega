@@ -442,6 +442,7 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, readerGroup, context.getRequestId())));
     }
 
+    @Override
     public CompletableFuture<UUID> getReaderGroupId(String readerGroupName, OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(context)

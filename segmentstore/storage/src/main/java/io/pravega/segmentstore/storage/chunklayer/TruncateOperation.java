@@ -67,6 +67,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         checkPreconditions();
         log.debug("{} truncate - started op={}, segment={}, offset={}.",

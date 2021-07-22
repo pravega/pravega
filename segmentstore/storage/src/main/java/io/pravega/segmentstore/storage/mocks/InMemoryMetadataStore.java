@@ -73,6 +73,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      * @param key Key for the metadata record.
      * @return Associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
      */
+    @Override
     protected CompletableFuture<TransactionData> read(String key) {
         synchronized (this) {
             TransactionData data = backingStore.get(key);
@@ -103,6 +104,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      *
      * @param dataList List of transaction data to write.
      */
+    @Override
     protected CompletableFuture<Void> writeAll(Collection<TransactionData> dataList) {
         CompletableFuture<TransactionData> f;
         if (writeCallback != null) {

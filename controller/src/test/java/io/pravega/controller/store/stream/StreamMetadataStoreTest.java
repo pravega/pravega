@@ -97,7 +97,7 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 30 seconds.
     @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected TestStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -339,7 +339,7 @@ public abstract class StreamMetadataStoreTest {
             return result;
         }).when(streamObjSpied).getConfiguration(any());
 
-        ((TestStore) store).setStream(streamObjSpied);
+        store.setStream(streamObjSpied);
 
         // verify that when we do list stream in scope we do not get partial. 
         streamInScope = store.listStreamsInScope("Scope", null, executor).get();

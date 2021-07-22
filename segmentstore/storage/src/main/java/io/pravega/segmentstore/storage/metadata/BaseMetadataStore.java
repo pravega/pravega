@@ -572,6 +572,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @param txn transaction to abort.
      *            throws StorageMetadataException If there are any errors.
      */
+    @Override
     public CompletableFuture<Void> abort(MetadataTransaction txn) {
         Preconditions.checkArgument(null != txn, "txn must not be null");
         // Do nothing
@@ -894,6 +895,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Explicitly marks the store as fenced.
      * Once marked fenced no modifications to data should be allowed.
      */
+    @Override
     public void markFenced() {
         this.fenced.set(true);
     }

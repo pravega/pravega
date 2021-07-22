@@ -68,6 +68,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle, offset, sourceSegment);
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         checkPreconditions();
         log.debug("{} concat - started op={}, target={}, source={}, offset={}.",
