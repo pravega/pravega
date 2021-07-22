@@ -17,6 +17,7 @@ package io.pravega.client.connection.impl;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -414,17 +415,20 @@ public class CommandEncoderTest {
         }
 
         // further setup request should throw IOException
-        for (int i = 0; i < 5; i++) {
-            UUID writerId = UUID.randomUUID();
-            WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
-            assertThrows(IOException.class, () -> commandEncoder.write(setupAppend));
-        }
-
         UUID writerId = UUID.randomUUID();
+        final WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
+        assertThrows(IOException.class, () -> commandEncoder.write(setupAppend));
+
+        // then connection is closed, ObjectClosedException should be thrown
+        writerId = UUID.randomUUID();
+        final WireCommand setupAppend2 = new WireCommands.SetupAppend(0, writerId, "seg", "");
+        assertThrows(ObjectClosedException.class, () -> commandEncoder.write(setupAppend2));
+
+        writerId = UUID.randomUUID();
         ByteBuf data = Unpooled.wrappedBuffer(new byte[40]);
         WireCommands.Event event = new WireCommands.Event(data);
         Append append = new Append("", writerId, 1, event, 1);
-        assertThrows(IOException.class, () -> commandEncoder.write(append));
+        assertThrows(ObjectClosedException.class, () -> commandEncoder.write(append));
 
         assertEquals(counter.get(), 1);
     }
