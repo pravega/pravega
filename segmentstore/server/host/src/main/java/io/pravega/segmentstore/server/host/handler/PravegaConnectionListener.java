@@ -38,6 +38,7 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VERSION;
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
@@ -83,7 +84,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
-        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, ServiceConfig.builder().build().getTlsProtocolVersion());
+        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, TLS_PROTOCOL_VERSION.getDefaultValue());
     }
 
     /**
