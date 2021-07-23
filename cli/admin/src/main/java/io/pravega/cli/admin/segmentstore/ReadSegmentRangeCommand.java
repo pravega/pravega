@@ -25,7 +25,6 @@ import org.apache.curator.framework.CuratorFramework;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -61,22 +60,20 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
                 offset, length, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
         WireCommands.SegmentRead segmentRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
         File f = new File(fileName);
         // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
         if (f.exists()) {
             throw new FileAlreadyExistsException("Cannot write segment data into a file that already exists.");
         }
-
         if (!f.getParentFile().exists()) {
             f.getParentFile().mkdirs();
         }
         f.createNewFile();
-
         // Write data into the file.
         @Cleanup
         FileOutputStream fileStream = new FileOutputStream(f);
         fileStream.write(segmentRead.getData().array());
+        output("The segment data has been successfully written into %s", fileName);
     }
 
     public static CommandDescriptor descriptor() {
