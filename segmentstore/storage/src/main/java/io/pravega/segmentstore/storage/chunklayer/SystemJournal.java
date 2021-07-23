@@ -650,7 +650,7 @@ public class SystemJournal {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
                         .name(systemSegment)
                         .ownerEpoch(epoch)
-                        .maxRollinglength(config.getDefaultRollingPolicy().getMaxLength())
+                        .maxRollinglength(config.getStorageMetadataRollingPolicy().getMaxLength())
                         .build();
                 segmentMetadata.setActive(true)
                         .setOwnershipChanged(true)

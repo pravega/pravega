@@ -67,7 +67,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String concatSegmentName = "concat";
 
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(policy).build();
 
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
@@ -212,7 +212,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         String concatSegmentName = "concat";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(policy).build();
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         spyMetadataStore.setMaxEntriesInTxnBuffer(0);
@@ -302,7 +302,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testIOExceptionDuringWrite() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(policy).build();
 
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
@@ -371,7 +371,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .defaultRollingPolicy(policy)
+                .storageMetadataRollingPolicy(policy)
                 .garbageCollectionDelay(Duration.ZERO)
                 .build();
         @Cleanup
