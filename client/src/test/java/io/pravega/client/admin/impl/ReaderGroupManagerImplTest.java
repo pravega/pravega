@@ -25,6 +25,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
@@ -265,6 +266,25 @@ public class ReaderGroupManagerImplTest {
         ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
         assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
         assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
+    }
+
+    @Test
+    public void testGetOrCreateReaderGroup() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                                                                                               .put(createStream("s1"), createStreamCut("s1", 2))
+                                                                                               .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                                                    .build();
+        // simulate an already existing ReaderGroup.
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 1L);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                                                   any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        // Create a ReaderGroup
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getOrCreateReaderGroup(GROUP_NAME, config);
+        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
+                                                                any(Serializer.class), any(SynchronizerConfig.class));
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

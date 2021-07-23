@@ -101,8 +101,8 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param config The configuration for the ReaderGroup.
      * @return ReaderGroup with the given name.
      */
-    default ReaderGroup getOrCreate(String groupName, ReaderGroupConfig config) {
-        // creating a ReaderGroup checks if the ReaderGroup exists, if not creates one.
+    default ReaderGroup getOrCreateReaderGroup(String groupName, ReaderGroupConfig config) {
+        // Check if the ReaderGroup exists, if not creates one.
         createReaderGroup(groupName, config);
         return getReaderGroup(groupName);
     }
