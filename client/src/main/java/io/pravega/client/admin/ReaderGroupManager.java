@@ -72,7 +72,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * may block.
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
-     * @return The {@link ReaderGroupConfig} of the ReaderGroup. If a ReaderGroup already exists then the older configuration
+     * @return The {@link ReaderGroupConfig} of the ReaderGroup. If a ReaderGroup already exists then the existing configuration
      * is returned.
      */
     ReaderGroupConfig createReaderGroup(String groupName, ReaderGroupConfig config);
@@ -94,6 +94,18 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @throws ReaderGroupNotFoundException If the reader group does not exist.
      */
     ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException;
+
+    /**
+     * Get a ReaderGroup for the provided groupName and configuration.
+     * @param groupName The name of the ReaderGroup.
+     * @param config The configuration for the ReaderGroup.
+     * @return ReaderGroup with the given name.
+     */
+    default ReaderGroup getOrCreate(String groupName, ReaderGroupConfig config) {
+        // creating a ReaderGroup checks if the ReaderGroup exists, if not creates one.
+        createReaderGroup(groupName, config);
+        return getReaderGroup(groupName);
+    }
     
     /**
      * Close this manager class. This will close any connections created through it.
