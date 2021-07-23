@@ -69,6 +69,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
@@ -1011,7 +1012,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean errorCodeExists(Throwable e) {
-        val errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
+        ErrorCode errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
         return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
     }
 

@@ -86,6 +86,7 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
     /**
      * Tests {@link CompositeBufferView#getReader()}.
      */
+    @Override
     @Test
     public void testGetReader() throws IOException {
         val components = createComponents();

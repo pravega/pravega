@@ -30,6 +30,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Unit tests for {@link InMemorySimpleStorage} using {@link SimpleStorageTests}.
  */
 public class InMemorySimpleStorageTests extends SimpleStorageTests {
+    @Override
     protected ChunkStorage getChunkStorage() {
         return new InMemoryChunkStorage(executorService());
     }
@@ -38,6 +39,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class InMemorySimpleStorageRollingStorageTests extends ChunkedRollingStorageTests {
+        @Override
         protected ChunkStorage getChunkStorage() {
             return new InMemoryChunkStorage(executorService());
         }

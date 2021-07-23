@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ControllerServiceConfigTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Test
     public void configTests() {

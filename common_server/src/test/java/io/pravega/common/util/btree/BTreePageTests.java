@@ -345,7 +345,7 @@ public class BTreePageTests {
         int headerId = page.getHeaderId();
         for (int item = 0; item < count; item++) {
             // Add one more entry to the page.
-            page.update(Collections.singletonList(new PageEntry(serializeInt(item), serializeLong((long) (item + 1)))));
+            page.update(Collections.singletonList(new PageEntry(serializeInt(item), serializeLong(item + 1))));
 
             boolean expectedSplit = page.getLength() > CONFIG.getMaxPageSize();
             val splitResult = page.splitIfNecessary();

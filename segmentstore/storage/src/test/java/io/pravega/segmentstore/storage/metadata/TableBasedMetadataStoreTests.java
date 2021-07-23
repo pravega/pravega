@@ -32,6 +32,7 @@ import org.junit.Before;
  *  Note that this is just a test for key-value store. Here the storage is NOT using this implementation.
  */
 public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
+    @Override
     @Before
     public void setUp() throws Exception {
         val tableStore = new InMemoryTableStore(executorService());
@@ -43,10 +44,12 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
      */
     public static class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
 
+        @Override
         protected ChunkStorage getChunkStorage() throws Exception {
             return new InMemoryChunkStorage(executorService());
         }
 
+        @Override
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
@@ -68,10 +71,12 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
      * Unit tests for {@link TableBasedMetadataStore} with {@link InMemoryChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class InMemorySimpleStorageRollingTests extends ChunkedRollingStorageTests {
+        @Override
         protected ChunkStorage getChunkStorage() throws Exception {
             return new InMemoryChunkStorage(executorService());
         }
 
+        @Override
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
@@ -90,6 +95,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             return new TableBasedMetadataStore(tableName, tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         }
 
+        @Override
         public TestContext getTestContext() throws Exception {
             return new TableBasedMetadataTestContext(executorService());
         }

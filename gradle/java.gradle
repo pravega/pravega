@@ -29,15 +29,23 @@ plugins.withId('java') {
                 "-Xlint:finally",
                 "-Xlint:overrides",
                 "-Xlint:path",
-                "-Werror",
                 "-Xlint:unchecked",
+                "-Werror",
                 "--release",
                 getDefaultJavaVersion()
         ])
     }
 
     compileTestJava {
-        options.compilerArgs.addAll(["--release",  getDefaultJavaVersion()])
+        options.compilerArgs.addAll([                
+                "-Xlint:empty",
+                "-Xlint:fallthrough",
+                "-Xlint:finally",
+                "-Xlint:overrides",
+                "-Xlint:path",
+                "-Werror",
+                "--release",
+                getDefaultJavaVersion()])
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')

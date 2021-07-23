@@ -17,6 +17,7 @@ package io.pravega.storage.filesystem;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
 import org.junit.Before;
@@ -64,6 +65,7 @@ public class FileSystemMockTests {
     public void testListSegmentsNumberIoException() {
         FileChannel channel1 = mock(FileChannel.class);
         FileSystemStorageConfig storageConfig = FileSystemStorageConfig.builder().build();
+        @Cleanup
         TestFileSystemStorage testFileSystemStorage = new TestFileSystemStorage(storageConfig, channel1);
         AssertExtensions.assertThrows(IOException.class, () -> testFileSystemStorage.listSegments());
     }
@@ -84,7 +86,7 @@ public class FileSystemMockTests {
         FileChannel channel = mock(FileChannel.class);
         fixChannelMock(channel);
         String segmentName = "test";
-
+        @Cleanup
         TestFileSystemStorage testStorage = new TestFileSystemStorage(storageConfig, channel);
         testStorage.setSizeToReturn(2L * bufferSize);
         SegmentHandle handle = FileSystemSegmentHandle.readHandle(segmentName);
