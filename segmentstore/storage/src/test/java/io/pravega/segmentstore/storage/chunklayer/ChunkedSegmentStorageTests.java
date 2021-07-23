@@ -2932,7 +2932,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             taskQueue = createTaskQueue();
             chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, this.executor, config);
             chunkedSegmentStorage.initialize(1);
-            chunkedSegmentStorage.getGarbageCollector().initialize(taskQueue);
+            chunkedSegmentStorage.getGarbageCollector().initialize(taskQueue).join();
         }
 
         /**
@@ -2955,6 +2955,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                     this.executor,
                     this.config);
             forkedContext.chunkedSegmentStorage.initialize(epoch);
+            forkedContext.taskQueue = createTaskQueue();
+            forkedContext.chunkedSegmentStorage.getGarbageCollector().initialize(taskQueue).join();
             return forkedContext;
         }
 

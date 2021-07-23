@@ -25,6 +25,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -245,6 +246,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage segmentStorage = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStore, executorService(), config);
 
         segmentStorage.initialize(epoch);
+        segmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         segmentStorage.bootstrap(snapshotInfoStore, null).join();
         segmentStorage.create("test", null).get();
 
@@ -292,6 +294,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage1.bootstrap(snapshotInfoStore, null).join();
@@ -313,6 +316,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage2.bootstrap(snapshotInfoStore, null).join();
@@ -359,6 +363,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage1.bootstrap(snapshotInfoStore, null).join();
@@ -378,6 +383,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage2.bootstrap(snapshotInfoStore, null).join();
@@ -433,6 +439,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStore, executorService(), config);
 
         segmentStorage1.initialize(epoch);
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage1.bootstrap(snapshotInfoStore, null).join();
@@ -465,6 +472,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Bootstrap
         segmentStorage2.bootstrap(snapshotInfoStore, null).join();
@@ -520,6 +528,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             cleanupHelper.add(segmentStorageInLoop);
 
             segmentStorageInLoop.initialize(epoch);
+            segmentStorageInLoop.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
             segmentStorageInLoop.bootstrap(snapshotInfoStore, null).join();
             checkSystemSegmentsLayout(segmentStorageInLoop);
@@ -551,6 +560,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
         segmentStorageFinal.initialize(epoch);
+        segmentStorageFinal.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         segmentStorageFinal.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorageFinal);
@@ -641,6 +651,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             cleanupHelper.add(segmentStorageInLoop);
 
             segmentStorageInLoop.initialize(epoch);
+            segmentStorageInLoop.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
             segmentStorageInLoop.bootstrap(snapshotInfoStore, null).join();
             checkSystemSegmentsLayout(segmentStorageInLoop);
@@ -694,6 +705,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
         cleanupHelper.add(segmentStorageFinal);
         segmentStorageFinal.initialize(epoch);
+        segmentStorageFinal.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         segmentStorageFinal.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorageFinal);
@@ -788,7 +800,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
-
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         // Bootstrap
         segmentStorage1.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorage1);
@@ -809,6 +821,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         segmentStorage2.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorage2);
@@ -866,6 +879,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
         // Bootstrap
         segmentStorage1.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorage1);
@@ -884,6 +899,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         segmentStorage2.bootstrap(snapshotInfoStore, null).join();
         checkSystemSegmentsLayout(segmentStorage2);

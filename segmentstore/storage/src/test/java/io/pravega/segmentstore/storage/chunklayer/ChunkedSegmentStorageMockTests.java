@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataVersionMismatchException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -81,6 +82,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -227,6 +229,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -317,7 +320,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
-
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
 

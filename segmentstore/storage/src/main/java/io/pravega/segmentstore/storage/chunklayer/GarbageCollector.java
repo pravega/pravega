@@ -189,13 +189,11 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * @param chunksToDelete List of chunks to delete.
      */
     CompletableFuture<Void> addChunksToGarbage(long transactionId, Collection<String> chunksToDelete) {
-        if (null != taskQueue) {
-            val currentTime = currentTimeSupplier.get();
-            val futures = new ArrayList<CompletableFuture<Void>>();
-            chunksToDelete.forEach(chunkToDelete -> futures.add(addChunkToGarbage(transactionId, chunkToDelete, currentTime + config.getGarbageCollectionDelay().toMillis(), 0)));
-            return Futures.allOf(futures);
-        }
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        val currentTime = currentTimeSupplier.get();
+        val futures = new ArrayList<CompletableFuture<Void>>();
+        chunksToDelete.forEach(chunkToDelete -> futures.add(addChunkToGarbage(transactionId, chunkToDelete, currentTime + config.getGarbageCollectionDelay().toMillis(), 0)));
+        return Futures.allOf(futures);
     }
 
     /**
@@ -206,14 +204,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * @param attempts Number of attempts to delete this chunk so far.
      */
     CompletableFuture<Void> addChunkToGarbage(long transactionId, String chunkToDelete, long startTime, int attempts) {
-        if (null != taskQueue) {
-            return taskQueue.addTask(taskQueueName, new TaskInfo(chunkToDelete, startTime, attempts, TaskInfo.DELETE_CHUNK, transactionId))
-                    .thenRunAsync(() -> {
-                        queueSize.incrementAndGet();
-                        SLTS_GC_CHUNK_QUEUED.inc();
-                    }, this.storageExecutor);
-        }
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        return taskQueue.addTask(taskQueueName, new TaskInfo(chunkToDelete, startTime, attempts, TaskInfo.DELETE_CHUNK, transactionId))
+                .thenRunAsync(() -> {
+                    queueSize.incrementAndGet();
+                    SLTS_GC_CHUNK_QUEUED.inc();
+                }, this.storageExecutor);
     }
 
     /**
@@ -224,15 +220,13 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * If the operation failed, it will contain the cause of the failure.
      */
     CompletableFuture<Void> addSegmentToGarbage(long transactionId, String segmentToDelete) {
-        if (null != taskQueue) {
-            val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
-            return taskQueue.addTask(taskQueueName, new TaskInfo(segmentToDelete, startTime, 0, TaskInfo.DELETE_SEGMENT, transactionId))
-                    .thenRunAsync(() -> {
-                        queueSize.incrementAndGet();
-                        SLTS_GC_SEGMENT_QUEUED.inc();
-                    }, this.storageExecutor);
-        }
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
+        return taskQueue.addTask(taskQueueName, new TaskInfo(segmentToDelete, startTime, 0, TaskInfo.DELETE_SEGMENT, transactionId))
+                .thenRunAsync(() -> {
+                    queueSize.incrementAndGet();
+                    SLTS_GC_SEGMENT_QUEUED.inc();
+                }, this.storageExecutor);
     }
 
     /**
@@ -242,14 +236,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * If the operation failed, it will contain the cause of the failure.
      */
     CompletableFuture<Void> addSegmentToGarbage(TaskInfo taskInfo) {
-        if (null != taskQueue) {
-            return taskQueue.addTask(taskQueueName, taskInfo)
-                    .thenRunAsync(() -> {
-                        queueSize.incrementAndGet();
-                        SLTS_GC_SEGMENT_QUEUED.inc();
-                    }, this.storageExecutor);
-        }
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        return taskQueue.addTask(taskQueueName, taskInfo)
+                .thenRunAsync(() -> {
+                    queueSize.incrementAndGet();
+                    SLTS_GC_SEGMENT_QUEUED.inc();
+                }, this.storageExecutor);
     }
 
     /**
@@ -260,23 +252,21 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * If the operation failed, it will contain the cause of the failure.
      */
     CompletableFuture<Void> trackNewChunk(long transactionId, String chunktoTrack) {
-        if (null != taskQueue) {
-            val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
-            // Simply add delete chunk task for newly tracked chunk and update metrics.
-            return taskQueue.addTask(taskQueueName, new TaskInfo(chunktoTrack, startTime, 0, TaskInfo.DELETE_CHUNK, transactionId))
-                    .thenRunAsync(() -> {
-                        queueSize.incrementAndGet();
-                        SLTS_GC_CHUNK_NEW.inc();
-                    }, this.storageExecutor);
-        }
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
+        // Simply add delete chunk task for newly tracked chunk and update metrics.
+        return taskQueue.addTask(taskQueueName, new TaskInfo(chunktoTrack, startTime, 0, TaskInfo.DELETE_CHUNK, transactionId))
+                .thenRunAsync(() -> {
+                    queueSize.incrementAndGet();
+                    SLTS_GC_CHUNK_NEW.inc();
+                }, this.storageExecutor);
     }
 
     /**
      * Add the task to failed queue.
      */
     private CompletableFuture<Void> failTask(TaskInfo infoToRetire) {
-        Preconditions.checkState(null != taskQueue, "taskQueue");
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
         return taskQueue.addTask(failedQueueName, infoToRetire);
     }
 
