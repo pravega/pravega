@@ -23,6 +23,7 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
 import java.util.Properties;
 
+import io.pravega.controller.util.TLSProtocolVersion;
 import lombok.Builder;
 import lombok.Data;
 
@@ -37,7 +38,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
-    private final String[] tlsProtocolVersion;
+    private final String tlsProtocolVersion;
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
@@ -56,6 +57,9 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
+        if (tlsProtocolVersion != null) {
+            Preconditions.checkArgument(TLSProtocolVersion.TlsProtocolVersion.parse(tlsProtocolVersion), "Invalid TLS Protocol Version.");
+        }
         if (publishedRPCHost != null) {
             Exceptions.checkNotNullOrEmpty(publishedRPCHost, "publishedRPCHost");
         }
@@ -74,7 +78,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.authorizationEnabled = authorizationEnabled;
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion = tlsProtocolVersion.split(",");
+        this.tlsProtocolVersion = tlsProtocolVersion;
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
@@ -110,7 +114,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %b, ", (Object) tlsProtocolVersion))
+                .append(String.format("tlsProtocolVersion: %b, ",  tlsProtocolVersion))
                 .append(String.format("tlsCertFile is %s, ",
                         Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
                 .append(String.format("tlsKeyFile is %s, ",

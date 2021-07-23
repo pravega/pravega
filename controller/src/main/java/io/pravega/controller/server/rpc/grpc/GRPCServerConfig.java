@@ -70,7 +70,7 @@ public interface GRPCServerConfig extends ServerConfig {
      * A configuration for TLS protocol versions.
      * @return A variable for tls protocol version
      */
-    String[] getTlsProtocolVersion();
+    String getTlsProtocolVersion();
 
     /**
      * The truststore to be used while talking to segmentstore over TLS.
