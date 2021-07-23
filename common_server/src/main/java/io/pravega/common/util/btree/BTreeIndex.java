@@ -769,6 +769,7 @@ public class BTreeIndex {
         return serialization.getLong(Long.BYTES + Short.BYTES);
     }
 
+    @SuppressWarnings("all")
     private ByteArraySegment generateMinKey() {
         byte[] result = new byte[this.indexPageConfig.getKeyLength()];
         if (BufferViewComparator.MIN_VALUE != 0) {

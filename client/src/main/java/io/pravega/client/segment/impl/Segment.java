@@ -18,7 +18,6 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
 import lombok.Data;
@@ -110,7 +109,7 @@ public class Segment implements Comparable<Segment>, Serializable {
         return result;
     }
     
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new SerializedForm(getScopedName());
     }
     
@@ -118,7 +117,7 @@ public class Segment implements Comparable<Segment>, Serializable {
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;
         private final String value;
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return Segment.fromScopedName(value);
         }
     }

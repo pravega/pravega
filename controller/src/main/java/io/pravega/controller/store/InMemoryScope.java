@@ -183,7 +183,7 @@ public class InMemoryScope implements Scope {
     @Synchronized
     public CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context) {
         if (this.readerGroupsMap.containsKey(rgName)) {
-            return CompletableFuture.completedFuture(((InMemoryReaderGroup) this.readerGroupsMap.get(rgName)).getId());
+            return CompletableFuture.completedFuture(this.readerGroupsMap.get(rgName).getId());
         }
         return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "reader group not found in scope."));
     }

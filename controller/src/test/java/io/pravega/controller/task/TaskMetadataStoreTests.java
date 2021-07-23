@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
 public abstract class TaskMetadataStoreTests {
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected TaskMetadataStore taskMetadataStore;
 
     private final Resource resource = new Resource("scope", "stream1");

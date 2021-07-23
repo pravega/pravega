@@ -55,12 +55,12 @@ public class HealthTests {
 
     private static final int INTERVAL = 1000;
     @Rule
-    public final Timeout globalTimeout = new Timeout(10 * INTERVAL, TimeUnit.MILLISECONDS);
+    public final Timeout globalTimeout = new Timeout(20 * INTERVAL, TimeUnit.MILLISECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private  HealthServiceManager healthServiceManager;
+    private HealthServiceManager healthServiceManager;
 
     @Before
     public void setup() throws Exception {
@@ -328,6 +328,7 @@ public class HealthTests {
             super(name);
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
             Map<String, Object> details = new HashMap<>();
@@ -347,6 +348,7 @@ public class HealthTests {
             super("static-contributor-indicator");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.DOWN;
             Map<String, Object> details = new HashMap<>();

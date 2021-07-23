@@ -94,7 +94,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             log.info("Received noSuchSegment {}", noSuchSegment);
             CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getOffset());
             if (future != null) {
-                future.completeExceptionally(new SegmentTruncatedException("Segment no longer exists."));
+                future.completeExceptionally(new SegmentTruncatedException(String.format("Segment %s no longer exists.", noSuchSegment.getSegment())));
             }
         }
         
@@ -103,7 +103,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             log.info("Received segmentIsTruncated {}", segmentIsTruncated);
             CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getOffset());
             if (future != null) {
-                future.completeExceptionally(new SegmentTruncatedException());
+                future.completeExceptionally(new SegmentTruncatedException(segmentIsTruncated.toString()));
             }
         }
         

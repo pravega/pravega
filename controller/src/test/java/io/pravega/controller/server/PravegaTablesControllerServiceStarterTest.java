@@ -41,12 +41,12 @@ public class PravegaTablesControllerServiceStarterTest extends ZKBackedControlle
     @Override
     StreamMetadataStore getStore(StoreClient storeClient) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
-                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
+                GrpcAuthHelper.getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
     }
 
     @Override
     KVTableMetadataStore getKVTStore(StoreClient storeClient) {
         return KVTableStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),
-                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
+                GrpcAuthHelper.getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
     }
 }

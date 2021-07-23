@@ -98,7 +98,7 @@ public abstract class ControllerEventProcessorTest {
     private static final String STREAM = "stream";
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
