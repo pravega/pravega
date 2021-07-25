@@ -28,6 +28,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.util.TLSProtocolVersion;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
@@ -88,7 +89,7 @@ public class GRPCServer extends AbstractIdleService {
     @SneakyThrows(SSLException.class)
     private SslContext getSSLContext(GRPCServerConfig serverConfig) {
         return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
-                .protocols(serverConfig.getTlsProtocolVersion().split(","))
+                .protocols(TLSProtocolVersion.getTlsProtocolVersionList(serverConfig.getTlsProtocolVersion()))
                 .build();
     }
 

@@ -18,6 +18,7 @@ package io.pravega.shared.rest;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.security.JKSHelper;
+import io.pravega.shared.rest.impl.TLSProtocolVersion;
 import java.net.URI;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -71,7 +72,8 @@ public class RESTServer extends AbstractIdleService {
                 contextConfigurator.setKeyStoreFile(restServerConfig.getKeyFilePath());
                 contextConfigurator.setKeyStorePass(JKSHelper.loadPasswordFrom(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
-                        new SSLEngineConfigurator(contextConfigurator, false, false, false).setEnabledProtocols(restServerConfig.tlsProtocolVersion().split(",")));
+                        new SSLEngineConfigurator(contextConfigurator, false, false, false)
+                                .setEnabledProtocols(TLSProtocolVersion.getTlsProtocolVersionList(restServerConfig.tlsProtocolVersion())));
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }

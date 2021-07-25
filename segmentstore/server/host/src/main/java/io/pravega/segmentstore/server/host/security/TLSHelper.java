@@ -69,7 +69,9 @@ public class TLSHelper {
         ensureExistAndAreReadable(certificateFile, serverKeyFile);
 
         try {
-            SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile).protocols(tlsProtocolVersion.split(",")).build();
+            SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile)
+                    .protocols(TLSProtocolVersion.getTlsProtocolVersionList(tlsProtocolVersion))
+                    .build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;
         } catch (SSLException e) {

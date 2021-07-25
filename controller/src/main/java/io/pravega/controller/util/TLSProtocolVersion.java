@@ -23,7 +23,8 @@ public class TLSProtocolVersion {
 
         TLSv1_2("TLSv1.2"),
         TLSv1_3("TLSv1.3"),
-        TLS1_2ANDTLS1_3("TLSv1.2,TLSv1.3");
+        TLS1_2ANDTLS1_3("TLSv1.2,TLSv1.3"),
+        TLS1_3ANDTLS1_2("TLSv1.3,TLSv1.2");
 
         String tlsprotocol;
 
@@ -34,5 +35,9 @@ public class TLSProtocolVersion {
         public static boolean parse(String s) {
             return Arrays.stream(TlsProtocolVersion.values()).anyMatch(e -> e.tlsprotocol.equals(s));
         }
+    }
+
+    public static String[] getTlsProtocolVersionList(String s) {
+        return s.split(",");
     }
 }
