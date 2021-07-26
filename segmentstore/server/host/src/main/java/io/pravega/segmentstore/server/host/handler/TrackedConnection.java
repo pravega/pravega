@@ -16,9 +16,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.function.RunnableWithException;
 import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.common.function.Callbacks;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -76,11 +74,6 @@ public class TrackedConnection implements AutoCloseable {
     @Override
     public void close() {
         this.connection.close();
-    }
-
-    public void close(RunnableWithException callback) {
-        this.close();
-        Callbacks.invokeSafely(callback, ex -> log.error("Unable to run callback on TrackedConnection close.", ex));
     }
 
     @Override

@@ -741,6 +741,11 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         );
     }
 
+    @Test
+    public void testTransientSegmentCleanup() {
+
+    }
+
     private String getName(long segmentId) {
         return String.format("Segment_%d", segmentId);
     }

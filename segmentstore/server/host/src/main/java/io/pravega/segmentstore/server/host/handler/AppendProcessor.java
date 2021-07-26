@@ -143,7 +143,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
             log.warn(hello.getRequestId(), "Incompatible wire protocol versions {} from connection {}", hello, connection);
-            connection.close(this::close);
+            close();
         }
     }
 
@@ -224,7 +224,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     // and retrying the request with a new token.
                     log.debug("Closing client connection for writer {} due to token expiry, when processing " +
                                 "request {} for segment {}", writerId, requestId, segment);
-                    connection.close(this::close);
+                    this.close();
                 }
                 return null;
             }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
@@ -268,11 +268,9 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.TRANSIENT_SEGMENT.getValue())
         );
-        String transientSegmentName = NameUtils.getTransientNameFromId(createTransientSegment.getParentSegment(), UUID.randomUUID());
+        String transientSegmentName = NameUtils.getTransientNameFromId(createTransientSegment.getParentSegment(), createTransientSegment.getWriterId());
         store.createStreamSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT)
-                .thenAccept(v -> {
-                    connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
-                })
+                .thenAccept(v -> connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName)))
                 .exceptionally(e -> handleException(createTransientSegment.getWriterId(),
                         createTransientSegment.getRequestId(),
                         transientSegmentName,
@@ -410,10 +408,10 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn(requestId, "Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
-            connection.close(this::close);
+            close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
-            connection.close(this::close);
+            close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
@@ -424,10 +422,10 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.
             log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.toString());
-            connection.close(this::close);
+            close();
         } else {
             logError(segment, u);
-            connection.close(this::close); // Closing connection should reinitialize things, and hopefully fix the problem
+            close(); // Closing connection should reinitialize things, and hopefully fix the problem
         }
 
         return null;
@@ -443,7 +441,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
     @Override
     public void close() {
-        // Todo: Delete Transient Segments.
+        connection.close();
     }
 
     //endregion

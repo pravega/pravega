@@ -143,8 +143,8 @@ public abstract class MetadataStore implements AutoCloseable {
      * </ul>
      */
     CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
-        if (segmentType.isTransient() && !NameUtils.isTransientSegment(segmentName)) {
-            return Futures.failedFuture(new IllegalStateException("Invalid name '" + segmentName + "' for SegmentType: Transient"));
+        if (segmentType.isTransientSegment() && !NameUtils.isTransientSegment(segmentName)) {
+            return Futures.failedFuture(new IllegalArgumentException("Invalid name '" + segmentName + "' for SegmentType: Transient"));
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createSegment", segmentName);
@@ -155,12 +155,9 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, segmentType, attributes));
-        CompletableFuture<Void> result;
-        if (segmentType != SegmentType.TRANSIENT_SEGMENT) {
-            result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
-        } else {
-            result = CompletableFuture.runAsync(() -> submitAssignment(newSegment(segmentName, segmentType, attributes), false, timeout));
-        }
+        CompletableFuture<Void> result = segmentType.isTransientSegment() ?
+                createTransientSegment(segmentName, attributes, timeout) :
+                createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
 
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createSegment", traceId, segmentName));
@@ -178,6 +175,18 @@ public abstract class MetadataStore implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
      */
     protected abstract CompletableFuture<Void> createSegment(String segmentName, ArrayView segmentInfo, TimeoutTimer timer);
+
+    /**
+     * Creates a new Transient Segment with given name.
+     *
+     * @param segmentName The case-sensitive Segment Name.
+     * @param attributes  The initial attributes for the StreamSegment, if any.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the TransientSegment has been created.
+     */
+    CompletableFuture<Void> createTransientSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+        return Futures.toVoid(submitAssignment(newSegment(segmentName, SegmentType.TRANSIENT_SEGMENT, attributes), false, timeout));
+    }
 
     //endregion
 

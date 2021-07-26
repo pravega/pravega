@@ -203,15 +203,19 @@ public final class NameUtils {
      * Returns the transient name for a TransientSegment based on the name of the current Parent StreamSegment, and the transientId.
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment for this transient segment.
-     * @param transientId             The unique Id for the transient segment.
+     * @param writerId The Writer Id used to create the transient segment.
      * @return The name of the Transient StreamSegmentId.
      */
-    public static String getTransientNameFromId(String parentStreamSegmentName, UUID transientId) {
+    public static String getTransientNameFromId(String parentStreamSegmentName, UUID writerId) {
+        UUID random = UUID.randomUUID();
         StringBuilder result = new StringBuilder();
         result.append(parentStreamSegmentName);
         result.append(TRANSIENT_DELIMITER);
-        result.append(String.format(FULL_HEX_FORMAT, transientId.getMostSignificantBits()));
-        result.append(String.format(FULL_HEX_FORMAT, transientId.getLeastSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, writerId.getMostSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, writerId.getLeastSignificantBits()));
+        result.append('.');
+        result.append(String.format(FULL_HEX_FORMAT, random.getMostSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, random.getLeastSignificantBits()));
         return result.toString();
     }
 

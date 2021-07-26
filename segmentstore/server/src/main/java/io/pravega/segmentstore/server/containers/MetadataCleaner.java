@@ -19,7 +19,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
@@ -43,6 +42,8 @@ import lombok.val;
 @ThreadSafe
 class MetadataCleaner extends AbstractThreadPoolService {
     //region Private
+
+    static final Duration TIMEOUT = Duration.ofMinutes(1);
 
     private final ContainerConfig config;
     private final EvictableMetadata metadata;
@@ -156,17 +157,14 @@ class MetadataCleaner extends AbstractThreadPoolService {
         return result;
     }
 
-    private CompletableFuture<Void> evictUnusedSegments() {
-        long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
+    private CompletableFuture<Void> evictUnusedSegments(long lastSeqNo) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
-
         // Get candidates.
         Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount());
-
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         val serializationTasks = cleanupCandidates
                 .stream()
-                .filter(sm -> !sm.isDeleted() && !sm.isMerged())
+                .filter(sm -> sm.getType().isTransientSegment() && sm.isDeleted() || !sm.isDeleted() && !sm.isMerged())
                 .map(sm -> this.metadataStore.updateSegmentInfo(sm, this.config.getSegmentMetadataExpiration()))
                 .collect(Collectors.toList());
 
@@ -180,16 +178,15 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 }, this.executor);
     }
 
-    private CompletableFuture<Void> deleteUnusedTransientSegments() {
-        long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
+    private CompletableFuture<Void> deleteUnusedTransientSegments(long lastSeqNo) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "deleteUnusedTransientSegments", lastSeqNo);
-
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount())
                 .stream()
-                .filter(sm -> sm.getType() == SegmentType.TRANSIENT_SEGMENT && sm.isDeleted())
+                .filter(sm -> sm.getType().isTransientSegment() && !sm.isDeleted())
+                //.filter(sm -> appendProcessor.isTransientSegmentActive(sm.getName()))
                 .forEach(sm -> {
-                    // Todo: AppendProcessor - isTransientSegmentActive()?
+                    metadataStore.deleteSegment(sm.getName(), TIMEOUT);
                 });
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "deleteUnusedTransientSegments", traceId);
@@ -197,7 +194,8 @@ class MetadataCleaner extends AbstractThreadPoolService {
     }
 
     private CompletableFuture<Void> runOnceInternal() {
-        return evictUnusedSegments().thenAccept(unused -> deleteUnusedTransientSegments());
+        long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
+        return evictUnusedSegments(lastSeqNo).thenCompose(unused -> deleteUnusedTransientSegments(lastSeqNo));
     }
 
     private CompletableFuture<Void> delay() {

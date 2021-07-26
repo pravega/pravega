@@ -65,7 +65,7 @@ public class SegmentType {
     @VisibleForTesting
     static final long ROLE_CRITICAL = 0b0100_0000L;
     @VisibleForTesting
-    static final long ROLE_TRANSIENT = 0b1000_0000;
+    static final long ROLE_TRANSIENT = 0b1000_0000L;
     private final long flags;
 
     //endregion
@@ -115,11 +115,11 @@ public class SegmentType {
     }
 
     /**
-     * Whether this {@link SegmentType} refers to a Transient Segment (which implies {@link #isTransient()}.
+     * Whether this {@link SegmentType} refers to a Transient Segment.
      *
      * @return True if Transient Segment, false otherwise.
      */
-    public boolean isTransient() {
+    public boolean isTransientSegment() {
         return (this.flags & ROLE_TRANSIENT) == ROLE_TRANSIENT;
     }
 
@@ -166,7 +166,7 @@ public class SegmentType {
             result.append(", Table Segment");
         }
 
-        if (isTableSegment()) {
+        if (isTransientSegment()) {
             result.append(", Transient");
         }
 

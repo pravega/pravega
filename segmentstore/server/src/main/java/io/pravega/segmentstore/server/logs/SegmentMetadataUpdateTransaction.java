@@ -43,6 +43,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOpera
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -57,6 +58,11 @@ import lombok.Setter;
 @NotThreadSafe
 class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
+
+    /**
+     * The number of Extended Attributes allowed to be associated with a {@link SegmentType#TRANSIENT_SEGMENT}.
+     */
+    private final static int TRANSIENT_ATTRIBUTE_LIMIT = 16;
 
     private final boolean recoveryMode;
     private final Map<AttributeId, Long> baseAttributeValues;
@@ -415,7 +421,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation);
         }
 
         if (!this.recoveryMode) {
@@ -456,6 +462,28 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
+     * Returns the total number of unique ExtendedAttributes that would exist for the segment assuming the
+     * {@link AttributeUpdateCollection} would be applied.
+     *
+     * @param attributeUpdates The {@link AttributeUpdateCollection} to apply.
+     * @return The number of unique extended attributes.
+     */
+    private int getUniqueExtendedAttributesCount(AttributeUpdateCollection attributeUpdates) {
+        int count = 0;
+        for (Map.Entry<AttributeId, Long> attribute : baseAttributeValues.entrySet()) {
+            count += !Attributes.isCoreAttribute(attribute.getKey()) ? 1 : 0;
+        }
+        Collection<AttributeId> unique = new HashSet<>();
+        for (AttributeUpdate attribute : attributeUpdates) {
+            if (!Attributes.isCoreAttribute(attribute.getAttributeId()) && !unique.contains(attribute)) {
+                count += !baseAttributeValues.containsKey(attribute.getAttributeId()) ? 1 : 0;
+                unique.add(attribute.getAttributeId());
+            }
+        }
+        return count;
+    }
+
+    /**
      * Pre-processes a collection of attributes.
      * After this method returns, all AttributeUpdates in the given collection will have the actual (and updated) value
      * of that attribute in the Segment.
@@ -474,15 +502,18 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             return;
         }
 
+        // Make sure that the number of existing ExtendedAttributes + incoming ExtendedAttributes does not exceed the limit.
+        if (NameUtils.isTransientSegment(this.name) && getUniqueExtendedAttributesCount(attributeUpdates) > TRANSIENT_ATTRIBUTE_LIMIT) {
+            throw new MetadataUpdateException(this.containerId,
+                    String.format("A Transient Segment ('%s') may not exceed %s Extended Attributes.", this.name, TRANSIENT_ATTRIBUTE_LIMIT));
+        }
+
         // We must ensure that we aren't trying to set/update attributes that are incompatible with this Segment.
         validateAttributeIdLengths(attributeUpdates);
         for (AttributeUpdate u : attributeUpdates) {
             if (Attributes.isUnmodifiable(u.getAttributeId())) {
                 throw new MetadataUpdateException(this.containerId,
                         String.format("Attribute Id '%s' on Segment Id %s ('%s') may not be modified.", u.getAttributeId(), this.id, this.name));
-            } else if (NameUtils.isTransientSegment(this.name) && !Attributes.isCoreAttribute(u.getAttributeId())) {
-                throw new MetadataUpdateException(this.containerId,
-                        String.format("Extended Attribute '%s' may not be used on Transient Segment '%s'.", u.getAttributeId(), this.name));
             }
 
             AttributeUpdateType updateType = u.getUpdateType();
@@ -657,7 +688,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation);
         }
 
         this.length += transLength;
