@@ -1365,7 +1365,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Merge all the Transaction. Now this should work.
+        // 4. Merge all the Transactions. Now this should work.
         Futures.allOf(mergeTransactions(transactionsBySegment, lengths, segmentContents, context, true))
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
