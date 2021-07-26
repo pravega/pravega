@@ -44,6 +44,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -483,13 +484,8 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("mergeTableSegments");
-        }
-
-        @Override
-        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-            throw new UnsupportedOperationException("sealTableSegment");
+        public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
+            throw new UnsupportedOperationException("getInfo");
         }
     }
 }

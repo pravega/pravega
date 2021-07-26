@@ -161,6 +161,11 @@ public final class NameUtils {
     @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
+    /**
+     * Formatting for internal Segments used for ContainerEventProcessor.
+     */
+    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = "_system/containers/event_processor_%s_%d";
+
     //endregion
 
     /**
@@ -698,14 +703,26 @@ public final class NameUtils {
         String segmentBaseName = NameUtils.getParentStreamSegmentName(segmentQualifiedName);
         return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
+
+    /**
+     * Get the name for this EventProcessor internal Segment.
+     *
+     * @param containerId    Id of the container where this Segment lives.
+     * @param processorName  Name of the EventProcessor.
+     * @return The name for the internal Segment used by an EventProcessor.
+     */
+    public static String getEventProcessorSegmentName(int containerId, String processorName) {
+        return String.format(CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME, processorName, containerId);
+    }
+
     // endregion
 
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
-     * and pravega internally created streams.
+     * and Pravega internally created streams.
      *
      * @param streamName    The stream name for which we need to construct an internal name.
-     * @return              The stream name which has to be used internally in the pravega system.
+     * @return              The stream name which has to be used internally in the Pravega system.
      */
     public static String getInternalNameForStream(String streamName) {
         return INTERNAL_NAME_PREFIX + streamName;

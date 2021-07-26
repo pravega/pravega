@@ -72,9 +72,30 @@ For eclipse, you can generate eclipse project files by running `./gradlew eclips
 
 The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
+## Snapshot artifacts 
+
+All snapshot artifacts from `master` and `release` branches are available in GitHub Packages Registry
+
+Add the following to your repositories list and import dependencies as usual. 
+
+```
+maven {
+    url "https://maven.pkg.github.com/pravega/pravega"
+    credentials {
+        username = "pravega-public"
+        password = "\u0067\u0068\u0070\u005F\u0048\u0034\u0046\u0079\u0047\u005A\u0031\u006B\u0056\u0030\u0051\u0070\u006B\u0079\u0058\u006D\u0035\u0063\u0034\u0055\u0033\u006E\u0032\u0065\u0078\u0039\u0032\u0046\u006E\u0071\u0033\u0053\u0046\u0076\u005A\u0049"
+    }
+}
+```
+Note GitHub Packages requires authentication to download packages thus credentials above are required. Use the provided password as is, please do not decode it. 
+
+If you need a dedicated token to use in your repository (and GitHub Actions) please reach out to us.  
+
+As alternative option you can use JitPack (https://jitpack.io/#pravega/pravega) to get pre-release artifacts. 
+
 ## Quick Start
 
-Read [Getting Started](documentation/src/docs/getting-started/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
+Read [Getting Started](documentation/src/docs/getting-started/quick-start.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Running Pravega
 

@@ -145,7 +145,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 // Fail the test if we get an unexpected value for currentGeneration.
                 clients.forEach(c ->
                         c.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
-                            Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(), (int) current);
+                            Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(), current);
                             updatedClients.add(c);
                             return false;
                         }));
@@ -237,7 +237,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 cache.setUsedBytes(policy.getEvictionThreshold() - 1);
                 client.setCacheStatus(defaultOldestGeneration, currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
-                    Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);
+                    Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), oldest);
                     return false;
                 });
             }

@@ -16,10 +16,14 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.AbstractHealthContributor;
+import io.pravega.test.common.TestUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
+@Slf4j
 public class TestHealthContributors {
 
     /**
@@ -39,6 +43,7 @@ public class TestHealthContributors {
             super(name, StatusAggregator.UNANIMOUS);
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
             Map<String, Object> details = new HashMap<>();
@@ -60,6 +65,7 @@ public class TestHealthContributors {
             this("failing");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.DOWN;
             builder.status(status);
@@ -76,10 +82,24 @@ public class TestHealthContributors {
             super("thrower");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UNKNOWN;
             throw new RuntimeException();
         }
+    }
+
+    public static void awaitHealthContributor(HealthServiceManager service, String id) throws TimeoutException {
+        TestUtils.await(() -> {
+                    Health health = null;
+                    try {
+                        health = service.getEndpoint().getHealth(id);
+                    } catch (ContributorNotFoundException e) {
+                        log.info("ContributorNotFound: '{}', retrying ...", id);
+                    }
+                    return health != null && health.getStatus() != Status.UNKNOWN;
+                }, (int) service.getHealthServiceUpdater().getInterval().toMillis(),
+                (int) service.getHealthServiceUpdater().getInterval().toMillis() * 3);
     }
 
 }

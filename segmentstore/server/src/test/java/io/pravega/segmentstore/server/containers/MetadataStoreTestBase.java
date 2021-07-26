@@ -382,7 +382,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         final long baseSegmentId = 1000;
         final long minSegmentLength = 1;
         final int segmentCount = 50;
-        Function<String, Long> getSegmentLength = segmentName -> minSegmentLength + (long) MathHelpers.abs(segmentName.hashCode());
+        Function<String, Long> getSegmentLength = segmentName -> minSegmentLength + MathHelpers.abs(segmentName.hashCode());
         Function<String, Long> getSegmentStartOffset = segmentName -> getSegmentLength.apply(segmentName) / 2;
 
         @Cleanup
@@ -701,6 +701,21 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
 
         // Nobody should be waiting on this anymore, but in case anyone does, fail it now.
         mapResult.completeExceptionally(new AssertionError("This should not happen"));
+    }
+
+    /**
+     * Checks that we can create and register a pinned Segment via {@link MetadataStore}.
+     */
+    @Test
+    public void testRegisterPinnedSegment() {
+        final String segmentName = "PinnedSegment";
+        @Cleanup
+        TestContext context = createTestContext();
+        context.getMetadataStore().createSegment(segmentName, SEGMENT_TYPE, null, TIMEOUT).join();
+        // Let's register a pinned Segment
+        SegmentType segmentType = SegmentType.builder().system().internal().critical().build();
+        long segmentId = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
+        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
     }
 
     private String getName(long segmentId) {

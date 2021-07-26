@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.tables;
+package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
@@ -33,7 +33,7 @@ import lombok.Getter;
  * Mocks a {@link ReadResult} wrapping a {@link ByteArraySegment} as its source.
  */
 @Getter
-class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
+public class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final ArrayView data;
@@ -44,11 +44,11 @@ class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
 
     //region Constructor
 
-    ReadResultMock(byte[] data, int maxResultLength, int entryLength) {
+    public ReadResultMock(byte[] data, int maxResultLength, int entryLength) {
         this(0L, new ByteArraySegment(data), maxResultLength, entryLength);
     }
 
-    ReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
+    public ReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
         super(streamSegmentStartOffset, maxResultLength, ReadResultMock::noopSupplier, "");
         this.data = data;
         this.entryLength = entryLength;
@@ -63,12 +63,12 @@ class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
     //region ReadResult Implementation
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return this.consumedLength < getMaxResultLength();
     }
 
     @Override
-    public ReadResultEntry next() {
+    public synchronized ReadResultEntry next() {
         if (!hasNext()) {
             return null;
         }

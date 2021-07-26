@@ -219,7 +219,7 @@ public class SegmentInputStreamTest extends LeakDetectorTestSuite {
     }
     
     @Test
-    public void testStreamTruncated() throws EndOfSegmentException {
+    public void testStreamTruncated() {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         val wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 6);
@@ -235,7 +235,7 @@ public class SegmentInputStreamTest extends LeakDetectorTestSuite {
     }
     
     @Test
-    public void testStreamTruncatedWithPartialEvent() throws EndOfSegmentException {
+    public void testStreamTruncatedWithPartialEvent() {
         val trailingData = Unpooled.wrappedBuffer(new byte[]{0, 1});
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
         @Cleanup

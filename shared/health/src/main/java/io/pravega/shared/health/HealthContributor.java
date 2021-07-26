@@ -22,6 +22,11 @@ package io.pravega.shared.health;
 public interface HealthContributor extends AutoCloseable {
 
     /**
+     * The delimiter used to split a fully qualified {@link HealthContributor} name during state look-ups.
+     */
+    String DELIMITER = "/";
+
+    /**
      * From an abstract view, a {@link HealthContributor} is anything that has an impact on the health of the system.
      * As such it should provide a window into it's current state, I.E some {@link Health} object.
      *
@@ -44,6 +49,7 @@ public interface HealthContributor extends AutoCloseable {
     /**
      * Closes the {@link HealthContributor} and forwards the closure to all its children.
      */
+    @Override
     void close();
 
     /**
