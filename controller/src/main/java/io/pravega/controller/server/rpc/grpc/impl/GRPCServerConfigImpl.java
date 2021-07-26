@@ -23,7 +23,6 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
 import java.util.Properties;
 
-import io.pravega.controller.util.TLSProtocolVersion;
 import lombok.Builder;
 import lombok.Data;
 
@@ -57,9 +56,6 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
-        if (tlsProtocolVersion != null) {
-            Preconditions.checkArgument(TLSProtocolVersion.TlsProtocolVersion.parse(tlsProtocolVersion), "Invalid TLS Protocol Version.");
-        }
         if (publishedRPCHost != null) {
             Exceptions.checkNotNullOrEmpty(publishedRPCHost, "publishedRPCHost");
         }

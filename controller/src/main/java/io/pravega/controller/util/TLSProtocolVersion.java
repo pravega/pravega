@@ -16,28 +16,37 @@
 package io.pravega.controller.util;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class TLSProtocolVersion {
+    private List<String> tlsProtocols;
+
+    public TLSProtocolVersion(String s) {
+        tlsProtocols = TlsProtocolVersion.parse(s);
+    }
+
+    public List<String> tlsProtocols() {
+        return tlsProtocols;
+    }
 
     public enum TlsProtocolVersion {
-
         TLSv1_2("TLSv1.2"),
         TLSv1_3("TLSv1.3"),
         TLS1_2ANDTLS1_3("TLSv1.2,TLSv1.3"),
         TLS1_3ANDTLS1_2("TLSv1.3,TLSv1.2");
 
-        String tlsprotocol;
+        final String protocol;
 
         TlsProtocolVersion(String tlsprotocol) {
-            this.tlsprotocol = tlsprotocol;
+            protocol = tlsprotocol;
         }
 
-        public static boolean parse(String s) {
-            return Arrays.stream(TlsProtocolVersion.values()).anyMatch(e -> e.tlsprotocol.equals(s));
+        public static List<String> parse(String s) {
+            if (Arrays.stream(TlsProtocolVersion.values()).anyMatch(e -> e.protocol.equals(s))) {
+                return Collections.unmodifiableList(Arrays.asList(s.split(",")));
+            }
+            return null;
         }
-    }
-
-    public static String[] getTlsProtocolVersionList(String s) {
-        return s.split(",");
     }
 }

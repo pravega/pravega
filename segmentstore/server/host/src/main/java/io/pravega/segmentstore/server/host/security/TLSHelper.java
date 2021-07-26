@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.host.security.TLSProtocolVersion.TlsProtocolVersion;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -47,7 +46,6 @@ public class TLSHelper {
     public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile, String tlsProtocolVersion) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
-        Exceptions.checkArgument(TlsProtocolVersion.parse(tlsProtocolVersion), tlsProtocolVersion, "Invalid TLS Protocol Version");
         return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile), tlsProtocolVersion);
     }
 
@@ -70,7 +68,7 @@ public class TLSHelper {
 
         try {
             SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile)
-                    .protocols(TLSProtocolVersion.getTlsProtocolVersionList(tlsProtocolVersion))
+                    .protocols((new TLSProtocolVersion(tlsProtocolVersion)).tlsProtocols())
                     .build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;

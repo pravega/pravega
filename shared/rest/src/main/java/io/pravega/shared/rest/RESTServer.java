@@ -73,7 +73,7 @@ public class RESTServer extends AbstractIdleService {
                 contextConfigurator.setKeyStorePass(JKSHelper.loadPasswordFrom(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
                         new SSLEngineConfigurator(contextConfigurator, false, false, false)
-                                .setEnabledProtocols(TLSProtocolVersion.getTlsProtocolVersionList(restServerConfig.tlsProtocolVersion())));
+                                .setEnabledProtocols((new TLSProtocolVersion(restServerConfig.tlsProtocolVersion())).tlsProtocols().toArray(new String[0])));
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }

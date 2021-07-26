@@ -19,7 +19,6 @@ import com.google.common.base.Strings;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.shared.rest.impl.TLSProtocolVersion.TlsProtocolVersion;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -46,9 +45,6 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
                 "TLS", "KeyFilePath should not be empty when TLS is enabled. ");
-        if (tlsEnabled) {
-            Exceptions.checkArgument(TlsProtocolVersion.parse(tlsProtocolVersion), tlsProtocolVersion, "Invalid TLS Protocol Version");
-        }
 
         this.host = host;
         this.port = port;
