@@ -904,6 +904,8 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         WireCommands.MergeSegments conditionalMergeSegments = new WireCommands.MergeSegments(l, testString1, testString2,
                 "", attributeUpdates);
         testCommand(conditionalMergeSegments);
+        // Check the size of the ConditionalAttributeUpdate.
+        assertEquals(attributeUpdates.get(0).size(), 4 * Long.BYTES + 1);
     }
 
     @Data

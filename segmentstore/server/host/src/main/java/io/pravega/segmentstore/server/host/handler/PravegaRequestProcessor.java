@@ -490,14 +490,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.", mergeSegments.getSource());
+                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
+                                    mergeSegments.getSource());
                             segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                    .thenAccept(properties -> {
-                                        connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
-                                                mergeSegments.getTarget(),
-                                                mergeSegments.getSource(),
-                                                properties.getLength()));
-                                    });
+                                        .thenAccept(properties -> {
+                                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
+                                                                                            mergeSegments.getTarget(),
+                                                                                            mergeSegments.getSource(),
+                                                                                            properties.getLength()));
+                                        });
                             return null;
                         } else if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
                             log.debug(mergeSegments.getRequestId(), "Conditional merge failed (Source segment={}, Target segment={})",
