@@ -103,6 +103,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -490,15 +491,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
-                                    mergeSegments.getSource());
+                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.", mergeSegments.getSource());
                             segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                        .thenAccept(properties -> {
-                                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
-                                                                                            mergeSegments.getTarget(),
-                                                                                            mergeSegments.getSource(),
-                                                                                            properties.getLength()));
-                                        });
+                                    .thenAccept(properties -> {
+                                        connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
+                                                mergeSegments.getTarget(),
+                                                mergeSegments.getSource(),
+                                                properties.getLength()));
+                                    });
+                            return null;
+                        } else if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
+                            log.debug(mergeSegments.getRequestId(),"Conditional merge failed (Source segment={}, Target segment={})",
+                                    mergeSegments.getSource(), mergeSegments.getTarget(), e);
+                            // FIXME: This is a temporary approach, we will need to think of a better response.
+                            connection.send(new WireCommands.ConditionalCheckFailed(new UUID(0,0), 0, mergeSegments.getRequestId()));
                             return null;
                         } else {
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);

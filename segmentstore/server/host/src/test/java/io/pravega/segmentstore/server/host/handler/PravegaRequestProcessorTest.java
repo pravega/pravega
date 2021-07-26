@@ -23,18 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -59,14 +48,7 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -538,6 +520,43 @@ public class PravegaRequestProcessorTest {
         attributes.put(Attributes.EVENT_COUNT, 10L);
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
         return new MergeStreamSegmentResult(100, 100, attributes);
+    }
+
+    @Test(timeout = 2000000)
+    public void testConditionalSegmentMerge() throws Exception {
+        String streamSegmentName = "scope/stream/txnSegment";
+        UUID txnId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+
+        // Try to merge the transaction conditionally, when the attributes on the parent segment do not match.
+        UUID randomAttribute = UUID.randomUUID();
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = singletonList(
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute, AttributeUpdateType.ReplaceIfEquals.getTypeId(), 0, streamSegmentName.hashCode())
+        );
+
+        // The first attempt should fail as the attribute update is not going to work.
+        assertTrue(append(transactionName, 1, store));
+        processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.ConditionalCheckFailed(new UUID(0,0), 0, 2));
+
+        // Now, set the right attributes in the parent segment.
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+        processor.mergeSegments(new WireCommands.MergeSegments(4, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(4, streamSegmentName, transactionName, 10));
     }
 
     @Test(timeout = 20000)

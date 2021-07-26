@@ -162,8 +162,8 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
-            version(0).revision(1, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read01);
         }
 
         @Override
@@ -183,14 +183,10 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
         }
 
         private void write01(MergeSegmentOperation o, RevisionDataOutput target) throws IOException {
-            int attributesLength = o.attributeUpdates == null ? target.getCompactIntLength(0) :
-                    target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UUID_UPDATE_LENGTH);
-            target.length(SERIALIZATION_LENGTH + attributesLength);
-            target.writeLong(o.getSequenceNumber());
-            target.writeLong(o.getStreamSegmentId());
-            target.writeLong(o.sourceSegmentId);
-            target.writeLong(o.length);
-            target.writeLong(o.streamSegmentOffset);
+            if (o.attributeUpdates == null || o.attributeUpdates.isEmpty()) {
+                return;
+            }
+            target.length(target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UUID_UPDATE_LENGTH));
             target.writeCollection(o.attributeUpdates, this::writeAttributeUpdateUUID00);
         }
 
@@ -211,8 +207,9 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
         }
 
         private void read01(RevisionDataInput source, OperationBuilder<MergeSegmentOperation> b) throws IOException {
-            read00(source, b);
-            b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID00, AttributeUpdateCollection::new);
+            if (source.getRemaining() > 0) {
+                b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID00, AttributeUpdateCollection::new);
+            }
         }
 
         private AttributeUpdate readAttributeUpdateUUID00(RevisionDataInput source) throws IOException {
