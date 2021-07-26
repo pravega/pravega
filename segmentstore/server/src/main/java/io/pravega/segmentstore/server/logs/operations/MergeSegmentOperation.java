@@ -35,7 +35,7 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
     private long streamSegmentOffset;
     private long length;
     private long sourceSegmentId;
-    private AttributeUpdateCollection attributeUpdates;
+    private AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(Collections.emptyList());
 
     //endregion
 
@@ -52,7 +52,6 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
         this.sourceSegmentId = sourceSegmentId;
         this.length = -1;
         this.streamSegmentOffset = -1;
-        this.attributeUpdates = AttributeUpdateCollection.from(Collections.emptyList());
     }
 
     public MergeSegmentOperation(long targetSegmentId, long sourceSegmentId, AttributeUpdateCollection attributeUpdates) {

@@ -575,6 +575,7 @@ public class PravegaRequestProcessorTest {
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute,
                 streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+        // Merge segments conditionally, now it should work.
         processor.mergeSegments(new WireCommands.MergeSegments(4, streamSegmentName, transactionName, "", attributeUpdates));
         order.verify(connection).send(new WireCommands.SegmentsMerged(4, streamSegmentName, transactionName, 1));
     }

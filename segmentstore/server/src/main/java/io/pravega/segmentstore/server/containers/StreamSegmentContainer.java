@@ -594,7 +594,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
         CompletableFuture<Void> sealResult = trySealStreamSegment(sourceMetadata, timer.getRemaining());
 
-        // Creates a MergeSegmentOperation, runs processAttributeUpdaterOperation and then the actual segment merge.
+        // Creates a MergeSegmentOperation, runs processAttributeUpdaterOperation and creates the reply.
         Supplier<CompletableFuture<MergeStreamSegmentResult>> mergeOperationSupplier = () -> {
             MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
             return processAttributeUpdaterOperation(operation, timer).thenApply(v2 ->
