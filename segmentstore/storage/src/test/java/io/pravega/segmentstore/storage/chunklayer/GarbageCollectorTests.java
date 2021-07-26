@@ -35,7 +35,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -204,37 +203,6 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                         null);
                 },
                 ex -> ex instanceof NullPointerException);
-    }
-
-    @Ignore
-    @Test
-    public void testInitializationWithNullQueue() throws Exception {
-        @Cleanup
-        ChunkStorage chunkStorage = getChunkStorage();
-        @Cleanup
-        ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = CONTAINER_ID;
-
-        @Cleanup
-        GarbageCollector garbageCollector = new GarbageCollector(containerId,
-                chunkStorage,
-                metadataStore,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
-                executorService(),
-                System::currentTimeMillis,
-                d -> CompletableFuture.completedFuture(null));
-
-        Assert.assertNull(garbageCollector.getTaskQueue());
-
-        // Should not throw an exception.
-        garbageCollector.addChunkToGarbage(1, "chunk3", 10, 0);
-        garbageCollector.addChunksToGarbage(1, Collections.singleton("chunk1"));
-        garbageCollector.trackNewChunk(1, "chunk2");
-        garbageCollector.addSegmentToGarbage(1, "segment");
-        garbageCollector.addSegmentToGarbage(GarbageCollector.TaskInfo.builder()
-                .scheduledTime(11)
-                .name("segment2")
-                .attempts(0).build());
     }
 
     /**
