@@ -190,9 +190,10 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      */
     CompletableFuture<Void> addChunksToGarbage(long transactionId, Collection<String> chunksToDelete) {
         Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
-        val currentTime = currentTimeSupplier.get();
         val futures = new ArrayList<CompletableFuture<Void>>();
-        chunksToDelete.forEach(chunkToDelete -> futures.add(addChunkToGarbage(transactionId, chunkToDelete, currentTime + config.getGarbageCollectionDelay().toMillis(), 0)));
+        val startTime = currentTimeSupplier.get() + config.getGarbageCollectionDelay().toMillis();
+
+        chunksToDelete.forEach(chunkToDelete -> futures.add(addChunkToGarbage(transactionId, chunkToDelete, startTime, 0)));
         return Futures.allOf(futures);
     }
 
