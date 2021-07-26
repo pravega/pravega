@@ -113,6 +113,7 @@ public class RetryTests {
 
     @Test
     public void retryFutureTests() {
+        @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
@@ -171,6 +172,7 @@ public class RetryTests {
 
     @Test
     public void retryFutureInExecutorTests() throws ExecutionException {
+        @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
