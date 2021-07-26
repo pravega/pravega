@@ -22,7 +22,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
@@ -42,7 +41,7 @@ public class ByteStreamReaderTest {
     private ByteStreamClientFactory clientFactory;
 
     @Before
-    public void setup() throws ConnectionFailedException {
+    public void setup() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
         controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);

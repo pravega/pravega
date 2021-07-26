@@ -38,6 +38,7 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     @Getter
     private final ExecutorService executor;
 
+    @Override
     public Storage createStorageAdapter() {
         return new AsyncStorageWrapper(new RollingStorage(createS3Storage()), this.executor);
     }

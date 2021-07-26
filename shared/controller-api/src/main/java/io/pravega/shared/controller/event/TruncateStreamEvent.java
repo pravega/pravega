@@ -30,6 +30,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class TruncateStreamEvent implements ControllerEvent {
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;

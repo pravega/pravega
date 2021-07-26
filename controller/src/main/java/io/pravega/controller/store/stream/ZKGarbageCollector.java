@@ -51,7 +51,7 @@ import org.apache.curator.framework.recipes.cache.NodeCacheListener;
  * is updated, all watchers receive the latest update.
  */
 @Slf4j
-class ZKGarbageCollector extends AbstractService implements AutoCloseable {
+class ZKGarbageCollector extends AbstractService {
     private static final String GC_ROOT = "/garbagecollection/%s";
     private static final String GUARD_PATH = GC_ROOT + "/guard";
 
@@ -126,6 +126,19 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                 notifyStopped();
             }
         });
+        
+        watch.getAndUpdate(x -> {
+            if (x != null) {
+                try {
+                    x.close();
+                } catch (IOException e) {
+                    throw Exceptions.sneakyThrow(e);
+                }
+            }
+            return x;
+        });
+
+        gcExecutor.shutdownNow();
     }
 
     int getLatestBatch() {
@@ -200,19 +213,4 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         return nodeCache;
     }
 
-    @Override
-    public void close() {
-        watch.getAndUpdate(x -> {
-            if (x != null) {
-                try {
-                    x.close();
-                } catch (IOException e) {
-                    throw Exceptions.sneakyThrow(e);
-                }
-            }
-            return x;
-        });
-
-        gcExecutor.shutdownNow();
-    }
 }

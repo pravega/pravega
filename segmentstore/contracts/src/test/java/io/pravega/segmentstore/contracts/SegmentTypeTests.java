@@ -65,6 +65,7 @@ public class SegmentTypeTests {
         Assert.assertEquals("Simple Table Segment.", expectedSimpleSegment, simpleTableSegment);
     }
 
+    @SafeVarargs
     private void checkBuilder(SegmentType type, long expectedValue, Predicate<SegmentType>... predicates) {
         check(type, expectedValue, predicates);
         val rebuilt = SegmentType.builder(type).build();
@@ -73,6 +74,7 @@ public class SegmentTypeTests {
         Assert.assertEquals(type.hashCode(), rebuilt.hashCode());
     }
 
+    @SafeVarargs
     private void check(SegmentType type, long expectedValue, Predicate<SegmentType>... predicates) {
         Assert.assertEquals("Unexpected getValue() for " + type.toString(), expectedValue, type.getValue());
         for (val p : predicates) {

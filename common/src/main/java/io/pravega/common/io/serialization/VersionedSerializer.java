@@ -269,7 +269,7 @@ public abstract class VersionedSerializer<T> {
          */
         @SuppressWarnings("unchecked")
         SingleType() {
-            this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
+            this.versions = new FormatVersion[Byte.MAX_VALUE];
             declareVersions();
             Preconditions.checkArgument(this.versions[getWriteVersion()] != null, "Write version %s is not defined.", getWriteVersion());
         }

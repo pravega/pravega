@@ -19,5 +19,10 @@ init_controller() {
     [ ! -z "$HOSTNAME" ] && add_system_property "controller.metrics.prefix" "${HOSTNAME}"
     add_system_property "controller.zk.connect.uri" "${ZK_URL}"
     add_system_property "controller.server.store.host.type" "Zookeeper"
+    [ -d "$INFLUX_DB_SECRET_MOUNT_PATH" ] \
+    && [ -f "$INFLUX_DB_SECRET_MOUNT_PATH"/username ] && [ -f  "$INFLUX_DB_SECRET_MOUNT_PATH"/password ] \
+    && add_system_property "metrics.influxDB.connect.credentials.username"  "$(cat "$INFLUX_DB_SECRET_MOUNT_PATH"/username)" \
+    && add_system_property "metrics.influxDB.connect.credentials.pwd" "$(cat "$INFLUX_DB_SECRET_MOUNT_PATH"/password)"
     echo "JAVA_OPTS=${JAVA_OPTS}"
+
 }
