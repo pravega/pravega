@@ -66,7 +66,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class BasicCBRTest extends AbstractReadWriteTest {
+public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWriteTest {
 
     private static final String SCOPE = "testCBRScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testCBRStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
