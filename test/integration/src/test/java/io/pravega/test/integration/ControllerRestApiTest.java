@@ -33,18 +33,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
-import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
-import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
-import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.ScopeProperty;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.rest.generated.model.StreamsList;
-import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.*;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.integration.utils.SetupUtils;
@@ -161,9 +150,13 @@ public class ControllerRestApiTest {
         retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
         retentionConfig.setValue(123L);
 
+        TagsList tagsList = new TagsList();
+        tagsList.add("testTag");
+
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingConfig);
         createStreamRequest.setRetentionPolicy(retentionConfig);
+        createStreamRequest.setStreamTags(tagsList);
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
@@ -190,6 +183,13 @@ public class ControllerRestApiTest {
         assertEquals("List streams", OK.getStatusCode(), response.getStatus());
         Assert.assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
         log.info("List streams successful");
+
+        // Test listStream GET /v1/scopes/scope1/streams for tags
+        response = client.target(resourceURl).queryParam("filter_type", "tag").
+                queryParam("filter_value", "testTag").request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        Assert.assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
+        log.info("List streams with tag successful");
 
         // Test getScope
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
