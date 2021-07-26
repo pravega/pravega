@@ -100,7 +100,7 @@ public class ModelHelper {
             }
         }
 
-        TagsList tagsList = null;
+        TagsList tagsList = new TagsList();
         if (createStreamRequest.getStreamTags() != null) {
             tagsList = createStreamRequest.getStreamTags();
         }
