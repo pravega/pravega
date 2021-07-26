@@ -18,7 +18,6 @@ package io.pravega.client.state.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -71,7 +70,7 @@ public class RevisionImpl implements Revision, Serializable {
         }
     }
 
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new SerializedForm(toString());
     }
 
@@ -79,7 +78,7 @@ public class RevisionImpl implements Revision, Serializable {
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;
         private final String value;
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return Revision.fromString(value);
         }
     }

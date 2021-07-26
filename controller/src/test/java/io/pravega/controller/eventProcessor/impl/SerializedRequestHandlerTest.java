@@ -50,7 +50,7 @@ import static org.junit.Assert.assertEquals;
 
 public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Test(timeout = 10000)
     public void testProcessEvent() throws InterruptedException, ExecutionException {

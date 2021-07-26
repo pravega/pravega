@@ -280,8 +280,8 @@ abstract class SortedIndexTestBase {
 
         //Get + GetCeiling.
         for (int key = 0; key < ITEM_COUNT; key++) {
-            Assert.assertEquals("Unexpected value from get() for key " + key, key, (long) index.get(key).key());
-            Assert.assertEquals("Unexpected value from getCeiling() for key " + key, key, (long) index.getCeiling(key).key());
+            Assert.assertEquals("Unexpected value from get() for key " + key, key, index.get(key).key());
+            Assert.assertEquals("Unexpected value from getCeiling() for key " + key, key, index.getCeiling(key).key());
         }
 
         // Remove + get.
@@ -292,7 +292,7 @@ abstract class SortedIndexTestBase {
             if (key == ITEM_COUNT - 1) {
                 Assert.assertNull("Unexpected value from getCeiling() for removed key " + key, index.getCeiling(key));
             } else {
-                Assert.assertEquals("Unexpected value from getCeiling() for removed key " + key, key + 1, (long) index.getCeiling(key).key());
+                Assert.assertEquals("Unexpected value from getCeiling() for removed key " + key, key + 1, index.getCeiling(key).key());
             }
         }
     }

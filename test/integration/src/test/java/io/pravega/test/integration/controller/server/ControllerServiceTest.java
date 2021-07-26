@@ -318,7 +318,7 @@ public class ControllerServiceTest {
         assertFalse("FAILURE: Fetching positions at given time stamp failed", segments.get().isEmpty()); 
     }
 
-    private static void getActiveSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
+    private static void getActiveSegmentsForNonExistentStream(Controller controller) {
         
         AssertExtensions.assertFutureThrows("", controller.getCurrentSegments("scope", "streamName"),
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);

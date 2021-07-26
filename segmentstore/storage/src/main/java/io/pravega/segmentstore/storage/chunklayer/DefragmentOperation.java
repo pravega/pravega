@@ -146,6 +146,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         this.currentIndexOffset.set(currentIndexOffset);
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         // The algorithm is actually very simple.
         // It tries to concat all small chunks using appends first.
