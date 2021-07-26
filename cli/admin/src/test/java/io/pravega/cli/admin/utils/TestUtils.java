@@ -137,11 +137,11 @@ public final class TestUtils {
      * @param containerCount the container count.
      * @param authEnabled whether the cli requires authentication to access the cluster.
      * @param tlsEnabled whether the cli requires TLS to access the cluster.
-     * @param accessTokenTtlInSeconds how long the access token will last
+     * @param accessTokenTtl how long the access token will last
      */
     @SneakyThrows
     public static AdminCommandState createAdminCLIConfig(String controllerRestUri, String controllerUri, String zkConnectUri,
-                                                         int containerCount, boolean authEnabled, boolean tlsEnabled, Duration accessTokenTtlInSeconds) {
+                                                         int containerCount, boolean authEnabled, boolean tlsEnabled, Duration accessTokenTtl) {
         AdminCommandState state = new AdminCommandState();
         Properties pravegaProperties = new Properties();
         System.out.println("REST URI: " + controllerRestUri);
@@ -154,7 +154,7 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Long.toString(accessTokenTtlInSeconds.toSeconds()));
+        pravegaProperties.setProperty("cli.trustStore.access.token.ttl", Long.toString(accessTokenTtl.toSeconds()));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
     }

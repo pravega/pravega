@@ -97,11 +97,11 @@ public class ControllerWrapper implements AutoCloseable {
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
-                             String tokenSigningKey, int accessTokenTtlInSeconds) {
+                             String tokenSigningKey, int accessTokenTtl) {
         this(connectionString, disableEventProcessor, disableControllerCluster, controllerPort,
                 serviceHost, servicePort, containerCount, restPort,
                 enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
-                true, accessTokenTtlInSeconds);
+                true, accessTokenTtl);
     }
 
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
@@ -110,10 +110,10 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
                              String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
-                             int accessTokenTtlInSeconds) {
+                             int accessTokenTtl) {
         this (connectionString, disableEventProcessor, disableControllerCluster, controllerPort, serviceHost,
                 servicePort, containerCount, restPort, enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
-                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "", "", "", "");
+                isRGWritesWithReadPermEnabled, accessTokenTtl, false, "", "", "", "");
     }
 
     @Builder
@@ -123,7 +123,7 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
                              String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
-                             int accessTokenTtlInSeconds, boolean enableTls, String serverCertificatePath,
+                             int accessTokenTtl, boolean enableTls, String serverCertificatePath,
                              String serverKeyPath, String serverKeystorePath, String serverKeystorePasswordPath) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
@@ -177,7 +177,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .requestTracingEnabled(true)
                 .authorizationEnabled(enableAuth)
                 .tokenSigningKey(tokenSigningKey)
-                .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
+                .accessTokenTTLInSeconds(accessTokenTtl)
                 .isRGWritesWithReadPermEnabled(isRGWritesWithReadPermEnabled)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .tlsEnabled(enableTls)

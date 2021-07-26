@@ -144,7 +144,7 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     @Builder.Default
-    private Duration accessTokenTtlInSeconds = Duration.ofSeconds(300);
+    private Duration accessTokenTtl = Duration.ofSeconds(300);
 
     private ClusterWrapper() {}
 
@@ -259,7 +259,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .passwordAuthHandlerInputFilePath(passwordInputFilePath)
                 .tokenSigningKey(tokenSigningKeyBasis)
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
-                .accessTokenTtlInSeconds(tokenTtlInSeconds)
+                .accessTokenTtl(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)

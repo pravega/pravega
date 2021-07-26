@@ -83,7 +83,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         CLUSTER.start();
         STATE = createAdminCLIConfig(getCLIControllerRestUri(CLUSTER.controllerRestUri()),
                 getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(),
-                false, false, CLUSTER.getAccessTokenTtlInSeconds());
+                false, false, CLUSTER.getAccessTokenTtl());
         String scope = "testScope";
         String testStream = "testStream";
         ClientConfig clientConfig = prepareValidClientConfig(CLUSTER.controllerUri(), false, false);
