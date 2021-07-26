@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ConcurrentEPSerializedRHTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private LinkedBlockingQueue<ControllerEvent> requestStream = new LinkedBlockingQueue<>();
     private List<ControllerEvent> history = Collections.synchronizedList(new ArrayList<>());

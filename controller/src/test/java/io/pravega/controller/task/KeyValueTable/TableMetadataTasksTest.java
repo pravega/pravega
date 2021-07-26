@@ -67,7 +67,7 @@ public abstract class TableMetadataTasksTest {
 
     protected static final String SCOPE = "taskscope";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore streamStore;
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;

@@ -29,7 +29,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -219,7 +218,7 @@ public class StreamCutImpl extends StreamCutInternal {
     }
 
     @SneakyThrows(IOException.class)
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new SerializedForm(SERIALIZER.serialize(this).getCopy());
     }
 
@@ -228,7 +227,7 @@ public class StreamCutImpl extends StreamCutInternal {
         private static final long serialVersionUID = 1L;
         private final byte[] value;
         @SneakyThrows(IOException.class)
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }

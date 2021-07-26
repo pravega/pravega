@@ -36,6 +36,7 @@ public class NoAppendSimpleStorageTests extends SimpleStorageTests {
         return ret;
     }
 
+    @Override
     protected ChunkStorage getChunkStorage() {
         return new InMemoryChunkStorage(executorService());
     }
@@ -44,6 +45,7 @@ public class NoAppendSimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link InMemoryChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class NoAppendSimpleStorageRollingStorageTests extends ChunkedRollingStorageTests {
+        @Override
         protected ChunkStorage getChunkStorage() {
             return getNoAppendInMemoryChunkStorage(executorService());
         }
@@ -61,6 +63,7 @@ public class NoAppendSimpleStorageTests extends SimpleStorageTests {
         /**
          * Test default capabilities.
          */
+        @Override
         @Test
         public void testCapabilities() {
             assertEquals(false, chunkStorage.supportsAppend());

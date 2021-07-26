@@ -36,7 +36,7 @@ import org.junit.rules.Timeout;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     TestingServer zkServer;
 
     @Override
