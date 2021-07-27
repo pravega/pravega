@@ -576,8 +576,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
         if (tag != null) {
             List<Stream> streams = new ArrayList<>();
-            StreamsList responseStreams = new StreamsList();
-            responseStreams.setStreams(new ArrayList<>());
             String finalTag = tag;
             localController.listStreamsForTag(scopeName, tag).collectRemaining(streams::add).thenCompose(v -> {
                 List<CompletableFuture<ImmutablePair<Stream, StreamConfiguration>>> streamConfigFutureList = streams.stream().filter(stream -> {
@@ -598,6 +596,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         .collect(Collectors.toList());
                 return Futures.allOfWithResults(streamConfigFutureList);
             }).thenApply(streamConfigPairs -> {
+                StreamsList responseStreams = new StreamsList();
+                responseStreams.setStreams(new ArrayList<>());
                 streamConfigPairs.forEach(pair -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(pair.left.getScope(), pair.left.getStreamName(), pair.right)));
                 log.info(requestId, "Successfully fetched streams for scope: {} with tag: {}", scopeName, finalTag);
                 return Response.status(Status.OK).entity(responseStreams).build();
