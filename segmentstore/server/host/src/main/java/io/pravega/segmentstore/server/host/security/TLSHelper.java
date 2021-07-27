@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
+import io.pravega.common.security.TLSProtocolVersion;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -68,7 +69,7 @@ public class TLSHelper {
 
         try {
             SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile)
-                    .protocols((new TLSProtocolVersion(tlsProtocolVersion)).tlsProtocols())
+                    .protocols(TLSProtocolVersion.parse(tlsProtocolVersion))
                     .build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;
