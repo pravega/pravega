@@ -15,7 +15,13 @@
  */
 package io.pravega.storage.filesystem;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalCause;
+import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableSet;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +37,7 @@ import java.util.Set;
 /**
  * Wrapper for File System calls.
  */
+@Slf4j
 public class FileSystemWrapper {
     /**
      * Set of PosixFilePermission for readonly file.
@@ -49,6 +56,32 @@ public class FileSystemWrapper {
             PosixFilePermission.GROUP_READ,
             PosixFilePermission.OTHERS_READ);
 
+    private final Cache<String, FileChannel> readCache;
+    private final Cache<String, FileChannel> writeCache;
+
+    public FileSystemWrapper() {
+        readCache = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .removalListener(this::removeChannel)
+                .build();
+        writeCache = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .removalListener(this::removeChannel)
+                .build();
+    }
+
+    void removeChannel(RemovalNotification<String, FileChannel> notification) {
+        if (notification.getCause() != RemovalCause.REPLACED) {
+            val channel = notification.getValue();
+            try {
+                channel.close();
+                log.info("FileSystemWrapper: closing file {}", notification.getKey());
+            } catch (IOException e) {
+                log.warn("FileSystemWrapper: Error while closing channel", e);
+            }
+        }
+    }
+
     /**
      * Creates a file by calling {@link Files#createFile(Path, FileAttribute[])} .
      * @param fileAttributes File attributes.
@@ -57,6 +90,8 @@ public class FileSystemWrapper {
      * @throws IOException Exception thrown by file system call.
      */
     Path createFile(FileAttribute<Set<PosixFilePermission>> fileAttributes, Path path) throws IOException {
+        readCache.invalidate(path.toString());
+        writeCache.invalidate(path.toString());
         return Files.createFile(path, fileAttributes);
     }
 
@@ -76,6 +111,8 @@ public class FileSystemWrapper {
      * @throws IOException Exception thrown by file system call.
      */
     void delete(Path path) throws IOException {
+        readCache.invalidate(path.toString());
+        writeCache.invalidate(path.toString());
         Files.delete(path);
     }
 
@@ -116,7 +153,25 @@ public class FileSystemWrapper {
      * @throws IOException Exception thrown by file system call.
      */
     FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
-        return FileChannel.open(path, openOption);
+        FileChannel channel = null;
+        val fullPath = path.toString();
+        if (openOption.equals(StandardOpenOption.READ)) {
+            channel = readCache.getIfPresent(fullPath);
+            if (null == channel) {
+                channel = FileChannel.open(path, openOption);
+                log.info("FileSystemWrapper: opening file for read {}", fullPath);
+                readCache.put(fullPath, channel);
+            }
+        }
+        if (openOption.equals(StandardOpenOption.WRITE)) {
+            channel = writeCache.getIfPresent(fullPath);
+            if (null == channel) {
+                channel = FileChannel.open(path, openOption);
+                log.info("FileSystemWrapper: opening file for write {}", fullPath);
+                writeCache.put(fullPath, channel);
+            }
+        }
+        return channel;
     }
 
     /**
