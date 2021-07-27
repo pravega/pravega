@@ -54,9 +54,10 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
 
     /**
      * Constructor.
-     * @param containerID Container id.
+     *
+     * @param containerID    Container id.
      * @param eventProcessor Instance of {@link ContainerEventProcessor} to use.
-     * @param callBack Function which is called to process batch of events.
+     * @param callBack       Function which is called to process batch of events.
      * @param maxItemsAtOnce Maximum nuber of
      */
     public StorageEventProcessor(int containerID,
@@ -74,7 +75,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     /**
      * Adds a queue by the given name.
      *
-     * @param queueName Name of the queue.
+     * @param queueName        Name of the queue.
      * @param ignoreProcessing Whether the processing should be ignored.
      */
     @Override
@@ -120,9 +121,10 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     /**
      * Callback invoked by {@link io.pravega.segmentstore.server.ContainerEventProcessor.EventProcessor} when one or more
      * events have been read from the internal Segment.
+     *
      * @param events List of events to process.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
-     *         If the operation failed, it will contain the cause of the failure.
+     * If the operation failed, it will contain the cause of the failure.
      */
     CompletableFuture<Void> processEvents(List<BufferView> events) {
         Preconditions.checkNotNull(events, "events");

@@ -26,7 +26,8 @@ import java.util.concurrent.CompletableFuture;
 public interface AbstractTaskQueueManager<TaskType> extends AutoCloseable {
     /**
      * Adds a queue by the given name.
-     * @param queueName Name of the queue.
+     *
+     * @param queueName        Name of the queue.
      * @param ignoreProcessing Whether the processing should be ignored.
      */
     CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing);
@@ -35,7 +36,7 @@ public interface AbstractTaskQueueManager<TaskType> extends AutoCloseable {
      * Adds a task to queue.
      *
      * @param queueName Name of the queue.
-     * @param task Task to add.
+     * @param task      Task to add.
      */
     CompletableFuture<Void> addTask(String queueName, TaskType task);
 }

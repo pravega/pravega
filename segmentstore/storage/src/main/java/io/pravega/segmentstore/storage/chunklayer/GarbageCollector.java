@@ -129,11 +129,11 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
     /**
      * Constructs a new instance.
      *
-     * @param containerId         Container id of the owner container.
-     * @param chunkStorage        ChunkStorage instance to use for writing all logs.
-     * @param metadataStore       ChunkMetadataStore for owner container.
-     * @param config              Configuration options for this ChunkedSegmentStorage instance.
-     * @param executorService     ScheduledExecutorService to use.
+     * @param containerId     Container id of the owner container.
+     * @param chunkStorage    ChunkStorage instance to use for writing all logs.
+     * @param metadataStore   ChunkMetadataStore for owner container.
+     * @param config          Configuration options for this ChunkedSegmentStorage instance.
+     * @param executorService ScheduledExecutorService to use.
      */
     public GarbageCollector(int containerId, ChunkStorage chunkStorage,
                             ChunkMetadataStore metadataStore,
@@ -175,6 +175,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
 
     /**
      * Initializes this instance.
+     *
      * @param taskQueue Task queue to use.
      */
     public CompletableFuture<Void> initialize(AbstractTaskQueueManager<TaskInfo> taskQueue) {
@@ -201,8 +202,8 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * Adds given chunk to list of garbage chunks.
      *
      * @param chunkToDelete Name of the chunk to delete.
-     * @param startTime Start time.
-     * @param attempts Number of attempts to delete this chunk so far.
+     * @param startTime     Start time.
+     * @param attempts      Number of attempts to delete this chunk so far.
      */
     CompletableFuture<Void> addChunkToGarbage(long transactionId, String chunkToDelete, long startTime, int attempts) {
         Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
@@ -215,7 +216,8 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
 
     /**
      * Adds segment to the GC.
-     * @param transactionId Transaction id.
+     *
+     * @param transactionId   Transaction id.
      * @param segmentToDelete Name of segment to delete.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      * If the operation failed, it will contain the cause of the failure.
@@ -232,6 +234,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
 
     /**
      * Adds segment to the GC.
+     *
      * @param taskInfo Task info
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      * If the operation failed, it will contain the cause of the failure.
@@ -247,8 +250,9 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
 
     /**
      * Adds new chunk to track
+     *
      * @param transactionId TransactionId
-     * @param chunktoTrack Name of chunk to track.
+     * @param chunktoTrack  Name of chunk to track.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      * If the operation failed, it will contain the cause of the failure.
      */
@@ -341,9 +345,10 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
 
     /**
      * Process a batch of tasks.
+     *
      * @param batch List of {@link TaskInfo} to process.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
-     *         If the operation failed, it will contain the cause of the failure.
+     * If the operation failed, it will contain the cause of the failure.
      */
     public CompletableFuture<Void> processBatch(List<TaskInfo> batch) {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -373,12 +378,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * Executes the given Callable asynchronously and returns a CompletableFuture that will be completed with the result.
      * The operations are serialized on the segmentNames provided.
      *
-     * @param operation    The Callable to execute.
+     * @param operation The Callable to execute.
      * @param <R>       Return type of the operation.
-     * @param keyNames The names of the keys involved in this operation (for sequencing purposes).
+     * @param keyNames  The names of the keys involved in this operation (for sequencing purposes).
      * @return A CompletableFuture that, when completed, will contain the result of the operation.
      * If the operation failed, it will contain the cause of the failure.
-     * */
+     */
     private <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... keyNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.taskScheduler.add(Arrays.asList(keyNames), () -> executeExclusive(operation, keyNames));
@@ -389,12 +394,12 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      * It returns a CompletableFuture that will be completed with the result.
      * The operations are not allowed to be concurrent.
      *
-     * @param operation    The Callable to execute.
+     * @param operation The Callable to execute.
      * @param <R>       Return type of the operation.
-     * @param keyNames The names of the keys involved in this operation (for sequencing purposes).
+     * @param keyNames  The names of the keys involved in this operation (for sequencing purposes).
      * @return A CompletableFuture that, when completed, will contain the result of the operation.
      * If the operation failed, it will contain the cause of the failure.
-     * */
+     */
     private <R> CompletableFuture<R> executeExclusive(Callable<CompletableFuture<R>> operation, String... keyNames) {
         return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
@@ -405,7 +410,6 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
             }
         }, this.storageExecutor);
     }
-
 
     private CompletableFuture<Void> processTask(TaskInfo infoToDelete) {
         if (infoToDelete.taskType == TaskInfo.DELETE_CHUNK) {
