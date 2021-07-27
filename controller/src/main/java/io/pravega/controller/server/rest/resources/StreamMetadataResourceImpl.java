@@ -26,6 +26,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
@@ -59,12 +60,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
@@ -573,15 +577,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         if (tag != null) {
             List<Stream> streams = new ArrayList<>();
             StreamsList responseStreams = new StreamsList();
+            responseStreams.setStreams(new ArrayList<>());
             String finalTag = tag;
-            localController.listStreamsForTag(scopeName, tag).collectRemaining(s -> streams.add(s)).thenApply(s -> streams).thenApply(s -> {
-                s.forEach(stream -> {
+            localController.listStreamsForTag(scopeName, tag).collectRemaining(streams::add).thenCompose(v -> {
+                List<CompletableFuture<ImmutablePair<Stream, StreamConfiguration>>> streamConfigFutureList = streams.stream().filter(stream -> {
+                    boolean isAuthorized = false;
                     try {
-                        if (restAuthHelper.isAuthorized(authHeader, authorizationResource.ofStreamInScope(scopeName, stream.getStreamName()),
-                                principal, READ)) {
-                            localController.getStreamConfiguration(scopeName, stream.getStreamName()).
-                                    thenApply(config -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream.getStreamName(), config)));
-                        }
+                        isAuthorized = restAuthHelper.isAuthorized(authHeader, authorizationResource.ofStreamInScope(scopeName, stream.getStreamName()),
+                                principal, READ);
                     } catch (AuthException e) {
                         log.warn(requestId, "List Streams with tag {} for scope {} failed due to authentication failure.",
                                 finalTag, scopeName);
@@ -589,7 +592,13 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         // whether the user is authorized. In case it does occur, we assume that the user
                         // is unauthorized.
                     }
-                });
+                    return isAuthorized;
+                }).map(stream -> localController.getStreamConfiguration(scopeName, stream.getStreamName())
+                        .thenApply(config -> new ImmutablePair<>(stream, config)))
+                        .collect(Collectors.toList());
+                return Futures.allOfWithResults(streamConfigFutureList);
+            }).thenApply(streamConfigPairs -> {
+                streamConfigPairs.forEach(pair -> responseStreams.addStreamsItem(ModelHelper.encodeStreamResponse(pair.left.getScope(), pair.left.getStreamName(), pair.right)));
                 log.info(requestId, "Successfully fetched streams for scope: {} with tag: {}", scopeName, finalTag);
                 return Response.status(Status.OK).entity(responseStreams).build();
             }).exceptionally(exception -> {

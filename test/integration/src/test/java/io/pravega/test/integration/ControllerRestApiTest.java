@@ -201,6 +201,10 @@ public class ControllerRestApiTest {
                 queryParam("filter_value", "testTag").request().get();
         assertEquals("List streams", OK.getStatusCode(), response.getStatus());
         Assert.assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
+        response = client.target(resourceURl).queryParam("filter_type", "tag").
+                queryParam("filter_value", "randomTag").request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        Assert.assertEquals("List streams size", 0, response.readEntity(StreamsList.class).getStreams().size());
         log.info("List streams with tag successful");
 
         // Test getScope
