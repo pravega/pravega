@@ -47,6 +47,7 @@ public class TLSHelper {
     public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile, String tlsProtocolVersion) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
+        Exceptions.checkArgument(TLSProtocolVersion.parse(tlsProtocolVersion) != null, tlsProtocolVersion, "Invalid TLS Protocol Version");
         return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile), tlsProtocolVersion);
     }
 

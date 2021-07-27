@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
 import java.util.Properties;
@@ -67,6 +68,10 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                     "accessTokenTtlInSeconds should be -1 (token never expires), 0 (token immediately expires) "
                             + "or a positive integer representing the number of seconds after which the token expires.");
         }
+        if (tlsEnabled && (tlsProtocolVersion != null)) {
+            Preconditions.checkArgument(TLSProtocolVersion.parse(tlsProtocolVersion) != null,
+                    "TLSProtocolVersion should be TLSv1.2 (strict 1.2), TLSv1.3 (strict 1.3), mixed mode");
+        }
 
         this.port = port;
         this.publishedRPCHost = Optional.ofNullable(publishedRPCHost);
@@ -110,7 +115,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %b, ",  tlsProtocolVersion))
+                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
                 .append(String.format("tlsCertFile is %s, ",
                         Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
                 .append(String.format("tlsKeyFile is %s, ",
