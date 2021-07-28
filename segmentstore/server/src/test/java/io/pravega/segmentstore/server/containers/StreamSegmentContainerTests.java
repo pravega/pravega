@@ -1467,6 +1467,86 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test in detail the basic situations that a conditional segment merge can face.
+     */
+    @Test
+    public void testBasicConditionalMergeScenarios() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        context.container.startAsync().awaitRunning();
+        final String parentSegment = "parentSegment";
+
+        // This will be the attribute update to execute against the parent segment.
+        Function<String, AttributeUpdateCollection> attributeUpdateForTxn = txnName -> AttributeUpdateCollection.from(
+                new AttributeUpdate(AttributeId.fromUUID(UUID.nameUUIDFromBytes(txnName.getBytes())),
+                        AttributeUpdateType.ReplaceIfEquals, txnName.hashCode() + 1, txnName.hashCode()));
+
+        Function<String, Long> getAttributeValue = txnName -> {
+            AttributeId attributeId = AttributeId.fromUUID(UUID.nameUUIDFromBytes(txnName.getBytes()));
+            return context.container.getAttributes(parentSegment, Collections.singletonList(attributeId), true, TIMEOUT)
+                    .join().get(attributeId);
+        };
+
+        // Create a parent Segment.
+        context.container.createStreamSegment(parentSegment, getSegmentType(parentSegment), null, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentType segmentType = getSegmentType(parentSegment);
+
+        // Case 1: Create and empty transaction that fails to merge conditionally due to bad attributes.
+        String txnName = NameUtils.getTransactionNameFromId(parentSegment, UUID.randomUUID());
+        AttributeId txnAttributeId = AttributeId.fromUUID(UUID.nameUUIDFromBytes(txnName.getBytes()));
+        context.container.createStreamSegment(txnName, segmentType, null, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        AttributeUpdateCollection attributeUpdates = attributeUpdateForTxn.apply(txnName);
+        AssertExtensions.assertFutureThrows("Transaction was expected to fail on attribute update",
+                context.container.mergeStreamSegment(parentSegment, txnName, attributeUpdates, TIMEOUT),
+                ex -> ex instanceof BadAttributeUpdateException);
+        Assert.assertEquals(Attributes.NULL_ATTRIBUTE_VALUE, (long) getAttributeValue.apply(txnName));
+
+        // Case 2: Now, we prepare the attributes in the parent segment so the merge of the empty transaction succeeds.
+        context.container.updateAttributes(
+                parentSegment,
+                AttributeUpdateCollection.from(new AttributeUpdate(txnAttributeId, AttributeUpdateType.Replace, txnName.hashCode())),
+                TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // As the source segment is empty, the amount of merged data should be 0.
+        Assert.assertEquals(0L, context.container.mergeStreamSegment(parentSegment, txnName, attributeUpdates, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).getMergedDataLength());
+        // But the attribute related to that transaction merge on the parent segment should have been updated.
+        Assert.assertEquals(txnName.hashCode() + 1L, (long) context.container.getAttributes(parentSegment,
+                Collections.singletonList(txnAttributeId), true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(txnAttributeId));
+
+        // Case 3: Create a non-empty transaction that should fail due to a conditional attribute update failure.
+        txnName = NameUtils.getTransactionNameFromId(parentSegment, UUID.randomUUID());
+        txnAttributeId = AttributeId.fromUUID(UUID.nameUUIDFromBytes(txnName.getBytes()));
+        attributeUpdates = attributeUpdateForTxn.apply(txnName);
+        context.container.createStreamSegment(txnName, segmentType, null, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // Add some appends to the transaction.
+        RefCountByteArraySegment appendData = getAppendData(txnName, 1);
+        context.container.append(txnName, appendData, null, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // Attempt the conditional merge.
+        AssertExtensions.assertFutureThrows("Transaction was expected to fail on attribute update",
+                context.container.mergeStreamSegment(parentSegment, txnName, attributeUpdates, TIMEOUT),
+                ex -> ex instanceof BadAttributeUpdateException);
+        Assert.assertEquals(Attributes.NULL_ATTRIBUTE_VALUE, (long) getAttributeValue.apply(txnName));
+
+        // Case 4: Now, we prepare the attributes in the parent segment so the merge of the non-empty transaction succeeds.
+        context.container.updateAttributes(
+                parentSegment,
+                AttributeUpdateCollection.from(new AttributeUpdate(txnAttributeId, AttributeUpdateType.Replace, txnName.hashCode())),
+                TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // As the source segment is non-empty, the amount of merged data should be greater than 0.
+        Assert.assertTrue(context.container.mergeStreamSegment(parentSegment, txnName, attributeUpdates, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).getMergedDataLength() > 0);
+        // The attribute related to that transaction merge on the parent segment should have been updated as well.
+        Assert.assertEquals(txnName.hashCode() + 1L, (long) context.container.getAttributes(parentSegment,
+                Collections.singletonList(txnAttributeId), true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(txnAttributeId));
+
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
      * Tests the ability to perform future (tail) reads. Scenarios tested include:
      * * Regular appends
      * * Segment sealing
