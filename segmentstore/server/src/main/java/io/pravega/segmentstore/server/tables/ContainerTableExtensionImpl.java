@@ -73,17 +73,19 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class.
      *
+     * @param config           Configuration.
      * @param segmentContainer The {@link SegmentContainer} to associate with.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(TableExtensionConfig.builder().build(), segmentContainer, cacheManager, KeyHasher.sha256(), executor);
+    public ContainerTableExtensionImpl(TableExtensionConfig config, SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
+        this(config, segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class with custom {@link KeyHasher}.
      *
+     * @param config           Configuration.
      * @param segmentContainer The {@link SegmentContainer} to associate with.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param hasher           The {@link KeyHasher} to use.
