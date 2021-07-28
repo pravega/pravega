@@ -228,7 +228,7 @@ public class SystemJournal {
         this.garbageCollector = Preconditions.checkNotNull(garbageCollector, "garbageCollector");
         this.containerId = containerId;
         this.systemSegments = getChunkStorageSystemSegments(containerId);
-        this.systemSegmentsPrefix = NameUtils.INTERNAL_SCOPE_NAME;
+        this.systemSegmentsPrefix = NameUtils.INTERNAL_CONTAINER_PREFIX;
         this.currentTimeSupplier = Preconditions.checkNotNull(currentTimeSupplier, "currentTimeSupplier");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);

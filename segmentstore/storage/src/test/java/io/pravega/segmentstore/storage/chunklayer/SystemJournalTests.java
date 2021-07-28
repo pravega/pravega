@@ -115,7 +115,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         //Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(0, journal.getCurrentFileIndex().get());
 
-        Assert.assertEquals(NameUtils.INTERNAL_SCOPE_NAME, journal.getSystemSegmentsPrefix());
+        Assert.assertEquals(NameUtils.INTERNAL_CONTAINER_PREFIX, journal.getSystemSegmentsPrefix());
         Assert.assertArrayEquals(SystemJournal.getChunkStorageSystemSegments(containerId), journal.getSystemSegments());
         journal.initialize();
     }
