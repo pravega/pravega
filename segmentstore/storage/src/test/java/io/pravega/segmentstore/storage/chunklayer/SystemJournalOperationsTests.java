@@ -282,33 +282,32 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val instance =  new TestInstance(testContext, 1);
         instance.bootstrap();
         instance.validate();
-        checkJournalsNotExist(testContext, instance, 1, 1, 1);
 
         // Add chunk.
         instance.append(testSegmentName, "A", 0, 1);
-        checkJournalsExist(testContext, instance, 1, 1, 1);
+        checkJournalsExist(testContext, instance, 1, 2, 2);
 
         // Add chunk.
         instance.append(testSegmentName, "B", 1, 2);
-        checkJournalsExist(testContext, instance, 1, 1, 2);
+        checkJournalsExist(testContext, instance, 1, 2, 3);
 
         // Add chunk.
         instance.append(testSegmentName, "C", 3, 3);
-        checkJournalsExist(testContext, instance, 1, 1, 3);
+        checkJournalsExist(testContext, instance, 1, 2, 4);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
-        checkJournalsExist(testContext, instance, 1, 1, 4);
+        checkJournalsExist(testContext, instance, 1, 2, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 2, 2, 5);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 5);
+        checkJournalsExist(testContext, instance, 2, 3, 6);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 3, 6);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
-        checkJournalsExist(testContext, instance, 2, 2, 6);
+        checkJournalsExist(testContext, instance, 2, 3, 7);
 
         // Bootstrap new instance.
         @Cleanup
@@ -380,34 +379,34 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val instance =  new TestInstance(testContext, 1);
         instance.bootstrap();
         instance.validate();
-        checkJournalsNotExist(testContext, instance, 1, 1, 1);
+        //checkJournalsNotExist(testContext, instance, 1, 1, 1);
         // Add chunk.
         instance.append(testSegmentName, "A", 0, 1);
-        checkJournalsExist(testContext, instance, 1, 1, 1);
+        checkJournalsExist(testContext, instance, 1, 2, 2);
         // Add chunk.
         instance.append(testSegmentName, "B", 1, 2);
-        checkJournalsExist(testContext, instance, 1, 1, 2);
+        checkJournalsExist(testContext, instance, 1, 2, 3);
 
         // Trigger Time and add chunk
         testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
         instance.append(testSegmentName, "C", 3, 3);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 2, 2, 3);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 3);
+        checkJournalsExist(testContext, instance, 2, 3, 4);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 3, 4);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
-        checkJournalsExist(testContext, instance, 2, 2, 4);
+        checkJournalsExist(testContext, instance, 2, 3, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
-        checkJournalsExist(testContext, instance, 2, 2, 5);
+        checkJournalsExist(testContext, instance, 2, 3, 6);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 3, 3, 6);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 3, 6);
+        checkJournalsExist(testContext, instance, 3, 4, 7);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 4, 7);
 
         // Bootstrap new instance.
         @Cleanup
@@ -1105,7 +1104,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          * Validates the metadata against expected results.
          */
         void validate() throws Exception {
-            Assert.assertEquals(0, systemJournal.getCurrentFileIndex().get());
             for (val expectedSegmentInfo : testContext.expectedSegments.values()) {
                 // Check segment metadata.
                 val expectedChunkInfoList =  testContext.expectedChunks.get(expectedSegmentInfo.name);

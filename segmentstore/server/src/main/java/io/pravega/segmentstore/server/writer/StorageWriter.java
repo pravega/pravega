@@ -266,7 +266,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 this.executor)
                 .thenRun(() -> {
                     // Clear the last read result from the state before exiting.
-                    Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still {} items to process.", readResult.size());
+                    //Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still {} items to process.", readResult.size());
                     this.state.setLastRead(null);
                     logStageEvent("InputRead", result);
                 });
