@@ -40,7 +40,7 @@ public final class CLIConfig {
     private static final Property<String> PASSWORD = Property.named("credentials.pwd", "");
     private static final Property<Boolean> TLS_ENABLED = Property.named("channel.tls", false);
     private static final Property<String> TRUSTSTORE_JKS = Property.named("trustStore.location", "");
-    private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL = Property.named("trustStore.access.token.ttl", 10);
+    private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS = Property.named("trustStore.access.token.ttl.seconds", 10);
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
 
     private static final String COMPONENT_CODE = "cli";
@@ -107,7 +107,7 @@ public final class CLIConfig {
         this.userName = properties.get(USER_NAME);
         this.password = properties.get(PASSWORD);
         this.truststore = properties.get(TRUSTSTORE_JKS);
-        this.accessTokenTtl = properties.getDuration(TRUSTSTORE_ACCESS_TOKEN_TTL, ChronoUnit.SECONDS);
+        this.accessTokenTtl = properties.getDuration(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS, ChronoUnit.SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }
 

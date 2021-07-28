@@ -111,8 +111,7 @@ public final class TestUtils {
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
         ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder();
         if (authEnabled) {
-            clusterWrapperBuilder
-                    .authEnabled(authEnabled);
+            clusterWrapperBuilder.authEnabled(authEnabled);
         }
 
         if (tlsEnabled) {

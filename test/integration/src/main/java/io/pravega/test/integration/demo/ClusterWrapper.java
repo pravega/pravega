@@ -259,7 +259,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .passwordAuthHandlerInputFilePath(passwordInputFilePath)
                 .tokenSigningKey(tokenSigningKeyBasis)
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
-                .accessTokenTtl(tokenTtlInSeconds)
+                .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
