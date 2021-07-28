@@ -88,7 +88,10 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         TableTestContext(TestConnector connector) {
             super(connector);
             this.tableStore = new TestTableStore(executorService());
-            this.config = TableExtensionConfig.builder().defaultRolloverSize(12345).defaultMinUtilization(90).build();
+            this.config = TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.DEFAULT_ROLLOVER_SIZE, 12345L)
+                    .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, 90)
+                    .build();
             this.metadataStore = new TableMetadataStore(this.connector, this.tableStore, config, executorService());
             this.storageReadCount = new AtomicInteger(0);
         }
