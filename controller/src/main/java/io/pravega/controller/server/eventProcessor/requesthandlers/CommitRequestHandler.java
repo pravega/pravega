@@ -228,7 +228,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                         activeEpochRecord.getReferenceEpoch() == txnEpochRecord.getReferenceEpoch()) {
                                                     // If active epoch's reference is same as transaction epoch,
                                                     // we can commit transactions immediately
-                                                    return commitTransactions(scope, stream, 
+                                                    return commitTransactions(scope, stream,
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
                                                             context, txnIdToWriterId, writerMarks)
                                                             .thenApply(txnOffsets -> committingTxnsRecord);
@@ -360,8 +360,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         // if honoured and is based on the order in the list.
         //Map<UUID, Map<Long, Long>> txnOffsets = new HashMap<>();
         boolean noteTime = writerMarks.size() > 0;
+        Timer segMergeTimer = new Timer();
         return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, context.getRequestId())
         .thenCompose(segmentOffsets -> {
+            TransactionMetrics.getInstance().commitTransactionSegments(segMergeTimer.getElapsed());
             for (int i = 0; i < transactionsToCommit.size(); i++) {
                 int index = i;
                 val txnOffsets = segmentOffsets.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().get(index)));

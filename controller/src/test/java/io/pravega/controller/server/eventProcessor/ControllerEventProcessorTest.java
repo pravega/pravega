@@ -158,16 +158,15 @@ public abstract class ControllerEventProcessorTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testCommitEventProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData);
-        checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
+        Assert.assertEquals(TxnStatus.OPEN, txnData.getStatus());
 
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
-        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();

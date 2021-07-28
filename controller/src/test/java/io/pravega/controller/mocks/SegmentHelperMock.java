@@ -81,6 +81,9 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
                 anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
+        doReturn(CompletableFuture.completedFuture(List.of(0L))).when(helper).commitTransactions(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
+
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
