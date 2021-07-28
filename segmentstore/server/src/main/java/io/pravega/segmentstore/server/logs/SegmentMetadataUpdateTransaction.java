@@ -655,7 +655,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation);
         }
         acceptAttributes(operation.getAttributeUpdates());
         this.length += transLength;

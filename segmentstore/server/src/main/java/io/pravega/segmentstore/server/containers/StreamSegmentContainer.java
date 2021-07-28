@@ -95,6 +95,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -611,10 +612,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
-                    log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
-                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining()).thenApply(v2 ->
-                            new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
-                                    sourceMetadata.getLength(), sourceMetadata.getAttributes()));
+                    log.debug("{}: Updating attributes (if any) and deleting empty source segment instead of merging {}.",
+                            this.traceObjectId, sourceMetadata.getName());
+                    // Execute the attribute update on the target segment only if needed.
+                    Supplier<CompletableFuture<Void>> updateAttributesIfNeeded = () -> attributeUpdates == null ?
+                            CompletableFuture.completedFuture(null) :
+                            updateAttributesForSegment(targetSegmentId, attributeUpdates, timer.getRemaining());
+                    return updateAttributesIfNeeded.get()
+                            .thenCompose(v2 -> deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining())
+                                    .thenApply(v3 -> new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
+                                    sourceMetadata.getLength(), sourceMetadata.getAttributes())));
                 } else {
                     // Source now has some data - we must merge the two.
                     return mergeOperationSupplier.get();
