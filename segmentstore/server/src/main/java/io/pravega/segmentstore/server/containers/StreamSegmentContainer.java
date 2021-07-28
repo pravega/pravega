@@ -592,16 +592,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                                                            TimeoutTimer timer) {
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
+
         CompletableFuture<Void> sealResult = trySealStreamSegment(sourceMetadata, timer.getRemaining());
-
-        // Creates a MergeSegmentOperation, runs processAttributeUpdaterOperation and creates the reply.
-        Supplier<CompletableFuture<MergeStreamSegmentResult>> mergeOperationSupplier = () -> {
-            MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
-            return processAttributeUpdaterOperation(operation, timer).thenApply(v2 ->
-                        new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
-                                operation.getLength(), sourceMetadata.getAttributes()));
-        };
-
         if (sourceMetadata.getLength() == 0) {
             // Source is empty. We may be able to skip the merge altogether and simply delete the segment. But we can only
             // be certain of this if the source is also sealed, otherwise it's possible it may still have outstanding
@@ -623,13 +615,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     sourceMetadata.getLength(), sourceMetadata.getAttributes())));
                 } else {
                     // Source now has some data - we must merge the two.
-                    return mergeOperationSupplier.get();
+                    MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
+                    return processAttributeUpdaterOperation(operation, timer).thenApply(v2 ->
+                            new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
+                                    operation.getLength(), sourceMetadata.getAttributes()));
                 }
             }, this.executor);
         } else {
             // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
             // the Merge right after the Seal.
-            return mergeOperationSupplier.get();
+            MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
+            return CompletableFuture.allOf(sealResult,
+                    processAttributeUpdaterOperation(operation, timer)).thenApply(v2 ->
+                    new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
+                            operation.getLength(), sourceMetadata.getAttributes()));
         }
     }
 
