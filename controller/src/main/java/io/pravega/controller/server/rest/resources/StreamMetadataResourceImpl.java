@@ -570,11 +570,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
         boolean showOnlyInternalStreams = filterType != null && filterType.equals("showInternalStreams");
         boolean showStreamsWithTag = filterType != null && filterType.equals("tag");
-        String tag = null;
+        String tag;
         if (showStreamsWithTag && filterValue != null) {
             tag = filterValue;
-        }
-        if (tag != null) {
             List<Stream> streams = new ArrayList<>();
             String finalTag = tag;
             localController.listStreamsForTag(scopeName, tag).collectRemaining(streams::add).thenCompose(v -> {
@@ -616,6 +614,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             controllerService.listStreamsInScope(scopeName, requestId)
                     .thenApply(streamsList -> {
                         StreamsList streams = new StreamsList();
+                        streams.setStreams(new ArrayList<>());
                         streamsList.forEach((stream, config) -> {
 
                         try {
