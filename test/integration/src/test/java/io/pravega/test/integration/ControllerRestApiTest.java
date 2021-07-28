@@ -15,7 +15,6 @@
  */
 package io.pravega.test.integration;
 
-import com.sun.jersey.spi.container.CachedEntityContainerRequest;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
