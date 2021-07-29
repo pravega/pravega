@@ -158,7 +158,7 @@ public abstract class ControllerEventProcessorTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 10000)
     public void testCommitEventProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,

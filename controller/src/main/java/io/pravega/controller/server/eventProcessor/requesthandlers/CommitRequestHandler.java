@@ -357,31 +357,28 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                                              Map<UUID, String> txnIdToWriterId,
                                                                              Map<String, TxnWriterMark> writerMarks) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
-        // if honoured and is based on the order in the list.
-        //Map<UUID, Map<Long, Long>> txnOffsets = new HashMap<>();
+        // is honoured and is based on the order in the list.
         boolean noteTime = writerMarks.size() > 0;
         Timer segMergeTimer = new Timer();
         return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, context.getRequestId())
         .thenCompose(segmentOffsets -> {
             TransactionMetrics.getInstance().commitTransactionSegments(segMergeTimer.getElapsed());
-            for (int i = 0; i < transactionsToCommit.size(); i++) {
-                int index = i;
-                val txnOffsets = segmentOffsets.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().get(index)));
-                val txnId = transactionsToCommit.get(i);
-                String writerId = txnIdToWriterId.get(txnId);
-                if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
-                    TxnWriterMark mark = writerMarks.get(writerId);
-                    writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
-                }
-            }
             if (noteTime) {
+                for (int i = 0; i < transactionsToCommit.size(); i++) {
+                    int index = i;
+                    val txnOffsets = segmentOffsets.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().get(index)));
+                    val txnId = transactionsToCommit.get(i);
+                    String writerId = txnIdToWriterId.get(txnId);
+                    if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
+                        TxnWriterMark mark = writerMarks.get(writerId);
+                        writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
+                    }
+                }
                 return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
                         stream, executor);
-            } else {
-                return CompletableFuture.completedFuture(null);
             }
+            return CompletableFuture.completedFuture(null);
         });
-
     }
 
     /**
