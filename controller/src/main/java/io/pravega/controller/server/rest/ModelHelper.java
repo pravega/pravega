@@ -16,15 +16,16 @@
 package io.pravega.controller.server.rest;
 
 import io.pravega.client.stream.Stream;
-import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
-import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.TagsList;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
+import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.NotImplementedException;
@@ -98,9 +99,15 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
+
+        TagsList tagsList = new TagsList();
+        if (createStreamRequest.getStreamTags() != null) {
+            tagsList = createStreamRequest.getStreamTags();
+        }
         return StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
+                .tags(tagsList)
                 .build();
     }
 
@@ -203,11 +210,15 @@ public class ModelHelper {
             }
         }
 
+        TagsList tagList = new TagsList();
+        tagList.addAll(streamConfiguration.getTags());
+
         StreamProperty streamProperty = new StreamProperty();
         streamProperty.setScopeName(scope);
         streamProperty.setStreamName(streamName);
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
+        streamProperty.setTags(tagList);
         return streamProperty;
     }
 

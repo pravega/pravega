@@ -66,6 +66,8 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -85,7 +87,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -116,7 +118,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final int containerId;
@@ -169,14 +171,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
                 config.getMaxIndexedChunks());
-        this.systemJournal = new SystemJournal(containerId,
-                chunkStorage,
-                metadataStore,
-                config);
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
                 metadataStore,
+                config,
+                executor);
+        this.systemJournal = new SystemJournal(containerId,
+                chunkStorage,
+                metadataStore,
+                garbageCollector,
                 config,
                 executor);
         this.closed = new AtomicBoolean(false);
@@ -186,17 +190,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
-     * @throws Exception In case of any errors.
+     * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
      */
-    public CompletableFuture<Void> bootstrap() throws Exception {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
 
         // Now bootstrap
-        log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch)
-                .thenRun(() -> garbageCollector.initialize())
-                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
+        return this.systemJournal.bootstrap(epoch, snapshotInfoStore)
+                .thenRun(() -> garbageCollector.initialize());
     }
 
     @Override
@@ -727,6 +729,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
             txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
         }
+    }
+
+    /**
+     * Report size related metrics for the given system segment.
+     * @param segmentMetadata Segment metadata.
+     */
+    void reportMetricsForSystemSegment(SegmentMetadata segmentMetadata) {
+        val name = segmentMetadata.getName().substring(segmentMetadata.getName().lastIndexOf('/') + 1).replace('$', '_');
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_SIZE + name, segmentMetadata.getLength() - segmentMetadata.getStartOffset());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_NUM_CHUNKS + name, segmentMetadata.getChunkCount());
     }
 
 

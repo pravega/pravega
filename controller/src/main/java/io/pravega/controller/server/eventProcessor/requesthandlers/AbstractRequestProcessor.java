@@ -18,8 +18,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -63,8 +65,20 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
  * was set against its name.
  */
 @Slf4j
-public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements StreamRequestProcessor {
-    protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
+public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> 
+        implements StreamRequestProcessor {
+    protected static final Predicate<Throwable> ILLEGAL_STATE_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException;
+    protected static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    protected static final Predicate<Throwable> SEGMENT_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException;
+    protected static final Predicate<Throwable> NON_RETRYABLE_EXCEPTIONS = ILLEGAL_STATE_PREDICATE.or(DATA_NOT_FOUND_PREDICATE)
+                                                                            .or(SEGMENT_NOT_FOUND_PREDICATE)
+                                                                            .or(e -> Exceptions.unwrap(e) instanceof IllegalArgumentException)
+                                                                            .or(e -> Exceptions.unwrap(e) instanceof NullPointerException);
+    protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.negate();
+    protected static final Predicate<Throwable> SCALE_EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.or(e -> e instanceof EpochTransitionOperationExceptions.ConditionInvalidException)
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.InputInvalidException)
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.PreConditionFailureException)
+                                                                                .negate();
 
     protected final StreamMetadataStore streamMetadataStore;
 
@@ -147,8 +161,9 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         Preconditions.checkNotNull(writeBackPredicate);
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
-        OperationContext context = streamMetadataStore.createContext(scope, stream);
-        CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
+        OperationContext context = streamMetadataStore.createStreamContext(scope, stream, RequestTag.NON_EXISTENT_ID);
+        CompletableFuture<String> waitingProcFuture = suppressException(
+                streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
         CompletableFuture<Boolean> hasTaskStarted = task.hasTaskStarted(event);
         CompletableFuture.allOf(waitingProcFuture, hasTaskStarted)
@@ -159,20 +174,24 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                         withRetries(() -> task.execute(event), executor)
                                 .whenComplete((r, ex) -> {
                                     if (ex != null && writeBackPredicate.test(ex)) {
-                                        suppressException(streamMetadataStore.createWaitingRequestIfAbsent(scope, stream, getProcessorName(), context, executor),
+                                        suppressException(streamMetadataStore.createWaitingRequestIfAbsent(scope, 
+                                                stream, getProcessorName(), context, executor),
                                                 null, "Exception while trying to create waiting request. Logged and ignored.")
-                                                .thenCompose(ignore ->  retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture, ex));
+                                                .thenCompose(ignore ->  retryIndefinitelyThenComplete(
+                                                        () -> task.writeBack(event), resultFuture, null));
                                     } else {
                                         // Processing was done for this event, whether it succeeded or failed, we should remove
                                         // the waiting request if it matches the current processor.
                                         // If we don't delete it then some other processor will never be able to do the work.
                                         // So we need to retry indefinitely until deleted.
-                                        retryIndefinitelyThenComplete(() -> streamMetadataStore.deleteWaitingRequestConditionally(scope,
+                                        retryIndefinitelyThenComplete(
+                                                () -> streamMetadataStore.deleteWaitingRequestConditionally(scope,
                                                 stream, getProcessorName(), context, executor), resultFuture, ex);
                                     }
                                 });
                     } else {
-                        log.debug("Found another processing requested by a different processor {}. Will postpone the event {}.", waitingRequestProcessor, event);
+                        log.debug("Found another processing requested by a different processor {}. Will postpone the event {}.", 
+                                waitingRequestProcessor, event);
                         // This is done to guarantee fairness. If another processor has requested for processing
                         // on this stream, we will back off and postpone the work for later.
                         retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture,
@@ -180,8 +199,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-            resultFuture.completeExceptionally(e);
-            return null;
+                    if (writeBackPredicate.test(e)) {
+                        retryIndefinitelyThenComplete(
+                                () -> task.writeBack(event), resultFuture, null);
+                    }
+                    return null;
         });
 
         return resultFuture;
@@ -194,7 +216,8 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         }, returnOnException);
     }
 
-    private CompletableFuture<Void> retryIndefinitelyThenComplete(Supplier<CompletableFuture<Void>> futureSupplier, CompletableFuture<Void> toComplete,
+    private CompletableFuture<Void> retryIndefinitelyThenComplete(Supplier<CompletableFuture<Void>> futureSupplier, 
+                                                                  CompletableFuture<Void> toComplete,
                                                                   Throwable e) {
         String failureMessage = String.format("Error writing event back into stream from processor %s", getProcessorName());
         return Retry.indefinitelyWithExpBackoff(failureMessage)

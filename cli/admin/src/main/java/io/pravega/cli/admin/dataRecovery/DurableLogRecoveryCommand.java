@@ -36,6 +36,7 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.Storage;
@@ -118,7 +119,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         outputInfo("Starting recovery...");
         // create back up of metadata segments
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
-                this.containerCount, executorService, TIMEOUT);
+                this.containerCount, executorService, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         @Cleanup
         Context context = createContext(executorService);
@@ -217,7 +218,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         }
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(c, this.cacheManager, e);
+            return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
         }
 
         @Override

@@ -57,14 +57,15 @@ public class BookKeeperRunner implements AutoCloseable {
         this.bkRunner = BookKeeperServiceRunner.builder()
                                                .startZk(true)
                                                .zkPort(zkPort)
+                                               .secureZK(false)
                                                .secureBK(false)
-                                               .ledgersPath("/ledgers")
+                                               .ledgersPath("/ledgers/" + zkPort)
                                                .bookiePorts(bookiePorts)
                                                .build();
         this.bkRunner.startAll();
 
         // Create a ZKClient with a base namespace.
-        String baseNamespace = "pravega/" + Long.toHexString(System.nanoTime());
+        String baseNamespace = "pravega/" + zkPort;
         this.zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString("localhost:" + zkPort)
@@ -81,7 +82,7 @@ public class BookKeeperRunner implements AutoCloseable {
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers/" + zkPort)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, this.bookieCount)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, this.bookieCount)
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, this.bookieCount));

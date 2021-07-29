@@ -34,10 +34,12 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -59,6 +61,7 @@ class TableMetadataStore extends MetadataStore {
     private final TableStore tableStore;
     private final String metadataSegmentName;
     private final AtomicBoolean initialized;
+    private final TableExtensionConfig config;
     //endregion
 
     /**
@@ -67,11 +70,13 @@ class TableMetadataStore extends MetadataStore {
      * @param connector  A {@link MetadataStore.Connector} object that can be used to communicate between the
      *                   {@link MetadataStore} and upstream callers.
      * @param tableStore A {@link TableStore} to use.
+     * @param config     A {@link TableExtensionConfig} to use.
      * @param executor   The executor to use for async operations.
      */
-    TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
+    TableMetadataStore(Connector connector, @NonNull TableStore tableStore, @NonNull TableExtensionConfig config, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
+        this.config = config;
         this.metadataSegmentName = NameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
         this.initialized = new AtomicBoolean(false);
     }
@@ -85,16 +90,16 @@ class TableMetadataStore extends MetadataStore {
         // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
         // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
         // assigned to it.
-        val attributes = TableAttributes.DEFAULT_VALUES
+        val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        attributes.putAll(this.config.getDefaultCompactionAttributes()); // Make sure we enable rollover for this segment.
+        val attributeUpdates = attributes
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
 
-        // Container Metadata Segment is a System Table Segment. It is Internal, but it is not Critical (i.e., does not
-        // prevent the good functioning of the Segment Store). It is OK if "modify" operations on this segment are
-        // throttled as that would not prevent the Segment Store from making forward progress.
-        val segmentType = SegmentType.builder().tableSegment().system().internal().build();
-        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributes), true, timeout)
+        // Container Metadata Segment is a System Table Segment. It is System, Internal, and Critical.
+        val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
+        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributeUpdates), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
                     log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);

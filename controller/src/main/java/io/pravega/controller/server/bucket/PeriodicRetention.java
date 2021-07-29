@@ -39,7 +39,8 @@ public class PeriodicRetention {
     private final RequestTracker requestTracker;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    public PeriodicRetention(StreamMetadataStore streamMetadataStore, StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor,
+    public PeriodicRetention(StreamMetadataStore streamMetadataStore, StreamMetadataTasks streamMetadataTasks, 
+                             ScheduledExecutorService executor,
                              RequestTracker requestTracker) {
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
@@ -48,22 +49,26 @@ public class PeriodicRetention {
     }
     
     public CompletableFuture<Void> retention(Stream stream) {
-        OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
 
         // Track the new request for this automatic truncation.
         long requestId = requestIdGenerator.get();
         String requestDescriptor = RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
                 stream.getStreamName());
         requestTracker.trackRequest(requestDescriptor, requestId);
+        OperationContext context = streamMetadataStore.createStreamContext(stream.getScope(), stream.getStreamName(),
+                requestId);
+
         log.debug(requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), 
+                stream.getStreamName(), context, executor)
                          .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
                                  config.getRetentionPolicy(), System.currentTimeMillis(), context,
                                  this.streamMetadataTasks.retrieveDelegationToken()))
                          .exceptionally(e -> {
-                             log.warn(requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);
+                             log.warn(requestId, "Exception thrown while performing auto retention for stream {} ",
+                                     stream, e);
                              throw new CompletionException(e);
                          }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                           .exceptionally(e -> {

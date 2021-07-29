@@ -168,11 +168,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     private final AtomicLong timer = new AtomicLong();
 
-    private StorageFactory storageFactory;
+    private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory dataLogFactory;
 
     @After
     public void tearDown() throws Exception {
+        if (this.storageFactory != null) {
+            this.storageFactory.close();
+        }
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
         }
@@ -313,7 +316,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         private final Controller controller;
         private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
 
-        ControllerRunner(int bkPort, int servicePort, int containerCount) throws InterruptedException {
+        ControllerRunner(int bkPort, int servicePort, int containerCount) {
             this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
                     controllerPort, serviceHost, servicePort, containerCount);
             this.controllerWrapper.awaitRunning();
@@ -366,7 +369,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         public void restartControllerAndSegmentStore(StorageFactory storageFactory, InMemoryDurableDataLogFactory dataLogFactory)
-                throws DurableDataLogException, InterruptedException {
+                throws DurableDataLogException {
             this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
             this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
         }
@@ -483,7 +486,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
-                executorService(), TIMEOUT);
+                executorService(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
@@ -628,17 +631,17 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Flush DurableLog to Long Term Storage
         flushToStorage(pravegaRunner.segmentStoreRunner.serviceBuilder);
 
+        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
+        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
+
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
-                executorService(), TIMEOUT);
-
-        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
+                executorService(), TIMEOUT).join();
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
@@ -750,17 +753,17 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Flush DurableLog to Long Term Storage
         flushToStorage(pravegaRunner.segmentStoreRunner.serviceBuilder);
 
+        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
+        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
+
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
-                executorService(), TIMEOUT);
-
-        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
+                executorService(), TIMEOUT).join();
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);

@@ -21,7 +21,6 @@ buildscript {
     // log the current JVM version.
     println "Build JVM Version is : " + Jvm.current()
     repositories {
-        jcenter()
         maven {
             url "https://plugins.gradle.org/m2/"
         }
@@ -89,7 +88,6 @@ allprojects {
     apply from: "$rootDir/gradle/rat.gradle"
 
     repositories {
-        jcenter()
         mavenCentral()
         mavenLocal()
     }
@@ -188,6 +186,7 @@ def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
 
 project('shared:authplugin') {
     dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
     }
 
     tasks.withType(JavaCompile) {
@@ -230,6 +229,8 @@ project('shared:security') {
         // in newer Java SE versions (9 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        // We need to explicitly import these as Bookkeeper 4.14+ is not transitively including them anymore.
+        compile group: 'org.bouncycastle', name: 'bcprov-ext-jdk15on', version: bouncyCastleVersion
 
         testCompile project(':test:testcommon')
     }
@@ -273,6 +274,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:testcommon')
     }
 
     javadoc {
@@ -298,6 +300,65 @@ project('shared:protocol') {
     tasks.withType(JavaCompile) {
         options.compilerArgs.remove(getDefaultJavaVersion())
         options.compilerArgs.add(clientJavaVersion)
+    }
+}
+
+project ('shared:rest') {
+    sourceSets {
+        main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/config"
+    }
+
+    dependencies {
+        compile project(':common')
+        compile "io.grpc:grpc-core:" + grpcVersion
+        compile project(":shared:authplugin")
+        compile project(":shared:basic-authplugin")
+        compile project(":shared:security")
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        testCompile project(':test:testcommon')
+        testCompile project(":shared:authplugin").sourceSets.test.output
+        testCompile "io.grpc:grpc-netty:" + grpcVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+}
+
+project ('shared:health') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
+project ('shared:health-bindings') {
+    dependencies {
+        compile project(':shared:health')
+        compile project(':shared:rest')
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile(group: 'io.swagger', name: 'swagger-jersey2-jaxrs', version: swaggerJersey2JaxrsVersion) {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        testCompile project(':test:testcommon')
+
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
     }
 }
 
@@ -356,6 +417,7 @@ project('test:testcommon') {
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -446,6 +508,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile project(':shared:rest')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -489,7 +552,10 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':shared:health')
+        compile project(':shared:rest')
         compile project(':bindings')
+        compile project(':shared:health-bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -719,6 +785,9 @@ project('controller') {
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
+        compile project(":shared:rest")
+        compile project(":shared:health")
+        compile project(":shared:health-bindings")
         runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -728,16 +797,16 @@ project('controller') {
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
-        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile project(':shared:basic-authplugin')
+        testCompile project(":shared:authplugin").sourceSets.test.output
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -787,6 +856,7 @@ project('cli:admin') {
         compile project(':segmentstore:server:host')
         compile project(':segmentstore:storage:impl')
         compile project(':shared:cluster')
+        compile project(":shared:security")
         compile project(':test:testcommon')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
@@ -826,6 +896,7 @@ project('cli:user') {
         compile project(':shared:protocol')
         compile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
     }
@@ -973,6 +1044,8 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
+        (includes, excludes) = subsetSystemTests()
+
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
@@ -1022,27 +1095,37 @@ project('test:system') {
         environment "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
         environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
+        environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
         commandLine './kubernetes/setupTestPod.sh'
     }
 
     task runFluentBitInstall(type: Exec) {
-        environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
-        environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
-        commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        if (System.getProperty("skipFluentInstall", "false") == "false") {
+            environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
+            environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
+            environment 'ALPINE_IMAGE', System.getProperty("alpineImage", "alpine:latest")
+            commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        } else {
+            commandLine 'echo', 'Skipping Fluent-Bit installation.'
+        }
     }
 
     task fetchSystemTestLogs(type: Exec) {
         environment 'FLUENT_BIT_EXPORT_PATH', "logs"
-        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-logs'
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-namespace-logs'
         commandLine './kubernetes/fluentBitSetup.sh', 'fetch-system-test-logs'
     }
 
     task startK8SystemTests(type: Test) {
         dependsOn 'copyTestsToK8sCluster', 'runFluentBitInstall' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
+
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
+
+        (includes, excludes) = subsetSystemTests()
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
@@ -1051,6 +1134,8 @@ project('test:system') {
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
             systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
         }
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        systemProperty "skipLogDownload", System.getProperty("skipLogDownload", "false")
         systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
         systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
         systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
@@ -1061,25 +1146,35 @@ project('test:system') {
         systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "imageVersion") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
-        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
-        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
-        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
-        systemProperty "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        systemProperty "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
-        systemProperty "publishedChartName", System.getProperty("publishedChartName", "pravega")
-        systemProperty "helmRepository", System.getProperty("helmRepository", "pravega")
+        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
+        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
+        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
 
         // target versions wrt Upgrade for all operators & clusters
-        systemProperty "targetPravegaOperatorVersion", System.getProperty("targetPravegaOperatorVersion", "latest")
-        systemProperty "targetBookkeeperOperatorVersion", System.getProperty("targetBookkeeperOperatorVersion", "latest")
-        systemProperty "targetZookeeperOperatorVersion", System.getProperty("targetZookeeperOperatorVersion", "latest")
-        systemProperty "targetPravegaVersion", System.getProperty("targetPravegaVersion", "latest")
-        systemProperty "targetBookkeeperVersion", System.getProperty("targetBookkeeperVersion", "latest")
-        systemProperty "targetZookeeperVersion", System.getProperty("targetZookeeperVersion", "latest")
+        systemProperty "controllerLabel", System.getProperty("controllerLabel", "pravega-controller");
+        systemProperty "segmentstoreLabel", System.getProperty("segmentstoreLabel", "pravega-segmentstore");
+        systemProperty "tlsSecretName", System.getProperty("tlsSecretName", "selfsigned-cert-tls");
+        systemProperty "bookkeeperLabel", System.getProperty("bookkeeperLabel", "bookie");
+        systemProperty "pravegaID", System.getProperty("pravegaID", "pravega");
+        systemProperty "bookkeeperID", System.getProperty("bookkeeperID", "pravega-bk");
+        systemProperty "bookkeeperConfigMap", System.getProperty("bookkeeperConfigMap", "bk-config-map");
+
+        systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
+        systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
+        systemProperty "targetZookeeperOperatorVersion",System.getProperty("targetZookeeperOperatorVersion", "latest")
+        systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
+        systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
+        systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+        systemProperty "testServiceAccount", System.getProperty("testServiceAccount", "test-framework");
+        systemProperty "testClusterRoleBinding", System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
@@ -1210,6 +1305,37 @@ def getProjectVersion() {
 def getDefaultJavaVersion() {
     return "11"
 }
+
+def getSystemTestClass(arg) {
+    if (arg == null || arg.contains("*")) {
+        return arg
+    }
+
+    def str = arg.trim()
+    def separator = System.getProperty("file.separator", "/")
+    if (!str.contains(separator)) {
+        str = "**" +  separator + str
+    }
+    if (!str.endsWith('.class')) {
+        str += '.class'
+    }
+    return str
+}
+
+def subsetSystemTests() {
+    def excludedTests = System.getProperty('excludeSystemTests')
+    def includedTests = System.getProperty('includeSystemTests')
+    def (includes, excludes) = [[], []]
+    // Let included tests take precedence if both are specified.
+    if (includedTests != null && !includedTests.isEmpty()) {
+        includes = includedTests.split(',').collect { getSystemTestClass(it) }
+    } else if (excludedTests != null && !excludedTests.isEmpty()) {
+        excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
+    }
+
+    return [includes, excludes]
+}
+
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

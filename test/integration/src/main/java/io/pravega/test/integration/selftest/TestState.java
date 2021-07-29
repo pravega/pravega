@@ -588,7 +588,7 @@ public class TestState {
                 sum += (long) this.latencyCounts[i] * i;
             }
 
-            return (double) sum;
+            return sum;
         }
 
         /**

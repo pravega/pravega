@@ -43,7 +43,11 @@ import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
+import io.pravega.shared.health.bindings.resources.HealthImpl;
+import io.pravega.controller.server.rest.resources.PingImpl;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.shared.health.HealthServiceManager;
+import io.pravega.shared.rest.RESTServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -75,6 +79,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -112,6 +117,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
+    private HealthServiceManager healthServiceManager;
     private ControllerService controllerService;
 
     private LocalController localController;
@@ -248,7 +254,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,
                     serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
@@ -265,7 +271,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    clientConfig, watermarkingExecutor);
+                    clientConfig, watermarkingExecutor, requestTracker);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
@@ -291,10 +297,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
-            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
-            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
+            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper,
+                    authHelper, controllerExecutor, streamStore));
+            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor,
+                    eventExecutor, host.getHostId(), authHelper);
+            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore,
+                    streamMetadataTasks, streamTransactionMetadataTasks, segmentHelper, controllerExecutor,
+                    cluster, requestTracker);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -305,12 +314,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
-                        eventExecutor);
+                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore,
+                        kvtMetadataTasks, eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtMetadataTasks)
+                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks,
+                        streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 
@@ -331,6 +341,10 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 controllerClusterListener.startAsync();
             }
 
+            // Start the Health Service.
+            healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
+            healthServiceManager.start();
+
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
@@ -341,11 +355,14 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(this.localController,
-                        controllerService,
-                        grpcServer.getAuthHandlerManager(),
-                        serviceConfig.getRestServerConfig().get(),
-                        connectionFactory);
+                restServer = new RESTServer(serviceConfig.getRestServerConfig().get(),
+                        Set.of(new StreamMetadataResourceImpl(this.localController,
+                                        controllerService,
+                                        grpcServer.getAuthHandlerManager(),
+                                        connectionFactory,
+                                        clientConfig),
+                                new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
+                                new PingImpl()));
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();
@@ -382,6 +399,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         log.info("Initiating controller service shutDown");
 
         try {
+            if (healthServiceManager != null) {
+                log.info("Stopping the HealthService.");
+                healthServiceManager.close();
+            }
+
             if (restServer != null) {
                 restServer.stopAsync();
             }
@@ -576,6 +598,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         close(connectionFactory);
         close(storeClient);
         close(streamStore);
+        close(healthServiceManager);
     }
 
     private void close(AutoCloseable closeable) {

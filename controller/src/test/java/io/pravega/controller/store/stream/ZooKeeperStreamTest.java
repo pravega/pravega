@@ -52,8 +52,8 @@ public class ZooKeeperStreamTest extends StreamTestBase {
     }
 
     @Override
-    void createScope(String scope) {
-        store.createScope(scope).join();
+    void createScope(String scope, OperationContext context) {
+        store.createScope(scope, context, executor).join();
     }
 
     @Override

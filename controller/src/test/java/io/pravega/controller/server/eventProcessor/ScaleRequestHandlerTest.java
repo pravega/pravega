@@ -78,6 +78,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
@@ -87,7 +88,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
@@ -106,6 +109,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class ScaleRequestHandlerTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
     protected StreamMetadataStore streamStore;
@@ -155,7 +160,7 @@ public abstract class ScaleRequestHandlerTest {
         clientFactory = mock(EventStreamClientFactory.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
@@ -165,11 +170,11 @@ public abstract class ScaleRequestHandlerTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createScope(scope).get();
+        streamStore.createScope(scope, null, executor).get();
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 3))
                                                         .build();
-        streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
+        streamMetadataTasks.createStream(scope, stream, config, createTimestamp, 0L).get();
         // set minimum number of segments to 1 so that we can also test scale downs
         config = StreamConfiguration.builder()
                                     .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
@@ -281,7 +286,7 @@ public abstract class ScaleRequestHandlerTest {
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
-        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(five),
+        assertTrue(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(five),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis()), () -> false)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
@@ -297,7 +302,8 @@ public abstract class ScaleRequestHandlerTest {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
-                null, null, null, null, null, null, null, streamStore, executor);
+                null, null, null, null, null,
+                null, null, streamStore, executor);
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
 
@@ -305,14 +311,15 @@ public abstract class ScaleRequestHandlerTest {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 5))
                                                         .build();
-        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
+        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis(), 0L).get();
 
         // change stream configuration to min segment count = 4
         config = StreamConfiguration.builder()
                                     .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 4))
                                     .build();
         streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
-        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, 
+                null, executor).join();
         streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
         
         // process first auto scale down event. it should only mark the segment as cold
@@ -453,7 +460,7 @@ public abstract class ScaleRequestHandlerTest {
         String stream = "newStream";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
-        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
+        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis(), 0L).get();
 
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
@@ -496,10 +503,9 @@ public abstract class ScaleRequestHandlerTest {
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
         // 6. run scale. this should fail in scaleCreateNewEpochs with IllegalArgumentException with epochTransitionConsistent
-        AssertExtensions.assertFutureThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
+        requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                false, System.currentTimeMillis(), System.currentTimeMillis()), () -> false), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
-
+                false, System.currentTimeMillis(), System.currentTimeMillis()), () -> false).join();
         state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
     }
@@ -511,7 +517,7 @@ public abstract class ScaleRequestHandlerTest {
         String stream = "newStream";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
-        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
+        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis(), 0L).get();
 
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);

@@ -38,6 +38,7 @@ public class FileSystemStorageFactory implements StorageFactory {
     @Getter
     private final ExecutorService executor;
 
+    @Override
     public Storage createStorageAdapter() {
         FileSystemStorage s = new FileSystemStorage(this.config);
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);

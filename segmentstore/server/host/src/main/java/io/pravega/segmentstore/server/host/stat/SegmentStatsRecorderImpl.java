@@ -206,9 +206,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             segmentClosedForWrites(streamSegmentName);
         }
 
-        if (cache.remove(streamSegmentName) != null) {
-            reporter.notifySealed(streamSegmentName);
-        }
+        cache.remove(streamSegmentName);
+        reporter.notifySealed(streamSegmentName);
     }
 
     private void segmentClosedForWrites(String streamSegmentName) {

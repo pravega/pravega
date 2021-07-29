@@ -28,8 +28,8 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -135,7 +135,6 @@ public class RawClientTest {
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         Segment segment = new Segment("scope", "test", 0);
-        @Cleanup
         RawClient rawClient = new RawClient(controller, connectionFactory, segment);
 
         WireCommands.ReadSegment request1 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "",
@@ -151,7 +150,8 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof ConnectionFailedException);
-
+        rawClient.close();
+        rawClient = new RawClient(controller, connectionFactory, segment);
         WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
         future = rawClient.sendRequest(2L, request2);
         // Verify if the request was sent over the connection.
@@ -163,6 +163,7 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof AuthenticationException);
+        rawClient.close();
     }
 
     @Test
@@ -201,10 +202,12 @@ public class RawClientTest {
         }).when(connectionPool).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
 
         // Test exception paths.
+        @Cleanup
         RawClient rawClient = new RawClient(endpoint, connectionPool);
         CompletableFuture<Reply> reply = rawClient.sendRequest(100L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply, t -> t instanceof ConnectionFailedException);
 
+        @Cleanup
         RawClient rawClient1 = new RawClient(controller, connectionPool, new Segment("scope", "stream", 1));
         CompletableFuture<Reply> reply1 = rawClient1.sendRequest(101L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply1, t -> t instanceof ConnectionFailedException);

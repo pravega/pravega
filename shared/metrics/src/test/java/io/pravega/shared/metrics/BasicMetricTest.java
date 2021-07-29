@@ -16,21 +16,23 @@
 package io.pravega.shared.metrics;
 
 import io.pravega.shared.MetricsTags;
+import io.pravega.test.common.SerializedClassRunner;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for basic metric type such as OpStatsLogger, Counter, Gauge and Meter
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class BasicMetricTest {
 
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("testStatsLogger");

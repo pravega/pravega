@@ -230,11 +230,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);
             }
-            if (oldConnectionSetupCompleted != null) {
-                oldConnectionSetupCompleted.completeExceptionally(throwable);
-            }
             if (oldConnection != null) {
                 oldConnection.close();
+            }
+            if (oldConnectionSetupCompleted != null) {
+                oldConnectionSetupCompleted.completeExceptionally(throwable);
             }
         }
 

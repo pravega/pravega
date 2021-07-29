@@ -19,10 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -31,7 +28,7 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.TableStoreMock;
+import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
@@ -80,9 +77,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
-    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout(2 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -415,13 +411,36 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
     /**
      * Checks the ability for the {@link ContainerKeyIndex} class to properly handle recovery situations where the Table
-     * Segment may not have been fully indexed when the first request for it is received.
+     * Segment may not have been fully indexed when the first request for it is received. This test verifies the case
+     * when we can do preindexing all at once.
      */
     @Test
-    public void testRecovery() throws Exception {
+    public void testRecoveryOneBatch() throws Exception {
+        testRecovery(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build());
+    }
+
+    /**
+     * Checks the ability for the {@link ContainerKeyIndex} class to properly handle recovery situations where the Table
+     * Segment may not have been fully indexed when the first request for it is received. This test verifies the case
+     * when the unindexed part is too large to process at once so it needs to be broken down into batches.
+     */
+    @Test
+    public void testRecoveryMultipleBatches() throws Exception {
+        testRecovery(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, 1024)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build());
+    }
+
+    private void testRecovery(TableExtensionConfig config) throws Exception {
         val s = new EntrySerializer();
         @Cleanup
-        val context = new TestContext();
+        val context = new TestContext(config);
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
@@ -451,7 +470,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val expected1 = new HashMap<UUID, Long>();
         keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
         AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected1, result1);
-        checkSortedKeys(keys.stream().map(TableKey::getKey).collect(Collectors.toList()), context);
 
         // 3. Set LastIdx to Length, and increase by TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1 (so we don't do pre-caching).
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
@@ -478,11 +496,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 toUpdateBatch(conditionalUpdateKey),
                 () -> CompletableFuture.completedFuture(context.segment.getInfo().getLength() + 1L),
                 context.timer);
-        val sortedIndexRequest = context.index.getSortedKeyIndex(context.segment);
         Assert.assertFalse("Expected getBucketOffsets() to block.", getBucketOffsets.isDone());
         Assert.assertFalse("Expected getBackpointerOffset() to block.", getBackpointers.isDone());
         Assert.assertFalse("Expecting conditional update to block.", conditionalUpdate.isDone());
-        Assert.assertFalse("Expecting getSortedKeyIndex() to block.", sortedIndexRequest.isDone());
 
         // 4.1. Verify unconditional updates go through.
         val unconditionalUpdateKey = generateUnversionedKeys(1, context).get(0);
@@ -518,14 +534,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val finalGetUnindexedKeysResult = context.index.getUnindexedKeyHashes(context.segment).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected result size from final getUnindexedKeyHashes().", 2, finalGetUnindexedKeysResult.size());
 
-        // .. and the same 2 keys in the sorted index. Since we haven't done any actual background indexing, the sorted
-        // index should have been cleared up when notifyIndexOffsetChanged was invoked, leaving only these 2 keys around.
-        checkSortedKeys(Arrays.asList(unconditionalUpdateKey.getKey(), conditionalUpdateKey.getKey()), context);
-
-        // 5. Verify no new requests are blocked now.
+        // 4. Verify no new requests are blocked now.
         getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // A timeout check will suffice
 
-        // 6. Verify requests are cancelled if we notify the segment has been removed.
+        // 5. Verify requests are cancelled if we notify the segment has been removed.
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1L, 0);
         val cancelledKey = TableKey.notExists(generateUnversionedKeys(1, context).get(0).getKey());
         val cancelledRequest = context.index.update(
@@ -803,18 +815,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected offset.", expectedOffset, actualOffset);
         }
 
-        // Check sorted index.
-        val keys = highestUpdate.batch.getItems().stream().map(i -> i.getKey().getKey()).collect(Collectors.toList());
-        checkSortedKeys(keys, context);
-    }
-
-    private void checkSortedKeys(List<BufferView> expectedSortedKeys, TestContext context) {
-        expectedSortedKeys = expectedSortedKeys.stream().sorted(KEY_COMPARATOR).collect(Collectors.toList());
-        val actualSortedKeys = new ArrayList<BufferView>();
-        val si = context.index.getSortedKeyIndex(context.segment).join();
-        si.iterator(si.getIteratorRange(null, null), TIMEOUT).forEachRemaining(actualSortedKeys::addAll, executorService()).join();
-        AssertExtensions.assertListEquals("Unexpected keys returned by getSortedKeyIndex().iterator.",
-                expectedSortedKeys, actualSortedKeys, BufferView::equals);
+        val expectedUniqueEntryCount = highestUpdateHashes.size();
+        val actualUniqueEntryCount = context.index.getUniqueEntryCount(context.segment.getMetadata());
+        Assert.assertEquals("Unexpected value for getUniqueEntryCount", expectedUniqueEntryCount, actualUniqueEntryCount);
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {
@@ -953,8 +956,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final SegmentMock segment;
-        final TableStoreMock sortedKeyStorage;
-        final ContainerSortedKeyIndex sortedKeyIndex;
         final ContainerKeyIndex index;
         final TimeoutTimer timer;
         final Random random;
@@ -963,33 +964,29 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         TestContext() {
             // This is for most tests. Due to variability in test environments, we do not want to set a very small value
             // for most tests; we will customize this only for those tests that we want to test this feature on.
-            this(TableExtensionConfig.builder().build().getMaxUnindexedLength());
+            this(TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                    .build());
         }
 
         TestContext(int maxUnindexedSize) {
+            this(TableExtensionConfig.builder().with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, maxUnindexedSize).build());
+        }
+
+        TestContext(TableExtensionConfig config) {
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
             this.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
-            // Sorted Table Segments are an extension of regular Table Segments. By setting the SORTED flag, we will end
-            // up testing the additional code for it and also all the base code for regular Table Segments.
-            this.segment.updateAttributes(Collections.singletonMap(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE));
-            this.sortedKeyStorage = new TableStoreMock(executorService());
-            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
-            val ds = new SortedKeyIndexDataSource(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
-            this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
-            this.defaultConfig = TableExtensionConfig.builder()
-                    .maxTailCachePreIndexLength(TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
-                    .maxUnindexedLength(maxUnindexedSize)
-                    .recoveryTimeout(Duration.ofMillis(ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS))
-                    .build();
+            this.defaultConfig = config;
             this.index = createIndex(this.defaultConfig, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
 
         ContainerKeyIndex createIndex(TableExtensionConfig config, ScheduledExecutorService executorService) {
-            return new ContainerKeyIndex(CONTAINER_ID, config, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService);
+            return new ContainerKeyIndex(CONTAINER_ID, config, this.cacheManager, KeyHashers.DEFAULT_HASHER, executorService);
         }
 
         @Override

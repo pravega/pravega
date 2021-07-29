@@ -745,15 +745,17 @@ public class K8sClient {
         public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
             if (CONFLICT.getStatusCode() == responseCode || NOT_FOUND.getStatusCode() == responseCode) {
                 log.warn("Exception observed for method {} with response code {}", method, responseCode);
+                log.warn("ResponseBody: {}", e.getResponseBody());
             } else {
                 log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+                log.error("ResponseBody: {}", e.getResponseBody());
             }
             future.completeExceptionally(e);
         }
 
         @Override
         public void onSuccess(T t, int i, Map<String, List<String>> map) {
-            log.info("Method {} completed successfully with response code {} and value {}", method, i, t);
+            log.debug("Method {} completed successfully with response code {} and value {}", method, i, t);
             future.complete(t);
         }
 

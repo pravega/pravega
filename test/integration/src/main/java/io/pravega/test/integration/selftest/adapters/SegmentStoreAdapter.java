@@ -23,7 +23,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -40,6 +42,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -48,6 +51,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
@@ -55,7 +59,6 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.time.Duration;
 import java.util.AbstractMap;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +119,9 @@ class SegmentStoreAdapter extends StoreAdapter {
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    SingletonStorageFactory factory = new SingletonStorageFactory(config.getStorageDir(), setup.getStorageExecutor());
+                    SingletonStorageFactory factory = new SingletonStorageFactory(config.getStorageDir(),
+                            setup.getStorageExecutor(),
+                            testConfig.isChunkedSegmentStorageEnabled());
                     this.storageFactory.set(factory);
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
@@ -202,10 +207,10 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        val au = Arrays.asList(
+        val au = AttributeUpdateCollection.from(
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1),
-                new AttributeUpdate(new UUID(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
-                new AttributeUpdate(new UUID(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
+                new AttributeUpdate(AttributeId.uuid(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
+                new AttributeUpdate(AttributeId.uuid(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
         return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), au, timeout)
                                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout)));
     }
@@ -268,13 +273,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
         ensureRunning();
-        val type = SegmentType.builder();
-        if (this.config.getTableType() == TestConfig.TableType.Sorted) {
-            type.sortedTableSegment();
-        } else {
-            type.tableSegment();
-        }
-
+        val type = SegmentType.builder().tableSegment();
         return this.tableStore.createSegment(tableName, type.build(), timeout);
     }
 
@@ -400,10 +399,15 @@ class SegmentStoreAdapter extends StoreAdapter {
         private final AtomicBoolean closed;
         private final Storage storage;
 
-        SingletonStorageFactory(String storageDir, ScheduledExecutorService executor) {
+        SingletonStorageFactory(String storageDir, ScheduledExecutorService executor, boolean isChunkedSegmentStoreEnabled) {
             this.storageDir = storageDir;
-            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
-                    executor).createStorageAdapter();
+            if (isChunkedSegmentStoreEnabled) {
+                this.storage = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                        executor).createStorageAdapter();
+            } else {
+                this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                        executor).createStorageAdapter();
+            }
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }

@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -44,6 +45,7 @@ import static java.util.stream.Collectors.summarizingLong;
 
 @Data
 @Builder(toBuilder = true)
+@EqualsAndHashCode
 public class ReaderGroupConfig implements Serializable {
 
     public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
@@ -62,8 +64,9 @@ public class ReaderGroupConfig implements Serializable {
 
     private final StreamDataRetention retentionType;
 
+    @EqualsAndHashCode.Exclude
     private final long generation;
-
+    @EqualsAndHashCode.Exclude
     private final UUID readerGroupId;
 
     /**

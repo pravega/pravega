@@ -48,9 +48,13 @@ import static org.mockito.Mockito.mock;
 public class KeyValueTableManagerImplTest {
     private static final PravegaNodeUri SERVER_LOCATION = new PravegaNodeUri("localhost", 1234);
     private static final String DEFAULT_SCOPE = "DefaultScope";
-    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(4).build();
+    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
+            .partitionCount(4)
+            .primaryKeyLength(8)
+            .secondaryKeyLength(4)
+            .build();
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(30);
+    public final Timeout globalTimeout = Timeout.seconds(30);
     private MockConnectionFactoryImpl connectionFactory;
     private Controller controller = null;
     private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());

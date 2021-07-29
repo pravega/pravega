@@ -22,6 +22,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
@@ -46,10 +47,12 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Unit tests for the {@link Throttler} class.
  */
+@RunWith(SerializedClassRunner.class)
 public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
     private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
@@ -247,7 +250,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // the duration supplied.
         AssertExtensions.assertLessThanOrEqual(
                 "Throttler should be at most the first supplied delay",
-                (int) suppliedDelays.get(0),
+                suppliedDelays.get(0),
                 (int) getThrottlerMetric(calculator.getName())
         );
     }

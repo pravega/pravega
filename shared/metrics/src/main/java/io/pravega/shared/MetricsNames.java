@@ -94,6 +94,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET_LATENCY = PREFIX + "segmentstore.tablesegment.get_latency_ms";                               // Histogram
     public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_keys_latency_ms";             // Histogram
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_entries_latency_ms";       // Histogram
+    public static final String TABLE_SEGMENT_GET_INFO_LATENCY = PREFIX + "segmentstore.tablesegment.get_info_latency_ms";                     // Histogram
 
     public static final String TABLE_SEGMENT_UPDATE = PREFIX + "segmentstore.tablesegment.update";                         // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = PREFIX + "segmentstore.tablesegment.update_conditional"; // Counter and Per-segment Counter
@@ -102,6 +103,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET = PREFIX + "segmentstore.tablesegment.get";                               // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_KEYS = PREFIX + "segmentstore.tablesegment.iterate_keys";             // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_GET_INFO = PREFIX + "segmentstore.tablesegment.get_info";                     // Counter and Per-segment Counter
 
     // Storage stats
     public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
@@ -121,14 +123,26 @@ public final class MetricsNames {
     // SLTS stats
     public static final String SLTS_READ_LATENCY = PREFIX + "segmentstore.storage.slts.read_latency_ms";            // Histogram
     public static final String SLTS_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.write_latency_ms";          // Histogram
+    public static final String SLTS_SYSTEM_READ_LATENCY = PREFIX + "segmentstore.storage.slts.system_read_latency_ms";      // Histogram
+    public static final String SLTS_SYSTEM_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.system_write_latency_ms";    // Histogram
     public static final String SLTS_CREATE_LATENCY = PREFIX + "segmentstore.storage.slts.create_latency_ms";        // Histogram
     public static final String SLTS_DELETE_LATENCY = PREFIX + "segmentstore.storage.slts.delete_latency_ms";        // Histogram
     public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
     public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
 
+    public static final String SLTS_NUM_CHUNKS_READ = PREFIX + "segmentstore.storage.slts.num_chunks_read";         // Histogram
+    public static final String SLTS_SYSTEM_NUM_CHUNKS_READ = PREFIX + "segmentstore.storage.slts.system_num_chunks_read"; // Histogram
+    public static final String SLTS_NUM_CHUNKS_ADDED = PREFIX + "segmentstore.storage.slts.num_chunks_added";         // Histogram
+    public static final String SLTS_SYSTEM_NUM_CHUNKS_ADDED = PREFIX + "segmentstore.storage.slts.system_num_chunks_added"; // Histogram
+
+    public static final String SLTS_READ_INSTANT_TPUT = PREFIX + "segmentstore.storage.slts.read_instant_tput";       // Histogram
+    public static final String SLTS_WRITE_INSTANT_TPUT = PREFIX + "segmentstore.storage.slts.write_instant_tput";     // Histogram
+
     public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.scan_latency_ms";              // Histogram
+    public static final String SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.block_lookup_latency_ms";    // Histogram
     public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.num_scanned";                   // Histogram
     public static final String SLTS_SYS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.system_scan_latency_ms";   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_BLOCK_LOOKUP_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.system_block_lookup_latency_ms";   // Histogram
     public static final String SLTS_SYS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.system_num_scanned";        // Histogram
 
     public static final String SLTS_READ_INDEX_SEGMENT_INDEX_SIZE = PREFIX + "segmentstore.storage.slts.read_index.segment_index_size";     // Gauge
@@ -137,15 +151,20 @@ public final class MetricsNames {
 
     public static final String SLTS_READ_BYTES = PREFIX + "segmentstore.storage.slts.read_bytes";          // Counter
     public static final String SLTS_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.write_bytes";        // Counter
+    public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
+    public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count";  // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
 
     // SLTS Metadata stats
+    public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
+    public static final String STORAGE_METADATA_NUM_CHUNKS = PREFIX + "segmentstore.storage.num_chunks.";
     public static final String STORAGE_METADATA_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_get_latency_ms";                  // Histogram
     public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
     public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram
@@ -190,18 +209,20 @@ public final class MetricsNames {
     public static final String STORAGE_WRITER_FLUSHED_ATTRIBUTES = PREFIX + "segmentstore.storagewriter.flushed_attributes";  // Attributes flushed per iteration. Counter.
 
     // Segment container metrics
-    public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                          // Per-container Event Counter
-    public static final String CONTAINER_APPEND_OFFSET_COUNT = PREFIX + "segmentstore.container.append_offset_count";            // Per-container Event Counter
-    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.update_attributes_count";    // Per-container Event Counter
-    public static final String CONTAINER_GET_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.get_attributes_count";          // Per-container Event Counter
-    public static final String CONTAINER_READ_COUNT = PREFIX + "segmentstore.container.read_count";                              // Per-container Event Counter
-    public static final String CONTAINER_GET_INFO_COUNT = PREFIX + "segmentstore.container.get_info_count";                      // Per-container Event Counter
-    public static final String CONTAINER_CREATE_SEGMENT_COUNT = PREFIX + "segmentstore.container.create_segment_count";          // Per-container Event Counter
-    public static final String CONTAINER_DELETE_SEGMENT_COUNT = PREFIX + "segmentstore.container.delete_segment_count";          // Per-container Event Counter
-    public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";            // Per-container Event Counter
-    public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                              // Per-container Event Counter
-    public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                      // Per-container Event Counter
-    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                        // Per-container Gauge
+    public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                                             // Per-container Event Counter
+    public static final String CONTAINER_APPEND_OFFSET_COUNT = PREFIX + "segmentstore.container.append_offset_count";                               // Per-container Event Counter
+    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.update_attributes_count";                       // Per-container Event Counter
+    public static final String CONTAINER_GET_ATTRIBUTES_COUNT = PREFIX + "segmentstore.container.get_attributes_count";                             // Per-container Event Counter
+    public static final String CONTAINER_READ_COUNT = PREFIX + "segmentstore.container.read_count";                                                 // Per-container Event Counter
+    public static final String CONTAINER_GET_INFO_COUNT = PREFIX + "segmentstore.container.get_info_count";                                         // Per-container Event Counter
+    public static final String CONTAINER_CREATE_SEGMENT_COUNT = PREFIX + "segmentstore.container.create_segment_count";                             // Per-container Event Counter
+    public static final String CONTAINER_DELETE_SEGMENT_COUNT = PREFIX + "segmentstore.container.delete_segment_count";                             // Per-container Event Counter
+    public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";                               // Per-container Event Counter
+    public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                                                 // Per-container Event Counter
+    public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                                         // Per-container Event Counter
+    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                                           // Per-container Gauge
+    public static final String CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES = PREFIX + "segmentstore.container.event_processor_outstanding_bytes";   // Per-processor Gauge
+    public static final String CONTAINER_EVENT_PROCESSOR_BATCH_LATENCY = PREFIX + "segmentstore.container.event_processor_batch_latency";           // Per-processor Histogram
 
     // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = PREFIX + "segmentstore.container.process_operations.latency_ms";                 // Per-container Histogram

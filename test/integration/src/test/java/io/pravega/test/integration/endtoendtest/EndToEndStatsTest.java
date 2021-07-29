@@ -110,7 +110,7 @@ public class EndToEndStatsTest {
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         EventStreamClientFactory clientFactory = new ClientFactoryImpl("test", controller, ClientConfig.builder().build());

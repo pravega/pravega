@@ -201,7 +201,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
     
     @RequiredArgsConstructor
     @EqualsAndHashCode
-    private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
+    public static class NonScheduledFuture<T> implements ScheduledFuture<T> {
         private final CompletableFuture<T> wrappedFuture;
 
         @Override

@@ -71,7 +71,7 @@ public class ScaleTest {
             Controller controller = controllerWrapper.getController();
 
             final String scope = "scope";
-            controllerWrapper.getControllerService().createScope(scope).get();
+            controllerWrapper.getControllerService().createScope(scope, 0L).get();
 
             final String streamName = "stream1";
             final StreamConfiguration config =

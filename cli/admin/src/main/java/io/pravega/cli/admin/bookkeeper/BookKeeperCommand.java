@@ -33,7 +33,10 @@ import lombok.val;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.curator.framework.CuratorFramework;
+
+import java.util.List;
 
 /**
  * Base for any BookKeeper-related commands.
@@ -102,6 +105,16 @@ abstract class BookKeeperCommand extends AdminCommand {
             // There is no need to close the BK Admin object since it doesn't own anything; however it does have a close()
             // method and it's a good idea to invoke it.
             Exceptions.handleInterrupted(this.bkAdmin::close);
+        }
+    }
+
+    protected void closeBookkeeperReadHandles(List<ReadHandle> ledgers) {
+        for (ReadHandle readHandle: ledgers) {
+            try {
+                readHandle.close();
+            } catch (Exception e) {
+                output("Error while attempting to close ledger %d: %s", readHandle.getId(), e.getMessage());
+            }
         }
     }
 

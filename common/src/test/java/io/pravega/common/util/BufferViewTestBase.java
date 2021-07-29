@@ -52,7 +52,7 @@ public abstract class BufferViewTestBase {
         val expectedData = new byte[data.getLength() - SKIP_COUNT];
         System.arraycopy(data.array(), data.arrayOffset() + SKIP_COUNT, expectedData, 0, expectedData.length);
 
-        val wrapData = (ArrayView) data.slice(SKIP_COUNT, data.getLength() - SKIP_COUNT);
+        val wrapData = data.slice(SKIP_COUNT, data.getLength() - SKIP_COUNT);
         @Cleanup("release")
         val bufferView = toBufferView(wrapData);
 

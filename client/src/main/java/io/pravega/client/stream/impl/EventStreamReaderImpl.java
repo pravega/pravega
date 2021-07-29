@@ -45,6 +45,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.CopyOnWriteHashMap;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -391,7 +392,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
+            long startingOffset = Futures.getThrowingException(metadataClient.getSegmentInfo()).getStartingOffset();
+            if (segmentReader.getOffset() == startingOffset) {
+                log.warn("Attempt to fetch the next available read offset on the segment {} returned a truncated offset {}",
+                         segmentId, startingOffset);
+            }
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);

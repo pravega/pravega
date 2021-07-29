@@ -27,9 +27,11 @@ import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -40,12 +42,14 @@ import org.junit.Test;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -70,7 +74,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
+        store = new TestZkStore(cli, executor, Duration.ofSeconds(1));
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
                 BucketStore.ServiceType.WatermarkingService, 1);
 
@@ -87,13 +91,13 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Test
     public void listStreamsWithInactiveStream() throws Exception {
         // list stream in scope
-        store.createScope("Scope").get();
+        store.createScope("Scope", null, executor).get();
         store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
 
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
 
-        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope", null, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertFalse("List streams in scope", streamInScope.containsKey(stream2));
@@ -105,7 +109,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String scope = "scopeList";
         ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) store);
         
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         LinkedBlockingQueue<Integer> nextPositionList = new LinkedBlockingQueue<>();
         nextPositionList.put(0);
@@ -113,9 +117,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         nextPositionList.put(10000);
         nextPositionList.put((int) Math.pow(10, 8));
         nextPositionList.put((int) Math.pow(10, 9));
-        ZKScope myScope = spy((ZKScope) zkStore.getScope(scope));
+        ZKScope myScope = spy((ZKScope) zkStore.getScope(scope, null));
         doAnswer(x -> CompletableFuture.completedFuture(nextPositionList.poll())).when(myScope).getNextStreamPosition();
-        doAnswer(x -> myScope).when(zkStore).getScope(scope);
+        doAnswer(x -> myScope).when(zkStore).getScope(scope, null);
         
         String stream1 = "stream1";
         String stream2 = "stream2";
@@ -131,18 +135,18 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         zkStore.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         zkStore.setState(scope, stream3, State.ACTIVE, null, executor).get();
         
-        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor).get();
+        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream1));
         assertTrue(streamInScope.getKey().contains(stream2));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream3));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
@@ -151,7 +155,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         zkStore.setState(scope, stream4, State.ACTIVE, null, executor).get();
 
         // list on previous token we should get 1 entry
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream4));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
@@ -164,13 +168,13 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.deleteStream(scope, stream1, null, executor).join();
 
         // start listing with empty/default continuation token
-        streamInScope = store.listStream(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream2));
         assertTrue(streamInScope.getKey().contains(stream3));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream4));
         assertTrue(streamInScope.getKey().contains(stream5));
@@ -180,13 +184,13 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.deleteStream(scope, stream3, null, executor).join();
         
         // start listing with empty/default continuation token
-        streamInScope = store.listStream(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream2));
         assertTrue(streamInScope.getKey().contains(stream4));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream5));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
@@ -195,7 +199,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Test
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
         store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream1, State.CREATING, null, executor).get();
 
@@ -241,7 +245,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 1.0);
         List<Map.Entry<Double, Double>> newRanges = Arrays.asList(segment1, segment2);
 
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
@@ -286,7 +290,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         ScalingPolicy policy = ScalingPolicy.fixed(2);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
@@ -364,7 +368,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void testCommittedTxnGc() {
         String scope = "scopeGC";
         String stream = "stream";
-        store.createScope(scope).join();
+        store.createScope(scope, null, executor).join();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         store.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -429,7 +433,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Test
     @Override
     public void listScopesPaginated() throws Exception {
-        AssertExtensions.assertThrows("", () -> store.listScopes("", 1, executor),
+        AssertExtensions.assertThrows("", () -> store.listScopes("", 1, executor, 0L),
                 e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
     }
 
@@ -437,19 +441,21 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Override
     public void testReaderGroups() {
         AssertExtensions.assertThrows(UnsupportedOperationException.class,
-                () -> store.getReaderGroupId("scope", "readergroup").get());
+                () -> store.getReaderGroupId("scope", "readergroup", null, executor).get());
         AssertExtensions.assertThrows(UnsupportedOperationException.class,
-                () -> store.checkReaderGroupExists("scope", "readergroup").get());
+                () -> store.checkReaderGroupExists("scope", "readergroup", null, executor).get());
     }
     
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
-             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", Long.MIN_VALUE, null, executor))
+             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", 
+                     Long.MIN_VALUE, null, executor))
              .thenCompose(x -> ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, txnId, null, executor));
     }
 
-    private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {
+    private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, 
+            java.util.concurrent.ExecutionException {
         return store.getScaleMetadata(scope, stream, 0, Long.MAX_VALUE, null, executor).get()
                 .stream().reduce(new SimpleEntry<>(0L, 0L),
                         (x, y) -> new SimpleEntry<>(x.getKey() + y.getSplits(), x.getValue() + y.getMerges()),
@@ -470,5 +476,37 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 null, executor).join();
         store.completeScale(scope, stream, versioned, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
+    }
+
+    static class TestZkStore extends ZKStreamMetadataStore implements TestStore {
+        HashMap<String, ZKStream> map = new HashMap<>();
+
+        TestZkStore(CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
+            super(curatorClient, executor, gcPeriod);
+        }
+
+        @Override
+        @Synchronized
+        ZKStream newStream(String scope, String name) {
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, name);
+            if (map.containsKey(scopedStreamName)) {
+                return map.get(scopedStreamName);
+            } else {
+                return super.newStream(scope, name);
+            }
+        }
+
+        @Override
+        @Synchronized
+        public void setStream(Stream stream) {
+            String scopedStreamName = NameUtils.getScopedStreamName(stream.getScope(), stream.getName());
+            map.put(scopedStreamName, (ZKStream) stream);
+        }
+
+        @Override
+        public void close() {
+            map.clear();
+            super.close();
+        }
     }
 }

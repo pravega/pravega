@@ -78,6 +78,8 @@ public interface ReplyProcessor {
 
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
 
+    void tableSegmentInfo(WireCommands.TableSegmentInfo info);
+
     void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated);
 
     void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);

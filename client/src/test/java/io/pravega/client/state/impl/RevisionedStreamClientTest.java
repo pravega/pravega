@@ -364,7 +364,7 @@ public class RevisionedStreamClientTest {
         SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
         SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
-        when(metaClient.getSegmentInfo()).thenReturn(new SegmentInfo(segment, 0, 30, false, System.currentTimeMillis()));
+        when(metaClient.getSegmentInfo()).thenReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0, 30, false, System.currentTimeMillis())));
 
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
@@ -423,7 +423,7 @@ public class RevisionedStreamClientTest {
         doReturn(1000L).when(client).getReadTimeout();
 
         // Setup the SegmentMetadataClient mock.
-        doReturn(new SegmentInfo(segment, 0L, 30L, false, 1L))
+        doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, 30L, false, 1L)))
                 .when(segMetaClient).getSegmentInfo();
 
         // Get the iterator from Revisioned Stream Client.

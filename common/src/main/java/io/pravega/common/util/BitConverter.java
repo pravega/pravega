@@ -216,6 +216,7 @@ public final class BitConverter {
      * @param b8 Byte #8.
      * @return The composed number.
      */
+    @SuppressWarnings("cast")
     public static long makeLong(int b1, int b2, int b3, int b4, int b5, int b6, int b7, int b8) {
         return ((long) b1 << 56) +
                 ((long) (b2 & 255) << 48) +

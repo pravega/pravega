@@ -186,11 +186,6 @@ class Write {
      */
     void fail(Throwable cause, boolean complete) {
         if (cause != null) {
-            Throwable e = this.failureCause.get();
-            if (e != null && e != cause) {
-                cause.addSuppressed(e);
-            }
-
             this.failureCause.set(cause);
         }
 

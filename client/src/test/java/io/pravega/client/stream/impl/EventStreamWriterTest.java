@@ -612,7 +612,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         writer.flush();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength().join() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
@@ -655,7 +655,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength().join() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
@@ -704,7 +704,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength().join() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
     
@@ -747,7 +747,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength().join() > 0);
         assertTrue(outputStream2.isClosed());
         //the connection to outputStream is closed with the failConnection during SegmentSealed Callback.
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
@@ -788,7 +788,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         writer.close();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength().join() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
@@ -870,6 +870,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.noteTime(123);
@@ -893,6 +894,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.noteTime(123));       
@@ -917,6 +919,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         CollectingExecutor executor = new CollectingExecutor();
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executor, executor);
         

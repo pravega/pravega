@@ -16,11 +16,12 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.test.common.TestUtils;
 import java.util.Arrays;
 import java.util.Date;
@@ -33,6 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
@@ -49,7 +51,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        this.authManager.registerInterceptors(server);
+        GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
         super.setup();
     }
 
@@ -126,6 +128,13 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
+    public void testGetReaderGroup() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Reader Groups response code", expectedResult, response.getStatus());
+    }
+
+    @Override
     @Test
     public void testDeleteStream() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1";
@@ -159,12 +168,12 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
 
     @Override
     @Test
-    public void testListScopes() throws ExecutionException, InterruptedException {
+    public void testlistScopes() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes";
 
         // Test to list scopes.
         List<String> scopesList = Arrays.asList("scope1", "scope2");
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(scopesList));
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(scopesList));
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Scopes response code", expectedResult, response.getStatus());
     }

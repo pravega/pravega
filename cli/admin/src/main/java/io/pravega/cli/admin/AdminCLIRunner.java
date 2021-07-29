@@ -95,7 +95,7 @@ public final class AdminCLIRunner {
 
     private static void interactiveMode(AdminCommandState state) {
         // Continuously accept new commands as long as the user entered one.
-        System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
+        System.out.printf("%nType \"%s\" for list of commands, or \"%s\" to exit.%n", CMD_HELP, CMD_EXIT);
         @Cleanup
         Scanner input = new Scanner(System.in);
         while (true) {

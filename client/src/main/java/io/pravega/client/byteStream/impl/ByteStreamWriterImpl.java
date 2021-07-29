@@ -19,6 +19,7 @@ import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import lombok.NonNull;
@@ -62,18 +63,18 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public void closeAndSeal() throws IOException {
         out.close();
-        meta.sealSegment();
+        Futures.getThrowingException(meta.sealSegment());
         meta.close();
     }
 
     @Override
     public long fetchTailOffset() {
-        return meta.fetchCurrentSegmentLength();
+        return Futures.getThrowingException(meta.fetchCurrentSegmentLength());
     }
 
     @Override
     public void truncateDataBefore(long offset) {
-        meta.truncateSegment(offset);
+        Futures.getThrowingException(meta.truncateSegment(offset));
     }
 
 }

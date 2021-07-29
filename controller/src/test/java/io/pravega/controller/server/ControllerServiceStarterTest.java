@@ -18,6 +18,7 @@ package io.pravega.controller.server;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -34,21 +35,28 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * ControllerServiceStarter tests.
  */
 @Slf4j
 public abstract class ControllerServiceStarterTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
     protected final int grpcPort;
+    protected final int restPort;
     protected ScheduledExecutorService executor;
     private final boolean disableControllerCluster;
     private final boolean enableAuth;
@@ -57,6 +65,7 @@ public abstract class ControllerServiceStarterTest {
         this.disableControllerCluster = disableControllerCluster;
         this.enableAuth = enableAuth;
         this.grpcPort = TestUtils.getAvailableListenPort();
+        this.restPort = TestUtils.getAvailableListenPort();
     }
 
     @Before
@@ -121,7 +130,12 @@ public abstract class ControllerServiceStarterTest {
                                                                   .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                                                                   .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                   .build()))
-                .restServerConfig(Optional.empty())
+                .restServerConfig(Optional.of(RESTServerConfigImpl.builder()
+                        .port(restPort)
+                        .host("localhost")
+                        .authorizationEnabled(enableAuth)
+                        .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
+                        .build()))
                 .build();
     }
 }

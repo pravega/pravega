@@ -105,6 +105,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         assertTrue("Failed to create the stream ", isStreamCreated);
     }
 
+    @Override
     protected AdminCommandState cliConfig() {
         return STATE;
     }
@@ -117,6 +118,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         STATE.close();
     }
 
+    @Override
     @Test
     @SneakyThrows
     public void testDescribeReaderGroupCommand() {
@@ -187,7 +189,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         }
 
         @Override
-        protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+        public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(false)
                     .hostContainerMap(getHostContainerMap(Collections.singletonList("localhost:" + CLUSTER.getSegmentStorePort()),

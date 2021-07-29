@@ -15,11 +15,11 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
 
@@ -49,6 +49,8 @@ public final class SegmentMetadataComparer {
         Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
         assertSameAttributes(idPrefix + " getAttributes() mismatch:", expected.getAttributes(), actual);
         Assert.assertEquals(idPrefix + " isPinned() mismatch.", expected.isPinned(), actual.isPinned());
+        Assert.assertEquals(idPrefix + " getType() mismatch.", expected.getType(), actual.getType());
+        Assert.assertEquals(idPrefix + " getAttributeIdLength() mismatch.", expected.getAttributeIdLength(), actual.getAttributeIdLength());
     }
 
     /**
@@ -58,7 +60,7 @@ public final class SegmentMetadataComparer {
      * @param expected The expected set of Attributes.
      * @param toCheck  The SegmentProperties instance to verify.
      */
-    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties toCheck) {
+    public static void assertSameAttributes(String message, Map<AttributeId, Long> expected, SegmentProperties toCheck) {
         assertSameAttributes(message, expected, toCheck, null);
     }
 
@@ -71,8 +73,8 @@ public final class SegmentMetadataComparer {
      * @param excludedAttributes A Collection of Attribute Ids to exclude from the comparison. If non-null and non-empty,
      *                           these attributes will not be considered in either expected or toCheck.
      */
-    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties toCheck, Collection<UUID> excludedAttributes) {
-        Map<UUID, Long> actual = toCheck.getAttributes();
+    public static void assertSameAttributes(String message, Map<AttributeId, Long> expected, SegmentProperties toCheck, Collection<AttributeId> excludedAttributes) {
+        Map<AttributeId, Long> actual = toCheck.getAttributes();
         if (excludedAttributes != null && !excludedAttributes.isEmpty()) {
             actual = exclude(actual, excludedAttributes);
             if (expected != null) {
@@ -86,14 +88,14 @@ public final class SegmentMetadataComparer {
         }
 
         Assert.assertEquals(message + " Counts differ.", expected.size(), actual.size());
-        for (Map.Entry<UUID, Long> e : expected.entrySet()) {
+        for (Map.Entry<AttributeId, Long> e : expected.entrySet()) {
             Assert.assertTrue(" attribute not found " + e.getKey(), actual.containsKey(e.getKey()));
             long actualValue = actual.get(e.getKey());
             Assert.assertEquals(message + " value differs.", (long) e.getValue(), actualValue);
         }
     }
 
-    private static Map<UUID, Long> exclude(Map<UUID, Long> from, Collection<UUID> keysToExclude) {
+    private static Map<AttributeId, Long> exclude(Map<AttributeId, Long> from, Collection<AttributeId> keysToExclude) {
         val result = new HashMap<>(from);
         keysToExclude.forEach(result::remove);
         return result;

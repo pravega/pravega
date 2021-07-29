@@ -22,5 +22,10 @@ import io.pravega.segmentstore.server.SegmentContainerExtension;
  * Defines a {@link SegmentContainerExtension} that implements Tables on top of Segment Containers.
  */
 public interface ContainerTableExtension extends TableStore, SegmentContainerExtension {
-
+    /**
+     * Gets the configuration used by this object.
+     *
+     * @return The configuration.
+     */
+    TableExtensionConfig getConfig();
 }

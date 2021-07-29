@@ -127,6 +127,17 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
+    public Map<String, Position> removeProcessFromGroup(final String process, final String readerGroup) throws CheckpointStoreException {
+        Map<String, Position> result = sealReaderGroup(process, readerGroup);
+        for (String id : result.keySet()) {
+            removeProcessFromGroup(id, readerGroup);
+        }
+        removeReaderGroup(process, readerGroup);
+        return result;
+    }
+    
+    @Override
+    @Synchronized
     public List<String> getReaderGroups(final String process) {
         List<String> list = new ArrayList<>();
         map.entrySet().stream().forEach(pair -> {

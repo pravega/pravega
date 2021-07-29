@@ -29,7 +29,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-
+import io.pravega.test.common.SerializedClassRunner;
 import java.io.ByteArrayInputStream;
 import java.util.Iterator;
 import java.util.concurrent.Executor;
@@ -39,6 +39,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
@@ -49,6 +50,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for ExtendedS3Storage.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private ExtendedS3TestContext setup;
 

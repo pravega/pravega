@@ -37,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_LATENCY;
 
@@ -66,6 +67,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         checkPreconditions();
         log.debug("{} truncate - started op={}, segment={}, offset={}.",
@@ -121,6 +123,10 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_TRUNCATE_COUNT.inc();
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_TRUNCATE_COUNT.inc();
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
@@ -147,16 +153,13 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // Commit system logs.
         if (chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata)) {
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecord(
-                        SystemJournal.TruncationRecord.builder()
-                                .segmentName(handle.getSegmentName())
-                                .offset(offset)
-                                .firstChunkName(segmentMetadata.getFirstChunk())
-                                .startOffset(startOffset.get())
-                                .build());
-                return null;
-            });
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecord(
+                                                SystemJournal.TruncationRecord.builder()
+                                                        .segmentName(handle.getSegmentName())
+                                                        .offset(offset)
+                                                        .firstChunkName(segmentMetadata.getFirstChunk())
+                                                        .startOffset(startOffset.get())
+                                                        .build()));
         }
 
         // Finally commit.

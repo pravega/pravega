@@ -85,6 +85,15 @@ public interface Controller extends AutoCloseable {
     AsyncIterator<Stream> listStreams(final String scopeName);
 
     /**
+     * Gets an async iterator on streams in scope.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @param tag The Stream tag.
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope.
+     */
+    AsyncIterator<Stream> listStreamsForTag(final String scopeName, final String tag);
+
+    /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If
      * the scope contains at least one stream, then the delete request will fail.
      *
@@ -116,6 +125,16 @@ public interface Controller extends AutoCloseable {
      * @return CompletableFuture which when completed will indicate if stream exists or not. 
      */
     CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
+
+    /**
+     * Fetch the current Stream Configuration. This includes the {@link io.pravega.client.stream.ScalingPolicy},
+     * {@link io.pravega.client.stream.RetentionPolicy} and tags for the given stream.
+     *
+     * @param scopeName name of scope.
+     * @param streamName name of stream.
+     * @return CompletableFuture which returns the current stream configuration.
+     */
+    CompletableFuture<StreamConfiguration> getStreamConfiguration(final String scopeName, final String streamName);
 
     /**
      * API to update the configuration of a stream.
@@ -476,6 +495,17 @@ public interface Controller extends AutoCloseable {
      * @return An {@link AsyncIterator} which can be used to iterate over all KeyValueTables in the scope.
      */
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
+
+    /**
+     * API to get the {@link KeyValueTableConfiguration}.
+     *
+     * @param scope   Scope
+     * @param kvtName KeyValueTable name
+     * @throws IllegalArgumentException if the key-value table does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning the KeyValueTableConfiguration of
+     * the corresponding KeyValueTable name.
+     */
+    CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(final String scope, final String kvtName);
 
     /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.
