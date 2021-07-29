@@ -17,6 +17,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
@@ -31,6 +32,10 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
@@ -1191,6 +1196,99 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
 
+    /**
+     * Test concurrent writes to storage system segments by simulating concurrent writes.
+     *
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSystemSegmentConcurrency() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = getDefaultConfigBuilder(policy).build();
+
+        val snapshotData = new InMemorySnapshotInfoStore();
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
+                snapshotId -> snapshotData.setSnapshotId(containerId, snapshotId),
+                () -> snapshotData.getSnapshotId(containerId));
+
+        // Start container with epoch 1
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
+
+        segmentStorage1.initialize(epoch);
+
+        // Bootstrap
+        segmentStorage1.bootstrap(snapshotInfoStore).join();
+        segmentStorage1.getGarbageCollector().deleteGarbage(false, 1000).get();
+
+        checkSystemSegmentsLayout(segmentStorage1);
+
+        // Simulate some writes to system segment, this should cause some new chunks being added.
+        // Simulate some writes to system segment, this should cause some new chunks being added.
+        val n = 4;
+        val data = new byte[n][100];
+
+        Random rnd = new Random();
+        var futures = new ArrayList<CompletableFuture<Void>>();
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(n);
+        for (int i = 0; i < n; i++) {
+            final int k = i;
+            futures.add(CompletableFuture.runAsync(() -> {
+
+                rnd.nextBytes(data[k]);
+                String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[k];
+                val h = segmentStorage1.openWrite(systemSegmentName).join();
+                // Init
+                long offset = 0;
+                for (int j = 0; j < 10; j++) {
+                    segmentStorage1.write(h, offset, new ByteArrayInputStream(data[k], 10 * j, 10), 10, null).join();
+                    offset += 10;
+                }
+                val info = segmentStorage1.getStreamSegmentInfo(systemSegmentName, null).join();
+                Assert.assertEquals(100, info.getLength());
+                byte[] out = new byte[100];
+                val hr = segmentStorage1.openRead(systemSegmentName).join();
+                segmentStorage1.read(hr, 0, out, 0, 100, null).join();
+                Assert.assertArrayEquals(data[k], out);
+            }, executor));
+        }
+
+        Futures.allOf(futures).join();
+        // Step 2
+        // Start container with epoch 2
+        epoch++;
+
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
+        segmentStorage2.initialize(epoch);
+
+        // Bootstrap
+        segmentStorage2.bootstrap(snapshotInfoStore).join();
+        segmentStorage2.getGarbageCollector().deleteGarbage(false, 1000).get();
+        checkSystemSegmentsLayout(segmentStorage2);
+
+        // Validate
+        for (int i = 0; i < n; i++) {
+            String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[i];
+            val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
+            Assert.assertEquals(100, info.getLength());
+            byte[] out = new byte[100];
+            val hr = segmentStorage2.openRead(systemSegmentName).join();
+            segmentStorage2.read(hr, 0, out, 0, 100, null).join();
+            Assert.assertArrayEquals(data[i], out);
+        }
+    }
 
     /**
      * Check system segment layout.
