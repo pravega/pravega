@@ -18,7 +18,7 @@ package io.pravega.cli.admin.controller;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -66,7 +66,7 @@ public abstract class ControllerCommand extends AdminCommand {
      * @return REST client.
      */
     protected Context createContext() {
-        CLIControllerConfig config = getCLIControllerConfig();
+        CLIConfig config = getCLIControllerConfig();
         ClientConfig clientConfig = new ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
