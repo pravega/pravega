@@ -78,8 +78,8 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
+        doReturn(CompletableFuture.completedFuture(0L)).when(helper).getTableSegmentEntryCount(
+                anyString(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(List.of(0L))).when(helper).commitTransactions(
                 anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
