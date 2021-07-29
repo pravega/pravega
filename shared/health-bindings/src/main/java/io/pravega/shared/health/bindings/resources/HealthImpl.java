@@ -22,8 +22,6 @@ import io.pravega.shared.health.bindings.generated.model.HealthResult;
 import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.pravega.shared.health.bindings.v1.ApiV1;
 import io.pravega.shared.health.ContributorNotFoundException;
-import io.pravega.shared.rest.security.RESTAuthHelper;
-import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
@@ -42,8 +40,6 @@ import io.pravega.common.LoggerHelpers;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
 public class HealthImpl implements ApiV1.HealthApi {
