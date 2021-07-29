@@ -88,7 +88,7 @@ public final class CLIConfig {
     private final String truststore;
 
     /**
-     * Truststore access token ttl in seconds if TLS is configured in the CLI.
+     * Truststore access token ttl if TLS is configured in the CLI.
      */
     @Getter
     private final Duration accessTokenTtl;

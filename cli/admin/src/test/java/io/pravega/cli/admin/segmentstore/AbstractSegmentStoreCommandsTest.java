@@ -83,7 +83,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
                     .validateHostName(false);
             pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
             pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-            pravegaProperties.setProperty("cli.trustStore.access.token.ttl", Integer.toString(300));
+            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
         }
         STATE.get().getConfigBuilder().include(pravegaProperties);
 

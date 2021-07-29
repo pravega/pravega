@@ -153,7 +153,7 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        pravegaProperties.setProperty("cli.trustStore.access.token.ttl", Long.toString(accessTokenTtl.toSeconds()));
+        pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Long.toString(accessTokenTtl.toSeconds()));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
     }

@@ -242,7 +242,7 @@ the appropriate implementation in `AdminRequestProcessorImpl`.
 - The last step would be to add each new `segmentstore` command as a separate class in the package where the existing
 commands are already placed.
 
-## Enable TLS and Auth in CLI
+## Enable tls and auth in cli
 Make sure to update the following fields in the configuration to enable tls ad auth in the cli:
 ```    
 cli.channel.auth=true
@@ -253,6 +253,8 @@ cli.credentials.pwd=1111_aaaa
 cli.trustStore.location=conf/ca-cert.crt
 cli.trustStore.access.token.ttl.seconds=600
 ```
+Set above fields to match the username, password, and certificate location in the environment.
+
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).
