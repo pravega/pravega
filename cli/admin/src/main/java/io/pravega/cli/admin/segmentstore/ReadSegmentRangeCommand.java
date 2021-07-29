@@ -26,14 +26,11 @@ import org.apache.curator.framework.CuratorFramework;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import static java.lang.Math.min;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
@@ -66,9 +63,8 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        File file = createFileAndDirectory(fileName);
-        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, file);
-        output("The segment data has been successfully written into %s", fileName);
+        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName);
+        output("\nThe segment data has been successfully written into %s", fileName);
     }
 
     /**
@@ -100,30 +96,40 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
      * @param fullyQualifiedSegmentName The name of the segment.
      * @param offset                    The starting point from where the segment is to be read.
      * @param length                    The number of bytes to read.
-     * @param file                      A {@link File} object referring to the file in which the data will be written.
-     * @throws IOException if the file write fails.
+     * @param fileName                  A name of the file to which the data will be written.
+     * @throws IOException if the file create/write fails.
      * @throws InterruptedException if the request fails.
      * @throws ExecutionException if the request fails.
      * @throws TimeoutException if the request fails.
      */
     private void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
-                                           int offset, int length, File file) throws IOException, InterruptedException, ExecutionException, TimeoutException {
+                                           int offset, int length, String fileName) throws IOException, InterruptedException, ExecutionException, TimeoutException {
+        File file = createFileAndDirectory(fileName);
+
+        output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
         int currentOffset = offset;
         int bytesToRead = length;
+        int progress = 0;
+
         while (bytesToRead > 0) {
-            int bufferLength = min(READ_WRITE_BUFFER_SIZE, bytesToRead);
+            int bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
             CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
                     currentOffset, bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
             WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
             // Write the buffer into the file.
             try (FileOutputStream fileOutputStream = new FileOutputStream(file, true)) {
                 bufferRead.getData().readBytes(fileOutputStream, bufferLength);
             }
 
-            currentOffset += READ_WRITE_BUFFER_SIZE;
-            bytesToRead -= READ_WRITE_BUFFER_SIZE;
+            currentOffset += bufferLength;
+            bytesToRead -= bufferLength;
+            showProgress(progress++, String.format("Written %d/%d bytes.", length - bytesToRead, length));
         }
+    }
+
+    private void showProgress(int progress, String message) {
+        String status = "|/-\\";
+        System.out.print("\r Processing " + status.charAt(progress % status.length()) + " : " + message);
     }
 
     public static CommandDescriptor descriptor() {

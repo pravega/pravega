@@ -83,11 +83,12 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
 
         AssertExtensions.assertThrows(FileAlreadyExistsException.class, () ->
                 TestUtils.executeCommand("segmentstore read-segment _system/_RGcommitStreamReaders/0.#epoch.0 0 8 localhost " + filename, STATE.get()));
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
 
         AssertExtensions.assertThrows(WireCommandFailedException.class, () ->
                 TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost " + filename, STATE.get()));
         Assert.assertNotNull(ReadSegmentRangeCommand.descriptor());
-
         // Delete file created during the test.
         Files.deleteIfExists(Paths.get(filename));
     }
