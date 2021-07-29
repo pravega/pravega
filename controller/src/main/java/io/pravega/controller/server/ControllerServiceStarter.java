@@ -361,7 +361,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                                         grpcServer.getAuthHandlerManager(),
                                         connectionFactory,
                                         clientConfig),
-                                new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
+                                new HealthImpl(healthServiceManager.getEndpoint()),
                                 new PingImpl()));
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");

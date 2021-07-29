@@ -67,7 +67,7 @@ public class HealthTests {
         serverConfig = getServerConfig();
         healthServiceManager = new HealthServiceManager(Duration.ofMillis(100));
         restServer = new RESTServer(serverConfig,
-                Set.of(new HealthImpl(null, healthServiceManager.getEndpoint())));
+                Set.of(new HealthImpl(healthServiceManager.getEndpoint())));
 
         healthServiceManager.start();
         restServer.startAsync();

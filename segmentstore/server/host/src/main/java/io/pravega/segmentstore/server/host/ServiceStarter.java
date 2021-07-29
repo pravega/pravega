@@ -114,7 +114,6 @@ public final class ServiceStarter {
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
             restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
-                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
                     healthServiceManager.getEndpoint())));
             restServer.startAsync();
             restServer.awaitRunning();

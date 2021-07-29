@@ -53,12 +53,10 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private final HealthEndpoint endpoint;
 
-    private final RESTAuthHelper restAuthHelper;
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
-    public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthEndpoint endpoint) {
+    public HealthImpl(HealthEndpoint endpoint) {
         this.endpoint = endpoint;
-        this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
     }
 
     @Override
@@ -74,7 +72,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getHealth(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Health health = endpoint.getHealth(id);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
@@ -96,7 +93,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean alive = endpoint.isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
@@ -117,7 +113,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Map<String, Object> details = endpoint.getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
@@ -138,7 +133,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean ready = endpoint.isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
@@ -159,7 +153,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Status status = endpoint.getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
