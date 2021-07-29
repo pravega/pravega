@@ -15,10 +15,10 @@
  */
 package io.pravega.local;
 
-        import org.junit.ClassRule;
-        import org.junit.Test;
+import org.junit.ClassRule;
+import org.junit.Test;
 
-        import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 
 public class TlsProtocolVersion12Test {
 
