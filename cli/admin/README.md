@@ -255,6 +255,5 @@ cli.trustStore.access.token.ttl.seconds=600
 ```
 Set above fields to match the username, password, and certificate location in the environment.
 
-
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).
