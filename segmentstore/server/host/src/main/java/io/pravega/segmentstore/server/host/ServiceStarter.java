@@ -40,7 +40,6 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.RESTServer;
-import io.pravega.shared.rest.security.AuthHandlerManager;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
