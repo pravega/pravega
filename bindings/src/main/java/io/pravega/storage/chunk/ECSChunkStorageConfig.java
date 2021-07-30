@@ -16,6 +16,9 @@ public class ECSChunkStorageConfig {
     private static final URI endpoint = URI.create("http://127.0.0.1:9939");
 
     @Getter
+    private static final String prefix = "pravega-tier2";
+
+    @Getter
     private static final int chunkSize = 16 * 1024 * 1024;
     @Getter
     public static final int indexGranularity = 131072;
