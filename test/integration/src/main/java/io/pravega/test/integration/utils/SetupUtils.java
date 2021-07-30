@@ -177,7 +177,7 @@ public final class SetupUtils {
                 servicePort, store, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),  new PassingTokenVerifier(),
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, true,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
 
         this.server.startListening();
         log.info("Started Pravega Service");
@@ -193,7 +193,7 @@ public final class SetupUtils {
                 this.zkTestServer.getConnectString(), false, true, controllerRPCPort,
                 "localhost", servicePort, Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, enableAuth,
                 pathToConfig() + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME,
-                "secret", true, 600, enableTls,
+                "secret", true, 600, enableTls, SecurityConfigDefaults.TLS_PROTOCOL_VERSION,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME,
