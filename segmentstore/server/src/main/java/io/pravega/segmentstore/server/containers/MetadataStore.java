@@ -341,7 +341,7 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(segmentMetadata.getName()));
         }
 
-        ArrayView toWrite = SegmentInfo.serialize(new SegmentInfo(segmentMetadata.getId(), segmentMetadata.getType(), segmentMetadata.getSnapshot()));
+        ArrayView toWrite = SegmentInfo.serialize(new SegmentInfo(segmentMetadata.getId(), segmentMetadata.getSnapshot()));
         return updateSegmentInfo(segmentMetadata.getName(), toWrite, timeout);
     }
 
@@ -487,8 +487,9 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
-        if (segmentInfo.getSegmentType().isTransientSegment()) {
-            Map<AttributeId, Long> attributes = Map.of(Attributes.CREATION_EPOCH, this.connector.containerMetadata.getContainerEpoch());
+        if (segmentInfo.getProperties().getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE) == SegmentType.TRANSIENT_SEGMENT.getValue()) {
+            Map<AttributeId, Long> attributes = new HashMap<>();
+            attributes.put(Attributes.CREATION_EPOCH, this.connector.containerMetadata.getContainerEpoch());
             attributes.putAll(properties.getAttributes());
             properties = StreamSegmentInformation.from(properties).attributes(attributes).build();
         }
@@ -744,7 +745,6 @@ public abstract class MetadataStore implements AutoCloseable {
     protected static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
-        private final SegmentType segmentType;
         private final SegmentProperties properties;
 
         static SegmentInfo newSegment(String name, SegmentType segmentType, Collection<AttributeUpdate> attributeUpdates) {
@@ -766,7 +766,6 @@ public abstract class MetadataStore implements AutoCloseable {
 
             return builder()
                     .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
-                    .segmentType(segmentType)
                     .properties(infoBuilder.build())
                     .build();
         }
@@ -831,7 +830,6 @@ public abstract class MetadataStore implements AutoCloseable {
                 output.writeLong(sp.getLength());
                 output.writeLong(sp.getStartOffset());
                 output.writeBoolean(sp.isSealed());
-
                 // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
                 output.writeMap(Attributes.getCoreNonNullAttributes(sp.getAttributes()), this::writeAttributeId00, RevisionDataOutput::writeLong);
             }
