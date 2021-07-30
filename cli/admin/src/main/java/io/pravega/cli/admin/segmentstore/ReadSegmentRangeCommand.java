@@ -114,7 +114,7 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         while (bytesToRead > 0) {
             int bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
             CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                    currentOffset, bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
+                    currentOffset, bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             // Write the buffer into the file.
             try (FileOutputStream fileOutputStream = new FileOutputStream(file, true)) {
