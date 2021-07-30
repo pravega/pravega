@@ -51,7 +51,8 @@ public class SecureControllerCommandsTest {
     static {
         CLUSTER.start();
         STATE = createAdminCLIConfig(getCLIControllerRestUri(CLUSTER.controllerRestUri()),
-                getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(), true, true);
+                getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(),
+                true, true, CLUSTER.getAccessTokenTtl());
         String scope = "testScope";
         String testStream = "testStream";
         ClientConfig clientConfig = prepareValidClientConfig(CLUSTER.controllerUri(), true, true);
