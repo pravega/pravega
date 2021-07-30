@@ -105,6 +105,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             .include(ReadIndexConfig
                     .builder()
                     .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+            .include(TableExtensionConfig
+                    .builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, (MAX_KEY_LENGTH + MAX_KEY_LENGTH) * 13))
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)

@@ -42,6 +42,7 @@ import org.apache.curator.test.TestingServer;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -140,6 +141,10 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     private String tlsServerKeystorePasswordPath;
+
+    @Getter
+    @Builder.Default
+    private Duration accessTokenTtl = Duration.ofSeconds(300);
 
     private ClusterWrapper() {}
 

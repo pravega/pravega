@@ -21,10 +21,13 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+
 /**
- * Configuration for CLI client, specially related to the Controller service in Pravega.
+ * Configuration for CLI client.
  */
-public final class CLIControllerConfig {
+public final class CLIConfig {
 
     public enum MetadataBackends {
         SEGMENTSTORE, ZOOKEEPER
@@ -32,29 +35,30 @@ public final class CLIControllerConfig {
 
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
-    private static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.channel.auth", false);
-    private static final Property<String> CONTROLLER_USER_NAME = Property.named("controller.connect.credentials.username", "");
-    private static final Property<String> CONTROLLER_PASSWORD = Property.named("controller.connect.credentials.pwd", "");
-    private static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.channel.tls", false);
-    private static final Property<String> TRUSTSTORE_JKS = Property.named("controller.connect.trustStore.location", "");
+    private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", true);
+    private static final Property<String> USER_NAME = Property.named("credentials.username", "");
+    private static final Property<String> PASSWORD = Property.named("credentials.pwd", "");
+    private static final Property<Boolean> TLS_ENABLED = Property.named("channel.tls", false);
+    private static final Property<String> TRUSTSTORE_JKS = Property.named("trustStore.location", "");
+    private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS = Property.named("trustStore.access.token.ttl.seconds", 10);
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
 
     private static final String COMPONENT_CODE = "cli";
 
     /**
-     * The Controller REST URI. Recall to set "http" or "https" depending on the TLS configuration of the Controller.
+     * The Controller REST URI. Recall to set "http" or "https" depending on the TLS configuration of the CLI.
      */
     @Getter
     private final String controllerRestURI;
 
     /**
-     * The Controller GRPC URI. Recall to set "tcp" or "tls" depending on the TLS configuration of the Controller.
+     * The Controller GRPC URI. Recall to set "tcp" or "tls" depending on the TLS configuration of the CLI.
      */
     @Getter
     private final String controllerGrpcURI;
 
     /**
-     * Defines whether or not to use authentication in Controller requests.
+     * Defines whether or not to use authentication in CLI requests.
      */
     @Getter
     private final boolean authEnabled;
@@ -66,22 +70,28 @@ public final class CLIControllerConfig {
     private final boolean tlsEnabled;
 
     /**
-     * User name if authentication is configured in the Controller.
+     * User name if authentication is configured in the CLI.
      */
     @Getter
     private final String userName;
 
     /**
-     * Password if authentication is configured in the Controller.
+     * Password if authentication is configured in the CLI.
      */
     @Getter
     private final String password;
 
     /**
-     * Truststore if TLS is configured in the Controller.
+     * Truststore if TLS is configured in the CLI.
      */
     @Getter
     private final String truststore;
+
+    /**
+     * Truststore access token ttl if TLS is configured in the CLI.
+     */
+    @Getter
+    private final Duration accessTokenTtl;
 
     /**
      * Controller metadata backend. At the moment, its values can only be "segmentstore" or "zookeeper".
@@ -89,14 +99,15 @@ public final class CLIControllerConfig {
     @Getter
     private final String metadataBackend;
 
-    private CLIControllerConfig(TypedProperties properties) throws ConfigurationException {
+    private CLIConfig(TypedProperties properties) throws ConfigurationException {
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + properties.get(CONTROLLER_REST_URI);
         this.controllerGrpcURI = (this.isTlsEnabled() ? "tls://" : "tcp://") + properties.get(CONTROLLER_GRPC_URI);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
-        this.userName = properties.get(CONTROLLER_USER_NAME);
-        this.password = properties.get(CONTROLLER_PASSWORD);
+        this.userName = properties.get(USER_NAME);
+        this.password = properties.get(PASSWORD);
         this.truststore = properties.get(TRUSTSTORE_JKS);
+        this.accessTokenTtl = properties.getDuration(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS, ChronoUnit.SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }
 
@@ -105,7 +116,7 @@ public final class CLIControllerConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<CLIControllerConfig> builder() {
-        return new ConfigBuilder<>(COMPONENT_CODE, CLIControllerConfig::new);
+    public static ConfigBuilder<CLIConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, CLIConfig::new);
     }
 }
