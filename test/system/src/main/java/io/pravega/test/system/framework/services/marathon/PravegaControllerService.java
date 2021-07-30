@@ -135,7 +135,7 @@ public class PravegaControllerService extends MarathonBasedService {
                 buildSystemProperty("log.level", "DEBUG") +
                 buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 buildSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(120 * 1000)) +
+                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(600 * 1000)) +
                 buildSystemProperty(propertyName("retention.frequency.minutes"), String.valueOf(2));
 
         Map<String, Object> map = new HashMap<>();
