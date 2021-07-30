@@ -487,7 +487,6 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
-
         if (segmentInfo.getSegmentType() == SegmentType.TRANSIENT_SEGMENT.getValue()) {
             Map<AttributeId, Long> attributes = new HashMap<>();
             attributes.put(Attributes.CREATION_EPOCH, this.connector.containerMetadata.getContainerEpoch());
