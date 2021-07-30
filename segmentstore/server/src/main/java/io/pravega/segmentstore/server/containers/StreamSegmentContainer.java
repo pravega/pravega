@@ -282,11 +282,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Services.startAsync(this.durableLog, this.executor)
                 .thenComposeAsync(v -> startWhenDurableLogOnline(), this.executor)
                 .whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
-                        // are not required for accepting new operations and can still start in the background.
-                        notifyStarted();
-                    } else {
+                    if (ex != null) {
                         doStop(ex);
                     }
                 });
@@ -308,6 +304,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             isReady = initializeSecondaryServices();
             delayedStart = isReady;
         }
+
+        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
+        // are not required for accepting new operations and can still start in the background.
+        isReady = isReady.thenRun(() -> notifyStarted());
 
         // Delayed start. Secondary services need not be started in order for us to accept requests.
         delayedStart.thenComposeAsync(v -> {
