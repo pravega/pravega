@@ -28,14 +28,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 10;
     private static final int READ_WRITE_BUFFER_SIZE = 2 * 1024 * 1024;
+    private static final String PROGRESS_BAR = "|/-\\";
 
     /**
      * Creates a new instance of the ReadSegmentRangeCommand.
@@ -47,12 +46,12 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
     }
 
     @Override
-    public void execute() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    public void execute() throws Exception {
         ensureArgCount(5);
 
         final String fullyQualifiedSegmentName = getArg(0);
-        final int offset = getIntArg(1);
-        final int length = getIntArg(2);
+        final long offset = getLongArg(1);
+        final long length = getLongArg(2);
         final String segmentStoreHost = getArg(3);
         final String fileName = getArg(4);
 
@@ -70,7 +69,7 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
     /**
      * Creates the file (and parent directory if required) into which thee segment data is written.
      *
-     * @param fileName
+     * @param fileName The name of the file to create.
      * @return A {@link File} object representing the filename provided.
      * @throws FileAlreadyExistsException if the file already exists, to avoid any accidental overwrites.
      * @throws IOException if the file/directory creation fails.
@@ -98,38 +97,37 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
      * @param length                    The number of bytes to read.
      * @param fileName                  A name of the file to which the data will be written.
      * @throws IOException if the file create/write fails.
-     * @throws InterruptedException if the request fails.
-     * @throws ExecutionException if the request fails.
-     * @throws TimeoutException if the request fails.
+     * @throws Exception if the request fails.
      */
     private void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
-                                           int offset, int length, String fileName) throws IOException, InterruptedException, ExecutionException, TimeoutException {
+                                           long offset, long length, String fileName) throws IOException, Exception {
         File file = createFileAndDirectory(fileName);
 
         output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
-        int currentOffset = offset;
-        int bytesToRead = length;
+        long currentOffset = offset;
+        long bytesToRead = length;
         int progress = 0;
-
+        @Cleanup
+        FileOutputStream fileOutputStream = new FileOutputStream(file, true);
         while (bytesToRead > 0) {
-            int bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
+            long bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
+            // TODO: readSegment should take in longs as described here: https://github.com/pravega/pravega/issues/6183
+            // TODO: Remove casting to int once 6183 is resolved.
             CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                    currentOffset, bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                    (int)currentOffset, (int)bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            int bytesRead = bufferRead.getData().readableBytes();
             // Write the buffer into the file.
-            try (FileOutputStream fileOutputStream = new FileOutputStream(file, true)) {
-                bufferRead.getData().readBytes(fileOutputStream, bufferLength);
-            }
+            bufferRead.getData().readBytes(fileOutputStream, bytesRead);
 
-            currentOffset += bufferLength;
-            bytesToRead -= bufferLength;
+            currentOffset += bytesRead;
+            bytesToRead -= bytesRead;
             showProgress(progress++, String.format("Written %d/%d bytes.", length - bytesToRead, length));
         }
     }
 
     private void showProgress(int progress, String message) {
-        String status = "|/-\\";
-        System.out.print("\r Processing " + status.charAt(progress % status.length()) + " : " + message);
+        System.out.print("\r Processing " + PROGRESS_BAR.charAt(progress % PROGRESS_BAR.length()) + " : " + message);
     }
 
     public static CommandDescriptor descriptor() {

@@ -40,6 +40,7 @@ import org.junit.rules.Timeout;
 import java.io.File;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
@@ -120,7 +121,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testReadSegmentRangeCommand() throws Exception {
-        String filename = "./tmp/readSegmentTest.txt";
+        // Create a temporary directory.
+        Path tempDirPath = Files.createTempDirectory("readSegmentDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "readSegmentTest.txt").toString();
+
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "readsegment", StreamConfiguration.builder().build());
 
         @Cleanup
@@ -147,6 +151,9 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Assert.assertNotNull(ReadSegmentRangeCommand.descriptor());
         // Delete file created during the test.
         Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
     }
 
     @Test
