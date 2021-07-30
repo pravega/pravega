@@ -1658,7 +1658,8 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn1 = new ContainerMetadataUpdateTransaction(metadata, metadata, 0);
         Assert.assertEquals("Unexpected Active Segment Count for first transaction.",
                 expected, txn1.getActiveSegmentCount());
-        long id = SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - TRANSIENT_ATTRIBUTE_REMAINING;
+        // Subtract one from remaining due to Segment Type Attribute.
+        long id = SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - (TRANSIENT_ATTRIBUTE_REMAINING - 1);
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                 // The new entry.
                 new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id), AttributeUpdateType.None, id),
@@ -1679,26 +1680,24 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn2 = new ContainerMetadataUpdateTransaction(txn1, metadata, 1);
         // Add two new Extended Attributes which should exceed the set limit.
         attributes = AttributeUpdateCollection.from(
-                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 1), AttributeUpdateType.None, (long) 0),
-                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 2), AttributeUpdateType.None, (long) 0)
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, ++id), AttributeUpdateType.None, (long) 0),
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, ++id ), AttributeUpdateType.None, (long) 0)
         );
-        // Should fail as we are over the Extended Attribute limit for Transient Segments.
+        // Should not fail as there was space before the operation, so accept any new additions.
         val map2 = createTransientAppend(TRANSIENT_SEGMENT_ID, attributes);
+        txn2.preProcessOperation(map2);
+        txn2.acceptOperation(map2);
+        // Since we are now over the limit, enforce that no new Extended Attributes may be added.
+        val txn3 = new ContainerMetadataUpdateTransaction(txn2, metadata, 2);
+        // Expect another Attribute addition to fail as the limit has been exceeded.
+        val map3 = createTransientAppend(TRANSIENT_SEGMENT_ID, AttributeUpdateCollection.from(
+            new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, ++id), AttributeUpdateType.None, (long) 0)
+        ));
         AssertExtensions.assertThrows(
                 "Exception was not thrown when too many Extended Attributes were registered.",
-                () -> txn2.preProcessOperation(map2),
+                () -> txn3.preProcessOperation(map3),
                 ex -> ex instanceof MetadataUpdateException
         );
-        // Expect to be able to register one more to reach the limit.
-        val map3 = createTransientAppend(TRANSIENT_SEGMENT_ID, AttributeUpdateCollection.from(
-            new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 1), AttributeUpdateType.None, (long) 0)
-        ));
-        txn2.preProcessOperation(map3);
-        txn2.acceptOperation(map3);
-        segmentMetadata = txn2.getStreamSegmentMetadata(TRANSIENT_SEGMENT_ID);
-
-        Assert.assertEquals("Unexpected Extended Attribute count after second transaction.",
-                SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT, segmentMetadata.getAttributes().size());
     }
 
     //endregion
@@ -1737,10 +1736,12 @@ public class ContainerMetadataUpdateTransactionTests {
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1);
 
         Map<AttributeId, Long> attributes = new HashMap<>();
-        for (long i = 0; i < SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - TRANSIENT_ATTRIBUTE_REMAINING; i++) {
+        attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, SegmentType.TRANSIENT_SEGMENT.getValue());
+        for (long i = 0; i < SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - (TRANSIENT_ATTRIBUTE_REMAINING + 1); i++) {
             attributes.put(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, i), i);
         }
         segmentMetadata.updateAttributes(attributes);
+        segmentMetadata.refreshDerivedProperties();
 
         return metadata;
     }
