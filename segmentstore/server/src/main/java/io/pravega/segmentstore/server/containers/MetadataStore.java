@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -340,7 +341,7 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(segmentMetadata.getName()));
         }
 
-        ArrayView toWrite = SegmentInfo.serialize(new SegmentInfo(segmentMetadata.getId(), segmentMetadata.getSnapshot()));
+        ArrayView toWrite = SegmentInfo.serialize(new SegmentInfo(segmentMetadata.getId(), segmentMetadata.getType(), segmentMetadata.getSnapshot()));
         return updateSegmentInfo(segmentMetadata.getName(), toWrite, timeout);
     }
 
@@ -486,15 +487,22 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
+        if (segmentInfo.getSegmentType().isTransientSegment()) {
+            Map<AttributeId, Long> attributes = Map.of(Attributes.CREATION_EPOCH, this.connector.containerMetadata.getContainerEpoch());
+            attributes.putAll(properties.getAttributes());
+            properties = StreamSegmentInformation.from(properties).attributes(attributes).build();
+        }
+
         long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it.
             completeAssignment(properties.getName(), existingSegmentId);
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
+            String streamSegmentName = properties.getName();
             return this.connector.getMapSegmentId()
-                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
-                                 .thenApply(id -> completeAssignment(properties.getName(), id));
+                                 .apply(segmentInfo.getSegmentId(), properties, pin, timeout)
+                                 .thenApply(id -> completeAssignment(streamSegmentName, id));
         }
     }
 
@@ -736,6 +744,7 @@ public abstract class MetadataStore implements AutoCloseable {
     protected static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
+        private final SegmentType segmentType;
         private final SegmentProperties properties;
 
         static SegmentInfo newSegment(String name, SegmentType segmentType, Collection<AttributeUpdate> attributeUpdates) {
@@ -757,6 +766,7 @@ public abstract class MetadataStore implements AutoCloseable {
 
             return builder()
                     .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                    .segmentType(segmentType)
                     .properties(infoBuilder.build())
                     .build();
         }

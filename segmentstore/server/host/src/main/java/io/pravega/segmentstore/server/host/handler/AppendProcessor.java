@@ -102,6 +102,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
+    private final Collection<String> transientSegmentNames;
 
     //endregion
 
@@ -118,6 +119,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
+        this.transientSegmentNames = Collections.emptySet();
     }
 
     /**
@@ -442,6 +444,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Override
     public void close() {
         connection.close();
+        transientSegmentNames.forEach(name -> store.deleteStreamSegment(name, TIMEOUT));
     }
 
     //endregion

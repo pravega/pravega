@@ -40,6 +40,7 @@ public class ContainerConfig {
     public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("extended.attribute.cached.count.max", 4096, "maxCachedExtendedAttributeCount");
     public static final Property<Integer> EVENT_PROCESSOR_ITERATION_DELAY_MS = Property.named("eventprocessor.iteration.delay.ms", 100);
     public static final Property<Integer> EVENT_PROCESSOR_OPERATION_TIMEOUT_MS = Property.named("eventprocessor.operation.timeout.ms", 5000);
+    public static final Property<Integer> TRANSIENT_SEGMENT_DELETE_TIMEOUT_MS = Property.named("segment.transient.delete.timeout.ms", 1000);
     private static final String COMPONENT_CODE = "containers";
 
     /**
@@ -90,6 +91,12 @@ public class ContainerConfig {
     @Getter
     private final Duration eventProcessorOperationTimeout;
 
+    /**
+     * Default timeout for the deletion of Transient Segments from Metadata.
+     */
+    @Getter
+    private final Duration transientSegmentDeleteTimeout;
+
     //endregion
 
     //region Constructor
@@ -113,6 +120,7 @@ public class ContainerConfig {
         this.maxCachedExtendedAttributeCount = properties.getPositiveInt(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
         this.eventProcessorIterationDelay = properties.getDuration(EVENT_PROCESSOR_ITERATION_DELAY_MS, ChronoUnit.MILLIS);
         this.eventProcessorOperationTimeout = properties.getDuration(EVENT_PROCESSOR_OPERATION_TIMEOUT_MS, ChronoUnit.MILLIS);
+        this.transientSegmentDeleteTimeout = properties.getDuration(TRANSIENT_SEGMENT_DELETE_TIMEOUT_MS, ChronoUnit.MILLIS);
     }
 
     /**

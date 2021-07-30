@@ -86,7 +86,7 @@ public final class NameUtils {
     private static final String TRANSACTION_DELIMITER = "#transaction.";
 
     /**
-     * This is appened to the end of the Parent Segment Name, then we append a unique identifier.
+     * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSIENT_DELIMITER = "#transient.";
 
@@ -220,20 +220,40 @@ public final class NameUtils {
     }
 
     /**
+     * Finds the position of a delimiter within a string and validates said string is of expected format.
+     * @param streamSegmentName The name of the stream segment to validate.
+     * @param delimiter The delimiter to check for.
+     * @param idLength The length of the id.
+     *
+     * @return The start position of the delimiter contained within streamSegmentName.
+     */
+    private static int getDelimiterPosition(String streamSegmentName, String delimiter, int idLength) {
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(delimiter);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + delimiter.length() + idLength > streamSegmentName.length()) {
+            return -1;
+        }
+        return endOfStreamNamePos;
+    }
+
+    /**
      * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
      * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
      *
-     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
+     * @param segmentName The name of the Transaction StreamSegment or Transient Segment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
      */
-    public static String getParentStreamSegmentName(String transactionName) {
-        // Check to see if the given name is a properly formatted Transaction.
-        int endOfStreamNamePos = transactionName.lastIndexOf(TRANSACTION_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > transactionName.length()) {
-            // Improperly formatted Transaction name.
-            return null;
+    public static String getParentStreamSegmentName(String segmentName) {
+        // Check to see if it is a valid Transaction.
+        int endOfTransactionStream = getDelimiterPosition(segmentName, TRANSACTION_DELIMITER, TRANSACTION_ID_LENGTH);
+        if (endOfTransactionStream >= 0) {
+            return segmentName.substring(0, endOfTransactionStream);
         }
-        return transactionName.substring(0, endOfStreamNamePos);
+        // Check to see if it is a valid Transient Segment.
+        int endOfTransientStream = getDelimiterPosition(segmentName, TRANSIENT_DELIMITER, TRANSIENT_ID_LENGTH);
+        if (endOfTransientStream >= 0) {
+            return segmentName.substring(0, endOfTransientStream);
+        }
+        return null;
     }
 
     /**
@@ -244,11 +264,7 @@ public final class NameUtils {
      */
     public static boolean isTransactionSegment(String streamSegmentName) {
         // Check to see if the given name is a properly formatted Transaction.
-        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSACTION_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > streamSegmentName.length()) {
-            return false;
-        }
-        return true;
+        return getDelimiterPosition(streamSegmentName, TRANSACTION_DELIMITER, TRANSACTION_ID_LENGTH) >= 0;
     }
 
     /**
@@ -257,12 +273,7 @@ public final class NameUtils {
      * @return true if stream segment name contains transient delimiter, false otherwise.
      */
     public static boolean isTransientSegment(String streamSegmentName) {
-        // Check to see if the given name is a properly formatted Transient Segment.
-        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSIENT_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSIENT_DELIMITER.length() + TRANSIENT_ID_LENGTH > streamSegmentName.length()) {
-            return false;
-        }
-        return true;
+        return getDelimiterPosition(streamSegmentName, TRANSIENT_DELIMITER, TRANSIENT_ID_LENGTH) >= 0;
     }
 
     /**
@@ -273,7 +284,7 @@ public final class NameUtils {
      * @return The primary part of StreamSegment.
      */
     public static String extractPrimaryStreamSegmentName(String streamSegmentName) {
-        if (isTransactionSegment(streamSegmentName)) {
+        if (isTransactionSegment(streamSegmentName) || isTransientSegment(streamSegmentName)) {
             return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
         }
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(EPOCH_DELIMITER);

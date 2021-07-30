@@ -40,6 +40,7 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -720,24 +722,30 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Verifies that a {@link SegmentType} marked as {@link SegmentType#isTransient()} is rejected if it has an improperly
+     * Verifies that a {@link SegmentType} marked as {@link SegmentType#isTransientSegment()} is rejected if it has an improperly
      * formatted name.
      *
      * @throws ExecutionException ExecutionException if any occurs.
      * @throws InterruptedException InterruptedException if any occurs.
+     * @throws TimeoutException TimeoutException if any occurs.
      */
     @Test
-    public void testTransientSegmentFormat() throws ExecutionException, InterruptedException {
+    public void testTransientSegmentFormat() throws ExecutionException, InterruptedException, TimeoutException {
         final String validTransientSegment = "scope/stream/transient#transient.00000000000000000000000000000000";
         final String invalidTransientSegment = "scope/stream/transient";
         @Cleanup
         TestContext context = createTestContext();
         // Should complete successfully.
-        context.getMetadataStore().createSegment(validTransientSegment, SegmentType.TRANSIENT_SEGMENT, null, TIMEOUT).get();
+        context.getMetadataStore().createSegment(validTransientSegment, SegmentType.TRANSIENT_SEGMENT, new ArrayList<>(), TIMEOUT).get();
+        // Make sure our Transient Segment name maps to a valid Segment ID.
+        TestUtils.await(() -> {
+            return context.getMetadata().getStreamSegmentId(validTransientSegment, false) != ContainerMetadata.NO_STREAM_SEGMENT_ID;
+        }, 100, 1000);
+        // Attempt to create a Transient Segment with an ill-formatted name.
         AssertExtensions.assertThrows(
             "createSegment did not throw an exception given an invalid Transient Segment name.",
                 () -> context.getMetadataStore().createSegment(invalidTransientSegment, SegmentType.TRANSIENT_SEGMENT, null, TIMEOUT).get(),
-                ex -> ex instanceof IllegalStateException
+                ex -> ex instanceof IllegalArgumentException
         );
     }
 

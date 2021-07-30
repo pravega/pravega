@@ -20,6 +20,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -27,6 +28,7 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -81,6 +83,9 @@ import org.junit.rules.Timeout;
 public class ContainerMetadataUpdateTransactionTests {
     private static final int CONTAINER_ID = 1234567;
     private static final String SEGMENT_NAME = "Segment_123";
+    private static final String TRANSIENT_SEGMENT_NAME = "scope/stream/transient#transient.00000000000000000000000000000000";
+    private static final long TRANSIENT_SEGMENT_ID = 456;
+    private static final int TRANSIENT_ATTRIBUTE_REMAINING = 2;
     private static final long SEGMENT_ID = 123;
     private static final String SEALED_SOURCE_NAME = "Segment_123#Source_Sealed";
     private static final long SEALED_SOURCE_ID = 567;
@@ -1637,6 +1642,65 @@ public class ContainerMetadataUpdateTransactionTests {
                 expected + 2, txn2.getActiveSegmentCount());
     }
 
+    /**
+     * Tests that a Transient Segment may only have {@link SegmentMetadataUpdateTransaction#TRANSIENT_ATTRIBUTE_LIMIT}
+     * or fewer Extended Attributes.
+     */
+    @Test
+    public void testTransientSegmentExtendedAttributeLimit() throws ContainerException, StreamSegmentException {
+       // Create base metadata with one Transient Segment.
+       UpdateableContainerMetadata metadata = createMetadataTransient();
+       int expected = 1;
+        Assert.assertEquals("Unexpected initial Active Segment Count for base metadata.",
+                expected, metadata.getActiveSegmentCount());
+
+        // Create an UpdateTransaction containing updates for Extended Attributes on the Transient Segment -- it should succeed.
+        val txn1 = new ContainerMetadataUpdateTransaction(metadata, metadata, 0);
+        Assert.assertEquals("Unexpected Active Segment Count for first transaction.",
+                expected, txn1.getActiveSegmentCount());
+        long id = SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - TRANSIENT_ATTRIBUTE_REMAINING;
+        AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                // The new entry.
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id), AttributeUpdateType.None, id),
+                // Update two old entries.
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, 0), AttributeUpdateType.Replace, (long) 1),
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, 1), AttributeUpdateType.Replace, (long) 2)
+        );
+        val map1 = createTransientAppend(TRANSIENT_SEGMENT_ID, attributes);
+        txn1.preProcessOperation(map1);
+        map1.setSequenceNumber(metadata.nextOperationSequenceNumber());
+        txn1.acceptOperation(map1);
+
+        int expectedExtendedAttributes = SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - (TRANSIENT_ATTRIBUTE_REMAINING - 1);
+        SegmentMetadata segmentMetadata = txn1.getStreamSegmentMetadata(TRANSIENT_SEGMENT_ID);
+        Assert.assertEquals("Unexpected Extended Attribute count after first transaction.",
+                expectedExtendedAttributes, segmentMetadata.getAttributes().size());
+
+        val txn2 = new ContainerMetadataUpdateTransaction(txn1, metadata, 1);
+        // Add two new Extended Attributes which should exceed the set limit.
+        attributes = AttributeUpdateCollection.from(
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 1), AttributeUpdateType.None, (long) 0),
+                new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 2), AttributeUpdateType.None, (long) 0)
+        );
+        // Should fail as we are over the Extended Attribute limit for Transient Segments.
+        val map2 = createTransientAppend(TRANSIENT_SEGMENT_ID, attributes);
+        AssertExtensions.assertThrows(
+                "Exception was not thrown when too many Extended Attributes were registered.",
+                () -> txn2.preProcessOperation(map2),
+                ex -> ex instanceof MetadataUpdateException
+        );
+        // Expect to be able to register one more to reach the limit.
+        val map3 = createTransientAppend(TRANSIENT_SEGMENT_ID, AttributeUpdateCollection.from(
+            new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, id + 1), AttributeUpdateType.None, (long) 0)
+        ));
+        txn2.preProcessOperation(map3);
+        txn2.acceptOperation(map3);
+        segmentMetadata = txn2.getStreamSegmentMetadata(TRANSIENT_SEGMENT_ID);
+
+        Assert.assertEquals("Unexpected Extended Attribute count after second transaction.",
+                SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT, segmentMetadata.getAttributes().size());
+    }
+
     //endregion
 
     //region Helpers
@@ -1662,6 +1726,21 @@ public class ContainerMetadataUpdateTransactionTests {
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
         segmentMetadata.refreshDerivedProperties();
+
+        return metadata;
+    }
+
+    private UpdateableContainerMetadata createMetadataTransient() {
+        UpdateableContainerMetadata metadata = createBlankMetadata();
+        UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(TRANSIENT_SEGMENT_NAME, TRANSIENT_SEGMENT_ID);
+        segmentMetadata.setLength(SEGMENT_LENGTH);
+        segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1);
+
+        Map<AttributeId, Long> attributes = new HashMap<>();
+        for (long i = 0; i < SegmentMetadataUpdateTransaction.TRANSIENT_ATTRIBUTE_LIMIT - TRANSIENT_ATTRIBUTE_REMAINING; i++) {
+            attributes.put(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, i), i);
+        }
+        segmentMetadata.updateAttributes(attributes);
 
         return metadata;
     }
@@ -1727,6 +1806,10 @@ public class ContainerMetadataUpdateTransactionTests {
                                         .sealed(true)
                                         .attributes(createAttributes())
                                         .build());
+    }
+
+    private StreamSegmentAppendOperation createTransientAppend(long id,  AttributeUpdateCollection attributes) {
+        return new StreamSegmentAppendOperation(id,  new ByteArraySegment(new byte[10]), attributes);
     }
 
     private MetadataCheckpointOperation createMetadataCheckpoint() {
