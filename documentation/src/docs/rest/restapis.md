@@ -1,9 +1,9 @@
-# Pravega Controller REST API
+# Pravega Controller APIs
 
 
 <a name="overview"></a>
 ## Overview
-List of admin REST APIs for the Pravega Controller service.
+List of admin REST APIs for the Pravega controller service.
 
 
 ### Version information
@@ -23,6 +23,7 @@ List of admin REST APIs for the Pravega Controller service.
 
 ### Tags
 
+* Health : Health check related APIs
 * ReaderGroups : Reader group related APIs
 * Scopes : Scope related APIs
 * Streams : Stream related APIs
@@ -32,6 +33,474 @@ List of admin REST APIs for the Pravega Controller service.
 
 <a name="paths"></a>
 ## Paths
+
+<a name="gethealth"></a>
+### GET /health
+
+#### Description
+Return the Health of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The Health result of the Controller.|[HealthResult](#healthresult)|
+|**500**|Internal server error while fetching the Health.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{
+  "name" : "string",
+  "status" : { },
+  "readiness" : true,
+  "liveness" : true,
+  "details" : { },
+  "children" : {
+    "string" : "[healthresult](#healthresult)"
+  }
+}
+```
+
+
+<a name="getdetails"></a>
+### GET /health/details
+
+#### Description
+Fetch the details of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The list of details.|[HealthDetails](#healthdetails)|
+|**500**|Internal server error while fetching the health details of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/details
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributordetails"></a>
+### GET /health/details/{id}
+
+#### Description
+Fetch the details of a specific health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The list of details for the health contributor with a given id.|[HealthDetails](#healthdetails)|
+|**404**|The health details for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the health details for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/details/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getliveness"></a>
+### GET /health/liveness
+
+#### Description
+Fetch the liveness state of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The alive status.|boolean|
+|**500**|Internal server error while fetching the liveness state of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/liveness
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getcontributorliveness"></a>
+### GET /health/liveness/{id}
+
+#### Description
+Fetch the liveness state of the specified health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The alive status for the specified health contributor.|boolean|
+|**404**|The liveness status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the liveness state for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/liveness/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getreadiness"></a>
+### GET /health/readiness
+
+#### Description
+Fetch the ready state of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The ready status.|boolean|
+|**500**|Internal server error while fetching the ready state of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/readiness
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getcontributorreadiness"></a>
+### GET /health/readiness/{id}
+
+#### Description
+Fetch the ready state of the health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The readiness status for the health contributor with given id.|boolean|
+|**404**|The readiness status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the ready state for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/readiness/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getstatus"></a>
+### GET /health/status
+
+#### Description
+Fetch the status of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The health status of the Controller.|[HealthStatus](#healthstatus)|
+|**500**|Internal server error while fetching the health status of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/status
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributorstatus"></a>
+### GET /health/status/{id}
+
+#### Description
+Fetch the status of a specific health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The health status of the Controller.|[HealthStatus](#healthstatus)|
+|**404**|The health status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the health status of a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/status/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributorhealth"></a>
+### GET /health/{id}
+
+#### Description
+Return the Health of a health contributor with a given id.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The Health result of the Controller.|[HealthResult](#healthresult)|
+|**404**|A health provider for the given id could not be found.|No Content|
+|**500**|Internal server error while fetching the health for a given contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{
+  "name" : "string",
+  "status" : { },
+  "readiness" : true,
+  "liveness" : true,
+  "details" : { },
+  "children" : {
+    "string" : "[healthresult](#healthresult)"
+  }
+}
+```
+
 
 <a name="createscope"></a>
 ### POST /scopes
@@ -108,7 +577,7 @@ Create a new scope
 ### GET /scopes
 
 #### Description
-List all available scopes in pravega
+List all available scopes in Pravega
 
 
 #### Responses
@@ -365,6 +834,7 @@ Create a new stream
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 #### Responses
@@ -424,7 +894,8 @@ Create a new stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "streamTags" : { }
 }
 ```
 
@@ -456,7 +927,8 @@ Create a new stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -473,7 +945,8 @@ List streams within the given scope
 |Type|Name|Description|Schema|
 |---|---|---|---|
 |**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Query**|**showInternalStreams**  <br>*optional*|Optional flag whether to display system created streams. If not specified only user created streams will be returned|string|
+|**Query**|**filter_type**  <br>*optional*|Filter options|enum (showInternalStreams, tag)|
+|**Query**|**filter_value**  <br>*optional*|value to be passed. must match the type passed with it.|string|
 
 
 #### Responses
@@ -531,7 +1004,8 @@ List streams within the given scope
         "hours" : 0,
         "minutes" : 0
       }
-    }
+    },
+    "tags" : { }
   } ]
 }
 ```
@@ -606,7 +1080,8 @@ Fetch the properties of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -633,6 +1108,7 @@ Update configuration of an existing stream
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 #### Responses
@@ -690,7 +1166,8 @@ Update configuration of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "streamTags" : { }
 }
 ```
 
@@ -722,7 +1199,8 @@ Update configuration of an existing stream
       "hours" : 0,
       "minutes" : 0
     }
-  }
+  },
+  "tags" : { }
 }
 ```
 
@@ -900,6 +1378,29 @@ Updates the current state of the stream
 <a name="definitions"></a>
 ## Definitions
 
+<a name="healthdetails"></a>
+### HealthDetails
+*Type* : < string, string > map
+
+
+<a name="healthresult"></a>
+### HealthResult
+
+|Name|Description|Schema|
+|---|---|---|
+|**children**  <br>*optional*|**Example** : `{<br>  "string" : "[healthresult](#healthresult)"<br>}`|< string, [HealthResult](#healthresult) > map|
+|**details**  <br>*optional*|**Example** : `"[healthdetails](#healthdetails)"`|[HealthDetails](#healthdetails)|
+|**liveness**  <br>*optional*|**Example** : `true`|boolean|
+|**name**  <br>*optional*|**Example** : `"string"`|string|
+|**readiness**  <br>*optional*|**Example** : `true`|boolean|
+|**status**  <br>*optional*|**Example** : `"[healthstatus](#healthstatus)"`|[HealthStatus](#healthstatus)|
+
+
+<a name="healthstatus"></a>
+### HealthStatus
+*Type* : enum (UP, STARTING, NEW, UNKNOWN, FAILED, DOWN)
+
+
 <a name="readergroupproperty"></a>
 ### ReaderGroupProperty
 
@@ -1004,6 +1505,7 @@ Updates the current state of the stream
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**scopeName**  <br>*optional*|**Example** : `"string"`|string|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**tags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 <a name="streamstate"></a>
@@ -1020,6 +1522,11 @@ Updates the current state of the stream
 |Name|Description|Schema|
 |---|---|---|
 |**streams**  <br>*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
+
+
+<a name="tagslist"></a>
+### TagsList
+*Type* : < string > array
 
 
 <a name="timebasedretention"></a>
