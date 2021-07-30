@@ -208,13 +208,4 @@ public class NameUtilsTest {
         Assert.assertFalse(NameUtils.isTransientSegment("#transient"));
     }
 
-    @Test
-    public void testTransientSegmentName() {
-        UUID uuid = UUID.fromString("00000065-0000-000a-0000-000000000064");
-        Assert.assertEquals(String.format("scope/stream/parentSegment#transient.%s", uuid.toString().replace("-", "")),
-                NameUtils.getTransientNameFromId("scope/stream/parentSegment", uuid));
-
-    }
-
-
 }
