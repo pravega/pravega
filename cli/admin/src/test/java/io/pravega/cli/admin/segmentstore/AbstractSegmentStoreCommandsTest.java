@@ -37,6 +37,11 @@ import org.junit.Before;
 import org.junit.After;
 import org.junit.rules.Timeout;
 
+import java.io.File;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.UUID;
@@ -116,6 +121,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testReadSegmentRangeCommand() throws Exception {
+        // Create a temporary directory.
+        Path tempDirPath = Files.createTempDirectory("readSegmentDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "readSegmentTest.txt").toString();
+
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "readsegment", StreamConfiguration.builder().build());
 
         @Cleanup
@@ -124,12 +133,27 @@ public abstract class AbstractSegmentStoreCommandsTest {
         EventStreamWriter<String> writer = factory.createEventWriter("readsegment", new JavaSerializer<>(), EventWriterConfig.builder().build());
         writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
         writer.flush();
-        String commandResult = TestUtils.executeCommand("segmentstore read-segment segmentstore/readsegment/0.#epoch.0 0 8 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("ReadSegment:"));
-        commandResult = TestUtils.executeCommand("segmentstore read-segment _system/_RGcommitStreamReaders/0.#epoch.0 0 8 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("ReadSegment:"));
-        AssertExtensions.assertThrows(WireCommandFailedException.class, () -> TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost", STATE.get()));
+
+        // Check to make sure that the file exists and data is written into it.
+        String commandResult = TestUtils.executeCommand("segmentstore read-segment segmentstore/readsegment/0.#epoch.0 0 8 localhost " + filename, STATE.get());
+        Assert.assertTrue(commandResult.contains("The segment data has been successfully written into"));
+        File file = new File(filename);
+        Assert.assertTrue(file.exists());
+        Assert.assertNotEquals(0, file.length());
+
+        AssertExtensions.assertThrows(FileAlreadyExistsException.class, () ->
+                TestUtils.executeCommand("segmentstore read-segment _system/_RGcommitStreamReaders/0.#epoch.0 0 8 localhost " + filename, STATE.get()));
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        AssertExtensions.assertThrows(WireCommandFailedException.class, () ->
+                TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost " + filename, STATE.get()));
         Assert.assertNotNull(ReadSegmentRangeCommand.descriptor());
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
     }
 
     @Test
