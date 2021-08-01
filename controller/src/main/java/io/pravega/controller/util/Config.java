@@ -325,7 +325,11 @@ public final class Config {
         WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
-        TLSProtocolVersion tpv = new TLSProtocolVersion(p.get(PROPERTY_TLS_PROTOCOL_VERSION));
+        String protocol = p.get(PROPERTY_TLS_PROTOCOL_VERSION);
+        if (Strings.isNullOrEmpty(protocol)) {
+            protocol = PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue();
+        }
+        TLSProtocolVersion tpv = new TLSProtocolVersion(protocol);
         TLS_PROTOCOL_VERSION = Arrays.copyOf(tpv.getProtocols(), tpv.getProtocols().length);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);

@@ -24,6 +24,7 @@ import lombok.Getter;
 
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * REST server config.
@@ -52,7 +53,11 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.host = host;
         this.port = port;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
+        if (tlsProtocolVersion == null) {
+            this.tlsProtocolVersion = new String[] {"TLSv1.2, TLSv1.3"};
+        } else {
+            this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
+        }
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
         this.authorizationEnabled = authorizationEnabled;
@@ -68,7 +73,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                 .append(String.format("host: %s, ", host))
                 .append(String.format("port: %d, ", port))
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
+                .append(String.format("tlsProtocolVersion: %s, ", String.format("tlsProtocolVersion: %s, ", Arrays.stream(tlsProtocolVersion).map(Object::toString).collect(Collectors.joining(",")))))
                 .append(String.format("keyFilePath is %s, ",
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",

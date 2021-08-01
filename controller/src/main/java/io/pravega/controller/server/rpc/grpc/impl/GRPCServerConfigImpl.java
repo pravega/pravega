@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 
+import io.pravega.controller.util.Config;
 import lombok.Builder;
 import lombok.Data;
 
@@ -76,7 +77,11 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.authorizationEnabled = authorizationEnabled;
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion =  Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
+        if (tlsProtocolVersion == null) {
+            this.tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION;
+        } else {
+            this.tlsProtocolVersion =  Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
+        }
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
