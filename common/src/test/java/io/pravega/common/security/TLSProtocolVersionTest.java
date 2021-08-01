@@ -15,6 +15,7 @@
  */
 package io.pravega.common.security;
 
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,15 +32,16 @@ public class TLSProtocolVersionTest {
         String tls1213 = "TLSv1.2,TLSv1.3";
         String tls1312 = "TLSv1.3,TLSv1.2";
 
-        Assert.assertArrayEquals(new String[] {"TLSv1.2"}, TLSProtocolVersion.parse(tls12));
-        Assert.assertArrayEquals(new String[] {"TLSv1.3"}, TLSProtocolVersion.parse(tls13));
-        Assert.assertArrayEquals(new String[] {"TLSv1.2", "TLSv1.3"}, TLSProtocolVersion.parse(tls1213));
-        Assert.assertArrayEquals(new String[] {"TLSv1.3", "TLSv1.2"}, TLSProtocolVersion.parse(tls1312));
+        Assert.assertArrayEquals(new String[] {"TLSv1.2"}, new TLSProtocolVersion(tls12).getProtocols());
+        Assert.assertArrayEquals(new String[] {"TLSv1.3"}, new TLSProtocolVersion(tls13).getProtocols());
+        Assert.assertArrayEquals(new String[] {"TLSv1.2", "TLSv1.3"}, new TLSProtocolVersion(tls1213).getProtocols());
+        Assert.assertArrayEquals(new String[] {"TLSv1.3", "TLSv1.2"}, new TLSProtocolVersion(tls1312).getProtocols());
     }
 
     @Test
     public void passingInValidTlsProtocolVersionTest() {
-        Assert.assertNull(TLSProtocolVersion.parse("TLSv1.1"));
-        Assert.assertNull(TLSProtocolVersion.parse("TLSv1_1"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> new TLSProtocolVersion("TLSv1.1").getProtocols());
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> new TLSProtocolVersion("TLSv1_2").getProtocols());
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> new TLSProtocolVersion("TLSv1.4").getProtocols());
     }
 }

@@ -21,7 +21,6 @@ import io.pravega.common.security.JKSHelper;
 import java.net.URI;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import io.pravega.common.security.TLSProtocolVersion;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -73,7 +72,7 @@ public class RESTServer extends AbstractIdleService {
                 contextConfigurator.setKeyStorePass(JKSHelper.loadPasswordFrom(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
                         new SSLEngineConfigurator(contextConfigurator, false, false, false)
-                                .setEnabledProtocols(TLSProtocolVersion.parse(restServerConfig.tlsProtocolVersion())));
+                                .setEnabledProtocols(restServerConfig.tlsProtocolVersion()));
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }

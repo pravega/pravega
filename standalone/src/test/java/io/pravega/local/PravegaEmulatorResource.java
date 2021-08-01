@@ -22,6 +22,7 @@ import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Builder;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -49,24 +50,43 @@ import static org.junit.Assert.assertNotNull;
  *
  */
 @Slf4j
+@Builder
 public class PravegaEmulatorResource extends ExternalResource {
     final boolean authEnabled;
     final boolean tlsEnabled;
+    final boolean restEnabled;
+    final String tlsProtocolVersion;
     final LocalPravegaEmulator pravega;
 
+    public static final class PravegaEmulatorResourceBuilder {
+        boolean authEnabled = false;
+        boolean tlsEnabled = false;
+        boolean restEnabled = false;
+        String tlsProtocolVersion = "TLSv1.2,TLSv1.3";
+
+        public PravegaEmulatorResource build() {
+            return new PravegaEmulatorResource(authEnabled, tlsEnabled, restEnabled, tlsProtocolVersion);
+        }
+    }
     /**
      * Create an instance of Pravega Emulator resource.
-     * @param pravegaEmulatorResourceBuilder PravegaEmulatorResourceBuilder
+     * @param authEnabled Authorisation enable flag.
+     * @param tlsEnabled  Tls enable flag.
+     * @param restEnabled REST endpoint enable flag.
+     * @param tlsProtocolVersion TlsProtocolVersion
      */
-    public PravegaEmulatorResource(PravegaEmulatorResourceBuilder pravegaEmulatorResourceBuilder) {
-        this.authEnabled = pravegaEmulatorResourceBuilder.authEnabled;
-        this.tlsEnabled = pravegaEmulatorResourceBuilder.tlsEnabled;
+
+    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled, String tlsProtocolVersion) {
+        this.authEnabled = authEnabled;
+        this.tlsEnabled = tlsEnabled;
+        this.restEnabled = restEnabled;
+        this.tlsProtocolVersion = tlsProtocolVersion;
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(TestUtils.getAvailableListenPort())
                 .segmentStorePort(TestUtils.getAvailableListenPort())
                 .zkPort(TestUtils.getAvailableListenPort())
                 .restServerPort(TestUtils.getAvailableListenPort())
-                .enableRestServer(pravegaEmulatorResourceBuilder.restEnabled)
+                .enableRestServer(restEnabled)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled)
                 .enabledAdminGateway(true)
@@ -84,7 +104,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         }
         if (tlsEnabled) {
             emulatorBuilder.certFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
-                    .tlsProtocolVersion(pravegaEmulatorResourceBuilder.tlsProtocolVersion)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                     .jksKeyFile(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH)
                     .jksTrustFile(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH)
@@ -94,31 +114,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         pravega = emulatorBuilder.build();
     }
 
-    /*
-    Implemented Builder pattern in java to make way for optional parameters such as "tlsProtocolVersion"
-     */
-    public static class PravegaEmulatorResourceBuilder {
-        final boolean authEnabled;
-        final boolean tlsEnabled;
-        final boolean restEnabled;
-        String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
-        public PravegaEmulatorResourceBuilder(boolean authEnabled, boolean tlsEnabled, boolean restEnabled) {
-            this.authEnabled = authEnabled;
-            this.tlsEnabled = tlsEnabled;
-            this.restEnabled = restEnabled;
-        }
-
-        public PravegaEmulatorResourceBuilder tlsProtocolVersion(String tlsProtocolVersion) {
-            this.tlsProtocolVersion = tlsProtocolVersion;
-            return this;
-        }
-
-        public PravegaEmulatorResource build() {
-            PravegaEmulatorResource per = new PravegaEmulatorResource(this);
-            return per;
-        }
-    }
 
     @Override
     protected void before() throws Exception {

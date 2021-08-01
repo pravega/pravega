@@ -17,22 +17,25 @@ package io.pravega.common.security;
 
 import java.util.Arrays;
 
-public enum TLSProtocolVersion {
-    TLSv1_2("TLSv1.2"),
-    TLSv1_3("TLSv1.3"),
-    TLS1_2ANDTLS1_3("TLSv1.2,TLSv1.3"),
-    TLS1_3ANDTLS1_2("TLSv1.3,TLSv1.2");
+public class TLSProtocolVersion {
 
-    String protocol;
+    private String[] protocols;
 
-    TLSProtocolVersion(String tlsprotocol) {
-        protocol = tlsprotocol;
+    public TLSProtocolVersion(String s) {
+        protocols = parse(s);
     }
 
-    public static String[] parse(String s) {
-        if (Arrays.stream(TLSProtocolVersion.values()).anyMatch(e -> e.protocol.equals(s))) {
-            return s.split(",");
+    public String[] getProtocols() {
+        return Arrays.copyOf(protocols, protocols.length);
+    }
+
+    public static final String[] parse(String s) {
+        String[] protocols = s.split(",");
+        for (String a : protocols) {
+            if (!a.matches("TLSv1\\.(2|3)")) {
+                throw new IllegalArgumentException("Invalid TLS Protocol Version");
+            }
         }
-        return null;
+        return protocols;
     }
 }

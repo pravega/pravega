@@ -78,7 +78,7 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION);
+                    serviceBuilder.getLowPriorityExecutor(), Arrays.copyOf(Config.TLS_PROTOCOL_VERSION, Config.TLS_PROTOCOL_VERSION.length));
             server.startListening();
 
             controllerWrapper.awaitRunning();

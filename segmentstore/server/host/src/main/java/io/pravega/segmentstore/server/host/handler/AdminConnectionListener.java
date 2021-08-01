@@ -61,7 +61,7 @@ public class AdminConnectionListener extends AbstractConnectionListener {
      */
     public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
-                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String tlsProtocolVersion) {
+                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion) {
         super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion );
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");

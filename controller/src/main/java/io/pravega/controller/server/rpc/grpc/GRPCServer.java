@@ -25,7 +25,6 @@ import io.grpc.netty.NettyServerBuilder;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -89,7 +88,7 @@ public class GRPCServer extends AbstractIdleService {
     @SneakyThrows(SSLException.class)
     private SslContext getSSLContext(GRPCServerConfig serverConfig) {
         return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
-                .protocols(TLSProtocolVersion.parse(serverConfig.getTlsProtocolVersion()))
+                .protocols(serverConfig.getTlsProtocolVersion())
                 .build();
     }
 

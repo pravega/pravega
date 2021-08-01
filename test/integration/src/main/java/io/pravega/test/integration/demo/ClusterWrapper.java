@@ -126,7 +126,7 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     @Builder.Default
-    private String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
+    private String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Builder.Default
     private boolean controllerRestEnabled = false;

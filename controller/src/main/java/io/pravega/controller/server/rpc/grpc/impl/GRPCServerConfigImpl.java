@@ -19,8 +19,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
-import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -38,7 +39,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
-    private final String tlsProtocolVersion;
+    private final String[] tlsProtocolVersion;
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
@@ -50,7 +51,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
-                                boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled, String tlsProtocolVersion,
+                                boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled, String[] tlsProtocolVersion,
                                 String tlsCertFile, String tlsKeyFile, String tokenSigningKey,
                                 Integer accessTokenTTLInSeconds, boolean isRGWritesWithReadPermEnabled,
                                 String tlsTrustStore,
@@ -68,10 +69,6 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                     "accessTokenTtlInSeconds should be -1 (token never expires), 0 (token immediately expires) "
                             + "or a positive integer representing the number of seconds after which the token expires.");
         }
-        if (tlsEnabled && (tlsProtocolVersion != null)) {
-            Preconditions.checkArgument(TLSProtocolVersion.parse(tlsProtocolVersion) != null,
-                    "TLSProtocolVersion should be TLSv1.2 (strict 1.2), TLSv1.3 (strict 1.3), mixed mode");
-        }
 
         this.port = port;
         this.publishedRPCHost = Optional.ofNullable(publishedRPCHost);
@@ -79,7 +76,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.authorizationEnabled = authorizationEnabled;
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion = tlsProtocolVersion;
+        this.tlsProtocolVersion =  Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
@@ -115,7 +112,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("tlsCertFile is %s, ",
                         Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
                 .append(String.format("tlsKeyFile is %s, ",

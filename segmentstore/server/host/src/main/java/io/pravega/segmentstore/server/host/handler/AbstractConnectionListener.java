@@ -48,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -73,19 +74,19 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
-    private final String tlsProtocolVersion;
+    private final String[] tlsProtocolVersion;
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
     public AbstractConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
-                                      String certFile, String keyFile, String tlsProtocolVersion) {
+                                      String certFile, String keyFile, String[] tlsProtocolVersion) {
         this.enableTls = enableTls;
         this.enableTlsReload = this.enableTls && enableTlsReload;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.pathToTlsCertFile = certFile;
         this.pathToTlsKeyFile = keyFile;
-        this.tlsProtocolVersion = tlsProtocolVersion;
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.connectionTracker = new ConnectionTracker();
     }

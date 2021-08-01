@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
-import io.pravega.common.security.TLSProtocolVersion;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -44,10 +43,10 @@ public class TLSHelper {
      * @throws IllegalArgumentException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is empty
      * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile, String tlsProtocolVersion) {
+    public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile, String[] tlsProtocolVersion) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
-        Exceptions.checkArgument(TLSProtocolVersion.parse(tlsProtocolVersion) != null, tlsProtocolVersion, "Invalid TLS Protocol Version");
+        Exceptions.checkArgument(tlsProtocolVersion != null, "tlsProtocolVersion", "Invalid TLS Protocol Version");
         return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile), tlsProtocolVersion);
     }
 
@@ -62,7 +61,7 @@ public class TLSHelper {
      * @throws IllegalStateException if either {@code certificateFile} or {@code serverKeyFile} doesn't exist or is unreadable.
      * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    public static SslContext newServerSslContext(File certificateFile, File serverKeyFile, String tlsProtocolVersion) {
+    public static SslContext newServerSslContext(File certificateFile, File serverKeyFile, String[] tlsProtocolVersion) {
         Preconditions.checkNotNull(certificateFile);
         Preconditions.checkNotNull(serverKeyFile);
         Preconditions.checkNotNull(tlsProtocolVersion);
@@ -70,7 +69,7 @@ public class TLSHelper {
 
         try {
             SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile)
-                    .protocols(TLSProtocolVersion.parse(tlsProtocolVersion))
+                    .protocols(tlsProtocolVersion)
                     .build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;

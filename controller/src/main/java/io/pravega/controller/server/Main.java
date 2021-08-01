@@ -34,6 +34,7 @@ import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.rest.RESTServerConfig;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import lombok.extern.slf4j.Slf4j;
@@ -91,7 +92,7 @@ public class Main {
                     .host(Config.REST_SERVER_IP)
                     .port(Config.REST_SERVER_PORT)
                     .tlsEnabled(Config.TLS_ENABLED)
-                    .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION)
+                    .tlsProtocolVersion(Arrays.copyOf(Config.TLS_PROTOCOL_VERSION, Config.TLS_PROTOCOL_VERSION.length))
                     .keyFilePath(Config.REST_KEYSTORE_FILE_PATH)
                     .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();

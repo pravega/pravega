@@ -18,11 +18,11 @@ package io.pravega.shared.rest.impl;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
-import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.shared.rest.RESTServerConfig;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Arrays;
 import java.util.Properties;
 
 /**
@@ -35,26 +35,24 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
-    private final String tlsProtocolVersion;
+    private final String[] tlsProtocolVersion;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
     @Builder
     RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
-                         boolean tlsEnabled, String tlsProtocolVersion, String keyFilePath, String keyFilePasswordPath) {
+                         boolean tlsEnabled, String[] tlsProtocolVersion, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
                 "TLS", "KeyFilePath should not be empty when TLS is enabled. ");
-        if (tlsEnabled && tlsProtocolVersion != null) {
-            Exceptions.checkArgument(TLSProtocolVersion.parse(tlsProtocolVersion) != null,
+        Exceptions.checkArgument(!tlsEnabled || tlsProtocolVersion != null,
                     "TLS", "TlsProtocolVersion should not be empty when TLS is enabled");
-        }
 
         this.host = host;
         this.port = port;
         this.tlsEnabled = tlsEnabled;
-        this.tlsProtocolVersion = tlsProtocolVersion;
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
         this.authorizationEnabled = authorizationEnabled;
@@ -70,7 +68,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                 .append(String.format("host: %s, ", host))
                 .append(String.format("port: %d, ", port))
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("keyFilePath is %s, ",
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",
@@ -93,8 +91,8 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     }
 
     @Override
-    public String tlsProtocolVersion() {
-        return this.tlsProtocolVersion;
+    public String[] tlsProtocolVersion() {
+        return Arrays.copyOf(this.tlsProtocolVersion, this.tlsProtocolVersion.length);
     }
 
     @Override

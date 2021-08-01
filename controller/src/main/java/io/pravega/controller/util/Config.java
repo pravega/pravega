@@ -16,20 +16,22 @@
 package io.pravega.controller.util;
 
 import com.google.common.base.Strings;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.shared.metrics.MetricsConfig;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.slf4j.Logger;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Properties;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Utility class to supply Controller Configuration.
@@ -48,7 +50,6 @@ import lombok.val;
  * default value (step 5) will be used). Chained resolution is not supported (i.e., CFG1=${CFG2};CFG2=${CFG3} will not
  * set CFG1 to the value of CFG3).
  */
-@Slf4j
 public final class Config {
 
     //region Property Definitions
@@ -231,7 +232,7 @@ public final class Config {
     public static final boolean AUTHORIZATION_ENABLED;
     public static final String USER_PASSWORD_FILE;
     public static final boolean TLS_ENABLED;
-    public static final String TLS_PROTOCOL_VERSION;
+    public static final String[] TLS_PROTOCOL_VERSION;
     public static final String TLS_KEY_FILE;
     public static final String TLS_CERT_FILE;
     public static final String TLS_TRUST_STORE;
@@ -295,6 +296,7 @@ public final class Config {
     public static final int HEALTH_CHECK_FREQUENCY;
 
     private static final String METRICS_PATH = "controller.metrics.";
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(Config.class);
 
     //endregion
 
@@ -323,7 +325,8 @@ public final class Config {
         WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
-        TLS_PROTOCOL_VERSION = p.get(PROPERTY_TLS_PROTOCOL_VERSION);
+        TLSProtocolVersion tpv = new TLSProtocolVersion(p.get(PROPERTY_TLS_PROTOCOL_VERSION));
+        TLS_PROTOCOL_VERSION = Arrays.copyOf(tpv.getProtocols(), tpv.getProtocols().length);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
@@ -458,7 +461,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
-                .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION)
+                .tlsProtocolVersion(Arrays.copyOf(Config.TLS_PROTOCOL_VERSION, Config.TLS_PROTOCOL_VERSION.length))
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)

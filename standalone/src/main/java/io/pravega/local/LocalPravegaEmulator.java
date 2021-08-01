@@ -37,7 +37,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private boolean enableRestServer;
     private boolean enableAuth;
     private boolean enableTls;
-    private String tlsProtocolVersion;
+    private String[] tlsProtocolVersion;
     private String certFile;
     private String passwd;
     private String userName;

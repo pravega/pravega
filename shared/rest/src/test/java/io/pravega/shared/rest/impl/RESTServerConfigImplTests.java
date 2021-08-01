@@ -16,6 +16,7 @@
 package io.pravega.shared.rest.impl;
 
 import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
@@ -28,7 +29,7 @@ public class RESTServerConfigImplTests {
 
     @Test
     public void testToStringIsSuccessfulWithAllConfigSpecified() {
-        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true, "/passwd", true, "TLSv1.2,TLSv1.3",
+        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true, "/passwd", true, SecurityConfigDefaults.TLS_PROTOCOL_VERSION,
                 "/rest.keystore.jks", "/keystore.jks.passwd");
         assertNotNull(config.toString());
     }

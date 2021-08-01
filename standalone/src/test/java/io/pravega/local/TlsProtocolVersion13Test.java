@@ -23,7 +23,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 public class TlsProtocolVersion13Test {
 
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource.PravegaEmulatorResourceBuilder(false, true, false).tlsProtocolVersion("TLSv1.3").build();
+    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().tlsEnabled(true).tlsProtocolVersion("TLSv1.3").build();
 
     @Test(timeout = 30000)
     public void testTlsProtocolVersiontls1_3() throws Exception {

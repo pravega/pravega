@@ -34,7 +34,7 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
     private final TLSConfigChangeHandler handler;
 
     public TLSConfigChangeEventConsumer(AtomicReference<SslContext> sslContext, String pathToCertificateFile,
-                                 String pathToKeyFile, String tlsProtocolVersion) {
+                                 String pathToKeyFile, String[] tlsProtocolVersion) {
         handler = new TLSConfigChangeHandler(sslContext, pathToCertificateFile, pathToKeyFile, tlsProtocolVersion);
     }
 

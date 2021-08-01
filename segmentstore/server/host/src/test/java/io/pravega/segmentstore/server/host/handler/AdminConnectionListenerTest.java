@@ -34,12 +34,11 @@ import static org.mockito.Mockito.mock;
 
 public class AdminConnectionListenerTest {
 
-    private String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     @Test
     public void testCreateEncodingStack() {
         @Cleanup
         AdminConnectionListener listener = new AdminConnectionListener(false, false, "localhost",
-                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, tlsProtocolVersion);
+                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         List<ChannelHandler> stack = listener.createEncodingStack("connection");
         // Check that the order of encoders is the right one.
         Assert.assertTrue(stack.get(0) instanceof ExceptionLoggingHandler);
@@ -52,7 +51,7 @@ public class AdminConnectionListenerTest {
     public void testCreateRequestProcessor() {
         @Cleanup
         AdminConnectionListener listener = new AdminConnectionListener(false, false, "localhost",
-                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, tlsProtocolVersion);
+                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         Assert.assertTrue(listener.createRequestProcessor(new TrackedConnection(new ServerConnectionInboundHandler())) instanceof AdminRequestProcessorImpl);
     }
 }
