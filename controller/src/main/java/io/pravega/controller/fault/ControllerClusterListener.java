@@ -22,6 +22,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +66,26 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.cluster = cluster;
         this.executor = executor;
         this.sweepers = Lists.newArrayList(sweepers);
+    }
+
+    public boolean isZKConnected() {
+        if (cluster instanceof ClusterZKImpl) {
+            return ((ClusterZKImpl) cluster).isZKConnected();
+        }
+        return false;
+    }
+
+    public boolean isSweepersReady() {
+        for (int i = 0; i < sweepers.size(); i++) {
+             if (!sweepers.get(i).isReady()) {
+                 return false;
+             }
+        }
+        return true;
+    }
+
+    public boolean isReady() {
+        return isZKConnected() && isSweepersReady();
     }
 
     @Override

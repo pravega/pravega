@@ -47,12 +47,20 @@ public class ZKStoreHelper {
     @VisibleForTesting
     @Getter(AccessLevel.PUBLIC)
     private final Cache cache;
+    @Getter
+    private boolean isZKConnected = true;
 
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
         this.cache = new Cache();
+        //Listen for any zookeeper connectivity error and relinquish leadership.
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    this.isZKConnected = newState.isConnected();
+                });
     }
+
 
     /**
      * List Scopes in the cluster.
@@ -442,7 +450,7 @@ public class ZKStoreHelper {
         }
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
         // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
         // based on the type in caller's supplied Deserialization function. 
@@ -479,7 +487,6 @@ public class ZKStoreHelper {
         }
 
         @Override
-        @SuppressWarnings("rawtypes")
         public boolean equals(Object obj) {
             return obj instanceof ZkCacheKey 
                     && path.equals(((ZkCacheKey) obj).path)

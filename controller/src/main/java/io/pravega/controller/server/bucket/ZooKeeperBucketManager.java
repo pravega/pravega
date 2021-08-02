@@ -45,6 +45,10 @@ public class ZooKeeperBucketManager extends BucketManager {
         this.bucketStore = bucketStore;
     }
 
+    public boolean isZKConnected() {
+        return this.bucketStore.isZKConnected();
+    }
+
     @Override
     protected int getBucketCount() {
         return bucketStore.getBucketCount(getServiceType());

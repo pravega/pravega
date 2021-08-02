@@ -47,7 +47,14 @@ import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.shared.health.HealthServiceManager;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.rest.RESTServer;
+import io.pravega.controller.server.health.ClusterListenerHealthContributor;
+import io.pravega.controller.server.health.EventProcessorHealthContributor;
+import io.pravega.controller.server.health.GRPCServerHealthContributor;
+import io.pravega.controller.server.health.RetentionServiceHealthContributor;
+import io.pravega.controller.server.health.SegmentContainerMonitorHealthContributor;
+import io.pravega.controller.server.health.WatermarkingServiceHealthContributor;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -341,10 +348,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 controllerClusterListener.startAsync();
             }
 
-            // Start the Health Service.
-            healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
-            healthServiceManager.start();
-
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
@@ -353,6 +356,19 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 grpcServer.awaitRunning();
             }
 
+            healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
+            HealthContributor rootContrib = healthServiceManager.getRoot();
+            SegmentContainerMonitorHealthContributor  segContainerMonitorHC  = new SegmentContainerMonitorHealthContributor("segmentcontainermontor", monitor );
+            GRPCServerHealthContributor grpcServerHC =  new GRPCServerHealthContributor("grpc",  grpcServer);
+            ClusterListenerHealthContributor clusterListenerHC = new ClusterListenerHealthContributor("clusterlistener", controllerClusterListener);
+            EventProcessorHealthContributor eventProcessorHC = new EventProcessorHealthContributor("eventprocessor", controllerEventProcessors);
+            RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionservice", retentionService);
+            WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingservice", watermarkingService);
+
+            rootContrib.register(segContainerMonitorHC, grpcServerHC, clusterListenerHC, eventProcessorHC, retentionServiceHC, watermarkingServiceHC );
+
+            // Start the Health Service.
+            healthServiceManager.start();
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
                 restServer = new RESTServer(serviceConfig.getRestServerConfig().get(),

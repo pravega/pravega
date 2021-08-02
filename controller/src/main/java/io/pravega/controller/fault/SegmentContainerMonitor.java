@@ -19,6 +19,8 @@ import io.pravega.controller.store.host.HostControllerStore;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
@@ -40,6 +42,10 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
+
+    @Getter
+    private boolean isZKConnected = true;
+
 
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
@@ -64,6 +70,7 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
+                    this.isZKConnected = newState.isConnected();
                     switch (newState) {
                         case LOST:
                             log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");

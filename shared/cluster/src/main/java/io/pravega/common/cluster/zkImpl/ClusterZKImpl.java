@@ -21,6 +21,7 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.ClusterListener;
 import io.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -64,6 +65,9 @@ public class ClusterZKImpl implements Cluster {
 
     private final CuratorFramework client;
 
+    @Getter
+    private boolean isZKConnected = true;
+
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
@@ -73,6 +77,8 @@ public class ClusterZKImpl implements Cluster {
         if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
         }
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> this.isZKConnected = newState.isConnected());
     }
 
     /**
