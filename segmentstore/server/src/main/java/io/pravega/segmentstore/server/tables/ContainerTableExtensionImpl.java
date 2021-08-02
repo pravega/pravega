@@ -178,18 +178,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<Void> merge(@NonNull String targetSegmentName, @NonNull String sourceSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("merge");
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("seal");
-    }
-
-    @Override
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
         return put(segmentName, entries, TableSegmentLayout.NO_OFFSET, timeout);
     }
