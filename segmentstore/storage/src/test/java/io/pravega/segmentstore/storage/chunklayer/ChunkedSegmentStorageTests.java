@@ -2572,18 +2572,18 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build());
-        if (!(testContext.metadataStore instanceof InMemoryMetadataStore)) {
-            return;
-        }
-
-        // Simulate some writes to system segment, this should cause some new chunks being added.
-        val n = 4;
-        val data = new byte[n][100];
+        // Force parallel writes irrespective of thread pool size for tests themselves.
+        val writeSize = 10;
+        val numWrites = 10;
+        val numOfStorageSystemSegments = SystemJournal.getChunkStorageSystemSegments(CONTAINER_ID).length;
+        val data = new byte[numOfStorageSystemSegments][writeSize * numWrites];
 
         var futures = new ArrayList<CompletableFuture<Void>>();
+        // To make sure all write operations are concurrent.
         @Cleanup("shutdownNow")
-        ExecutorService executor = Executors.newFixedThreadPool(n);
-        for (int i = 0; i < n; i++) {
+        ExecutorService executor = Executors.newFixedThreadPool(numOfStorageSystemSegments);
+
+        for (int i = 0; i < numOfStorageSystemSegments; i++) {
             final int k = i;
             futures.add(CompletableFuture.runAsync(() -> {
 
@@ -2592,15 +2592,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 val h = testContext.chunkedSegmentStorage.create(systemSegmentName, null).join();
                 // Init
                 long offset = 0;
-                for (int j = 0; j < 10; j++) {
-                    testContext.chunkedSegmentStorage.write(h, offset, new ByteArrayInputStream(data[k], 10 * j, 10), 10, null).join();
-                    offset += 10;
+                for (int j = 0; j < numWrites; j++) {
+                    testContext.chunkedSegmentStorage.write(h, offset, new ByteArrayInputStream(data[k], writeSize * j, writeSize), writeSize, null).join();
+                    offset += writeSize;
                 }
                 val info = testContext.chunkedSegmentStorage.getStreamSegmentInfo(systemSegmentName, null).join();
-                Assert.assertEquals(100, info.getLength());
-                byte[] out = new byte[100];
+                Assert.assertEquals(writeSize * numWrites, info.getLength());
+                byte[] out = new byte[writeSize * numWrites];
                 val hr = testContext.chunkedSegmentStorage.openRead(systemSegmentName).join();
-                testContext.chunkedSegmentStorage.read(hr, 0, out, 0, 100, null).join();
+                testContext.chunkedSegmentStorage.read(hr, 0, out, 0, writeSize * numWrites, null).join();
                 Assert.assertArrayEquals(data[k], out);
             }, executor));
         }

@@ -34,8 +34,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
@@ -1234,34 +1232,32 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        // Simulate some writes to system segment, this should cause some new chunks being added.
-        val n = 4;
-        val data = new byte[n][100];
+        val writeSize = 10;
+        val numWrites = 10;
+        val numOfStorageSystemSegments = SystemJournal.getChunkStorageSystemSegments(containerId).length;
+        val data = new byte[numOfStorageSystemSegments][writeSize * numWrites];
 
-        Random rnd = new Random();
         var futures = new ArrayList<CompletableFuture<Void>>();
-        @Cleanup("shutdownNow")
-        ExecutorService executor = Executors.newFixedThreadPool(n);
-        for (int i = 0; i < n; i++) {
+        val rnd = new Random(0);
+        for (int i = 0; i < numOfStorageSystemSegments; i++) {
             final int k = i;
             futures.add(CompletableFuture.runAsync(() -> {
-
                 rnd.nextBytes(data[k]);
                 String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[k];
                 val h = segmentStorage1.openWrite(systemSegmentName).join();
                 // Init
                 long offset = 0;
-                for (int j = 0; j < 10; j++) {
-                    segmentStorage1.write(h, offset, new ByteArrayInputStream(data[k], 10 * j, 10), 10, null).join();
-                    offset += 10;
+                for (int j = 0; j < numWrites; j++) {
+                    segmentStorage1.write(h, offset, new ByteArrayInputStream(data[k], writeSize * j, writeSize), writeSize, null).join();
+                    offset += writeSize;
                 }
                 val info = segmentStorage1.getStreamSegmentInfo(systemSegmentName, null).join();
-                Assert.assertEquals(100, info.getLength());
-                byte[] out = new byte[100];
+                Assert.assertEquals(writeSize * numWrites, info.getLength());
+                byte[] out = new byte[writeSize * numWrites];
                 val hr = segmentStorage1.openRead(systemSegmentName).join();
-                segmentStorage1.read(hr, 0, out, 0, 100, null).join();
+                segmentStorage1.read(hr, 0, out, 0, writeSize * numWrites, null).join();
                 Assert.assertArrayEquals(data[k], out);
-            }, executor));
+            }, executorService()));
         }
 
         Futures.allOf(futures).join();
@@ -1279,13 +1275,13 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage2);
 
         // Validate
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < numOfStorageSystemSegments; i++) {
             String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[i];
             val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
-            Assert.assertEquals(100, info.getLength());
-            byte[] out = new byte[100];
+            Assert.assertEquals(writeSize * numWrites, info.getLength());
+            byte[] out = new byte[writeSize * numWrites];
             val hr = segmentStorage2.openRead(systemSegmentName).join();
-            segmentStorage2.read(hr, 0, out, 0, 100, null).join();
+            segmentStorage2.read(hr, 0, out, 0, writeSize * numWrites, null).join();
             Assert.assertArrayEquals(data[i], out);
         }
     }

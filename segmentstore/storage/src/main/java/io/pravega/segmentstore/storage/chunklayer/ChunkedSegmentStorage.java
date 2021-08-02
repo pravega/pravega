@@ -755,6 +755,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     private <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... segmentNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (segmentNames.length == 1 && this.systemJournal.isStorageSystemSegment(segmentNames[0])) {
+            // To maintain consistency of snapshot, all operations on any of the storage system segments are linearized
+            // on the entire group.
             val segments = this.systemJournal.getSystemSegments();
             return this.taskProcessor.add(Arrays.asList(segments), () -> executeExclusive(operation, segments));
         } else {
