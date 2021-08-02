@@ -265,6 +265,7 @@ public class MetadataTransaction implements AutoCloseable {
         if (!isCommitted || isAborted) {
             store.abort(this);
         }
+        store.closeTransaction(this);
     }
 }
 

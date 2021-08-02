@@ -544,7 +544,7 @@ public class SystemJournal {
                                     val oldSnapshotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, oldSnapshotInfo.getSnapshotId());
                                     pendingGarbageChunks.add(oldSnapshotFile);
                                 }
-                                garbageCollector.addToGarbage(pendingGarbageChunks);
+                                garbageCollector.addChunksToGarbage(-1, pendingGarbageChunks);
                                 pendingGarbageChunks.clear();
                             }, executor)
                             .exceptionally(e -> {
