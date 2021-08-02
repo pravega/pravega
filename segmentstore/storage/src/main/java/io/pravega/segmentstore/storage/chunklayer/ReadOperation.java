@@ -87,6 +87,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Integer> call() {
         // Validate preconditions.
         checkPreconditions();
@@ -287,7 +288,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                         } else {
                             SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY.reportSuccessEvent(indexLookupTimer.getElapsed());
                         }
-                    });
+                    }, chunkedSegmentStorage.getExecutor());
         } else {
            f = CompletableFuture.completedFuture(null);
         }

@@ -29,15 +29,23 @@ plugins.withId('java') {
                 "-Xlint:finally",
                 "-Xlint:overrides",
                 "-Xlint:path",
-                "-Werror",
                 "-Xlint:unchecked",
+                "-Werror",
                 "--release",
                 getDefaultJavaVersion()
         ])
     }
 
     compileTestJava {
-        options.compilerArgs.addAll(["--release",  getDefaultJavaVersion()])
+        options.compilerArgs.addAll([                
+                "-Xlint:empty",
+                "-Xlint:fallthrough",
+                "-Xlint:finally",
+                "-Xlint:overrides",
+                "-Xlint:path",
+                "-Werror",
+                "--release",
+                getDefaultJavaVersion()])
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
@@ -116,7 +124,9 @@ plugins.withId('java') {
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println("${styler['red'](${descriptor.getClassName()}.${descriptor.getDisplayName()} + " FAILED" )} Output (Last 300 lines):")
+                def red = new String((char) 27) + "[31m"
+                def black = new String((char) 27) + "[0m"
+                println("${red}${descriptor.getClassName()}.${descriptor.getDisplayName()} FAILED. Output (Last 300 lines):${black}")
                 outputCache.each { print(" > $it") }
             }
         }

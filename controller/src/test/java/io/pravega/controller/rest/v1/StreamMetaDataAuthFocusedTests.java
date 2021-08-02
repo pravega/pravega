@@ -25,8 +25,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
@@ -34,8 +36,8 @@ import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -50,6 +52,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -64,18 +67,19 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
+import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -186,7 +190,7 @@ public class StreamMetaDataAuthFocusedTests {
                 .port(1000)
                 .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        authManager.registerInterceptors(server);
+        GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
 
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
@@ -194,8 +198,12 @@ public class StreamMetaDataAuthFocusedTests {
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory);
+        restServer = new RESTServer(serverConfig,
+                Set.of(new StreamMetadataResourceImpl(controller,
+                        mockControllerService,
+                        authManager,
+                        connectionFactory,
+                        ClientConfig.builder().build())));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -235,7 +243,7 @@ public class StreamMetaDataAuthFocusedTests {
     public void testListScopesReturnsAllScopesForUserWithPermissionOnRootAndChildren() {
         // Arrange
         final String resourceURI = getURI() + "v1/scopes";
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scopea", "scopeb", "scopec")));
         Invocation requestInvocation = this.invocationBuilder(resourceURI, USER_SCOPE_LISTER, DEFAULT_PASSWORD)
                 .buildGet();
@@ -254,7 +262,7 @@ public class StreamMetaDataAuthFocusedTests {
     public void testListScopesReturnsFilteredResults() throws ExecutionException, InterruptedException {
         // Arrange
         final String resourceURI = getURI() + "v1/scopes";
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scope1", "scope2", "scope3")));
         Invocation requestInvocation = this.invocationBuilder(resourceURI, USER_ACCESS_TO_SUBSET_OF_SCOPES, DEFAULT_PASSWORD)
                 .buildGet();
@@ -274,7 +282,7 @@ public class StreamMetaDataAuthFocusedTests {
     public void testListScopesReturnsUnauthorizedStatusForInvalidUser() {
         // Arrange
         final String resourceURI = getURI() + "v1/scopes";
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scope1", "scope2", "scope3")));
         Invocation requestInvocation = this.invocationBuilder(resourceURI, "fictitiousUser", "whatever")
                 .buildGet();
@@ -292,7 +300,7 @@ public class StreamMetaDataAuthFocusedTests {
     public void testListScopesIsForbiddenForValidButUnauthorizedUser() {
         // Arrange
         final String resourceURI = getURI() + "v1/scopes";
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scope1", "scope2", "scope3")));
         Invocation requestInvocation = this.invocationBuilder(resourceURI,
                 USER_WITH_NO_AUTHORIZATIONS, DEFAULT_PASSWORD)
@@ -337,7 +345,7 @@ public class StreamMetaDataAuthFocusedTests {
         createScope(scopeName, "privilegedUser", DEFAULT_PASSWORD);
 
         final String resourceUri = getURI() + "v1/scopes/" + scopeName;
-        when(mockControllerService.deleteScope(scopeName)).thenReturn(
+        when(mockControllerService.deleteScope(eq(scopeName), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(
                         Controller.DeleteScopeStatus.newBuilder().setStatus(
                                 Controller.DeleteScopeStatus.Status.SUCCESS).build()));
@@ -406,7 +414,7 @@ public class StreamMetaDataAuthFocusedTests {
         createStreamRequest.setScalingPolicy(scalingPolicy);
         createStreamRequest.setRetentionPolicy(retentionPolicy);
 
-        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(createStreamStatus);
         Response response = this.invocationBuilder(streamResourceURI, username, password)
                                 .buildPost(Entity.json(createStreamRequest))
                                 .invoke();
@@ -426,7 +434,8 @@ public class StreamMetaDataAuthFocusedTests {
 
         Map<String, StreamConfiguration> streamsList = ImmutableMap.of("stream1", this.aStreamConfig(),
                                                                        "stream2", this.aStreamConfig());
-        when(mockControllerService.listStreamsInScope("myscope")).thenReturn(CompletableFuture.completedFuture(streamsList));
+        when(mockControllerService.listStreamsInScope(eq("myscope"), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(streamsList));
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
@@ -435,7 +444,7 @@ public class StreamMetaDataAuthFocusedTests {
 
         // Assert
         assertEquals(HTTP_STATUS_OK, response.getStatus());
-        assertEquals(null, listedStreams.getStreams());
+        Assert.assertTrue(listedStreams.getStreams().isEmpty());
 
         response.close();
     }
@@ -449,7 +458,8 @@ public class StreamMetaDataAuthFocusedTests {
                 "stream1", this.aStreamConfig(),
                 "stream2", this.aStreamConfig(),
                 "stream3", this.aStreamConfig());
-        when(mockControllerService.listStreamsInScope("myscope")).thenReturn(CompletableFuture.completedFuture(streamsList));
+        when(mockControllerService.listStreamsInScope(eq("myscope"), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(streamsList));
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
@@ -472,7 +482,8 @@ public class StreamMetaDataAuthFocusedTests {
                 "stream1", this.aStreamConfig(),
                 "stream2", this.aStreamConfig(),
                 "stream3", this.aStreamConfig());
-        when(mockControllerService.listStreamsInScope("myscope")).thenReturn(CompletableFuture.completedFuture(streamsList));
+        when(mockControllerService.listStreamsInScope(eq("myscope"), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(streamsList));
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
@@ -494,7 +505,8 @@ public class StreamMetaDataAuthFocusedTests {
         String resourceURI = getURI() + "v1/scopes/myscope/streams/stream1/state";
 
         // Test to seal a stream.
-        when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.sealStream(eq("myscope"), eq("stream1"), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI, USER_PRIVILEGED, DEFAULT_PASSWORD)
@@ -509,7 +521,7 @@ public class StreamMetaDataAuthFocusedTests {
         String resourceURI = getURI() + "v1/scopes/myscope/streams/stream1/state";
 
         // Test to seal a stream.
-        when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.sealStream(eq("myscope"), eq("stream1"), anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI, USER_ACCESS_TO_SCOPE_WRITE_SPECIFIC_STREAM, DEFAULT_PASSWORD)
@@ -525,7 +537,7 @@ public class StreamMetaDataAuthFocusedTests {
         String resourceURI = getURI() + "v1/scopes/myscope/streams/stream1/state";
 
         // Test to seal a stream.
-        when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.sealStream(eq("myscope"), eq("stream1"), anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI,
@@ -542,7 +554,7 @@ public class StreamMetaDataAuthFocusedTests {
         String resourceURI = getURI() + "v1/scopes/myscope/streams/stream1/state";
 
         // Test to seal a stream.
-        when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.sealStream(eq("myscope"), eq("stream1"), anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI,
@@ -592,7 +604,7 @@ public class StreamMetaDataAuthFocusedTests {
         final CreateScopeRequest createScopeRequest = new CreateScopeRequest().scopeName(scopeName);
 
         // Test to create a new scope.
-        when(mockControllerService.createScope(scopeName)).thenReturn(CompletableFuture.completedFuture(
+        when(mockControllerService.createScope(eq(scopeName), anyLong())).thenReturn(CompletableFuture.completedFuture(
                 Controller.CreateScopeStatus.newBuilder().setStatus(
                         Controller.CreateScopeStatus.Status.SUCCESS).build()));
         return invocationBuilder(resourceURI, username, password).buildPost(Entity.json(createScopeRequest)).invoke();
@@ -613,7 +625,7 @@ public class StreamMetaDataAuthFocusedTests {
     private Response deleteScope(String scopeName, String username, String password) {
         final String resourceUri = getURI() + "v1/scopes/" + scopeName;
 
-        when(mockControllerService.deleteScope(scopeName)).thenReturn(
+        when(mockControllerService.deleteScope(eq(scopeName), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(
                         Controller.DeleteScopeStatus.newBuilder().setStatus(
                                 Controller.DeleteScopeStatus.Status.SUCCESS).build()));
@@ -624,7 +636,7 @@ public class StreamMetaDataAuthFocusedTests {
 
     private ScopesList listScopes(List<String> scopeNames, String username, String password) {
         final String resourceURI = getURI() + "v1/scopes";
-        when(mockControllerService.listScopes())
+        when(mockControllerService.listScopes(anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(scopeNames));
         Invocation requestInvocation = this.invocationBuilder(resourceURI, username, password)
                 .buildGet();

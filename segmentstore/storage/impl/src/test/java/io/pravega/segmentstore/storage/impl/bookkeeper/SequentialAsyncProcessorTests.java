@@ -25,6 +25,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -57,6 +58,7 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
         val retry = Retry.withExpBackoff(1, 2, 3)
                          .retryWhen(t -> true);
         val error = new AtomicReference<Throwable>();
+        @Cleanup
         val p = new SequentialAsyncProcessor(
                 () -> {
                     count.incrementAndGet();
@@ -98,6 +100,7 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
                              return Exceptions.unwrap(t) instanceof IntentionalException;
                          });
         val error = new CompletableFuture<Throwable>();
+        @Cleanup
         val p = new SequentialAsyncProcessor(
                 () -> {
                     count.incrementAndGet();

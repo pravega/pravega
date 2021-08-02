@@ -23,7 +23,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import lombok.Builder;
@@ -128,7 +127,7 @@ public class TableSegmentKeyVersion implements Serializable {
      * {@link java.io.ObjectOutputStream} is preparing to write the object to the stream.
      */
     @SneakyThrows(IOException.class)
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new TableSegmentKeyVersion.SerializedForm(SERIALIZER.serialize(this).getCopy());
     }
 
@@ -138,7 +137,7 @@ public class TableSegmentKeyVersion implements Serializable {
         private final byte[] value;
 
         @SneakyThrows(IOException.class)
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }

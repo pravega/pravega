@@ -36,6 +36,7 @@ import org.junit.Test;
  */
 public abstract class ControllerServiceMainTest {
     private static final CompletableFuture<Void> INVOKED = new CompletableFuture<>();
+    
     protected StoreClientConfig storeClientConfig;
 
     private final boolean disableControllerCluster;

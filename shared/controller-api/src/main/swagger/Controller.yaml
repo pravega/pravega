@@ -18,7 +18,7 @@
 
 swagger: "2.0"
 info:
-  description: "List of admin REST APIs for the pravega controller service."
+  description: "List of admin REST APIs for the Pravega controller service."
   version: "0.0.1"
   title: Pravega Controller APIs
   license:
@@ -26,30 +26,35 @@ info:
     url: "http://www.apache.org/licenses/LICENSE-2.0"
 basePath: "/v1"
 tags:
-- name: "Scopes"
-  description: "Scope related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
-- name: "Streams"
-  description: "Stream related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
-- name: "ReaderGroups"
-  description: "Reader group related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
+  - name: "Scopes"
+    description: "Scope related APIs"
+    externalDocs:
+      description: "Find out more about Pravega"
+      url: "https://pravega.io"
+  - name: "Streams"
+    description: "Stream related APIs"
+    externalDocs:
+      description: "Find out more about Pravega"
+      url: "https://pravega.io"
+  - name: "ReaderGroups"
+    description: "Reader group related APIs"
+    externalDocs:
+      description: "Find out more about Pravega"
+      url: "https://pravega.io"
+  - name: "Health"
+    description: "Health check related APIs"
+    externalDocs:
+      description: "Find out more about Pravega"
+      url: "https://pravega.io/docs/nightly/pravega-concepts/"
 schemes:
   - http
 paths:
   /scopes:
     get:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: listScopes
-      description: List all available scopes in pravega
+      description: List all available scopes in Pravega
       produces:
         - application/json
       responses:
@@ -61,7 +66,7 @@ paths:
           description: Internal server error while fetching list of scopes
     post:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: createScope
       description: Create a new scope
       consumes:
@@ -96,7 +101,7 @@ paths:
         type: string
     get:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: getScope
       description: Retrieve details of an existing scope
       produces:
@@ -112,7 +117,7 @@ paths:
           description: Internal server error while fetching scope details
     delete:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: deleteScope
       description: Delete a scope
       responses:
@@ -133,11 +138,17 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       parameters:
         - in: query
-          name: showInternalStreams
-          description: Optional flag whether to display system created streams. If not specified only user created streams will be returned
+          name: filter_type
+          description: Filter options
+          required: false
+          type: string
+          enum: [showInternalStreams, tag]
+        - in: query
+          name: filter_value
+          description: value to be passed. must match the type passed with it.
           required: false
           type: string
       operationId: listStreams
@@ -155,7 +166,7 @@ paths:
           description: Internal server error while fetching the list of streams for the given scope
     post:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: createStream
       description: Create a new stream
       consumes:
@@ -171,9 +182,11 @@ paths:
               streamName:
                 type: string
               scalingPolicy:
-                  $ref: "#/definitions/ScalingConfig"
+                $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionConfig"
+                $ref: "#/definitions/RetentionConfig"
+              streamTags:
+                $ref: "#/definitions/TagsList"
       produces:
         - application/json
       responses:
@@ -201,7 +214,7 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: getStream
       description: Fetch the properties of an existing stream
       produces:
@@ -217,7 +230,7 @@ paths:
           description: Internal server error while fetching stream details
     put:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: updateStream
       description: Update configuration of an existing stream
       consumes:
@@ -231,9 +244,11 @@ paths:
             type: object
             properties:
               scalingPolicy:
-                  $ref: "#/definitions/ScalingConfig"
+                $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionConfig"
+                $ref: "#/definitions/RetentionConfig"
+              streamTags:
+                $ref: "#/definitions/TagsList"
       produces:
         - application/json
       responses:
@@ -247,7 +262,7 @@ paths:
           description: Internal server error while updating the stream
     delete:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: deleteStream
       description: Delete a stream
       responses:
@@ -273,7 +288,7 @@ paths:
         type: string
     put:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: updateStreamState
       description: Updates the current state of the stream
       consumes:
@@ -310,7 +325,7 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       parameters:
         - in: query
           name: from
@@ -346,7 +361,7 @@ paths:
         type: string
     get:
       tags:
-      - "ReaderGroups"
+        - "ReaderGroups"
       operationId: listReaderGroups
       description: List reader groups within the given scope
       produces:
@@ -374,7 +389,7 @@ paths:
         type: string
     get:
       tags:
-      - "ReaderGroups"
+        - "ReaderGroups"
       operationId: getReaderGroup
       description: Fetch the properties of an existing reader group
       produces:
@@ -388,7 +403,202 @@ paths:
           description: Scope or reader group with given name not found
         500:
           description: Internal server error while fetching reader group details
+  /health:
+    get:
+      tags:
+        - "Health"
+      operationId: getHealth
+      description: Return the Health of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The Health result of the Controller.
+          schema:
+            $ref: "#/definitions/HealthResult"
+        500:
+          description: Internal server error while fetching the Health.
+  /health/readiness:
+    get:
+      tags:
+        - "Health"
+      operationId: getReadiness
+      description: Fetch the ready state of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The ready status.
+          schema:
+            type: boolean
+        500:
+          description: Internal server error while fetching the ready state of the Controller.
+  /health/liveness:
+    get:
+      tags:
+        - "Health"
+      operationId: getLiveness
+      description: Fetch the liveness state of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The alive status.
+          schema:
+            type: boolean
+        500:
+          description: Internal server error while fetching the liveness state of the Controller.
+  /health/details:
+    get:
+      tags:
+        - "Health"
+      operationId: getDetails
+      description: Fetch the details of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of details.
+          schema:
+            $ref: "#/definitions/HealthDetails"
+        500:
+          description: Internal server error while fetching the health details of the Controller.
+  /health/status:
+    get:
+      tags:
+        - "Health"
+      operationId: getStatus
+      description: Fetch the status of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The health status of the Controller.
+          schema:
+            $ref: "#/definitions/HealthStatus"
+        500:
+          description: Internal server error while fetching the health status of the Controller.
+  /health/{id}:
+    parameters:
+      - in: path
+        name: id
+        type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorHealth
+      description: Return the Health of a health contributor with a given id.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The Health result of the Controller.
+          schema:
+            $ref: "#/definitions/HealthResult"
+        404:
+          description: "A health provider for the given id could not be found."
+        500:
+          description: Internal server error while fetching the health for a given contributor.
+  /health/readiness/{id}:
+    parameters:
+      - in: path
+        name: id
+        type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorReadiness
+      description: Fetch the ready state of the health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The readiness status for the health contributor with given id.
+          schema:
+            type: boolean
+        404:
+          description: "The readiness status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the ready state for a given health contributor.
+  /health/liveness/{id}:
+    parameters:
+      - in: path
+        name: id
+        type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorLiveness
+      description: Fetch the liveness state of the specified health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The alive status for the specified health contributor.
+          schema:
+            type: boolean
+        404:
+          description: "The liveness status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the liveness state for a given health contributor.
+  /health/details/{id}:
+    parameters:
+      - in: path
+        name: id
+        type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorDetails
+      description: Fetch the details of a specific health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of details for the health contributor with a given id.
+          schema:
+            $ref: "#/definitions/HealthDetails"
+        404:
+          description: "The health details for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the health details for a given health contributor.
+  /health/status/{id}:
+    parameters:
+      - in: path
+        name: id
+        type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorStatus
+      description: Fetch the status of a specific health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The health status of the Controller.
+          schema:
+            $ref: "#/definitions/HealthStatus"
+        404:
+          description: "The health status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the health status of a given health contributor.
 definitions:
+  TagsList:
+    type: array
+    items:
+      type: string
+      maxLength: 256
   ScalingEventList:
     type: object
     properties:
@@ -423,18 +633,20 @@ definitions:
       streamName:
         type: string
       scalingPolicy:
-          $ref: "#/definitions/ScalingConfig"
+        $ref: "#/definitions/ScalingConfig"
       retentionPolicy:
-          $ref: "#/definitions/RetentionConfig"
+        $ref: "#/definitions/RetentionConfig"
+      tags:
+        $ref: "#/definitions/TagsList"
   ScalingConfig:
     type: object
     properties:
       type:
         type: string
         enum:
-        - FIXED_NUM_SEGMENTS
-        - BY_RATE_IN_KBYTES_PER_SEC
-        - BY_RATE_IN_EVENTS_PER_SEC
+          - FIXED_NUM_SEGMENTS
+          - BY_RATE_IN_KBYTES_PER_SEC
+          - BY_RATE_IN_EVENTS_PER_SEC
       targetRate:
         type: integer
         format: int32
@@ -469,7 +681,7 @@ definitions:
       streamState:
         type: string
         enum:
-        - SEALED
+          - SEALED
   ScaleMetadata:
     type: object
     properties:
@@ -538,3 +750,33 @@ definitions:
       minutes:
         type: integer
         format: int64
+  HealthResult:
+    type: object
+    properties:
+      name:
+        type: string
+      status:
+        $ref: "#/definitions/HealthStatus"
+      readiness:
+        type: boolean
+      liveness:
+        type: boolean
+      details:
+        $ref: "#/definitions/HealthDetails"
+      children:
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/HealthResult"
+  HealthStatus:
+    type: string
+    enum:
+      - UP
+      - STARTING
+      - NEW
+      - UNKNOWN
+      - FAILED
+      - DOWN
+  HealthDetails:
+    type: object
+    additionalProperties:
+        type: string

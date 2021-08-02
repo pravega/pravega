@@ -300,11 +300,11 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         write30ByteEvents(3, writer);
     }
 
-    private void createStream() throws InterruptedException {
+    private void createStream() {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controllerWrapper.getControllerService().createScope(SCOPE).join();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).join();
         assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
     }
 

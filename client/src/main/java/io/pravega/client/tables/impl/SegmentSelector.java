@@ -15,17 +15,20 @@
  */
 package io.pravega.client.tables.impl;
 
-import io.netty.buffer.ByteBuf;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.NonNull;
 
 /**
@@ -34,6 +37,8 @@ import lombok.NonNull;
 class SegmentSelector implements AutoCloseable {
     //region Members
 
+    @Getter
+    private final KeyValueTableInfo kvt;
     private final TableSegmentFactory tableSegmentFactory;
     private final KeyValueTableSegments segmentsByRange;
     @GuardedBy("segments")
@@ -52,6 +57,7 @@ class SegmentSelector implements AutoCloseable {
      * @param tableSegmentFactory A {@link TableSegmentFactory} to create {@link TableSegment} instances.
      */
     SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller, @NonNull TableSegmentFactory tableSegmentFactory) {
+        this.kvt = kvt;
         this.tableSegmentFactory = tableSegmentFactory;
         this.segmentsByRange = initializeSegments(kvt, controller);
         assert this.segmentsByRange != null;
@@ -80,30 +86,18 @@ class SegmentSelector implements AutoCloseable {
     //region Operations
 
     /**
-     * Gets the {@link TableSegment} that maps to the given Key Family.
+     * Gets the {@link TableSegment} that maps the given Key.
      *
-     * @param keyFamily The Key Family to query.
-     * @return A {@link TableSegment}.
+     * @param key The Key to query.
+     * @return The {@link TableSegment} that maps to the given key.
      */
-    TableSegment getTableSegment(@NonNull String keyFamily) {
-        return getTableSegment(keyFamily, null);
+    TableSegment getTableSegment(@NonNull ByteBuffer key) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Segment s = this.segmentsByRange.getSegmentForKey(key.duplicate());
+        return getTableSegment(s);
     }
 
-    /**
-     * Gets the {@link TableSegment} that maps to either the given Key Family or Key.
-     *
-     * @param keyFamily The Key Family to query.
-     * @param key       The Key to query.
-     * @return If Key Family is null, the {@link TableSegment} that maps to the given key. If Key Family != null,
-     * returns {@link #getTableSegment(String)}.
-     */
-    TableSegment getTableSegment(String keyFamily, ByteBuf key) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        assert keyFamily != null || key != null;
-        Segment s = keyFamily == null
-                ? this.segmentsByRange.getSegmentForKey(key)
-                : this.segmentsByRange.getSegmentForKey(keyFamily);
-
+    private TableSegment getTableSegment(Segment s) {
         synchronized (this.segments) {
             TableSegment ts = this.segments.get(s);
             if (ts == null) {
@@ -113,6 +107,16 @@ class SegmentSelector implements AutoCloseable {
 
             return ts;
         }
+    }
+
+    /**
+     * Gets a Collection of all the {@link TableSegment}s for the KeyValueTable this {@link SegmentSelector} manages.
+     *
+     * @return A Collection of all {@link TableSegment}s in the KeyValueTable.
+     */
+    Collection<TableSegment> getAllTableSegments() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return this.segmentsByRange.getSegments().stream().map(this::getTableSegment).collect(Collectors.toList());
     }
 
     /**

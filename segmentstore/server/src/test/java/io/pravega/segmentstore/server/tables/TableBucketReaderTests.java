@@ -20,6 +20,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -132,7 +133,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
                 executorService());
 
         val deletedResult = reader.find(deletedKey.getKey(), 0L, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertNull("Expecting a TableEntry with null value for deleted key..", deletedResult.getValue());
+        Assert.assertNull("Expecting a TableEntry with null value for deleted key.", deletedResult.getValue());
 
         // Inexistent key (that did not exist previously).
         val inexistentKey = entries.get(1).getKey();

@@ -16,7 +16,9 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -32,11 +34,9 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -54,7 +54,7 @@ public class OperationMetadataUpdaterTests {
     private static final int CONTAINER_ID = 1;
     private static final int MAX_ACTIVE_SEGMENT_COUNT = TRANSACTION_COUNT * 100;
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
-    private static final UUID PARENT_ID = new UUID(1234, 1234);
+    private static final AttributeId PARENT_ID = AttributeId.uuid(1234, 1234);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(30);
     private final Supplier<Integer> nextAppendLength = () -> Math.max(1, (int) System.nanoTime() % 1000);
@@ -97,7 +97,7 @@ public class OperationMetadataUpdaterTests {
         updater.commitAll();
 
         // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
-        referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
+        referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshDerivedProperties);
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit", referenceMetadata, metadata);
     }
 
@@ -249,7 +249,7 @@ public class OperationMetadataUpdaterTests {
                 updater.commitAll();
 
                 // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
-                referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
+                referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshDerivedProperties);
                 ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + i, referenceMetadata, metadata);
             }
         }
@@ -333,7 +333,7 @@ public class OperationMetadataUpdaterTests {
     private void recordAppend(long segmentId, int length, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata)
             throws Exception {
         byte[] data = new byte[length];
-        val attributeUpdates = Arrays.asList(
+        val attributeUpdates = AttributeUpdateCollection.from(
                 new AttributeUpdate(Attributes.CREATION_TIME, AttributeUpdateType.Replace, NEXT_ATTRIBUTE_VALUE.get()),
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Accumulate, NEXT_ATTRIBUTE_VALUE.get()));
         val op = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(data), attributeUpdates);
@@ -341,7 +341,7 @@ public class OperationMetadataUpdaterTests {
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.getStreamSegmentMetadata(segmentId);
             rsm.setLength(rsm.getLength() + length);
-            val attributes = new HashMap<UUID, Long>();
+            val attributes = new HashMap<AttributeId, Long>();
             op.getAttributeUpdates().forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
             rsm.updateAttributes(attributes);
         }

@@ -93,6 +93,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         // Validate preconditions.
         checkPreconditions();
@@ -203,10 +204,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             // commit all system log records.
             Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size(),
                     "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords);
-                return null;
-            });
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
 
         // if layout did not change then commit with lazyWrite.

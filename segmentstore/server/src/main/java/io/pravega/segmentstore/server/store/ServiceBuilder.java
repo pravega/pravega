@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
@@ -259,7 +260,7 @@ public class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-        return new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        return new SegmentToContainerMapper(serviceConfig.getContainerCount(), serviceConfig.isEnableAdminGateway());
     }
 
     protected WriterFactory createWriterFactory() {
@@ -294,7 +295,8 @@ public class ServiceBuilder implements AutoCloseable {
 
     private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
-        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
+        TableExtensionConfig config = this.serviceBuilderConfig.getConfig(TableExtensionConfig::builder);
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(config, container, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -420,7 +422,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         @Override
         protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT);
+            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
         }
 
         @Override

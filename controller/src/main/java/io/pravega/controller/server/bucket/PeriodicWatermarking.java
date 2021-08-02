@@ -33,6 +33,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
@@ -63,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -77,16 +80,18 @@ public class PeriodicWatermarking implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final LoadingCache<Stream, WatermarkClient> watermarkClientCache;
     private final LoadingCache<String, SynchronizerClientFactory> syncFactoryCache;
+    private final RequestTracker requestTracker;
+    private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor);
+                                ClientConfig clientConfig, ScheduledExecutorService executor, RequestTracker requestTracker) {
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor, requestTracker);
     }
 
     @VisibleForTesting
     PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                  Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
-                                 ScheduledExecutorService executor) {
+                                 ScheduledExecutorService executor, RequestTracker requestTracker) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -116,6 +121,7 @@ public class PeriodicWatermarking implements AutoCloseable {
                                                         return new WatermarkClient(stream, syncFactoryCache.getUnchecked(stream.getScope()));
                                                     }
                                                 });
+        this.requestTracker = requestTracker;
     }
 
     @Override
@@ -136,13 +142,17 @@ public class PeriodicWatermarking implements AutoCloseable {
     public CompletableFuture<Void> watermark(Stream stream) {
         String scope = stream.getScope();
         String streamName = stream.getStreamName();
-        OperationContext context = streamMetadataStore.createContext(scope, streamName);
+        long requestId = requestIdGenerator.get();
+        String requestDescriptor = RequestTracker.buildRequestDescriptor("watermark", stream.getScope(),
+                stream.getStreamName());
+        requestTracker.trackRequest(requestDescriptor, requestId);
+        OperationContext context = streamMetadataStore.createStreamContext(scope, streamName, requestId);
 
         if (scope.equals(NameUtils.INTERNAL_SCOPE_NAME)) {
             return CompletableFuture.completedFuture(null); 
         }
         
-        log.debug("Periodic background processing for watermarking called for stream {}/{}",
+        log.debug(requestId, "Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
 
         CompletableFuture<Map<String, WriterMark>> allWriterMarks = Futures.exceptionallyExpecting(
@@ -155,10 +165,10 @@ public class PeriodicWatermarking implements AutoCloseable {
             try {
                 watermarkClient.reinitialize();
             } catch (Exception e) {
-                log.warn("Watermarking client for stream {} threw exception {} during reinitialize.",
+                log.warn(requestId, "Watermarking client for stream {} threw exception {} during reinitialize.",
                         stream, Exceptions.unwrap(e).getClass());
                 if (Exceptions.unwrap(e) instanceof NoSuchSegmentException) {
-                    log.info("Invalidating the watermark client in cache for stream {}.", stream);
+                    log.info(requestId, "Invalidating the watermark client in cache for stream {}.", stream);
                     watermarkClientCache.invalidate(stream);
                 }
                 throw e;
@@ -166,7 +176,7 @@ public class PeriodicWatermarking implements AutoCloseable {
             return streamMetadataStore.getConfiguration(scope, streamName, context, executor)
                 .thenCompose(config -> filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers, config));
         }).exceptionally(e -> {
-            log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
+            log.warn(requestId, "Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
             return null;
         });
     }
@@ -243,6 +253,7 @@ public class PeriodicWatermarking implements AutoCloseable {
      */
     private CompletableFuture<Watermark> computeWatermark(String scope, String streamName, OperationContext context,
                                                           List<Map.Entry<String, WriterMark>> activeWriters, Watermark previousWatermark) {
+        long requestId = context.getRequestId();
         Watermark.WatermarkBuilder builder = Watermark.builder();
         ConcurrentHashMap<SegmentWithRange, Long> upperBound = new ConcurrentHashMap<>();
         
@@ -262,7 +273,7 @@ public class PeriodicWatermarking implements AutoCloseable {
                                  .collect(Collectors.toMap(y -> getSegmentWithRange(scope, streamName, context, y.getKey()),
                                          Entry::getValue)));
                     }).collect(Collectors.toList()));
-            log.debug("Emitting watermark for stream {}/{} with time {}", scope, streamName, lowerBoundOnTime);
+            log.debug(requestId, "Emitting watermark for stream {}/{} with time {}", scope, streamName, lowerBoundOnTime);
             return positionsFuture.thenAccept(listOfPositions -> listOfPositions.forEach(position -> {
                 // add writer positions to upperBound map. 
                 addToUpperBound(position, upperBound);
@@ -422,7 +433,7 @@ public class PeriodicWatermarking implements AutoCloseable {
          * Map to track inactive writers for their timeouts. This map records wall clock time when
          * this writer was found to be inactive. If in subsequent cycles
          * it continues to be inactive and the time elapsed is greater than
-         * {@link StreamConfiguration#timestampAggregationTimeout}, then it is declared timedout.
+         * {@link StreamConfiguration#getTimestampAggregationTimeout()}, then it is declared timedout.
          */
         private final ConcurrentHashMap<String, Long> inactiveWriters;
         
@@ -450,7 +461,7 @@ public class PeriodicWatermarking implements AutoCloseable {
          * 
          * Active Writer: Writer which has reported a time greater than the active previous watermark OR has not been 
          * timed out or shutdown. 
-         * Inactive writer: Writer which has not reported a mark for at least {@link StreamConfiguration#timestampAggregationTimeout}
+         * Inactive writer: Writer which has not reported a mark for at least {@link StreamConfiguration#getTimestampAggregationTimeout()}}
          * or has been explicitly shutdown.
          */
         @Synchronized

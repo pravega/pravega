@@ -204,7 +204,7 @@ public class StreamSegmentNameUtilsTests {
     @Test
     public void testComputeSegmentId() {
         long sid = NameUtils.computeSegmentId(1, 1);
-        Assert.assertEquals(sid, (long) (0x1L << 32) + 1);
+        Assert.assertEquals(sid, (0x1L << 32) + 1);
 
         AssertExtensions.assertThrows(
                 "Accepted a negative epoch",

@@ -432,16 +432,17 @@ public class ZKStoreHelper {
         if (cached != null) {
             return CompletableFuture.completedFuture(getVersionedMetadata(cached));
         } else {
+            long time = System.currentTimeMillis();
             return getData(path, fromBytes)
                 .thenApply(v -> {
                     VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
-                    cache.put(cacheKey, record);
+                    cache.put(cacheKey, record, time);
                     return record;
                 });
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
         // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
         // based on the type in caller's supplied Deserialization function. 
@@ -478,6 +479,7 @@ public class ZKStoreHelper {
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public boolean equals(Object obj) {
             return obj instanceof ZkCacheKey 
                     && path.equals(((ZkCacheKey) obj).path)

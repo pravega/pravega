@@ -17,6 +17,7 @@ package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
@@ -43,7 +44,10 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -53,6 +57,7 @@ import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Getter
@@ -91,6 +96,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public Iterator<Stream> listStreams(String scopeName, String tagName) {
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsForTag(scopeName, tagName);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Collection<String> getStreamTags(String scopeName, String streamName) {
+        return Futures.getAndHandleExceptions(controller.getStreamConfiguration(scopeName, streamName),
+                                              RuntimeException::new).getTags();
+    }
+
+    @Override
     public boolean checkStreamExists(String scopeName, String streamName) {
         return Futures.getAndHandleExceptions(controller.checkStreamExists(scopeName, streamName),
                 RuntimeException::new);
@@ -103,13 +120,29 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public boolean deleteScope(String scopeName, boolean deleteStreams) {
-        if (deleteStreams) {
+    public boolean deleteScope(String scopeName, boolean forceDelete) {
+        if (forceDelete) {
+            List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = controller.listStreams(scopeName).asIterator();
             while (iterator.hasNext()) {
                 Stream stream = iterator.next();
+                if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
+                    readerGroupList.add(stream.getStreamName().substring(
+                            READER_GROUP_STREAM_PREFIX.length()));
+                }
                 Futures.getAndHandleExceptions(controller.sealStream(scope, stream.getStreamName()), RuntimeException::new);
                 Futures.getAndHandleExceptions(controller.deleteStream(scope, stream.getStreamName()), RuntimeException::new);
+            }
+
+            Iterator<KeyValueTableInfo> kvtIterator = controller.listKeyValueTables(scopeName).asIterator();
+            while (iterator.hasNext()) {
+                KeyValueTableInfo kvt = kvtIterator.next();
+                Futures.getAndHandleExceptions(controller.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName()), RuntimeException::new);
+            }
+
+            for (String rg: readerGroupList) {
+                ReaderGroupConfig rgc = getAndHandleExceptions(controller.getReaderGroupConfig(scopeName, rg), RuntimeException::new);
+                Futures.getAndHandleExceptions(controller.deleteReaderGroup(scopeName, rg, rgc.getReaderGroupId()), RuntimeException::new);
             }
         }
         return Futures.getAndHandleExceptions(controller.deleteScope(scope),
@@ -169,7 +202,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void createReaderGroup(String groupName, ReaderGroupConfig config) {
+    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
@@ -184,6 +217,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+        return true;
     }
 
     public Position getInitialPosition(String stream) {

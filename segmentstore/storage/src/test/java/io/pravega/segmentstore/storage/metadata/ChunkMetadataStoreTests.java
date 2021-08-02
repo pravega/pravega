@@ -1213,7 +1213,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
-    private Void validateInsideCommit(InMemoryMetadataStore testMetadataStore, MetadataTransaction txn) {
+    private CompletableFuture<Void> validateInsideCommit(InMemoryMetadataStore testMetadataStore, MetadataTransaction txn) {
         // Delete data from backing store , the data should be still in buffer.
         testMetadataStore.evictFromCache();
         testMetadataStore.getBackingStore().clear();
@@ -1230,7 +1230,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
 
         // But data should be still there.
         assertEquals(txn.get(KEY1), KEY1, VALUE0);
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Test

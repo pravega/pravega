@@ -24,6 +24,7 @@ import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
  * Unit tests for {@link NoOpChunkStorage} using {@link SimpleStorageTests}.
  */
 public class NoOpSimpleStorageTests extends SimpleStorageTests {
+    @Override
     protected ChunkStorage getChunkStorage() throws Exception {
         return new NoOpChunkStorage(executorService());
     }
@@ -37,6 +38,7 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link NoOpChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class NoOpRollingStorageTests extends ChunkedRollingStorageTests {
+        @Override
         protected ChunkStorage getChunkStorage() {
             return new NoOpChunkStorage(executorService());
         }

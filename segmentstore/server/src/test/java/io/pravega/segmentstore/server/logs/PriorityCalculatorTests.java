@@ -28,7 +28,7 @@ import org.junit.Test;
 public class PriorityCalculatorTests {
     private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
             SegmentType.STREAM_SEGMENT,
-            SegmentType.TABLE_SEGMENT_SORTED,
+            SegmentType.TABLE_SEGMENT_HASH,
             SegmentType.builder().internal().build(),
             SegmentType.builder().system().build(),
             SegmentType.builder().system().tableSegment().build(),

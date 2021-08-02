@@ -133,19 +133,9 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c", "java -DexecType=KUBERNETES" +
-                            " -DsecurityEnabled=" + Utils.AUTH_ENABLED  +
-                            " -Dlog.level=" + LOG_LEVEL  +
-                            " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED +
-                            " -DtestServiceAccount=" + SERVICE_ACCOUNT +
-                            " -DtestClusterRoleBinding=" + CLUSTER_ROLE_BINDING +
-                            " -DbookkeeperLabel=" + Utils.getConfig("bookkeeperLabel", "") +
-                            " -DbookkeeperID=" + Utils.getConfig("bookkeeperID", "") +
-                            " -DpravegaID=" + Utils.getConfig("pravegaID", "") +
-                            " -DcontrollerLabel=" + Utils.getConfig("controllerLabel", "") +
-                            " -DsegmentstoreLabel=" + Utils.getConfig("segmentstoreLabel", "") +
-                            " -DbookkeeperConfigMap=" + Utils.getConfig("bookkeeperConfigMap", "") +
-                            " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                .withArgs("-c", "java" +
+                        getArgs() +
+                        " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .withRestartPolicy("Never")
@@ -161,6 +151,59 @@ public class K8SequentialExecutor implements TestExecutor {
                 .build();
         }
         return pod;
+    }
+
+    private static String getArgs() {
+        String[] args = new String[]{
+                "execType",
+                "dockerRegistryUrl",
+                "skipServiceInstallation",
+                "skipLogDownload",
+                "imagePrefix",
+                "pravegaImageName",
+                "bookkeeperImageName",
+                "zookeeperImageName",
+                "zookeeperImageVersion",
+                "imageVersion",
+                "bookkeeperImageVersion",
+                "tier2Type",
+                "tier2Config",
+                "pravegaOperatorVersion",
+                "bookkeeperOperatorVersion",
+                "zookeeperOperatorVersion",
+                "desiredPravegaCMVersion",
+                "desiredBookkeeperCMVersion",
+                "publishedChartName",
+                "helmRepository",
+                "controllerLabel",
+                "segmentstoreLabel",
+                "tlsSecretName",
+                "bookkeeperLabel",
+                "pravegaID",
+                "bookkeeperID",
+                "bookkeeperConfigMap",
+                "targetPravegaOperatorVersion",
+                "targetBookkeeperOperatorVersion",
+                "targetZookeeperOperatorVersion",
+                "targetPravegaVersion",
+                "targetBookkeeperVersion",
+                "targetZookeeperVersion",
+                "testPodImage",
+                "testServiceAccount",
+                "testClusterRoleBinding",
+                "imageVersion",
+                "securityEnabled",
+                "tlsEnabled",
+                "logLevel",
+                "configs",
+                "failFast"
+        };
+
+        StringBuilder builder = new StringBuilder();
+        for (String arg : args) {
+            builder.append(String.format(" -D%s=%s", arg, Utils.getConfig(arg, "")));
+        }
+        return builder.toString();
     }
 
     @Override

@@ -101,19 +101,34 @@ public final class NameUtils {
     private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
 
     /**
+     * Prefix for Container Metadata Segment name.
+     */
+    private static final String METADATA_SEGMENT_NAME_PREFIX = "_system/containers/metadata_";
+
+    /**
      * Format for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
+    private static final String METADATA_SEGMENT_NAME_FORMAT = METADATA_SEGMENT_NAME_PREFIX + "%d";
+
+    /**
+     * Prefix for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = "_system/containers/storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
      */
-    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = "_system/containers/storage_metadata_%d";
+    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = STORAGE_METADATA_SEGMENT_NAME_PREFIX + "%d";
 
     /**
      * Format for Container System Journal file name.
      */
     private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+
+    /**
+     * Format for Container System snapshot file name.
+     */
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -145,6 +160,11 @@ public final class NameUtils {
      */
     @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
+
+    /**
+     * Formatting for internal Segments used for ContainerEventProcessor.
+     */
+    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = "_system/containers/event_processor_%s_%d";
 
     //endregion
 
@@ -279,7 +299,7 @@ public final class NameUtils {
      */
     public static String getSegmentChunkName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
-        return segmentName + OFFSET_SUFFIX + Long.toString(offset);
+        return segmentName + OFFSET_SUFFIX + offset;
     }
 
     /**
@@ -307,6 +327,16 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether given name is a Container Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Container Metadata Segment. False otherwise
+     */
+    public static boolean isMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(METADATA_SEGMENT_NAME_PREFIX);
+    }
+
+    /**
      * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
      * per container.
      *
@@ -316,6 +346,16 @@ public final class NameUtils {
     public static String getMetadataSegmentName(int containerId) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
         return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Checks whether given name is a Storage Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Storage Metadata Segment. False otherwise
+     */
+    public static boolean isStorageMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(STORAGE_METADATA_SEGMENT_NAME_PREFIX);
     }
 
     /**
@@ -339,6 +379,18 @@ public final class NameUtils {
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
         return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
+    }
+
+
+    /**
+     * Gets file name of SystemJournal snapshot for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param currentSnapshotIndex Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
+        return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
     }
 
     /**
@@ -651,14 +703,26 @@ public final class NameUtils {
         String segmentBaseName = NameUtils.getParentStreamSegmentName(segmentQualifiedName);
         return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
+
+    /**
+     * Get the name for this EventProcessor internal Segment.
+     *
+     * @param containerId    Id of the container where this Segment lives.
+     * @param processorName  Name of the EventProcessor.
+     * @return The name for the internal Segment used by an EventProcessor.
+     */
+    public static String getEventProcessorSegmentName(int containerId, String processorName) {
+        return String.format(CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME, processorName, containerId);
+    }
+
     // endregion
 
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
-     * and pravega internally created streams.
+     * and Pravega internally created streams.
      *
      * @param streamName    The stream name for which we need to construct an internal name.
-     * @return              The stream name which has to be used internally in the pravega system.
+     * @return              The stream name which has to be used internally in the Pravega system.
      */
     public static String getInternalNameForStream(String streamName) {
         return INTERNAL_NAME_PREFIX + streamName;

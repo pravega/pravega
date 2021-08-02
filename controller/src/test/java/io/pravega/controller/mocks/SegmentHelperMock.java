@@ -17,9 +17,7 @@ package io.pravega.controller.mocks;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -74,14 +72,14 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+        doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
@@ -89,11 +87,12 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(null)).when(helper).truncateSegment(
                 anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyLong(), anyString());
+        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(
+                0L, "", true, true, false, 0L, 0L, 0L)))
+                .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
                 anyString(), anyBoolean(), anyString(), anyLong());
@@ -116,19 +115,19 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
 
         return helper;
     }
@@ -148,7 +147,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
         // endregion
         
         // region delete table
@@ -275,7 +274,7 @@ public class SegmentHelperMock {
                             ByteBuffer key = requestKey.getKey().copy().nioBuffer();
                             TableSegmentEntry existingEntry = table.get(key);
                             if (existingEntry == null) {
-                                resultList.add(TableSegmentEntry.notExists(new byte[1], new byte[1]));
+                                resultList.add(TableSegmentEntry.notExists(key.array(), new byte[0]));
                             } else if (existingEntry.getKey().getVersion().equals(requestKey.getVersion())
                                     || requestKey.getVersion() == null
                                     || requestKey.getVersion().equals(TableSegmentKeyVersion.NO_VERSION)) {
@@ -297,7 +296,7 @@ public class SegmentHelperMock {
         doAnswer(x -> {
             String tableName = x.getArgument(0);
             int limit = x.getArgument(1);
-            IteratorState state = x.getArgument(2);
+            HashTableIteratorItem.State state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
@@ -308,7 +307,7 @@ public class SegmentHelperMock {
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
                     } else {
                         long floor;
-                        if (state.equals(IteratorStateImpl.EMPTY)) {
+                        if (state.equals(HashTableIteratorItem.State.EMPTY)) {
                             floor = 0L;
                         } else {
                             floor = new ByteArraySegment(state.toBytes()).getLong(0);
@@ -324,8 +323,8 @@ public class SegmentHelperMock {
                                                              .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorState newState = IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(continuationToken));
-                        return new IteratorItem<>(newState, list);
+                        HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(Unpooled.wrappedBuffer(continuationToken));
+                        return new HashTableIteratorItem<>(newState, list);
                     }
                 }
             }, executor);
@@ -336,7 +335,7 @@ public class SegmentHelperMock {
         doAnswer(x -> {
             String tableName = x.getArgument(0);
             int limit = x.getArgument(1);
-            IteratorState state = x.getArgument(2);
+            HashTableIteratorItem.State state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
@@ -347,7 +346,7 @@ public class SegmentHelperMock {
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
                     } else {
                         long floor;
-                        if (state.equals(IteratorStateImpl.EMPTY)) {
+                        if (state.equals(HashTableIteratorItem.State.EMPTY)) {
                             floor = 0L;
                         } else {
                             floor = new ByteArraySegment(state.toBytes()).getLong(0);
@@ -363,8 +362,8 @@ public class SegmentHelperMock {
                                                                .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorState newState = IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(continuationToken));
-                        return new IteratorItem<>(newState, list);
+                        HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(Unpooled.wrappedBuffer(continuationToken));
+                        return new HashTableIteratorItem<>(newState, list);
                     }
                 }
             }, executor);

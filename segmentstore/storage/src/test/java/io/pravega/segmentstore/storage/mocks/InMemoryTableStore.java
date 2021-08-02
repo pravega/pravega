@@ -29,14 +29,9 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
-import lombok.val;
-
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -49,6 +44,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.val;
 
 @RequiredArgsConstructor
 @ThreadSafe
@@ -63,12 +64,12 @@ public class InMemoryTableStore implements TableStore {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(segmentType.isTableSegment(), "Expected SegmentType.isSortedSegment.");
         Preconditions.checkArgument(segmentType.isSystem(), "Expected SegmentType.isSystem.");
         Preconditions.checkArgument(segmentType.isCritical(), "Expected SegmentType.isCritical.");
-        Preconditions.checkArgument(!segmentType.isSortedTableSegment(), "Sorted Table Segments not supported in this mock.");
+        Preconditions.checkArgument(!segmentType.isFixedKeyLengthTableSegment(), "Fixed-Key-Length Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {
@@ -123,16 +124,6 @@ public class InMemoryTableStore implements TableStore {
     }
 
     @Override
-    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         throw new UnsupportedOperationException();
     }
@@ -144,6 +135,11 @@ public class InMemoryTableStore implements TableStore {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
         throw new UnsupportedOperationException();
     }
 

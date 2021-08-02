@@ -64,40 +64,53 @@ The initial configuration would be as follows:
 Pravega Admin CLI.
    
 Initial configuration:
-	pravegaservice.container.count=4
-	bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
-	cli.security.auth.enable=false
-	cli.security.auth.credentials.password=1111_aaaa
-	pravegaservice.cluster.name=pravega/pravega
-	cli.store.metadata.backend=segmentstore
-	cli.controller.rest.uri=http://localhost:9091
-	cli.security.auth.credentials.username=admin
-	pravegaservice.zk.connect.uri=localhost:2181
-	cli.controller.grpc.uri=tcp://localhost:9090
+    cli.store.metadata.backend=segmentstore
+    cli.credentials.username=admin
+    pravegaservice.admin.gateway.port=9999
+    pravegaservice.storage.impl.name=FILESYSTEM
+    cli.credentials.pwd=1111_aaaa
+    bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+    cli.channel.auth=false
+    cli.channel.tls=false
+    pravegaservice.clusterName=pravega/pravega
+    pravegaservice.zk.connect.uri=localhost:2181
+    cli.controller.connect.rest.uri=localhost:9091
+    cli.controller.connect.grpc.uri=localhost:9090
+    cli.trustStore.location=conf/ca-cert.crt
+    cli.trustStore.access.token.ttl.seconds=300
+    pravegaservice.container.count=4
 ```
 
 From that point onwards, you can check the available commands by typing `help`:
 ``` 
 > help
 All available commands:
-	bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
-	bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
-	bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
-	bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
-	bk list : Lists all BookKeeper Logs.
-	cluster get-host-by-container <container-id>: Get the Segment Store host responsible for a given container id.
-	cluster list-containers : Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
-	cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
-	config list : Lists all configuration set during this session.
-	config set <name=value list>: Sets one or more config values for use during this session.
-	container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
-	controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
-	controller describe-scope <scope-name>: Get the details of a given Scope.
-	controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
-	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
-	controller list-scopes : Lists all the existing scopes in the system.
-	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
-	password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
+    bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
+    bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
+    bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
+    bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
+    bk list : Lists all BookKeeper Logs.
+    bk list-ledgers : List all the ledgers in Bookkeeper.
+    bk reconcile <log-id>: Allows reconstructing a BookkeeperLog metadata (stored in ZK) in case it got wiped out.
+    cluster get-host-by-container <container-id>: Get the Segment Store host responsible for a given container id.
+    cluster list-containers : Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
+    cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
+    config list : Lists all configuration set during this session.
+    config set <name=value list>: Sets one or more config values for use during this session.
+    container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
+    controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+    controller describe-scope <scope-name>: Get the details of a given Scope.
+    controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
+    controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
+    controller list-scopes : Lists all the existing scopes in the system.
+    controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
+    password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
+    segmentstore get-segment-attribute <qualified-segment-name> <attribute-id> <segmentstore-endpoint>: Gets an attribute for a Segment.
+    segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
+    segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint>: Read a range from a given Segment.
+    segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
+    storage durableLog-recovery : Recovers the state of the DurableLog from the storage.
+    storage list-segments : Lists segments from storage with their name, length and sealed status.
 ```
 And execute any of them:
 ```
@@ -116,6 +129,7 @@ Pravega Admin CLI.
 Initial configuration:
 	pravegaservice.container.count=4
 	bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+	pravegaservice.admin.gateway.port=9999
 	cli.security.auth.enable=false
 	cli.security.auth.credentials.password=1111_aaaa
 	pravegaservice.cluster.name=pravega/pravega
@@ -153,6 +167,7 @@ Once in the pod, you can run the Pravega Admin CLI:
     Initial configuration:
         pravegaservice.container.count=4
         bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+        pravegaservice.admin.gateway.port=9999
         cli.security.auth.enable=false
         cli.security.auth.credentials.password=1111_aaaa
         pravegaservice.cluster.name=pravega/pravega
@@ -169,6 +184,7 @@ For example, this is the configuration we used on a new Pravega cluster deployed
 config list
     pravegaservice.container.count=4
     bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+    pravegaservice.admin.gateway.port=9999
     cli.security.auth.enable=false
     cli.security.auth.credentials.password=1111_aaaa
     pravegaservice.cluster.name=pravega/pravega
@@ -193,6 +209,51 @@ The following required config values can be found in the logs:
 - `pravegaservice.zk.connect.uri`
 
 Once the config file is updated, the Pravega Admin CLI will be able to connect to your Pravega cluster and run commands.
+
+## Adding `segmentstore` Admin Commands
+
+The Pravega Admin CLI now provides a set of debug and repair commands (prefixed with `segmentstore`).
+These commands are a low level interface for an administrator/developer to interact directly with Segments. This
+is useful in the cases where data has been lost/corrupted, and the system requires manual intervention to recover.
+In a nutshell, `segmentstore` commands send `WireCommands` (i.e., Pravega network protocol messages) to a service
+listening in Segment Store instances, namely the Pravega Admin Gateway. The main goal behind this new client-server
+communication channel is to allow us bypassing some constraints applied to regular Pravega clients (e.g., interact
+with `_system` segments, directly send request to specific Segment Stores), as well as to extend the administration
+commands without impacting regular clients. 
+
+Next, we describe the points to take into account if a new `segmentstore` admin command needs to de developed from scratch:
+
+- Add the command in `WireCommands.java`: As the goal is to add a new administration command, the first extension point
+if the definition of available Pravega protocol commands. Note that adding one command in that definitions does not
+break the protocol for regular clients and servers. By convention, we suggest adding new admin commands in `WireCommands`
+using ids in the negative range, as they are mostly available (i.e., from -126 up to -3), given that regular commands
+mostly use positive ids.
+  
+- The first set of available `segmentstore` commands are existing commands. To handle request and replies, we use an
+existing module that already does the job (`SegmentHelper`) for such common requests. When thinking about new, admin-specific
+commands, we need to extend this functionality without impacting the existing code. To this end, a possibility can be to
+create a similar class to `SegmentHelper` for admin-specific commands (perhaps extending it to reuse most of the common 
+logic to manage `WireCommand` requests). In this class, we can implement the handling of new types of requests and replies 
+that are specific for the Pravega Admin CLI.
+  
+- We also need to add a new method to process the new `WireCommand` in the `AdminRequestProcessor` interface and provide
+the appropriate implementation in `AdminRequestProcessorImpl`.
+  
+- The last step would be to add each new `segmentstore` command as a separate class in the package where the existing
+commands are already placed.
+
+## Enable tls and auth in cli
+Make sure to update the following fields in the configuration to enable tls ad auth in the cli:
+```    
+cli.channel.auth=true
+cli.channel.tls=true
+
+cli.credentials.username=admin
+cli.credentials.pwd=1111_aaaa
+cli.trustStore.location=conf/ca-cert.crt
+cli.trustStore.access.token.ttl.seconds=600
+```
+Set above fields to match the username, password, and certificate location in the environment.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

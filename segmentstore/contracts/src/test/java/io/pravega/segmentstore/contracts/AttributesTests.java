@@ -18,7 +18,6 @@ package io.pravega.segmentstore.contracts;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
@@ -29,13 +28,14 @@ import org.junit.Test;
  */
 public class AttributesTests {
     /**
-     * Tests {@link Attributes#isUnmodifiable(UUID)} and {@link Attributes#isCoreAttribute(UUID)}.
+     * Tests {@link Attributes#isUnmodifiable(AttributeId)} and {@link Attributes#isCoreAttribute(AttributeId)}.
      */
     @Test
     public void testGeneral() {
         boolean atLeastOneUnmodifiable = false;
         for (val attributeId : getAllAttributes()) {
-            val expectedUnmodifiable = attributeId == Attributes.ATTRIBUTE_SEGMENT_TYPE;
+            val expectedUnmodifiable = attributeId.equals(Attributes.ATTRIBUTE_SEGMENT_TYPE)
+                    || attributeId.equals(Attributes.ATTRIBUTE_ID_LENGTH);
             val actualUnmodifiable = Attributes.isUnmodifiable(attributeId);
 
             Assert.assertEquals("Unmodifiable for " + attributeId, expectedUnmodifiable, actualUnmodifiable);
@@ -46,12 +46,12 @@ public class AttributesTests {
         Assert.assertTrue(atLeastOneUnmodifiable);
     }
 
-    private List<UUID> getAllAttributes() {
+    private List<AttributeId> getAllAttributes() {
         return Arrays.stream(Attributes.class.getDeclaredFields())
-                .filter(f -> f.getType().equals(UUID.class))
+                .filter(f -> f.getType().equals(AttributeId.class))
                 .map(f -> {
                     try {
-                        return (UUID) f.get(null);
+                        return (AttributeId) f.get(null);
                     } catch (IllegalAccessException ex) {
                         return null;
                         // Non-public; skip.

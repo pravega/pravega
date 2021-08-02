@@ -110,7 +110,7 @@ public class RetentionTest {
         LocalController controller = (LocalController) controllerWrapper.getController();
         String name = "testtime";
         Stream stream = new StreamImpl(name, name);
-        controllerWrapper.getControllerService().createScope(name).get();
+        controllerWrapper.getControllerService().createScope(name, 0L).get();
         controller.createStream(name, name, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -141,7 +141,7 @@ public class RetentionTest {
         LocalController controller = (LocalController) controllerWrapper.getController();
         String name = "testsize";
         Stream stream = new StreamImpl(name, name);
-        controllerWrapper.getControllerService().createScope(name).get();
+        controllerWrapper.getControllerService().createScope(name, 0L).get();
         controller.createStream(name, name, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
