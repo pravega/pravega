@@ -2552,6 +2552,53 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         CompletableFuture.allOf(futures).join();
     }
 
+    /**
+     * Test concurrent writes to storage system segments by simulating concurrent writes.
+     *
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSystemSegmentConcurrency() throws Exception {
+
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build());
+        // Force parallel writes irrespective of thread pool size for tests themselves.
+        val writeSize = 10;
+        val numWrites = 10;
+        val numOfStorageSystemSegments = SystemJournal.getChunkStorageSystemSegments(CONTAINER_ID).length;
+        val data = new byte[numOfStorageSystemSegments][writeSize * numWrites];
+
+        var futures = new ArrayList<CompletableFuture<Void>>();
+        // To make sure all write operations are concurrent.
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(numOfStorageSystemSegments);
+
+        for (int i = 0; i < numOfStorageSystemSegments; i++) {
+            final int k = i;
+            futures.add(CompletableFuture.runAsync(() -> {
+
+                populate(data[k]);
+                String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(CONTAINER_ID)[k];
+                val h = testContext.chunkedSegmentStorage.create(systemSegmentName, null).join();
+                // Init
+                long offset = 0;
+                for (int j = 0; j < numWrites; j++) {
+                    testContext.chunkedSegmentStorage.write(h, offset, new ByteArrayInputStream(data[k], writeSize * j, writeSize), writeSize, null).join();
+                    offset += writeSize;
+                }
+                val info = testContext.chunkedSegmentStorage.getStreamSegmentInfo(systemSegmentName, null).join();
+                Assert.assertEquals(writeSize * numWrites, info.getLength());
+                byte[] out = new byte[writeSize * numWrites];
+                val hr = testContext.chunkedSegmentStorage.openRead(systemSegmentName).join();
+                testContext.chunkedSegmentStorage.read(hr, 0, out, 0, writeSize * numWrites, null).join();
+                Assert.assertArrayEquals(data[k], out);
+            }, executor));
+        }
+
+        Futures.allOf(futures).join();
+    }
+
     @Test
     public void testSimpleScenarioWithBlockIndexEntries() throws Exception {
         String testSegmentName = "foo";
