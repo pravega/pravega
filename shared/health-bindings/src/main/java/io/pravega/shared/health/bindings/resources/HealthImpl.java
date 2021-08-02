@@ -22,6 +22,8 @@ import io.pravega.shared.health.bindings.generated.model.HealthResult;
 import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.pravega.shared.health.bindings.v1.ApiV1;
 import io.pravega.shared.health.ContributorNotFoundException;
+import io.pravega.shared.rest.security.RESTAuthHelper;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
@@ -41,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
+
 @Slf4j
 public class HealthImpl implements ApiV1.HealthApi {
 
@@ -49,10 +53,12 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private final HealthEndpoint endpoint;
 
+    private final RESTAuthHelper restAuthHelper;
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
-    public HealthImpl(HealthEndpoint endpoint) {
+    public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthEndpoint endpoint) {
         this.endpoint = endpoint;
+        this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
     }
 
     @Override
@@ -109,6 +115,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Map<String, Object> details = endpoint.getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
