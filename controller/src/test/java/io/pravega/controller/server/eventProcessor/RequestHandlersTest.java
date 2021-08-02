@@ -942,7 +942,7 @@ public abstract class RequestHandlersTest {
         // 1. set segment helper mock to throw exception
         Exception exception = StoreException.create(StoreException.Type.ILLEGAL_STATE, "Some processing exception");
         doAnswer(x -> Futures.failedFuture(exception))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).commitTransactions(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         streamStore.startCommitTransactions(fairness, fairness, 100, null, executor).join();
@@ -953,10 +953,12 @@ public abstract class RequestHandlersTest {
         assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
+
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
-        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+        //requestHandler.process(event, () -> false).join();
+        verify(segmentHelper, atLeastOnce()).commitTransactions(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 3. set waiting processor to "random name"
@@ -964,7 +966,7 @@ public abstract class RequestHandlersTest {
         
         // 4. reset segment helper to return success
         doAnswer(x -> CompletableFuture.completedFuture(0L))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).commitTransactions(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor

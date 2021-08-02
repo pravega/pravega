@@ -270,8 +270,8 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<Long> retVal = helper.commitTransaction("", "", 0L, 
-                0L, new UUID(0, 0L), "", System.nanoTime());
+        CompletableFuture<List<Long>> retVal = helper.commitTransactions("", "", 0L,
+                0L, List.of(new UUID(0, 0L)), "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -280,20 +280,20 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ex.getCause() instanceof AuthenticationException
         );
 
-        CompletableFuture<Long> result = helper.commitTransaction("", "", 0L, 0L,
-                new UUID(0L, 0L), "", System.nanoTime());
+        CompletableFuture<List<Long>> result = helper.commitTransactions("", "", 0L, 0L,
+                List.of(new UUID(0L, 0L)), "", System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L), 0L));
         result.join();
 
-        result = helper.commitTransaction("", "", 0L, 0L, 
-                new UUID(0L, 0L), "", System.nanoTime());
+        result = helper.commitTransactions("", "", 0L, 0L,
+                List.of(new UUID(0L, 0L)), "", System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.NoSuchSegment(requestId, getQualifiedStreamSegmentName("", "", 0L), "", 0L));
         result.join();
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransaction("", "", 0L, 
-                0L, new UUID(0, 0L), "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransactions("", "", 0L,
+                0L, List.of(new UUID(0, 0L)), "", System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);

@@ -123,9 +123,6 @@ public class SegmentHelperMock {
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
-
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
