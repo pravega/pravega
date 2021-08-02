@@ -83,7 +83,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
         stringBuilderMap.put("controller.zk.connect.session.timeout.milliseconds", String.valueOf(30 * 1000));
-        stringBuilderMap.put("controller.transaction.lease.count.max", String.valueOf(120 * 1000));
+        stringBuilderMap.put("controller.transaction.lease.count.max", String.valueOf(600 * 1000));
         stringBuilderMap.put("controller.retention.frequency.minutes", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
