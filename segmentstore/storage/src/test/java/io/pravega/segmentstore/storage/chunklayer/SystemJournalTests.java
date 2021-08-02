@@ -1248,8 +1248,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        segmentStorage1.bootstrap(snapshotInfoStore).join();
-        segmentStorage1.getGarbageCollector().deleteGarbage(false, 1000).get();
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        segmentStorage1.bootstrap(snapshotInfoStore, null).join();
+        deleteGarbage(segmentStorage1);
 
         checkSystemSegmentsLayout(segmentStorage1);
 
@@ -1292,8 +1293,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage2.initialize(epoch);
 
         // Bootstrap
-        segmentStorage2.bootstrap(snapshotInfoStore).join();
-        segmentStorage2.getGarbageCollector().deleteGarbage(false, 1000).get();
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        segmentStorage2.bootstrap(snapshotInfoStore, null).join();
+        deleteGarbage(segmentStorage2);
         checkSystemSegmentsLayout(segmentStorage2);
 
         // Validate
