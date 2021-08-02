@@ -19,7 +19,9 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
+import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -48,11 +50,13 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
                 chunkStorage = getChunkStorage();
             }
         }
-        return new ChunkedSegmentStorage(CONTAINER_ID,
+        val ret = new ChunkedSegmentStorage(CONTAINER_ID,
                 chunkStorage,
                 chunkMetadataStore,
                 executor,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        ret.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        return ret;
     }
 
     /**
