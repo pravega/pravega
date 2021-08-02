@@ -956,7 +956,7 @@ public abstract class RequestHandlersTest {
 
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
-        
+
         verify(segmentHelper, atLeastOnce()).commitTransactions(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         

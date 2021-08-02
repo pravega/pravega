@@ -130,6 +130,27 @@ public interface TableStore {
      */
     CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout);
 
+    /**
+     * Inserts new or updates existing Table Entries into the given Table Segment.
+     *
+     * @param segmentName The name of the Table Segment to insert/update the Table Entries.
+     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#getKey()} {@link TableKey#hasVersion}
+     *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
+     *                    Update. If {@link TableEntry#getKey()} {@link TableKey#getVersion()} hasVersion} returns false for ALL items in the list, then this
+     *                    will perform an Unconditional update.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
+     * Key provided. The versions will be in the same order as the TableEntry instances provided. If the operation failed,
+     * the future will be failed with the causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.</li>
+     * <li>{@link TableKeyTooLongException} If {@link TableEntry#getKey()} exceeds {@link #MAXIMUM_KEY_LENGTH}.</li>
+     * <li>{@link TableValueTooLongException} If {@link TableEntry#getValue()} exceeds {@link #MAXIMUM_VALUE_LENGTH}.</li>
+     * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#getKey()} {@link TableKey#hasVersion() hasVersion() } is true and
+     * {@link TableEntry#getKey()} {@link TableKey#getVersion()} does not match the Table Entry's Key current Table Version. </li>
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
+     * </ul>
+     */
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout);
 
     /**
