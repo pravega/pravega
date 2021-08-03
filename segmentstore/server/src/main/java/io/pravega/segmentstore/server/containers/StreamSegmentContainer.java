@@ -226,10 +226,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
+            ChunkedSegmentStorage chunkedSegmentStorage = (ChunkedSegmentStorage) this.storage;
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            return chunkedStorage.bootstrap(snapshotInfoStore);
+            StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
+                    this.containerEventProcessor,
+                    batch -> chunkedSegmentStorage.getGarbageCollector().processBatch(batch),
+                    chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency());
+            return chunkedSegmentStorage.bootstrap(snapshotInfoStore, eventProcessor);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -278,11 +282,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Services.startAsync(this.durableLog, this.executor)
                 .thenComposeAsync(v -> startWhenDurableLogOnline(), this.executor)
                 .whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
-                        // are not required for accepting new operations and can still start in the background.
-                        notifyStarted();
-                    } else {
+                    if (ex != null) {
                         doStop(ex);
                     }
                 });
@@ -295,18 +295,26 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
             log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.", this.traceObjectId);
+            notifyStarted();
             isReady = CompletableFuture.completedFuture(null);
             delayedStart = this.durableLog.awaitOnline()
                     .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
         } else {
             // DurableLog is already online. Immediately initialize secondary services. In this particular case, it needs
             // to be done synchronously since we need to initialize Storage before notifying that we are fully started.
-            isReady = initializeSecondaryServices();
+            isReady = initializeSecondaryServices().thenRun(() -> notifyStarted());
             delayedStart = isReady;
         }
 
-        // Delayed start. Secondary services need not be started in order for us to accept requests.
-        delayedStart.thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor)
+        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
+        // are not required for accepting new operations and can still start in the background.
+        delayedStart.thenComposeAsync(v -> {
+                    if (this.storage instanceof ChunkedSegmentStorage) {
+                        return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
+                    }
+                    return CompletableFuture.completedFuture(null);
+                }, this.executor)
+                .thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor)
                 .whenComplete((v, ex) -> {
                     if (ex == null) {
                         // Successful start.
