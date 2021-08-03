@@ -949,6 +949,7 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
