@@ -16,7 +16,6 @@
 #
 
 # Location of Java Keystore file. This is system dependent.
-JKS_LOCATION=/opt/java/openjdk/lib/security/cacerts
 
 # Adds a system property if the value is not empty
 add_system_property() {
@@ -48,6 +47,6 @@ add_certs_into_truststore() {
     CERTS=/etc/secret-volume/ca-bundle/*
     for cert in $CERTS
     do
-      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore "$JKS_LOCATION" || true
+      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -cacerts || true
     done
 }
