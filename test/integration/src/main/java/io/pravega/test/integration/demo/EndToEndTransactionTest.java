@@ -34,7 +34,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestingServerStarter;
 
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +59,7 @@ public class EndToEndTransactionTest {
         int port = Config.SERVICE_PORT;
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store,
-                serviceBuilder.createTableStoreService(), serviceBuilder.getLowPriorityExecutor(), Arrays.copyOf(Config.TLS_PROTOCOL_VERSION, Config.TLS_PROTOCOL_VERSION.length));
+                serviceBuilder.createTableStoreService(), serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]));
         server.startListening();
 
         Thread.sleep(1000);

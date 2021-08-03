@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
  * REST server config.
  */
 @Getter
+@Builder
 public class RESTServerConfigImpl implements RESTServerConfig {
     private final String host;
     private final int port;
@@ -40,24 +41,25 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
-    @Builder
+    public static final class RESTServerConfigImplBuilder {
+        private String[] tlsProtocolVersion = new String[] {"TLSv1.2", "TLSv1.3"};
+
+        public RESTServerConfigImpl build() {
+            return new RESTServerConfigImpl(host, port, authorizationEnabled, userPasswordFile, tlsEnabled, tlsProtocolVersion, keyFilePath, keyFilePasswordPath);
+        }
+    }
+
     RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
                          boolean tlsEnabled, String[] tlsProtocolVersion, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
                 "TLS", "KeyFilePath should not be empty when TLS is enabled. ");
-        Exceptions.checkArgument(!tlsEnabled || tlsProtocolVersion != null,
-                    "TLS", "TlsProtocolVersion should not be empty when TLS is enabled");
 
         this.host = host;
         this.port = port;
         this.tlsEnabled = tlsEnabled;
-        if (tlsProtocolVersion == null) {
-            this.tlsProtocolVersion = new String[] {"TLSv1.2, TLSv1.3"};
-        } else {
-            this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
-        }
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
         this.authorizationEnabled = authorizationEnabled;

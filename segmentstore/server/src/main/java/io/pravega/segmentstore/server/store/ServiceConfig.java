@@ -397,9 +397,6 @@ public class ServiceConfig {
         this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         String protocol = properties.get(TLS_PROTOCOL_VERSION);
-        if (Strings.isNullOrEmpty(protocol)) {
-            protocol = TLS_PROTOCOL_VERSION.getDefaultValue();
-        }
         TLSProtocolVersion tpr = new TLSProtocolVersion(protocol);
         this.tlsProtocolVersion = Arrays.copyOf(tpr.getProtocols(), tpr.getProtocols().length);
         this.keyFile = properties.get(KEY_FILE);

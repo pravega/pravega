@@ -78,7 +78,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
         if (tlsProtocolVersion == null) {
-            this.tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION;
+            this.tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]);
         } else {
             this.tlsProtocolVersion =  Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         }

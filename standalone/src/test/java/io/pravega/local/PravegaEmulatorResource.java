@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.rules.ExternalResource;
 
 import java.net.URI;
+import java.util.Arrays;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -55,14 +56,14 @@ public class PravegaEmulatorResource extends ExternalResource {
     final boolean authEnabled;
     final boolean tlsEnabled;
     final boolean restEnabled;
-    final String tlsProtocolVersion;
+    final String[] tlsProtocolVersion;
     final LocalPravegaEmulator pravega;
 
     public static final class PravegaEmulatorResourceBuilder {
         boolean authEnabled = false;
         boolean tlsEnabled = false;
         boolean restEnabled = false;
-        String tlsProtocolVersion = "TLSv1.2,TLSv1.3";
+        String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
         public PravegaEmulatorResource build() {
             return new PravegaEmulatorResource(authEnabled, tlsEnabled, restEnabled, tlsProtocolVersion);
@@ -76,11 +77,11 @@ public class PravegaEmulatorResource extends ExternalResource {
      * @param tlsProtocolVersion TlsProtocolVersion
      */
 
-    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled, String tlsProtocolVersion) {
+    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled, String[] tlsProtocolVersion) {
         this.authEnabled = authEnabled;
         this.tlsEnabled = tlsEnabled;
         this.restEnabled = restEnabled;
-        this.tlsProtocolVersion = tlsProtocolVersion;
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(TestUtils.getAvailableListenPort())
                 .segmentStorePort(TestUtils.getAvailableListenPort())
@@ -104,7 +105,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         }
         if (tlsEnabled) {
             emulatorBuilder.certFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
-                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
+                    .tlsProtocolVersion(tlsProtocolVersion)
                     .keyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                     .jksKeyFile(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH)
                     .jksTrustFile(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH)

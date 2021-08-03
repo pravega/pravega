@@ -31,6 +31,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -232,7 +234,7 @@ public final class Config {
     public static final boolean AUTHORIZATION_ENABLED;
     public static final String USER_PASSWORD_FILE;
     public static final boolean TLS_ENABLED;
-    public static final String[] TLS_PROTOCOL_VERSION;
+    public static final List<String> TLS_PROTOCOL_VERSION;
     public static final String TLS_KEY_FILE;
     public static final String TLS_CERT_FILE;
     public static final String TLS_TRUST_STORE;
@@ -326,11 +328,8 @@ public final class Config {
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         String protocol = p.get(PROPERTY_TLS_PROTOCOL_VERSION);
-        if (Strings.isNullOrEmpty(protocol)) {
-            protocol = PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue();
-        }
-        TLSProtocolVersion tpv = new TLSProtocolVersion(protocol);
-        TLS_PROTOCOL_VERSION = Arrays.copyOf(tpv.getProtocols(), tpv.getProtocols().length);
+        String[] protocols = new TLSProtocolVersion(protocol).getProtocols();
+        TLS_PROTOCOL_VERSION = Collections.unmodifiableList(Arrays.asList(protocols));
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
@@ -465,7 +464,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
-                .tlsProtocolVersion(Arrays.copyOf(Config.TLS_PROTOCOL_VERSION, Config.TLS_PROTOCOL_VERSION.length))
+                .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]))
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
