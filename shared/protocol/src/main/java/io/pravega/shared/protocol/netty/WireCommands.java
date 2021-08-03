@@ -61,7 +61,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 12;
+    public static final int WIRE_VERSION = 13;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1085,6 +1085,7 @@ public final class WireCommands {
         final int targetRate;
         @ToString.Exclude
         final String delegationToken;
+        final long rolloverSizeBytes;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1098,16 +1099,21 @@ public final class WireCommands {
             out.writeInt(targetRate);
             out.writeByte(scaleType);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(rolloverSizeBytes);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             int desiredRate = in.readInt();
             byte scaleType = in.readByte();
             String delegationToken = in.readUTF();
+            long rolloverSizeBytes = 0;
+            if (in.available() >= Long.BYTES) {
+                rolloverSizeBytes = in.readLong();
+            }
 
-            return new CreateSegment(requestId, segment, scaleType, desiredRate, delegationToken);
+            return new CreateSegment(requestId, segment, scaleType, desiredRate, delegationToken, rolloverSizeBytes);
         }
     }
 
@@ -1185,6 +1191,7 @@ public final class WireCommands {
         final int keyLength;
         @ToString.Exclude
         final String delegationToken;
+        final long rolloverSizeBytes;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1198,6 +1205,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeBoolean(sortedDeprecated);
             out.writeInt(keyLength);
+            out.writeLong(rolloverSizeBytes);
         }
 
         public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
@@ -1206,14 +1214,18 @@ public final class WireCommands {
             String delegationToken = in.readUTF();
             boolean sorted = false;
             int keyLength = 0;
+            long rolloverSizeBytes = 0;
             if (in.available() >= 1) {
                 sorted = in.readBoolean();
             }
             if (in.available() >= Integer.BYTES) {
                 keyLength = in.readInt();
             }
+            if (in.available() >= Long.BYTES) {
+                rolloverSizeBytes = in.readLong();
+            }
 
-            return new CreateTableSegment(requestId, segment, sorted, keyLength, delegationToken);
+            return new CreateTableSegment(requestId, segment, sorted, keyLength, delegationToken, rolloverSizeBytes);
         }
     }
 

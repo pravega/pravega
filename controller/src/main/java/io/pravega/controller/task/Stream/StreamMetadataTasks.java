@@ -1790,7 +1790,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId,
                                             response.getConfiguration().getScalingPolicy(),
-                                            this.retrieveDelegationToken(), requestId);
+                                            this.retrieveDelegationToken(), requestId, config.getRolloverSizeBytes());
                                 })
                                 .thenCompose(v -> {
                                     return streamMetadataStore.getVersionedState(scope, markStream, context, executor)
@@ -1832,14 +1832,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .stream()
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken,
-                        requestId))
+                        requestId, configuration.getRolloverSizeBytes()))
                 .collect(Collectors.toList())));
     }
 
     public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken, long requestId) {
+                                                    String controllerToken, long requestId, long rolloverSize) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, controllerToken, requestId), executor));
+                stream, segmentId, policy, controllerToken, requestId, rolloverSize), executor));
     }
 
     public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,

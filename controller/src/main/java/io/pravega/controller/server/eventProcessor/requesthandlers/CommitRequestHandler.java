@@ -310,7 +310,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             // Use fixed scaling policy for these segments as they are created, merged into and sealed and are not
             // supposed to auto scale.
             return streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken, 
-                    context.getRequestId());
+                    context.getRequestId(), 0);
         }).collect(Collectors.toList()));
 
         return createSegmentsFuture

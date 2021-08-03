@@ -157,7 +157,8 @@ public class SegmentHelper implements AutoCloseable {
                                                  final long segmentId,
                                                  final ScalingPolicy policy,
                                                  final String controllerToken,
-                                                 final long clientRequestId) {
+                                                 final long clientRequestId,
+                                                 final long rolloverSizeBytes) {
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -167,7 +168,7 @@ public class SegmentHelper implements AutoCloseable {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         return sendRequest(connection, clientRequestId, new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
-            extracted.getLeft(), extracted.getRight(), controllerToken))
+            extracted.getLeft(), extracted.getRight(), controllerToken, rolloverSizeBytes))
             .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName,
                     WireCommands.CreateSegment.class, type));
     }
@@ -247,7 +248,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
-                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
+                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken, 0);
 
         return sendRequest(connection, clientRequestId, request)
                 .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class,
@@ -375,6 +376,7 @@ public class SegmentHelper implements AutoCloseable {
      * @param sortedTableSegment  Boolean flag indicating if the Table Segment should be created in sorted order.
      * @param keyLength           Key Length. If 0, a Hash Table Segment (Variable Key Length) will be created, otherwise
      *                            a Fixed-Key-Length Table Segment will be created with this value for the key length.
+     * @param rolloverSizeBytes   The rollover size of segment in LTS.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
@@ -383,7 +385,8 @@ public class SegmentHelper implements AutoCloseable {
                                                       String delegationToken,
                                                       final long clientRequestId,
                                                       final boolean sortedTableSegment,
-                                                      final int keyLength) {
+                                                      final int keyLength,
+                                                      final long rolloverSizeBytes) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
@@ -392,7 +395,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         // All Controller Metadata Segments are non-sorted.
-        return sendRequest(connection, clientRequestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, keyLength, delegationToken))
+        return sendRequest(connection, clientRequestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, keyLength, delegationToken, rolloverSizeBytes))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 

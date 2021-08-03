@@ -83,12 +83,21 @@ public class StreamConfiguration implements Serializable {
     @EqualsAndHashCode.Exclude
     private final Set<String> tags;
 
+    /**
+     * API to return segment rollover size.
+     *
+     * @param rolloverSizeBytes The segment rollover size in this stream.
+     * @return Rollover size for the segment in this Stream.
+     */
+    private final long rolloverSizeBytes;
+
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
 
         public StreamConfiguration build() {
             Set<String> tagSet = validateTags(this.tags);
-            return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet);
+            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
+            return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet, this.rolloverSizeBytes);
         }
 
         private Set<String> validateTags(List<String> tags) {

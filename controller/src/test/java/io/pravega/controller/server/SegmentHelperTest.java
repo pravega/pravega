@@ -96,7 +96,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE, 0L);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -106,18 +106,18 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
-        CompletableFuture<Void> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         ret.join();
 
         // handleUnexpectedReply
-        CompletableFuture<Void> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         AssertExtensions.assertThrows("",
@@ -126,7 +126,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE, 0L);
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
     }
@@ -486,20 +486,20 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false, 0);
+        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false, 0, 0);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", requestId, false, 0);
+        result = helper.createTableSegment("", "", requestId, false, 0, 0);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, false, 0);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, false, 0, 0);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);

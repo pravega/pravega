@@ -122,6 +122,7 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
+import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
@@ -441,6 +442,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
@@ -614,6 +616,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             typeBuilder.fixedKeyLengthTableSegment();
             configBuilder.keyLength(createTableSegment.getKeyLength());
         }
+        Preconditions.checkArgument(createTableSegment.getRolloverSizeBytes() >= 0,
+                "Segment rollover size must not be negative; actual %s.", createTableSegment.getRolloverSizeBytes());
+        configBuilder.rolloverSizeBytes(createTableSegment.getRolloverSizeBytes());
 
         tableStore.createSegment(createTableSegment.getSegment(), typeBuilder.build(), configBuilder.build(), TIMEOUT)
                 .thenAccept(v -> {

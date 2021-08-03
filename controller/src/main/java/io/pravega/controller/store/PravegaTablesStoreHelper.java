@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
@@ -170,10 +171,21 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed will indicate successful creation of table.
      */
     public CompletableFuture<Void> createTable(String tableName, long requestId) {
+        return this.createTable(tableName, requestId, 0);
+    }
+
+    /**
+     * Method to create a new Table. If the table already exists, segment helper responds with success.
+     * @param tableName table name
+     * @param requestId request id
+     * @param rolloverSizeBytes rollover size of the table segment
+     * @return CompletableFuture which when completed will indicate successful creation of table.
+     */
+    public CompletableFuture<Void> createTable(String tableName, long requestId, long rolloverSizeBytes) {
         log.debug(requestId, "create table called for table: {}", tableName);
 
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), requestId,
-                false, 0),
+                false, 0, rolloverSizeBytes),
                 () -> String.format("create table: %s", tableName), requestId))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {

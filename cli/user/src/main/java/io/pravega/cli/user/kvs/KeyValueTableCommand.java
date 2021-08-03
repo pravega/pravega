@@ -167,6 +167,7 @@ public abstract class KeyValueTableCommand extends Command {
                     .partitionCount(getConfig().getDefaultSegmentCount())
                     .primaryKeyLength(pkLength)
                     .secondaryKeyLength(skLength)
+                    .rolloverSizeBytes(getConfig().getRolloverSizeBytes())
                     .build();
             val success = m.createKeyValueTable(s.getScope(), s.getName(), kvtConfig);
             if (success) {

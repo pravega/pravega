@@ -104,7 +104,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
     @Override
     Map<AttributeId, Long> getNewSegmentAttributes(@NonNull TableSegmentConfig config) {
         Preconditions.checkArgument(config.getKeyLength() == 0, "Segment KeyLength must be 0 for HashTableSegments; actual %s.", config.getKeyLength());
-        return this.config.getDefaultCompactionAttributes();
+        return this.config.getOrDefaultCompactionAttributes(config);
     }
 
     @Override

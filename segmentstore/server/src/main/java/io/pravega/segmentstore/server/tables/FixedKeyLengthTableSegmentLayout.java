@@ -125,7 +125,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         ensureValidKeyLength("", config.getKeyLength());
         val result = new HashMap<AttributeId, Long>();
         result.put(Attributes.ATTRIBUTE_ID_LENGTH, (long) config.getKeyLength());
-        result.putAll(this.config.getDefaultCompactionAttributes());
+        result.putAll(this.config.getOrDefaultCompactionAttributes(config));
         return result;
     }
 
