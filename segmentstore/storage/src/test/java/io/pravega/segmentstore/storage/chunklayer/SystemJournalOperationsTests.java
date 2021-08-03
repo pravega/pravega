@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Builder;
@@ -924,14 +925,17 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          */
         void bootstrap() throws Exception {
             systemJournal.bootstrap(epoch, snapshotInfoStore).join();
-            garbageCollector.deleteGarbage(false, 1000).get();
+            garbageCollector.initialize(new InMemoryTaskQueueManager());
+            deleteGarbage();
         }
 
         /**
          * Delete Garbage
          */
         void deleteGarbage() throws Exception {
-            garbageCollector.deleteGarbage(false, 1000).get();
+            val testTaskQueue = (InMemoryTaskQueueManager) garbageCollector.getTaskQueue();
+            val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1000);
+            garbageCollector.processBatch(list).join();
         }
 
         /**

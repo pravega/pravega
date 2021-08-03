@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -271,23 +272,23 @@ public class SystemJournal {
         /**
          * Keep track of offsets at which chunks were added to the system segments.
          */
-        final private Map<String, Long> chunkStartOffsets = new HashMap<>();
+        final private Map<String, Long> chunkStartOffsets = Collections.synchronizedMap(new HashMap<>());
 
         /**
          * Keep track of offsets at which system segments were truncated.
          * We don't need to apply each truncate operation, only need to apply the final truncate offset.
          */
-        final private Map<String, Long> finalTruncateOffsets = new HashMap<>();
+        final private Map<String, Long> finalTruncateOffsets = Collections.synchronizedMap(new HashMap<>());
 
         /**
          * Final first chunk start offsets for all segments.
          */
-        final private Map<String, Long> finalFirstChunkStartsAtOffsets = new HashMap<>();
+        final private Map<String, Long> finalFirstChunkStartsAtOffsets = Collections.synchronizedMap(new HashMap<>());
 
         /**
          * Keep track of already processed records.
          */
-        final private HashSet<SystemJournalRecord> visitedRecords = new HashSet<>();
+        final private Set<SystemJournalRecord> visitedRecords = Collections.synchronizedSet(new HashSet<>());
 
         /**
          * Number of journals processed.
@@ -544,7 +545,7 @@ public class SystemJournal {
                                     val oldSnapshotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, oldSnapshotInfo.getSnapshotId());
                                     pendingGarbageChunks.add(oldSnapshotFile);
                                 }
-                                garbageCollector.addToGarbage(pendingGarbageChunks);
+                                garbageCollector.addChunksToGarbage(-1, pendingGarbageChunks);
                                 pendingGarbageChunks.clear();
                             }, executor)
                             .exceptionally(e -> {
@@ -629,7 +630,7 @@ public class SystemJournal {
                     systemSnapshot.epoch, systemSnapshot.fileIndex);
             log.trace("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
             // Initialize the segments and their chunks.
-            for (SegmentSnapshotRecord segmentSnapshot : systemSnapshot.segmentSnapshotRecords) {
+            for (val segmentSnapshot : systemSnapshot.segmentSnapshotRecords) {
                 // Update segment data.
                 segmentSnapshot.segmentMetadata.setActive(true)
                         .setOwnershipChanged(true)
@@ -645,7 +646,7 @@ public class SystemJournal {
 
                 // Add chunk metadata and keep track of start offsets for each chunk.
                 long offset = segmentSnapshot.segmentMetadata.getFirstChunkStartOffset();
-                for (ChunkMetadata metadata : segmentSnapshot.chunkMetadataCollection) {
+                for (val metadata : segmentSnapshot.chunkMetadataCollection) {
                     val chunkMetadataCopy = metadata.deepCopy();
                     txn.create(chunkMetadataCopy);
 
@@ -659,8 +660,8 @@ public class SystemJournal {
         } else {
             log.debug("SystemJournal[{}] No previous snapshot present.", containerId);
             // Initialize with default values.
-            for (String systemSegment : systemSegments) {
-                SegmentMetadata segmentMetadata = SegmentMetadata.builder()
+            for (val systemSegment : systemSegments) {
+                val segmentMetadata = SegmentMetadata.builder()
                         .name(systemSegment)
                         .ownerEpoch(epoch)
                         .maxRollinglength(config.getStorageMetadataRollingPolicy().getMaxLength())
@@ -984,10 +985,10 @@ public class SystemJournal {
      */
     private CompletableFuture<Void> adjustLastChunkLengths(MetadataTransaction txn) {
         val futures = new ArrayList<CompletableFuture<Void>>();
-        for (String systemSegment : systemSegments) {
+        for (val systemSegment : systemSegments) {
             val f = txn.get(systemSegment)
                     .thenComposeAsync(m -> {
-                        SegmentMetadata segmentMetadata = (SegmentMetadata) m;
+                        val segmentMetadata = (SegmentMetadata) m;
                         segmentMetadata.checkInvariants();
                         CompletableFuture<Void> ff;
                         // Update length of last chunk in metadata to what we actually find on LTS.
@@ -997,7 +998,7 @@ public class SystemJournal {
                                         long length = chunkInfo.getLength();
                                         return txn.get(segmentMetadata.getLastChunk())
                                                 .thenAcceptAsync(mm -> {
-                                                    ChunkMetadata lastChunk = (ChunkMetadata) mm;
+                                                    val lastChunk = (ChunkMetadata) mm;
                                                     Preconditions.checkState(null != lastChunk, "lastChunk must not be null. Segment=%s", segmentMetadata);
                                                     lastChunk.setLength(length);
                                                     txn.update(lastChunk);
@@ -1030,7 +1031,7 @@ public class SystemJournal {
     private CompletableFuture<Void> applyFinalTruncateOffsets(MetadataTransaction txn,
                                                               BootstrapState state) {
         val futures = new ArrayList<CompletableFuture<Void>>();
-        for (String systemSegment : systemSegments) {
+        for (val systemSegment : systemSegments) {
             if (state.finalTruncateOffsets.containsKey(systemSegment)) {
                 val truncateAt = state.finalTruncateOffsets.get(systemSegment);
                 val firstChunkStartsAt = state.finalFirstChunkStartsAtOffsets.get(systemSegment);
@@ -1093,7 +1094,7 @@ public class SystemJournal {
                                                 oldChunk.setNextChunk(newChunkName);
 
                                                 // Set length
-                                                long oldLength = chunkStartOffsets.get(oldChunkName);
+                                                val oldLength = chunkStartOffsets.get(oldChunkName);
                                                 oldChunk.setLength(offset - oldLength);
 
                                                 txn.update(oldChunk);
@@ -1127,7 +1128,7 @@ public class SystemJournal {
     private CompletableFuture<Void> applyTruncate(MetadataTransaction txn, String segmentName, long truncateAt, long firstChunkStartsAt) {
         return txn.get(segmentName)
                 .thenComposeAsync(metadata -> {
-                    SegmentMetadata segmentMetadata = (SegmentMetadata) metadata;
+                    val segmentMetadata = (SegmentMetadata) metadata;
                     segmentMetadata.checkInvariants();
                     val currentChunkName = new AtomicReference<>(segmentMetadata.getFirstChunk());
                     val currentMetadata = new AtomicReference<ChunkMetadata>();
@@ -1183,7 +1184,7 @@ public class SystemJournal {
                 .build();
 
         val futures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
-        for (String systemSegment : systemSegments) {
+        for (val systemSegment : systemSegments) {
             // Find segment metadata.
             val future = txn.get(systemSegment)
                     .thenComposeAsync(metadata -> {

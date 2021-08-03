@@ -1,6 +1,6 @@
 /*
  * Pravega Controller APIs
- * List of admin REST APIs for the pravega controller service.
+ * List of admin REST APIs for the Pravega controller service.
  *
  * OpenAPI spec version: 0.0.1
  * 
@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.TagsList;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
@@ -32,6 +33,9 @@ public class UpdateStreamRequest   {
 
   @JsonProperty("retentionPolicy")
   private RetentionConfig retentionPolicy = null;
+
+  @JsonProperty("streamTags")
+  private TagsList streamTags = null;
 
   public UpdateStreamRequest scalingPolicy(ScalingConfig scalingPolicy) {
     this.scalingPolicy = scalingPolicy;
@@ -71,6 +75,25 @@ public class UpdateStreamRequest   {
     this.retentionPolicy = retentionPolicy;
   }
 
+  public UpdateStreamRequest streamTags(TagsList streamTags) {
+    this.streamTags = streamTags;
+    return this;
+  }
+
+  /**
+   * Get streamTags
+   * @return streamTags
+   **/
+  @JsonProperty("streamTags")
+  @ApiModelProperty(value = "")
+  public TagsList getStreamTags() {
+    return streamTags;
+  }
+
+  public void setStreamTags(TagsList streamTags) {
+    this.streamTags = streamTags;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -82,12 +105,13 @@ public class UpdateStreamRequest   {
     }
     UpdateStreamRequest updateStreamRequest = (UpdateStreamRequest) o;
     return Objects.equals(this.scalingPolicy, updateStreamRequest.scalingPolicy) &&
-        Objects.equals(this.retentionPolicy, updateStreamRequest.retentionPolicy);
+        Objects.equals(this.retentionPolicy, updateStreamRequest.retentionPolicy) &&
+        Objects.equals(this.streamTags, updateStreamRequest.streamTags);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scalingPolicy, retentionPolicy);
+    return Objects.hash(scalingPolicy, retentionPolicy, streamTags);
   }
 
 
@@ -98,6 +122,7 @@ public class UpdateStreamRequest   {
     
     sb.append("    scalingPolicy: ").append(toIndentedString(scalingPolicy)).append("\n");
     sb.append("    retentionPolicy: ").append(toIndentedString(retentionPolicy)).append("\n");
+    sb.append("    streamTags: ").append(toIndentedString(streamTags)).append("\n");
     sb.append("}");
     return sb.toString();
   }
