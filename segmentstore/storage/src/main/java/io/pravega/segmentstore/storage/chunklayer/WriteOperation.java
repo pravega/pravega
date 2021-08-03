@@ -244,10 +244,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
                     Preconditions.checkState(oldChunkCount + chunksAddedCount.get() == segmentMetadata.getChunkCount(),
-                            "Number of chunks do not match old value (%s) + number of chunks added (%s) must match current chunk count(%s)",
+                            "Number of chunks do not match. old value (%s) + number of chunks added (%s) must match current chunk count(%s)",
                             oldChunkCount, chunksAddedCount.get(), segmentMetadata.getChunkCount());
                     Preconditions.checkState(oldLength + length == segmentMetadata.getLength(),
-                            "New length must match old value (%s) + length (%s) must match current chunk count(%s)",
+                            "New length must match. old value (%s) + length (%s) must match current chunk count(%s)",
                             oldLength, length, segmentMetadata.getLength());
                     if (null != lastChunkMetadata.get()) {
                         Preconditions.checkState(segmentMetadata.getLastChunkStartOffset() + lastChunkMetadata.get().getLength() == segmentMetadata.getLength(),

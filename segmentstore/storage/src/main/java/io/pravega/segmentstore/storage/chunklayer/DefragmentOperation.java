@@ -210,7 +210,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getExecutor())
                 .thenComposeAsync(vvv -> {
                     Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
-                            "Number of chunks do not match old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
+                            "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
                             oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
                     segmentMetadata.checkInvariants();
                     return updateReadIndex();

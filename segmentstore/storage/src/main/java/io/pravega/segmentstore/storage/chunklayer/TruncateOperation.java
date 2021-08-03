@@ -97,7 +97,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 Preconditions.checkState(segmentMetadata.getLength() == oldLength,
                                                         "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
                                                 Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
-                                                        "Number of chunks do not match old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
+                                                        "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
                                                         oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
                                                 if (null != currentMetadata && null != segmentMetadata.getFirstChunk()) {
                                                     Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()));

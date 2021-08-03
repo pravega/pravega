@@ -638,21 +638,18 @@ public class SystemJournal {
                 segmentSnapshot.segmentMetadata.setOwnerEpoch(epoch);
 
                 // Add segment data.
-                val segmentMetadataCopy = segmentSnapshot.segmentMetadata.deepCopy();
-                txn.create(segmentMetadataCopy);
+                txn.create(segmentSnapshot.segmentMetadata);
 
                 // make sure that the record is marked pinned.
-                txn.markPinned(segmentMetadataCopy);
+                txn.markPinned(segmentSnapshot.segmentMetadata);
 
                 // Add chunk metadata and keep track of start offsets for each chunk.
                 long offset = segmentSnapshot.segmentMetadata.getFirstChunkStartOffset();
                 for (val metadata : segmentSnapshot.chunkMetadataCollection) {
-                    val chunkMetadataCopy = metadata.deepCopy();
-                    txn.create(chunkMetadataCopy);
+                    txn.create(metadata);
 
                     // make sure that the record is marked pinned.
-                    txn.markPinned(chunkMetadataCopy);
-
+                    txn.markPinned(metadata);
                     state.chunkStartOffsets.put(metadata.getName(), offset);
                     offset += metadata.getLength();
                 }
