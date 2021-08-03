@@ -1345,8 +1345,12 @@ public final class WireCommands {
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            int numberOfEntries = in.readInt();
             List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
+            if (in.available() <= 0) {
+                // MergeSegment Commands prior v5 do not allow attributeUpdates, so we can return.
+                return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
+            }
+            int numberOfEntries = in.readInt();
             for (int i = 0; i < numberOfEntries; i++) {
                 attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
             }
