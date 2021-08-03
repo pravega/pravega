@@ -24,12 +24,15 @@ import lombok.Getter;
  */
 public final class NameUtils {
     //region Members
-    
+
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
+
+    // The prefix used for internal container segments.
+    public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";
 
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
@@ -95,9 +98,19 @@ public final class NameUtils {
     private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
 
     /**
+     * Prefix for Container Metadata Segment name.
+     */
+    private static final String METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "metadata_";
+
+    /**
      * Format for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
+    private static final String METADATA_SEGMENT_NAME_FORMAT = METADATA_SEGMENT_NAME_PREFIX + "%d";
+
+    /**
+     * Prefix for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
@@ -107,12 +120,12 @@ public final class NameUtils {
     /**
      * Format for Container System Journal file name.
      */
-    private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+    private static final String SYSJOURNAL_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.file%d";
 
     /**
      * Format for Container System snapshot file name.
      */
-    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -140,7 +153,7 @@ public final class NameUtils {
     private static final String KVTABLE_SUFFIX = "_kvtable";
 
     /**
-     * Prefix for identifying system created mark segments for storing watermarks. 
+     * Prefix for identifying system created mark segments for storing watermarks.
      */
     @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
@@ -526,13 +539,13 @@ public final class NameUtils {
         sb.append(streamName);
         return sb;
     }
-    
+
     // region table names
 
     /**
      * Method to generate Fully Qualified table name using scope, and other tokens to be used to compose the table name.
      * The composed name has following format: {@literal <scope>/_tables/<tokens[0]>/<tokens[1]>...}
-     * 
+     *
      * @param scope scope in which table segment to create
      * @param tokens tokens used for composing table segment name
      * @return Fully qualified table segment name composed of supplied tokens.
@@ -550,11 +563,11 @@ public final class NameUtils {
 
     /**
      * Method to extract tokens that were used to compose fully qualified table segment name using method getQualifiedTableName.
-     * 
+     *
      * The first token in the returned list corresponds to scope. Remainder tokens correspond to tokens used to compose tableName.
      *
      * @param qualifiedName fully qualified table name
-     * @return tokens capturing different components of table segment name. First element in the list represents scope 
+     * @return tokens capturing different components of table segment name. First element in the list represents scope
      */
     public static List<String> extractTableSegmentTokens(String qualifiedName) {
         Preconditions.checkNotNull(qualifiedName);
@@ -567,7 +580,7 @@ public final class NameUtils {
         for (int i = 2; i < tokens.length; i++) {
             retVal.add(tokens[i]);
         }
-        
+
         return retVal;
     }
 
@@ -663,7 +676,7 @@ public final class NameUtils {
         return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
     // endregion
-    
+
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
      * and pravega internally created streams.
@@ -775,7 +788,7 @@ public final class NameUtils {
     public static String validateWriterId(String writerId) {
         return validateUserStreamName(writerId);
     }
-    
+
     // region watermark
     public static String getMarkStreamForStream(String stream) {
         StringBuffer sb = new StringBuffer();
