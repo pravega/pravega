@@ -101,7 +101,7 @@ public class StrongPasswordProcessor {
         return salt;
     }
 
-    private String toHex(byte[] array) throws NoSuchAlgorithmException {
+    private String toHex(byte[] array) {
         BigInteger bi = new BigInteger(1, array);
         String hex = bi.toString(16);
         int paddingLength = (array.length * 2) - hex.length();

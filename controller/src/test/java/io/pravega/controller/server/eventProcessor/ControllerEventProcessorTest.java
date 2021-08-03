@@ -98,7 +98,7 @@ public abstract class ControllerEventProcessorTest {
     private static final String STREAM = "stream";
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
@@ -325,7 +325,8 @@ public abstract class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
         streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();

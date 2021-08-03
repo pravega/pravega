@@ -776,6 +776,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             val expectedValue = k.getValue() == null ? null : new TableEntry(new TableKey(k.getKey()), k.getValue(), getValue(k.getKey(), iteration));
             val actualEntry = kvt.get(new TableKey(k.getKey())).join();
             Assert.assertTrue(areEqual(expectedValue, actualEntry));
+            boolean exists = kvt.exists(new TableKey(k.getKey())).join();
+            Assert.assertEquals(expectedValue != null, exists);
         }
 
         // Using multi-get.

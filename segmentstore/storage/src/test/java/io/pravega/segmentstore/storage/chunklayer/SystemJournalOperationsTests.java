@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Builder;
@@ -66,12 +67,14 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
+    @Override
     @Before
     public void before() throws Exception {
         super.before();
         FlakySnapshotInfoStore.clear();
     }
 
+    @Override
     @After
     public void after() throws Exception {
         super.after();
@@ -192,6 +195,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -269,6 +273,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(3)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -298,7 +303,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 2, 2, 5);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
@@ -342,11 +349,29 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         }
     }
 
+    private void checkJournalsNotExistBefore(TestContext testContext, long epoch, long snapshotId, long journalIndex, long changeNumber) throws Exception {
+        // check snapshots
+        for (int i = 0; i < snapshotId; i++) {
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalSnapshotFileName(CONTAINER_ID, epoch, i)).get());
+        }
+        // Check journals
+        if (testContext.config.isAppendEnabled() && testContext.chunkStorage.supportsAppend()) {
+            for (int i = 0; i < journalIndex; i++) {
+                Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, epoch, i)).get());
+            }
+        } else {
+            for (int i = 0; i < changeNumber; i++) {
+                Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, epoch, i)).get());
+            }
+        }
+    }
+
     @Test
     public void testWithSnapshotsAndTime() throws Exception {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -367,7 +392,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         // Trigger Time and add chunk
         testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
         instance.append(testSegmentName, "C", 3, 3);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 2, 2, 3);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 3);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
@@ -379,7 +406,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
+        instance.deleteGarbage();
         checkJournalsExist(testContext, instance, 3, 3, 6);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 3, 6);
 
         // Bootstrap new instance.
         @Cleanup
@@ -418,6 +447,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -496,6 +526,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 val testContext = new TestContext(CONTAINER_ID);
                 testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                         .maxJournalUpdatesPerSnapshot(2)
+                        .garbageCollectionDelay(Duration.ZERO)
                         .selfCheckEnabled(true)
                         .build());
                 val testSegmentName = testContext.segmentNames[0];
@@ -529,6 +560,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -558,6 +590,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID, chunkStorage);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -816,6 +849,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @Data
     class TestContext implements AutoCloseable {
         ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build();
         ChunkStorage chunkStorage;
@@ -887,8 +921,22 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config, executorService());
         }
 
+        /**
+         * Bootstrap
+         */
         void bootstrap() throws Exception {
             systemJournal.bootstrap(epoch, snapshotInfoStore).join();
+            garbageCollector.initialize(new InMemoryTaskQueueManager());
+            deleteGarbage();
+        }
+
+        /**
+         * Delete Garbage
+         */
+        void deleteGarbage() throws Exception {
+            val testTaskQueue = (InMemoryTaskQueueManager) garbageCollector.getTaskQueue();
+            val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1000);
+            garbageCollector.processBatch(list).join();
         }
 
         /**
@@ -1197,6 +1245,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     static class FlakySnapshotInfoStore extends InMemorySnapshotInfoStore {
         final FlakyInterceptor  interceptor = new FlakyInterceptor();
 
+        @Override
         @SneakyThrows
         public CompletableFuture<SnapshotInfo> getSnapshotId(int containerId) {
             try {
@@ -1209,6 +1258,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             }
         }
 
+        @Override
         @SneakyThrows
         public CompletableFuture<Void> setSnapshotId(int containerId, SnapshotInfo checkpoint) {
             try {
@@ -1226,16 +1276,19 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      * Runs {@link SystemJournalOperationsTests} for Non-appendable storage.
      */
     public static class NonAppendableChunkStorageSystemJournalOperationsTests extends SystemJournalOperationsTests {
+        @Override
         @Before
         public void before() throws Exception {
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             super.after();
         }
 
+        @Override
         protected ChunkStorage createChunkStorage() throws Exception {
             val chunkStorage = new InMemoryChunkStorage(executorService());
             chunkStorage.setShouldSupportAppend(false);

@@ -51,7 +51,7 @@ import static org.mockito.Mockito.verify;
  */
 public class ZKCounterTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkServer;
     private CuratorFramework cli;
     private ScheduledExecutorService executor;

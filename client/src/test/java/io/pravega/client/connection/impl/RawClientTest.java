@@ -202,10 +202,12 @@ public class RawClientTest {
         }).when(connectionPool).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
 
         // Test exception paths.
+        @Cleanup
         RawClient rawClient = new RawClient(endpoint, connectionPool);
         CompletableFuture<Reply> reply = rawClient.sendRequest(100L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply, t -> t instanceof ConnectionFailedException);
 
+        @Cleanup
         RawClient rawClient1 = new RawClient(controller, connectionPool, new Segment("scope", "stream", 1));
         CompletableFuture<Reply> reply1 = rawClient1.sendRequest(101L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply1, t -> t instanceof ConnectionFailedException);

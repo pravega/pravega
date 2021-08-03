@@ -48,7 +48,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
-import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
@@ -136,10 +136,10 @@ public abstract class AdminCommand {
     }
 
     /**
-     * Creates a new instance of the CLIControllerConfig class from the shared AdminCommandState passed in via the Constructor.
+     * Creates a new instance of the CLIConfig class from the shared AdminCommandState passed in via the Constructor.
      */
-    protected CLIControllerConfig getCLIControllerConfig() {
-        return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIControllerConfig::builder);
+    protected CLIConfig getCLIControllerConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIConfig::builder);
     }
 
     /**
@@ -176,6 +176,7 @@ public abstract class AdminCommand {
 
     protected boolean confirmContinue() {
         output("Do you want to continue?[yes|no]");
+        @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         String input = s.nextLine();
         return input.equals("yes");
@@ -389,11 +390,21 @@ public abstract class AdminCommand {
                 .containerCount(getServiceConfig().getContainerCount())
                 .build();
         HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
-        ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
-                .validateHostName(getCLIControllerConfig().isAuthEnabled())
-                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
-                .build();
+
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
+                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()));
+
+        if (getCLIControllerConfig().isAuthEnabled()) {
+            clientConfigBuilder.credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(),
+                    getCLIControllerConfig().getUserName()));
+        }
+        if (getCLIControllerConfig().isTlsEnabled()) {
+            clientConfigBuilder.trustStore(getCLIControllerConfig().getTruststore())
+                    .validateHostName(false);
+        }
+
+        ClientConfig clientConfig = clientConfigBuilder.build();
+
         ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }

@@ -43,18 +43,21 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private TestContext testContext = new TestContext(executorService());
 
+    @Override
     @Before
     public void before() throws Exception {
         super.before();
         testContext.setUp();
     }
 
+    @Override
     @After
     public void after() throws Exception {
         testContext.tearDown();
         super.after();
     }
 
+    @Override
     protected ChunkStorage getChunkStorage()  throws Exception {
         return testContext.getChunkStorage(executorService());
     }
@@ -67,18 +70,21 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
         public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
         private TestContext testContext = new TestContext(executorService());
 
+        @Override
         @Before
         public void before() throws Exception {
             super.before();
             testContext.setUp();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             testContext.tearDown();
             super.after();
         }
 
+        @Override
         protected ChunkStorage getChunkStorage()  throws Exception {
             return testContext.getChunkStorage(executorService());
         }
@@ -92,12 +98,14 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
         public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
         private TestContext testContext = new TestContext(executorService());
 
+        @Override
         @Before
         public void before() throws Exception {
             testContext.setUp();
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             super.after();
@@ -112,6 +120,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
         /**
          * Test default capabilities.
          */
+        @Override
         @Test
         public void testCapabilities() {
             assertEquals(true, getChunkStorage().supportsAppend());
@@ -126,12 +135,14 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
     public static class HDFSChunkStorageSystemJournalTests extends SystemJournalTests {
         private TestContext testContext = new TestContext(executorService());
 
+        @Override
         @Before
         public void before() throws Exception {
             testContext.setUp();
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             testContext.tearDown();

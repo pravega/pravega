@@ -69,6 +69,7 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
         return this.segmentStoreAdapter.getStreamSegmentStore();
     }
 
+    @Override
     protected TableStore getTableStore() {
         return this.segmentStoreAdapter.getTableStore();
     }

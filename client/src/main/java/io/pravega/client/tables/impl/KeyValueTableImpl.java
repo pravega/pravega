@@ -153,6 +153,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         return update(new Remove(key, Version.NOT_EXISTS))
                 .handle((r, ex) -> {
                     if (ex != null) {
+                        ex = Exceptions.unwrap(ex);
                         if (ex instanceof ConditionalTableUpdateException) {
                             return true;
                         } else {

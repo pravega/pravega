@@ -146,6 +146,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         this.currentIndexOffset.set(currentIndexOffset);
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         // The algorithm is actually very simple.
         // It tries to concat all small chunks using appends first.
@@ -328,7 +329,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> updateReadIndex() {
-        return new ChunkIterator(chunkedSegmentStorage, txn, startChunkName, lastChunkName)
+        return new ChunkIterator(chunkedSegmentStorage.getExecutor(), txn, startChunkName, lastChunkName)
                 .forEach((metadata, name) -> {
                     newReadIndexEntries.add(ChunkNameOffsetPair.builder()
                             .chunkName(name)
