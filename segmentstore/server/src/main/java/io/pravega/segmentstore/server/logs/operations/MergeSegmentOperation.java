@@ -22,9 +22,9 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import lombok.Getter;
 
 import java.io.IOException;
-import java.util.Collections;
 
 /**
  * Log Operation that indicates a Segment is to be merged into another Segment.
@@ -35,7 +35,8 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
     private long streamSegmentOffset;
     private long length;
     private long sourceSegmentId;
-    private AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(Collections.emptyList());
+    @Getter
+    private AttributeUpdateCollection attributeUpdates;
 
     //endregion
 
@@ -52,12 +53,12 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
         this.sourceSegmentId = sourceSegmentId;
         this.length = -1;
         this.streamSegmentOffset = -1;
+        this.attributeUpdates = null;
     }
 
     public MergeSegmentOperation(long targetSegmentId, long sourceSegmentId, AttributeUpdateCollection attributeUpdates) {
         this(targetSegmentId, sourceSegmentId);
-        // this.attributeUpdates is already set as an empty collection in the above constructor. Overwrite it only if needed.
-        this.attributeUpdates = attributeUpdates == null ? this.attributeUpdates : attributeUpdates;
+        this.attributeUpdates = attributeUpdates;
     }
 
     /**
@@ -131,22 +132,17 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
                 getSourceSegmentId(),
                 toString(getLength(), -1),
                 toString(getStreamSegmentOffset(), -1),
-                this.attributeUpdates.size());
+                this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
     //endregion
 
-    //region AttributeUpdaterOperation implementation
-
-    @Override
-    public AttributeUpdateCollection getAttributeUpdates() {
-        return AttributeUpdateCollection.from(attributeUpdates);
-    }
-
-    //endregion
+    //region Serializer
 
     static class Serializer extends OperationSerializer<MergeSegmentOperation> {
         private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
+        // Segment merges can be conditionally based on attributes. Each attribute update is serialized as a UUID
+        // (attributeId, 2 longs), attribute type (1 byte), old and new values (2 longs).
         private static final int ATTRIBUTE_UUID_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
 
         @Override
@@ -183,13 +179,14 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
 
         private void write01(MergeSegmentOperation o, RevisionDataOutput target) throws IOException {
             if (o.attributeUpdates == null || o.attributeUpdates.isEmpty()) {
+                target.getCompactIntLength(0);
                 return;
             }
             target.length(target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UUID_UPDATE_LENGTH));
-            target.writeCollection(o.attributeUpdates, this::writeAttributeUpdateUUID00);
+            target.writeCollection(o.attributeUpdates, this::writeAttributeUpdateUUID01);
         }
 
-        private void writeAttributeUpdateUUID00(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+        private void writeAttributeUpdateUUID01(RevisionDataOutput target, AttributeUpdate au) throws IOException {
             target.writeLong(au.getAttributeId().getBitGroup(0));
             target.writeLong(au.getAttributeId().getBitGroup(1));
             target.writeByte(au.getUpdateType().getTypeId());
@@ -207,11 +204,11 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
 
         private void read01(RevisionDataInput source, OperationBuilder<MergeSegmentOperation> b) throws IOException {
             if (source.getRemaining() > 0) {
-                b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID00, AttributeUpdateCollection::new);
+                b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID01, AttributeUpdateCollection::new);
             }
         }
 
-        private AttributeUpdate readAttributeUpdateUUID00(RevisionDataInput source) throws IOException {
+        private AttributeUpdate readAttributeUpdateUUID01(RevisionDataInput source) throws IOException {
             return new AttributeUpdate(
                     AttributeId.uuid(source.readLong(), source.readLong()),
                     AttributeUpdateType.get(source.readByte()),
@@ -219,4 +216,6 @@ public class MergeSegmentOperation extends StorageOperation implements Attribute
                     source.readLong());
         }
     }
+
+    //endregion
 }

@@ -419,7 +419,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.recoveryMode) {
             // Update attributes first on the target Segment, if any.
-            preProcessAttributes(AttributeUpdateCollection.from(operation.getAttributeUpdates()));
+            preProcessAttributes(operation.getAttributeUpdates());
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
         }

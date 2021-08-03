@@ -24,7 +24,6 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -541,7 +540,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testConditionalSegmentMerge() throws Exception {
+    public void testConditionalSegmentMergeReplaceIfEquals() throws Exception {
         String streamSegmentName = "scope/stream/txnSegment";
         UUID txnId = UUID.randomUUID();
         @Cleanup
@@ -561,9 +560,11 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
 
         // Try to merge the transaction conditionally, when the attributes on the parent segment do not match.
-        UUID randomAttribute = UUID.randomUUID();
-        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = singletonList(
-                new WireCommands.ConditionalAttributeUpdate(randomAttribute, AttributeUpdateType.ReplaceIfEquals.getTypeId(), 0, streamSegmentName.hashCode())
+        UUID randomAttribute1 = UUID.randomUUID();
+        UUID randomAttribute2 = UUID.randomUUID();
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = asList(
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute1, WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 1, streamSegmentName.hashCode()),
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute2, WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 2, streamSegmentName.hashCode())
         );
 
         // The first attempt should fail as the attribute update is not going to work.
@@ -572,12 +573,76 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, false));
 
         // Now, set the right attributes in the parent segment.
-        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute,
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute1,
                 streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(4, streamSegmentName, randomAttribute2,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(4, true));
+
         // Merge segments conditionally, now it should work.
-        processor.mergeSegments(new WireCommands.MergeSegments(4, streamSegmentName, transactionName, "", attributeUpdates));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(4, streamSegmentName, transactionName, 1));
+        processor.mergeSegments(new WireCommands.MergeSegments(5, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(5, streamSegmentName, transactionName, 1));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(6, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(6, 1));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 2));
+    }
+
+    @Test(timeout = 20000)
+    public void testConditionalSegmentMergeReplace() throws Exception {
+        String streamSegmentName = "scope/stream/txnSegment";
+        UUID txnId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
+        assertTrue(append(transactionName, 1, store));
+
+        // Update to perform.
+        UUID randomAttribute1 = UUID.randomUUID();
+        UUID randomAttribute2 = UUID.randomUUID();
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = asList(
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute1, WireCommands.ConditionalAttributeUpdate.REPLACE, 1, 0),
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute2, WireCommands.ConditionalAttributeUpdate.REPLACE, 2, 0)
+        );
+
+        // Set a attributes in the parent segment with a certain value.
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(2, streamSegmentName, randomAttribute1,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, true));
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute2,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(4, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(4, streamSegmentName.hashCode()));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(5, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(5, streamSegmentName.hashCode()));
+
+        // Merge segments replacing attributes, now it should work.
+        processor.mergeSegments(new WireCommands.MergeSegments(6, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(6, streamSegmentName, transactionName, 1));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 1));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(8, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(8, 2));
     }
 
     @Test(timeout = 20000)

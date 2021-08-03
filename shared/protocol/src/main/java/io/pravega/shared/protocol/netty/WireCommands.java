@@ -1334,6 +1334,7 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(attributeUpdates.size());
             for (ConditionalAttributeUpdate entry : attributeUpdates) {
                 entry.writeFields(out);
             }
@@ -1344,8 +1345,9 @@ public final class WireCommands {
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
+            int numberOfEntries = in.readInt();
             List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
-            while (in.available() > 0) {
+            for (int i = 0; i < numberOfEntries; i++) {
                 attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
             }
             return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
@@ -2565,6 +2567,8 @@ public final class WireCommands {
      */
     @Data
     public static final class ConditionalAttributeUpdate {
+        public static final byte REPLACE = (byte) 1; // AttributeUpdate of type AttributeUpdateType.Replace.
+        public static final byte REPLACE_IF_EQUALS = (byte) 4; // AttributeUpdate of type AttributeUpdateType.ReplaceIfEquals.
         public static final int LENGTH = 4 * Long.BYTES + 1; // UUID (2 longs) + oldValue + newValue + updateType (1 byte)
 
         private final UUID attributeId;
