@@ -47,7 +47,7 @@ public class HealthServiceUpdaterTests {
     public void testServiceUpdaterProperlyUpdates() throws Exception {
         @Cleanup
         HealthContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
         TestHealthContributors.awaitHealthContributor(service, service.getRoot().getName());
         Health health = service.getEndpoint().getHealth();
@@ -59,7 +59,7 @@ public class HealthServiceUpdaterTests {
                 service.getRoot().getHealthSnapshot().getChildren().size());
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
         contributor = new FailingContributor("failing");
-        service.getRoot().register(contributor);
+        service.register(contributor);
         TestHealthContributors.awaitHealthContributor(service, contributor.getName());
 
         health = service.getEndpoint().getHealth();

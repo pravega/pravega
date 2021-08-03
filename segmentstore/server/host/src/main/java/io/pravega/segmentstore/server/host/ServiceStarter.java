@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.healhcontributor.ZKHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -107,19 +108,6 @@ public final class ServiceStarter {
             statsProvider.start();
         }
 
-        log.info("Initializing HealthService ...");
-        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
-        healthServiceManager.start();
-
-        if (this.serviceConfig.isRestServerEnabled()) {
-            log.info("Initializing RESTServer ...");
-            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
-                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
-                    healthServiceManager.getEndpoint())));
-            restServer.startAsync();
-            restServer.awaitRunning();
-        }
-
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
 
@@ -163,6 +151,25 @@ public final class ServiceStarter {
             log.info("AdminConnectionListener started successfully.");
         }
         log.info("StreamSegmentService started.");
+
+        log.info("Initializing HealthService ...");
+
+        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
+        healthServiceManager.start();
+        healthServiceManager.register(new ZKHealthContributor("zookeeper", zkClient));
+
+        if (this.serviceConfig.isRestServerEnabled()) {
+            log.info("Initializing RESTServer ...");
+            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
+                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
+                    healthServiceManager.getEndpoint())));
+            restServer.startAsync();
+            restServer.awaitRunning();
+        }
+
+        String myPort = Integer.toString(serviceConfig.getRestServerConfig().getPort());
+
+        log.info("my rest port is ", myPort);
     }
 
     public void shutdown() {

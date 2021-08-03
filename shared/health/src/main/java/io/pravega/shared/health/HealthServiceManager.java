@@ -16,6 +16,7 @@
 package io.pravega.shared.health;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.health.impl.HealthEndpointImpl;
 import io.pravega.shared.health.impl.HealthServiceUpdaterImpl;
@@ -76,6 +77,16 @@ public class HealthServiceManager implements AutoCloseable {
     public void start() {
         this.updater.startAsync();
         this.updater.awaitRunning();
+    }
+
+    /**
+     *
+     * @param children The health contributor used to register
+     */
+    public void register(HealthContributor... children) {
+        for (HealthContributor child : children) {
+            this.root.register(child);
+        }
     }
 
     @Override
