@@ -16,7 +16,7 @@
 #
 
 # Location of Java Keystore file. This is system dependent.
-JKS_LOCATION=/opt/java/openjdk/lib/security/cacert
+JKS_LOCATION=/opt/java/openjdk/lib/security/cacerts
 
 # Adds a system property if the value is not empty
 add_system_property() {
