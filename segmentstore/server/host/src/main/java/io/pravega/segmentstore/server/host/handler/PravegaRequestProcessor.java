@@ -501,8 +501,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                         });
                             return null;
                         } else if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
-                            log.debug(mergeSegments.getRequestId(), "Conditional merge failed (Source segment={}, Target segment={})",
-                                    mergeSegments.getSource(), mergeSegments.getTarget(), e);
+                            log.debug(mergeSegments.getRequestId(), "Conditional merge failed (Source segment={}, " +
+                                    "Target segment={}): {}", mergeSegments.getSource(), mergeSegments.getTarget(), e.toString());
                             connection.send(new SegmentAttributeUpdated(mergeSegments.getRequestId(), false));
                             return null;
                         } else {
