@@ -82,4 +82,33 @@ public abstract class SegmentContainerCollection {
 
         return resultFuture;
     }
+
+    /**
+     * Executes the given Function on the StreamSegmentContainer that the given Id maps to.
+     *
+     * @param containerId The Id to fetch the Container for.
+     * @param toInvoke    A Function that will be invoked on the Container.
+     * @param methodName  The name of the calling method (for logging purposes).
+     * @param logArgs     (Optional) A vararg array of items to be logged.
+     * @param <T>         Resulting type.
+     * @return Either the result of toInvoke or a CompletableFuture completed exceptionally with a ContainerNotFoundException
+     * in case the SegmentContainer that the Id maps to does not exist in this StreamSegmentService.
+     */
+    protected <T> CompletableFuture<T> invoke(int containerId, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
+                                              String methodName, Object... logArgs) {
+        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
+        SegmentContainer container;
+        try {
+            container = this.segmentContainerRegistry.getContainer(containerId);
+        } catch (ContainerNotFoundException ex) {
+            return Futures.failedFuture(ex);
+        }
+
+        CompletableFuture<T> resultFuture = toInvoke.apply(container);
+        if (log.isTraceEnabled()) {
+            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
+        }
+
+        return resultFuture;
+    }
 }

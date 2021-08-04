@@ -785,6 +785,56 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class FlushToStorage implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
+        final int containerId;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).flushToStorage(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(containerId);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            int containerId = in.readInt();
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new FlushToStorage(containerId, requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+    }
+
+    @Data
+    public static final class StorageFlush implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.storageFlush(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new StorageFlush(requestId);
+        }
+    }
+
+    @Data
     public static final class ReadSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;

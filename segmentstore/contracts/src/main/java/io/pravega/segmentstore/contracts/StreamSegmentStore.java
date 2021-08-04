@@ -132,6 +132,16 @@ public interface StreamSegmentStore {
     CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout);
 
     /**
+     * Applies all outstanding operations in a particular SegmentContainer from the DurableLog into the underlying Storage.
+     *
+     * @param containerId The Id of the container that needs to persisted to storage.
+     * @param timeout     Timeout for the operation.
+     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
+     * If the operation fails, it will be completed with the appropriate exception.
+     */
+    CompletableFuture<Void> flushToStorage(int containerId, Duration timeout);
+
+    /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
      * read data.
      *

@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.common.LoggerHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -61,6 +62,20 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
     public void keepAlive(WireCommands.KeepAlive keepAlive) {
         log.info("Received a keepAlive from connection: {}", getConnection());
         getConnection().send(keepAlive);
+    }
+
+    @Override
+    public void flushToStorage(WireCommands.FlushToStorage flushToStorage) {
+        final String operation = "flushToStorage";
+        final int containerId = flushToStorage.getContainerId();
+
+        long trace = LoggerHelpers.traceEnter(log, operation, flushToStorage);
+        getSegmentStore().flushToStorage(containerId, TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    getConnection().send(new WireCommands.StorageFlush(flushToStorage.getRequestId()));
+                })
+                .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, operation, ex));
     }
 
     //endregion

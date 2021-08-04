@@ -113,7 +113,10 @@ public enum WireCommandType {
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
 
-    KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
+    KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom),
+
+    FLUSH_TO_STORAGE(101, WireCommands.FlushToStorage::readFrom),
+    FLUSHED_TO_STORAGE(102, WireCommands.StorageFlush::readFrom);
 
     private final int code;
     private final WireCommands.Constructor factory;
