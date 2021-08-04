@@ -594,12 +594,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1, l - 1));
+        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1, l - 1, 0));
     }
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, "", 0));
     }
 
     @Test
@@ -614,7 +614,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, ""));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, "", 0));
     }
 
     @Test

@@ -174,7 +174,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                     long writeOffset = segments.getOrDefault(getStreamSegmentInfo.getSegmentName(), new byte[0]).length;
                     rp.process(new WireCommands.StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
                             getStreamSegmentInfo.getSegmentName(), true, false, false, System.currentTimeMillis(),
-                            writeOffset, 0L));
+                            writeOffset, 0L, 0L));
 
                     break;
                 case SETUP_APPEND:

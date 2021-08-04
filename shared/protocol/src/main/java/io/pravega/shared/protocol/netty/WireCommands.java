@@ -1037,6 +1037,7 @@ public final class WireCommands {
         final long lastModified;
         final long writeOffset;
         final long startOffset;
+        final long rolloverSizeBytes;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1053,6 +1054,7 @@ public final class WireCommands {
             out.writeLong(lastModified);
             out.writeLong(writeOffset);
             out.writeLong(startOffset);
+            out.writeLong(rolloverSizeBytes);
         }
 
         public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
@@ -1064,11 +1066,16 @@ public final class WireCommands {
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
             long startOffset = 0;
+            long rolloverSizeBytes = 0;
             if (in.available() >= Long.BYTES) {
                 // Versioning workaround until PDP-21 is implemented (https://github.com/pravega/pravega/issues/1948).
                 startOffset = in.readLong();
             }
-            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength, startOffset);
+            if (in.available() >= Long.BYTES) {
+                rolloverSizeBytes = in.readLong();
+            }
+            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted,
+                                         lastModified, segmentLength, startOffset, rolloverSizeBytes);
         }
     }
 

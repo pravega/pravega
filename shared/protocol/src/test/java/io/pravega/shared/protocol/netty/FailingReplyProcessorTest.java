@@ -83,7 +83,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.segmentSealed(new SegmentSealed(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentsMerged(new SegmentsMerged(0, "", "", 2)));
         assertThrows(IllegalStateException.class, () -> rp.segmentTruncated(new SegmentTruncated(0, "")));
-        assertThrows(IllegalStateException.class, () -> rp.streamSegmentInfo(new StreamSegmentInfo(0, "", false, false, false, 0, 0, 0)));
+        assertThrows(IllegalStateException.class, () -> rp.streamSegmentInfo(new StreamSegmentInfo(0, "", false, false, false, 0, 0, 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentInfo(new WireCommands.TableSegmentInfo(0, "", 0, 0, 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesDeltaRead(new TableEntriesDeltaRead(0, "", null, false, true, 0)));
         assertThrows(IllegalStateException.class, () -> rp.tableEntriesRead(new TableEntriesRead(0, "", null, null)));

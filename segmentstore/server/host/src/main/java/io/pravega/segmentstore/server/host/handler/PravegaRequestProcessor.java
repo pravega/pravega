@@ -423,12 +423,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (properties != null) {
                         StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
                                 properties.getName(), true, properties.isSealed(), properties.isDeleted(),
-                                properties.getLastModified().getTime(), properties.getLength(), properties.getStartOffset());
+                                properties.getLastModified().getTime(), properties.getLength(), properties.getStartOffset(),
+                                properties.getAttributes().getOrDefault(ROLLOVER_SIZE, 0L));
                         log.trace("Read stream segment info: {}", result);
                         connection.send(result);
                     } else {
                         log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
-                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0, 0));
+                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0, 0, 0));
                     }
                 })
                 .exceptionally(e -> handleException(getStreamSegmentInfo.getRequestId(), segmentName, operation, e));
@@ -442,18 +443,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
-                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
-       if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
-            return;
-       }
+        if (createStreamSegment.getRolloverSizeBytes() > 0) {
+            attributes.add(new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()));
+        }
 
-       log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
-       segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
-                   .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
-                   .whenComplete((res, e) -> {
+        if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
+        segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
+                    .whenComplete((res, e) -> {
                     if (e == null) {
                         statsRecorder.createSegment(createStreamSegment.getSegment(),
                                 createStreamSegment.getScaleType(), createStreamSegment.getTargetRate(), timer.getElapsed());
