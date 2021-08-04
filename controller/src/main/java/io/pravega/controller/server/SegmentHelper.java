@@ -273,7 +273,8 @@ public class SegmentHelper implements AutoCloseable {
                                                      final List<UUID> txnIdList,
                                                      final String delegationToken,
                                                      final long clientRequestId) {
-        Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
+        Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId),
+                "Source and Target segment numbers do not match.");
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
         final List<String> txnSegmentNames = txnIdList.stream().map(x -> getTxnSegmentName(scope, stream, sourceSegmentId, x)).collect(Collectors.toList());
