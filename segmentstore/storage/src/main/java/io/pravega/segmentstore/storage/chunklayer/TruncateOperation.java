@@ -100,10 +100,15 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                         "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
                                                         oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
                                                 if (null != currentMetadata && null != segmentMetadata.getFirstChunk()) {
-                                                    Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()));
-                                                    Preconditions.checkState(segmentMetadata.getFirstChunkStartOffset() - segmentMetadata.getStartOffset() <= currentMetadata.getLength());
+                                                    Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()),
+                                                            "First chunk name must match current metadata. Expected = %s Actual = %s", segmentMetadata.getFirstChunk(), currentMetadata.getName());
+                                                    Preconditions.checkState(segmentMetadata.getStartOffset() <= segmentMetadata.getFirstChunkStartOffset() + currentMetadata.getLength(),
+                                                            "segment start offset (%s) must be less than or equal to first chunk start offset (%s)+ first chunk length (%s)",
+                                                            segmentMetadata.getStartOffset(), segmentMetadata.getFirstChunkStartOffset(), currentMetadata.getLength());
                                                     if (segmentMetadata.getChunkCount() == 1) {
-                                                        Preconditions.checkState(segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset() == currentMetadata.getLength());
+                                                        Preconditions.checkState(segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset() == currentMetadata.getLength(),
+                                                                "Length of first chunk (%s) must match segment length (%s) - first chunk start offset (%s) when there is only one chunk",
+                                                                currentMetadata.getLength(), segmentMetadata.getLength(), segmentMetadata.getFirstChunkStartOffset());
                                                     }
                                                 }
 

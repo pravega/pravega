@@ -199,7 +199,6 @@ public class SystemJournal {
     private final Supplier<Long> currentTimeSupplier;
 
     private final AtomicBoolean reentryGuard = new AtomicBoolean();
-    private final AtomicBoolean exclusiveExecutionGuard = new AtomicBoolean();
 
     private final Executor executor;
 
@@ -763,7 +762,7 @@ public class SystemJournal {
                     Preconditions.checkState(!segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()),
                             "First chunk and last chunk should not match. Segment snapshot= %s", segmentSnapshot);
                 }
-                int dataSize = 0;
+                long dataSize = 0;
                 ChunkMetadata previous = null;
                 for (val metadata : segmentSnapshot.getChunkMetadataCollection()) {
                     dataSize += metadata.getLength();
@@ -1384,14 +1383,11 @@ public class SystemJournal {
     private <R> CompletableFuture<R> executeExclusive(Callable<CompletableFuture<R>> operation) {
         return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
             try {
-                Preconditions.checkState(exclusiveExecutionGuard.compareAndSet(false, true), "PANIC: Non exclusive execution");
                 return operation.call();
             } catch (CompletionException e) {
                 throw new CompletionException(Exceptions.unwrap(e));
             } catch (Exception e) {
                 throw new CompletionException(e);
-            } finally {
-                exclusiveExecutionGuard.set(false);
             }
         }, this.executor);
     }
