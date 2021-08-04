@@ -26,7 +26,8 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.healhcontributor.ZKHealthContributor;
+import io.pravega.segmentstore.server.host.health.AbstractConnectionListenerHealthContributor;
+import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -156,7 +157,11 @@ public final class ServiceStarter {
 
         healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
         healthServiceManager.start();
-        healthServiceManager.register(new ZKHealthContributor("zookeeper", zkClient));
+        healthServiceManager.register(new ZKHealthContributor(zkClient));
+        healthServiceManager.register(new AbstractConnectionListenerHealthContributor("PravegaConnectionListener",
+                this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
+        healthServiceManager.register(new AbstractConnectionListenerHealthContributor("AdminConnectionListener",
+                this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort()));
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
@@ -166,10 +171,6 @@ public final class ServiceStarter {
             restServer.startAsync();
             restServer.awaitRunning();
         }
-
-        String myPort = Integer.toString(serviceConfig.getRestServerConfig().getPort());
-
-        log.info("my rest port is ", myPort);
     }
 
     public void shutdown() {

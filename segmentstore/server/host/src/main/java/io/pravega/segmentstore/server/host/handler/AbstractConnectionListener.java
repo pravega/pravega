@@ -58,7 +58,11 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
     private final String host;
     private final int port;
-    private Channel serverChannel;
+
+    @VisibleForTesting
+    @Getter
+    private Channel serverChannel; // tracks the status of the connection
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
