@@ -24,7 +24,6 @@ import lombok.Getter;
 
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 /**
  * REST server config.
@@ -75,7 +74,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                 .append(String.format("host: %s, ", host))
                 .append(String.format("port: %d, ", port))
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
-                .append(String.format("tlsProtocolVersion: %s, ", String.format("tlsProtocolVersion: %s, ", Arrays.stream(tlsProtocolVersion).map(Object::toString).collect(Collectors.joining(",")))))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("keyFilePath is %s, ",
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",

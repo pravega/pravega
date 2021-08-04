@@ -298,7 +298,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
-                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).map(Object::toString).collect(Collectors.joining(",")))
+                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).collect(Collectors.joining(",")))
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)

@@ -80,6 +80,15 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                 null, true, tokenExpiryExecutor, tlsProtocolVersion);
     }
 
+    /**
+     * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
+     *
+     * @param enableTls           Whether to enable SSL/TLS.
+     * @param port                The port to listen on.
+     * @param streamSegmentStore  The SegmentStore to delegate all requests to.
+     * @param tableStore          The SegmentStore to delegate all requests to.
+     * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
+     */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
