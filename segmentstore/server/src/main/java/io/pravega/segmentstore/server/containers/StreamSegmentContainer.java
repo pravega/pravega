@@ -95,6 +95,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.Getter;
@@ -554,7 +555,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          Duration timeout) {
+        return mergeStreamSegment(targetStreamSegment, sourceStreamSegment, null, timeout);
+    }
+
+    @Override
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          AttributeUpdateCollection attributes, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
@@ -569,7 +577,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.metadataStore
                 .getOrAssignSegmentId(targetStreamSegment, timer.getRemaining(),
                         targetSegmentId -> this.metadataStore.getOrAssignSegmentId(sourceStreamSegment, timer.getRemaining(),
-                                sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
+                                sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, attributes, timer)))
                 .handleAsync((msr, ex) -> {
                     if (ex == null || Exceptions.unwrap(ex) instanceof StreamSegmentMergedException) {
                         // No exception or segment was already merged. Need to clear SegmentInfo for source.
@@ -587,7 +595,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 }, this.executor);
     }
 
-    private CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
+    private CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(long targetSegmentId, long sourceSegmentId,
+                                                                           AttributeUpdateCollection attributeUpdates,
+                                                                           TimeoutTimer timer) {
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
@@ -601,14 +611,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
-                    log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
-                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining()).thenApply(v2 ->
-                            new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
-                                    sourceMetadata.getLength(), sourceMetadata.getAttributes()));
+                    log.debug("{}: Updating attributes (if any) and deleting empty source segment instead of merging {}.",
+                            this.traceObjectId, sourceMetadata.getName());
+                    // Execute the attribute update on the target segment only if needed.
+                    Supplier<CompletableFuture<Void>> updateAttributesIfNeeded = () -> attributeUpdates == null ?
+                            CompletableFuture.completedFuture(null) :
+                            updateAttributesForSegment(targetSegmentId, attributeUpdates, timer.getRemaining());
+                    return updateAttributesIfNeeded.get()
+                            .thenCompose(v2 -> deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining())
+                                    .thenApply(v3 -> new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
+                                    sourceMetadata.getLength(), sourceMetadata.getAttributes())));
                 } else {
                     // Source now has some data - we must merge the two.
-                    MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
-                    return addOperation(operation, timer.getRemaining()).thenApply(v2 ->
+                    MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
+                    return processAttributeUpdaterOperation(operation, timer).thenApply(v2 ->
                             new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
                                     operation.getLength(), sourceMetadata.getAttributes()));
                 }
@@ -616,9 +632,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         } else {
             // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
             // the Merge right after the Seal.
-            MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
+            MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, attributeUpdates);
             return CompletableFuture.allOf(sealResult,
-                    addOperation(operation, timer.getRemaining())).thenApply(v2 ->
+                    processAttributeUpdaterOperation(operation, timer)).thenApply(v2 ->
                     new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
                             operation.getLength(), sourceMetadata.getAttributes()));
         }
