@@ -34,9 +34,8 @@ public class GRPCServerHealthContributor extends AbstractHealthContributor {
         boolean running = grpcServer.isRunning();
         Status status = Status.DOWN;
         if (running) {
-        status = Status.NEW;
+            status = Status.UP;
         }
-
         return status;
     }
 }

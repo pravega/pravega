@@ -37,13 +37,12 @@ public class SegmentContainerMonitorHealthContributor extends  AbstractHealthCon
         Status status = Status.DOWN;
 
         if (running) {
-            log.info("Anisha: liveness is true");
             status = Status.NEW;
         }
         boolean ready = segmentContainerMonitor.isZKConnected();
         if (running && ready) {
             status = Status.UP;
-    }
+        }
         return status;
     }
 }

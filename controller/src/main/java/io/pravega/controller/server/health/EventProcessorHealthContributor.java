@@ -34,7 +34,10 @@ public class EventProcessorHealthContributor extends AbstractHealthContributor {
         if (running) {
             status = Status.NEW;
         }
-
+        boolean ready = controllerEventProcessors.isReady();
+        if (running && ready) {
+            status = Status.UP;
+        }
         return status;
     }
 }

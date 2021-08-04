@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
@@ -121,6 +122,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final long rebalanceIntervalMillis;
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
+    @Getter
+    private boolean isReady = false;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -208,12 +211,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         }
     }
 
-    @Override
-    public boolean isReady() {
-        return isRunning();
-    }
-
-    @Override
+     @Override
     public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> processes) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -343,6 +341,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
                     () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
                     delay, executor), executor);
+            this.isReady = true;
         }, executor);
     }
 

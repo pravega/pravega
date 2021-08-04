@@ -39,10 +39,10 @@ public class RetentionServiceHealthContributor extends AbstractHealthContributor
             status = Status.NEW;
         }
         if (retentionService instanceof ZooKeeperBucketManager) {
-             zkHealthy =  ((ZooKeeperBucketManager) retentionService).isZKConnected();
+            zkHealthy =  ((ZooKeeperBucketManager) retentionService).isZKConnected();
         }
-            if (running && zkHealthy) {
-                 status = Status.UP;
+        if (running && zkHealthy) {
+            status = Status.UP;
 
         }
         return status;

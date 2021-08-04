@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClusterListenerHealthContributor  extends AbstractHealthContributor {
     private  ControllerClusterListener controllerClusterListener;
-      public ClusterListenerHealthContributor(String name, ControllerClusterListener controllerClusterlistener) {
+      public ClusterListenerHealthContributor(String name, ControllerClusterListener controllerClusterListener) {
         super(name);
         this.controllerClusterListener = controllerClusterListener;
     }
