@@ -189,6 +189,22 @@ public interface StreamSegmentStore {
     CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout);
 
     /**
+     * Merges a StreamSegment into another and atomically checks and updates a set of attributes on the target StreamSegment.
+     * If the StreamSegment is not already sealed, it will seal it.
+     *
+     * @param targetSegmentName The name of the StreamSegment to merge into.
+     * @param sourceSegmentName The name of the StreamSegment to merge.
+     * @param attributeUpdates  A Collection of Attribute-Values to set on the target StreamSegment. May be null.
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain a MergeStreamSegmentResult instance with information about
+     * the source and target Segments. If the operation failed, the future will be failed with the causing exception.
+     * @throws IllegalArgumentException If any of the arguments are invalid.
+     */
+    CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName,
+                                                                   AttributeUpdateCollection attributeUpdates, Duration timeout);
+
+    /**
      * Seals a StreamSegment for modifications.
      *
      * @param streamSegmentName The name of the StreamSegment to seal.
