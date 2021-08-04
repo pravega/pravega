@@ -242,17 +242,17 @@ public class SegmentHelper implements AutoCloseable {
                                                      final String delegationToken,
                                                      final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
-        final String transactionName = getTxnSegmentName(scope, stream, segmentId, txId);
+        final String txnSegmentName = getTxnSegmentName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
+        WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, txnSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
 
         return sendRequest(connection, clientRequestId, request)
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class,
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, txnSegmentName, WireCommands.CreateSegment.class,
                         type));
     }
 
@@ -838,7 +838,7 @@ public class SegmentHelper implements AutoCloseable {
         closeConnection(reply, client, callerRequestId);
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
-        
+
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
             log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
