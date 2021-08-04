@@ -836,11 +836,9 @@ public class SegmentHelper implements AutoCloseable {
                              Class<? extends Request> requestType,
                              WireCommandType type) {
         closeConnection(reply, client, callerRequestId);
-        log.debug("Prajakta:RequestType: {}, ", requestType);
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
-        log.debug("Prajakta:RequestType: {},  ", requestType);
-
+        
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
             log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
