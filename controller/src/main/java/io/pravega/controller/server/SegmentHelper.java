@@ -96,6 +96,8 @@ public class SegmentHelper implements AutoCloseable {
                     WireCommands.SegmentIsTruncated.class))
             .put(WireCommands.MergeSegments.class, ImmutableSet.of(WireCommands.SegmentsMerged.class,
                     WireCommands.NoSuchSegment.class))
+            .put(WireCommands.MergeSegmentsBatch.class, ImmutableSet.of(WireCommands.SegmentsMergedBatch.class,
+                            WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttribute.class))
             .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttributeUpdated.class))
@@ -240,7 +242,7 @@ public class SegmentHelper implements AutoCloseable {
                                                      final String delegationToken,
                                                      final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
-        final String transactionName = getTransactionName(scope, stream, segmentId, txId);
+        final String transactionName = getTxnSegmentName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
@@ -254,7 +256,8 @@ public class SegmentHelper implements AutoCloseable {
                         type));
     }
 
-    private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
+    @VisibleForTesting
+    static String getTxnSegmentName(String scope, String stream, long segmentId, UUID txId) {
         // Transaction segments are created against a logical primary such that all transaction segments become mergeable.
         // So we will erase secondary id while creating transaction's qualified name.
         long generalizedSegmentId = RecordHelper.generalizedSegmentId(segmentId, txId);
@@ -267,20 +270,20 @@ public class SegmentHelper implements AutoCloseable {
                                                      final String stream,
                                                      final long targetSegmentId,
                                                      final long sourceSegmentId,
-                                                     final List<UUID> txId,
+                                                     final List<UUID> txnIdList,
                                                      final String delegationToken,
                                                      final long clientRequestId) {
         Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
-        final List<String> transactionNames = txId.stream().map(x -> getTransactionName(scope, stream, sourceSegmentId, x)).collect(Collectors.toList());
+        final List<String> txnSegmentNames = txnIdList.stream().map(x -> getTxnSegmentName(scope, stream, sourceSegmentId, x)).collect(Collectors.toList());
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.MergeSegmentsBatch request = new WireCommands.MergeSegmentsBatch(requestId,
-                qualifiedNameTarget, transactionNames, delegationToken);
+                qualifiedNameTarget, txnSegmentNames, delegationToken);
 
         return sendRequest(connection, clientRequestId, request)
                 .thenCompose(r -> {
@@ -289,7 +292,7 @@ public class SegmentHelper implements AutoCloseable {
                         WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
                         log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.",
                                 reply.getSegment());
-                        return CompletableFuture.completedFuture(transactionNames.stream().map(x -> -1L).collect(Collectors.toList()));
+                        return CompletableFuture.completedFuture(txnSegmentNames.stream().map(x -> -1L).collect(Collectors.toList()));
                     } else {
                         return CompletableFuture.completedFuture(((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset());
                     }
@@ -302,7 +305,7 @@ public class SegmentHelper implements AutoCloseable {
                                                          final UUID txId,
                                                          final String delegationToken,
                                                          final long clientRequestId) {
-        final String transactionName = getTransactionName(scope, stream, segmentId, txId);
+        final String transactionName = getTxnSegmentName(scope, stream, segmentId, txId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
@@ -832,8 +835,11 @@ public class SegmentHelper implements AutoCloseable {
                              Class<? extends Request> requestType,
                              WireCommandType type) {
         closeConnection(reply, client, callerRequestId);
+        log.debug("Prajakta:RequestType: {}, ", requestType);
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
+        log.debug("Prajakta:RequestType: {},  ", requestType);
+
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
             log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());

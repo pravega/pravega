@@ -32,6 +32,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -66,6 +67,7 @@ import org.junit.Test;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.NameUtils.getTransactionNameFromId;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -279,11 +281,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+        UUID txnId = new UUID(0, 0L);
+        CompletableFuture<List<Long>> result = helper.commitTransactions("", "", 0L, 0L, List.of(txnId),
+                "", System.nanoTime());
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName("", "", 0L);
 
-        CompletableFuture<List<Long>> result = helper.commitTransactions("", "", 0L, 0L,
-                List.of(new UUID(0L, 0L)), "", System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L), 0L));
+        String txnSegName = SegmentHelper.getTxnSegmentName("","",0L, txnId);
+        factory.rp.process(new WireCommands.SegmentsMergedBatch(requestId, qualifiedStreamSegmentName, List.of(txnSegName), List.of(10L)));
         result.join();
 
         result = helper.commitTransactions("", "", 0L, 0L,
