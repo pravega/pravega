@@ -140,7 +140,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                                                             false, false, 0, 0, 0, 0));
+                                                                             false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -194,7 +194,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                         false, false, 0, 0, 0, 0));
+                                         false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -254,7 +254,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                         false, false, 0, 0, 0, 0));
+                                         false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -309,7 +309,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                         false, false, 0, 0, 0, 0));
+                                         false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -382,7 +382,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                         false, false, 0, 0, 0, 0));
+                                         false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -481,7 +481,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                         .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                false, false, 0, 0, 0, 0));
+                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
@@ -561,7 +561,7 @@ public class StreamManagerImplTest {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                         .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                false, false, 0, 0, 0, 0));
+                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));

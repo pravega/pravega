@@ -71,7 +71,7 @@ public class SegmentMetadataClientTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 WireCommands.GetStreamSegmentInfo getStreamInfo = invocation.getArgument(0);
                 processor.process(new StreamSegmentInfo(getStreamInfo.getRequestId(), segment.getScopedName(), true, false, false, 0,
-                                                                  123, 121, 0));
+                                                                  123, 121));
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
@@ -273,7 +273,7 @@ public class SegmentMetadataClientTest {
                 } else {
                     ReplyProcessor processor = cf.getProcessor(endpoint);
                     processor.process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
-                                                            123, 121, 0));
+                                                            123, 121));
                 }
                 return null;
             }
@@ -329,7 +329,7 @@ public class SegmentMetadataClientTest {
                     throw new ConnectionFailedException();
                 } else {
                     processor.get().process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
-                                                                  123, 121, 0));
+                                                                  123, 121));
                 }
                 return null;
             }
@@ -340,7 +340,7 @@ public class SegmentMetadataClientTest {
                 WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
                 requestIds.add(request.getRequestId());
                 processor.get().process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
-                                                              123, 121, 0));
+                                                              123, 121));
                 return null;
             }
         }).when(connection2).send(any(WireCommands.GetStreamSegmentInfo.class));

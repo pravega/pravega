@@ -381,7 +381,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                 "", System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.StreamSegmentInfo(requestId, getQualifiedStreamSegmentName("", "", 0L),
-                true, true, true, 0L, 0L, 0L, 0L));
+                true, true, true, 0L, 0L, 0L));
         result.join();
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.getSegmentInfo("", "", 0L,

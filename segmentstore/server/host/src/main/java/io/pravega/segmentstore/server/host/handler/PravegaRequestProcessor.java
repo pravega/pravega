@@ -423,13 +423,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (properties != null) {
                         StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
                                 properties.getName(), true, properties.isSealed(), properties.isDeleted(),
-                                properties.getLastModified().getTime(), properties.getLength(), properties.getStartOffset(),
-                                properties.getAttributes().getOrDefault(ROLLOVER_SIZE, 0L));
+                                properties.getLastModified().getTime(), properties.getLength(), properties.getStartOffset());
                         log.trace("Read stream segment info: {}", result);
                         connection.send(result);
                     } else {
                         log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
-                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0, 0, 0));
+                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0, 0));
                     }
                 })
                 .exceptionally(e -> handleException(getStreamSegmentInfo.getRequestId(), segmentName, operation, e));
@@ -440,15 +439,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String operation = "createSegment";
 
+        Preconditions.checkArgument(createStreamSegment.getRolloverSizeBytes() >= 0,
+                "Segment rollover size must not be negative; actual %s.", createStreamSegment.getRolloverSizeBytes());
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
-
-        if (createStreamSegment.getRolloverSizeBytes() > 0) {
-            attributes.add(new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()));
-        }
 
         if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
             return;
