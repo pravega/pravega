@@ -66,21 +66,8 @@ public abstract class SegmentContainerCollection {
      */
     protected <T> CompletableFuture<T> invoke(String streamSegmentName, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
                                               String methodName, Object... logArgs) {
-        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
-        SegmentContainer container;
-        try {
-            int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
-            container = this.segmentContainerRegistry.getContainer(containerId);
-        } catch (ContainerNotFoundException ex) {
-            return Futures.failedFuture(ex);
-        }
-
-        CompletableFuture<T> resultFuture = toInvoke.apply(container);
-        if (log.isTraceEnabled()) {
-            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
-        }
-
-        return resultFuture;
+        int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
+        return invoke(containerId, toInvoke, methodName, logArgs);
     }
 
     /**

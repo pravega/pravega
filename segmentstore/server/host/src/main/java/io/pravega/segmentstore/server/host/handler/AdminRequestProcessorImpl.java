@@ -19,6 +19,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AdminRequestProcessor;
@@ -38,10 +39,47 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the AdminRequestProcessor class with no Metrics StatsRecorder.
+     *
+     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param connection   The ServerConnection to attach to (and send responses to).
+     */
+    public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
+                                     @NonNull ServerConnection connection) {
+        this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), new PassingTokenVerifier());
+    }
+
+    /**
+     * Creates a new instance of the AdminRequestProcessor class with no Metrics StatsRecorder.
+     *
+     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param connection   The ServerConnection to attach to (and send responses to).
+     * @param tokenVerifier  Verifier class that verifies delegation token.
+     */
     public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
                                      @NonNull TrackedConnection connection, @NonNull DelegationTokenVerifier tokenVerifier) {
-        super(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 tokenVerifier, true);
+    }
+
+    /**
+     * Creates a new instance of the AdminRequestProcessor class.
+     *
+     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore    The TableStore to attach to (and issue requests to).
+     * @param connection    The ServerConnection to attach to (and send responses to).
+     * @param statsRecorder A StatsRecorder for Metrics for Stream Segments.
+     * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
+     * @param tokenVerifier  Verifier class that verifies delegation token.
+     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     */
+    public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore, @NonNull TrackedConnection connection,
+                                     @NonNull SegmentStatsRecorder statsRecorder, @NonNull TableSegmentStatsRecorder tableStatsRecorder,
+                                     @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+        super(segmentStore, tableStore, connection, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError);
     }
 
     //endregion

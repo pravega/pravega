@@ -552,6 +552,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testFlushToStorage() throws IOException {
+        testCommand(new WireCommands.FlushToStorage(i, "", l));
+    }
+
+    @Test
+    public void testStorageFlush() throws IOException {
+        testCommand(new WireCommands.StorageFlush(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }

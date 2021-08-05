@@ -290,6 +290,11 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+            throw new UnsupportedOperationException("Not Expected");
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
