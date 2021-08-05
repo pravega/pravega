@@ -24,7 +24,7 @@ import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.shared.metrics.MetricsConfig;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.slf4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.FileReader;
@@ -52,6 +52,7 @@ import java.util.Properties;
  * default value (step 5) will be used). Chained resolution is not supported (i.e., CFG1=${CFG2};CFG2=${CFG3} will not
  * set CFG1 to the value of CFG3).
  */
+@Slf4j
 public final class Config {
 
     //region Property Definitions
