@@ -23,6 +23,7 @@ import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -81,6 +82,6 @@ public class TlsEnabledInProcPravegaClusterTest {
     }
 
     private boolean hasTlsException(Throwable e) {
-        return ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) != -1;
+        return ExceptionUtils.indexOfThrowable(e, SSLException.class) != -1;
     }
 }

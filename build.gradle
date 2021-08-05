@@ -289,7 +289,7 @@ project('shared:protocol') {
     dependencies {
         compile project(':common')
         compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
-        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-codec', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -370,9 +370,14 @@ project('client') {
         compile project(":shared:controller-api")
         compile project(":shared:security"), withoutJaxbAndJjwt
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'io.grpc', name: 'grpc-okhttp', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile group: 'io.grpc', name:'grpc-netty', version: grpcVersion
+        testCompile group: 'io.netty', name: 'netty-codec-http2', version: nettyVersion
+        testCompile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         // this is used to create a mock server.
         testCompile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
     }
@@ -715,10 +720,6 @@ project('shared:controller-api') {
         compile project(':common')
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-auth:" + grpcVersion
-        compile "io.grpc:grpc-protobuf:" + grpcVersion
-        compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // Since Java 10 javax.annotation is no longer bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion

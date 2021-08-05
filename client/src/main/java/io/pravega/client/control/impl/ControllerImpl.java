@@ -23,11 +23,8 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NegotiationType;
-import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.okhttp.OkHttpChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
@@ -118,7 +115,17 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
-import java.io.File;
+
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -136,7 +143,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.client.control.impl.ModelHelper.encode;
@@ -229,7 +238,7 @@ public class ControllerImpl implements Controller {
     @SuppressWarnings("deprecation")
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
+        this(OkHttpChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory(executor))
                                 .defaultLoadBalancingPolicy("round_robin")
                                 .directExecutor()
@@ -252,22 +261,30 @@ public class ControllerImpl implements Controller {
         this.retryConfig = createRetryConfig(config);
 
         if (config.getClientConfig().isEnableTlsToController()) {
-            log.debug("Setting up a SSL/TLS channel builder");
-            SslContextBuilder sslContextBuilder;
-            String trustStore = config.getClientConfig().getTrustStore();
-            sslContextBuilder = GrpcSslContexts.forClient();
-            if (!Strings.isNullOrEmpty(trustStore)) {
-                sslContextBuilder = sslContextBuilder.trustManager(new File(trustStore));
-            }
             try {
-                channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
-                                                                       .negotiationType(NegotiationType.TLS);
-            } catch (SSLException e) {
+                log.debug("Setting up a SSL/TLS channel builder");
+                KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+                ks.load(null, null);
+                CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+                String trustStore = config.getClientConfig().getTrustStore();
+                if (!Strings.isNullOrEmpty(trustStore)) {
+                    try (InputStream in = new BufferedInputStream(new FileInputStream(config.getClientConfig().getTrustStore()))) {
+                        ks.setCertificateEntry("serverCert", cf.generateCertificate(in));
+                    }
+                }
+                TrustManagerFactory trustManagerFactory = TrustManagerFactory
+                        .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                trustManagerFactory.init(ks);
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, trustManagerFactory.getTrustManagers(), null);
+                channelBuilder = ((OkHttpChannelBuilder) channelBuilder).sslSocketFactory(context.getSocketFactory());
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | IOException | CertificateException e) {
                 throw new CompletionException(e);
             }
         } else {
             log.debug("Using a plaintext channel builder");
-            channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
+            channelBuilder = ((OkHttpChannelBuilder) channelBuilder).usePlaintext();
         }
 
         // Trace channel.
