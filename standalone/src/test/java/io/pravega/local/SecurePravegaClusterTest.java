@@ -31,7 +31,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 @RunWith(SerializedClassRunner.class)
 public class SecurePravegaClusterTest {
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(true, true, false);
+    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().authEnabled(true).tlsEnabled(true).build();
     final String scope = "TlsAndAuthTestScope";
     final String stream = "TlsAndAuthTestStream";
     final String msg = "Test message on the encrypted channel with auth credentials";

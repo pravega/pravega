@@ -205,6 +205,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE),
                         pathOfConfigItem(SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_ENABLED), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_CERT_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_TRUST_STORE), pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_KEY_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
@@ -238,6 +239,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ENABLE_TLS), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.KEY_FILE),
                         pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.CERT_FILE),
