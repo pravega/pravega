@@ -744,6 +744,68 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test following zombie scenario.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testZombieScenario() throws Exception {
+        val testContext = new TestContext(CONTAINER_ID);
+        val testSegmentName = testContext.segmentNames[0];
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        // Add a chunk
+        instance.append(testSegmentName, "A", 0, 10);
+
+        // Bootstrap.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+
+        // Validate.
+        instance2.validate();
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata.getLastChunkStartOffset());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance3 =  new TestInstance(testContext, 3);
+        instance3.bootstrap();
+        instance3.validate();
+        TestUtils.checkSegmentBounds(instance3.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance3.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance3.metadataStore, testSegmentName);
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(instance3.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata2.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata2.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata2.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata2.getLastChunkStartOffset());
+
+        // Zombie Truncate
+        instance2.truncate(testSegmentName, 4);
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance4 =  new TestInstance(testContext, 4);
+        instance4.bootstrap();
+        TestUtils.checkSegmentBounds(instance4.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance4.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance4.metadataStore, testSegmentName);
+        val segmentMetadata3 = TestUtils.getSegmentMetadata(instance4.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata3.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata3.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata3.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata3.getLastChunkStartOffset());
+    }
+
+    /**
      * Represents a test method.
      */
     interface TestMethod {

@@ -621,8 +621,12 @@ public class SystemJournal {
                                                                               SystemSnapshotRecord systemSnapshot) {
         // validate
         checkInvariants(systemSnapshot);
-        // reset all data
+        // reset all state so far
         txn.getData().clear();
+        state.finalTruncateOffsets.clear();
+        state.finalFirstChunkStartsAtOffsets.clear();
+        state.chunkStartOffsets.clear();
+
         //Now apply
         if (null != systemSnapshot) {
             log.debug("SystemJournal[{}] Applying snapshot that includes journals up to epoch={} journal index={}", containerId,
