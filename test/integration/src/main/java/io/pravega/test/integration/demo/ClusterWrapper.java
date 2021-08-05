@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
@@ -122,6 +123,10 @@ public class ClusterWrapper implements AutoCloseable {
     @Getter
     @Builder.Default
     private boolean tlsEnabled = false;
+
+    @Getter
+    @Builder.Default
+    private String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
 
     @Builder.Default
     private boolean controllerRestEnabled = false;
@@ -222,7 +227,7 @@ public class ClusterWrapper implements AutoCloseable {
         segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
 
         segmentStoreServer.startListening();
     }
@@ -261,6 +266,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)

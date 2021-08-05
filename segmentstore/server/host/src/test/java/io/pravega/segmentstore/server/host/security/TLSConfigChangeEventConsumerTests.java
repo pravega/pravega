@@ -29,20 +29,20 @@ public class TLSConfigChangeEventConsumerTests {
 
     @Test (expected = NullPointerException.class)
     public void testNullCtorArgumentsAreRejected() {
-        new TLSConfigChangeEventConsumer(new AtomicReference<>(null), null, null);
+        new TLSConfigChangeEventConsumer(new AtomicReference<>(null), null, null, null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToCertificateFileIsRejected() {
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
-                "", "non-existent");
+                "", "non-existent", SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToKeyFileIsRejected() {
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
-                "non-existent", "");
+                "non-existent", "", SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
     }
 
@@ -52,10 +52,10 @@ public class TLSConfigChangeEventConsumerTests {
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
 
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
-                new File(pathToCertificateFile), new File(pathToKeyFile)));
+                new File(pathToCertificateFile), new File(pathToKeyFile), SecurityConfigDefaults.TLS_PROTOCOL_VERSION));
 
         TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(sslCtx, pathToCertificateFile,
-                pathToKeyFile);
+                pathToKeyFile, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
