@@ -481,6 +481,6 @@ public class PravegaTablesScope implements Scope {
                                                              }
                                                              token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
                                                              return new ImmutablePair<>(taken, token.get());
-                                                         }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyList(), null));
+                                                         }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyList(), token.get()));
     }
 }
