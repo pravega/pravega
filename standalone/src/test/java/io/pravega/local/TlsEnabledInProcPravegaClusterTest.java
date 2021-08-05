@@ -24,7 +24,6 @@ import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
