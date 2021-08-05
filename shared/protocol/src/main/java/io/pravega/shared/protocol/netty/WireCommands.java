@@ -788,6 +788,8 @@ public final class WireCommands {
     public static final class FlushToStorage implements Request, WireCommand {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         final int containerId;
+        @ToString.Exclude
+        final String delegationToken;
         final long requestId;
 
         @Override
@@ -798,13 +800,15 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(containerId);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(requestId);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
+            String delegationToken = in.readUTF();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new FlushToStorage(containerId, requestId);
+            return new FlushToStorage(containerId, delegationToken, requestId);
         }
 
         @Override

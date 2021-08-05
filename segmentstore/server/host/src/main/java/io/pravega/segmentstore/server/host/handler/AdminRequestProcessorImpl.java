@@ -69,6 +69,10 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         final String operation = "flushToStorage";
         final int containerId = flushToStorage.getContainerId();
 
+        if (!verifyToken(null, flushToStorage.getRequestId(), flushToStorage.getDelegationToken(), operation)) {
+            return;
+        }
+
         long trace = LoggerHelpers.traceEnter(log, operation, flushToStorage);
         getSegmentStore().flushToStorage(containerId, TIMEOUT)
                 .thenAccept(v -> {

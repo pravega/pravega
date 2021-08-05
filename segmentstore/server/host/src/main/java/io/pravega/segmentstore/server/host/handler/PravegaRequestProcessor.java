@@ -220,7 +220,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                          wrapCancellationException(ex)));
     }
 
-    private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
+    protected boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
         boolean isTokenValid = false;
         try {
             tokenVerifier.verifyToken(segment, delegationToken, READ);

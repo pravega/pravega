@@ -32,6 +32,9 @@ public enum WireCommandType {
 
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),
 
+    FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
+    FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlush::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),
@@ -113,10 +116,7 @@ public enum WireCommandType {
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
 
-    KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom),
-
-    FLUSH_TO_STORAGE(101, WireCommands.FlushToStorage::readFrom),
-    FLUSHED_TO_STORAGE(102, WireCommands.StorageFlush::readFrom);
+    KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;
     private final WireCommands.Constructor factory;

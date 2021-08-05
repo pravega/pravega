@@ -105,6 +105,7 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTable.class, ImmutableSet.of(WireCommands.TableRead.class))
             .put(WireCommands.ReadTableKeys.class, ImmutableSet.of(WireCommands.TableKeysRead.class))
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.TableEntriesRead.class))
+            .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.StorageFlush.class))
             .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
@@ -122,10 +123,10 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .build();
 
+    protected final ConnectionPool connectionPool;
+    protected final ScheduledExecutorService executorService;
+    protected final AtomicReference<Duration> timeout;
     private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executorService;
-    private final AtomicReference<Duration> timeout;
 
     public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore,
                          ScheduledExecutorService executorService) {
@@ -737,7 +738,7 @@ public class SegmentHelper implements AutoCloseable {
         }
     }
 
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId,
+    protected <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId,
                                                                                    T request) {
         log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: request: {}",
                 request.getRequestId(), request);
@@ -784,7 +785,7 @@ public class SegmentHelper implements AutoCloseable {
      * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
-    private void handleReply(long callerRequestId,
+    protected void handleReply(long callerRequestId,
                              Reply reply,
                              RawClient client,
                              String qualifiedStreamSegmentName,
