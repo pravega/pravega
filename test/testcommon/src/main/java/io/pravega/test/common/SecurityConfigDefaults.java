@@ -19,7 +19,7 @@ package io.pravega.test.common;
  * Holds default security configuration values.
  */
 public class SecurityConfigDefaults {
-    public static final String[] TLS_PROTOCOL_VERSION = "TLSv1.2,TLSv1.3".split(",");
+    public static final String[] TLS_PROTOCOL_VERSION = new String[]{ "TLSv1.2", "TLSv1.3"};
 
     public static final String TLS_SERVER_CERT_FILE_NAME = "server-cert.crt";
 

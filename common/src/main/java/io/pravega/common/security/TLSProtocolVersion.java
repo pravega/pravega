@@ -19,7 +19,7 @@ import java.util.Arrays;
 
 public class TLSProtocolVersion {
 
-    private String[] protocols;
+    private final String[] protocols;
 
     public TLSProtocolVersion(String s) {
         protocols = parse(s);

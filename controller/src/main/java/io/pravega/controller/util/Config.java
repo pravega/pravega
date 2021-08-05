@@ -298,7 +298,6 @@ public final class Config {
     public static final int HEALTH_CHECK_FREQUENCY;
 
     private static final String METRICS_PATH = "controller.metrics.";
-    private static final Logger log = org.slf4j.LoggerFactory.getLogger(Config.class);
 
     //endregion
 
