@@ -132,7 +132,7 @@ public class ServiceBuilderConfigTests {
                         configBuilder.with(p, nextValue.incrementAndGet() % 2 == 0);
                     } else {
                         //Property security.tls.protocolVersion cannot be an Integer.
-                        if (p.getName().equals("security.tls.protocolVersion")) {
+                        if (p.equals(ServiceConfig.TLS_PROTOCOL_VERSION)) {
                             configBuilder.with(p, p.getDefaultValue());
                         } else {
                             // Any number can be interpreted as a string or number.
