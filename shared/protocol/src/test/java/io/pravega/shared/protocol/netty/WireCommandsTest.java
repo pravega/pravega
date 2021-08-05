@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.Data;
+import lombok.ToString;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
@@ -895,13 +897,62 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testMergeSegmentsWithAttributes() throws IOException {
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = Arrays.asList(
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), WireCommands.ConditionalAttributeUpdate.REPLACE, 0, Long.MIN_VALUE),
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 0, Long.MIN_VALUE));
+        WireCommands.MergeSegments conditionalMergeSegments = new WireCommands.MergeSegments(l, testString1, testString2,
+                "", attributeUpdates);
+        testCommand(conditionalMergeSegments);
+        // Check the size of the ConditionalAttributeUpdate.
+        assertEquals(attributeUpdates.get(0).size(), 4 * Long.BYTES + 1);
+    }
+
+    @Data
+    public static final class MergeSegmentsV5 implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
+        final long requestId;
+        final String target;
+        final String source;
+        @ToString.Exclude
+        final String delegationToken;
+
+        public MergeSegmentsV5(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeUTF(source);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+    }
+
+    @Test
+    public void testCompatibilityMergeSegmentsV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        MergeSegmentsV5 commandV5 = new MergeSegmentsV5(l, testString1, testString2, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.MergeSegments(l, testString1, testString2, "", Collections.emptyList()));
+    }
+
+    @Test
     public void testErrorMessage() throws IOException {
         for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
             Class<? extends Throwable> exceptionType = code.getExceptionType();
             WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
             testCommand(cmd);
-            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
-            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+            assertEquals(cmd.getErrorCode().getExceptionType(), exceptionType);
+            assertEquals(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType), code);
 
             RuntimeException exception = cmd.getThrowableException();
             AssertExtensions.assertThrows(exceptionType, () -> {
