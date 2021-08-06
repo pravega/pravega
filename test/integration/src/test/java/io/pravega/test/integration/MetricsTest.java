@@ -49,10 +49,11 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.time.Duration;
 import java.util.Collections;
@@ -132,7 +133,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.server.startListening();
 
         // 4. Start Pravega Controller service

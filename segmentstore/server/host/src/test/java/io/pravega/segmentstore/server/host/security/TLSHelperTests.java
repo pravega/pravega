@@ -36,7 +36,7 @@ public class TLSHelperTests {
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
 
         SslContext sslCtx = TLSHelper.newServerSslContext(new File(pathToCertificateFile),
-                new File(pathToKeyFile));
+                new File(pathToKeyFile), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
 
         assertNotNull(sslCtx);
     }
@@ -44,33 +44,33 @@ public class TLSHelperTests {
     @Test
     public void testNewServerSslContextFailsWhenInputIsNull() {
         assertThrows("Null pathToCertificateFile argument wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(null, PATH_NONEMPTY),
+                () -> TLSHelper.newServerSslContext(null, PATH_NONEMPTY, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof NullPointerException);
 
         assertThrows("Null pathToServerKeyFile argument wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, null),
+                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, null, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof NullPointerException);
     }
 
     @Test
     public void testNewServerSslContextFailsWhenInputIsEmpty() {
         assertThrows("Empty pathToCertificateFile argument wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(PATH_EMPTY, PATH_NONEMPTY),
+                () -> TLSHelper.newServerSslContext(PATH_EMPTY, PATH_NONEMPTY, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof IllegalArgumentException);
 
         assertThrows("Empty pathToServerKeyFile argument wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_EMPTY),
+                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_EMPTY, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof IllegalArgumentException);
     }
 
     @Test
     public void testNewServerSslContextFailsWhenInputFilesDontExist() {
         assertThrows("Non-existent pathToCertificateFile wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(PATH_NONEXISTENT, PATH_NONEMPTY),
+                () -> TLSHelper.newServerSslContext(PATH_NONEXISTENT, PATH_NONEMPTY, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof IllegalArgumentException);
 
         assertThrows("Non-existent pathToServerKeyFile argument wasn't rejected.",
-                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEXISTENT),
+                () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEXISTENT, SecurityConfigDefaults.TLS_PROTOCOL_VERSION),
                 e -> e instanceof IllegalArgumentException);
     }
 }
