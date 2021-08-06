@@ -131,8 +131,13 @@ public class ServiceBuilderConfigTests {
                     if (p.getDefaultValue() != null && p.getDefaultValue() instanceof Boolean) {
                         configBuilder.with(p, nextValue.incrementAndGet() % 2 == 0);
                     } else {
-                        // Any number can be interpreted as a string or number.
-                        configBuilder.with(p, Integer.toString(nextValue.incrementAndGet()));
+                        //Property security.tls.protocolVersion cannot be an Integer.
+                        if (p.equals(ServiceConfig.TLS_PROTOCOL_VERSION)) {
+                            configBuilder.with(p, p.getDefaultValue());
+                        } else {
+                            // Any number can be interpreted as a string or number.
+                            configBuilder.with(p, Integer.toString(nextValue.incrementAndGet()));
+                        }
                     }
                 }
             }

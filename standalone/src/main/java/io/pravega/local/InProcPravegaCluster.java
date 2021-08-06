@@ -52,6 +52,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Builder;
@@ -79,6 +80,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
+    private String[] tlsProtocolVersion;
 
     private boolean enableTlsReload;
 
@@ -169,7 +171,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = !this.isInMemStorage;
-            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
                     enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
@@ -296,6 +298,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).collect(Collectors.joining(",")))
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
@@ -407,6 +410,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
+                .tlsProtocolVersion(this.tlsProtocolVersion)
                 .tlsTrustStore(this.certFile)
                 .tlsCertFile(this.certFile)
                 .tlsKeyFile(this.keyFile)
@@ -423,6 +427,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .host("0.0.0.0")
                     .port(this.restServerPort)
                     .tlsEnabled(this.enableTls)
+                    .tlsProtocolVersion(this.tlsProtocolVersion)
                     .keyFilePath(this.jksKeyFile)
                     .keyFilePasswordPath(this.keyPasswordFile)
                     .build();
