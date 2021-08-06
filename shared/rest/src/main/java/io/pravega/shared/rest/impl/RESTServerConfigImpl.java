@@ -22,24 +22,34 @@ import io.pravega.shared.rest.RESTServerConfig;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Arrays;
 import java.util.Properties;
 
 /**
  * REST server config.
  */
 @Getter
+@Builder
 public class RESTServerConfigImpl implements RESTServerConfig {
     private final String host;
     private final int port;
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
+    private final String[] tlsProtocolVersion;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
-    @Builder
+    public static final class RESTServerConfigImplBuilder {
+        private String[] tlsProtocolVersion = new String[] {"TLSv1.2", "TLSv1.3"};
+
+        public RESTServerConfigImpl build() {
+            return new RESTServerConfigImpl(host, port, authorizationEnabled, userPasswordFile, tlsEnabled, tlsProtocolVersion, keyFilePath, keyFilePasswordPath);
+        }
+    }
+
     RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
-                         boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
+                         boolean tlsEnabled, String[] tlsProtocolVersion, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
@@ -48,6 +58,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.host = host;
         this.port = port;
         this.tlsEnabled = tlsEnabled;
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
         this.authorizationEnabled = authorizationEnabled;
@@ -63,6 +74,7 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                 .append(String.format("host: %s, ", host))
                 .append(String.format("port: %d, ", port))
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("keyFilePath is %s, ",
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",
@@ -82,6 +94,11 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     @Override
     public boolean isTlsEnabled() {
         return this.tlsEnabled;
+    }
+
+    @Override
+    public String[] tlsProtocolVersion() {
+        return Arrays.copyOf(this.tlsProtocolVersion, this.tlsProtocolVersion.length);
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package io.pravega.local;
 
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
@@ -39,6 +40,7 @@ public class SingleNodeConfig {
 
     // TLS-related configurations
     public final static Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
+    public final static Property<String> TLS_PROTOCOL_VERSION = Property.named("security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
     public final static Property<String> KEY_FILE = Property.named("security.tls.privateKey.location", "", "keyFile");
     public final static Property<String> CERT_FILE = Property.named("security.tls.certificate.location", "", "certFile");
     public final static Property<String> KEYSTORE_JKS = Property.named("security.tls.keyStore.location", "", "keyStoreJKS");
@@ -147,6 +149,12 @@ public class SingleNodeConfig {
     private boolean enableTls;
 
     /**
+     *
+     */
+    @Getter
+    private String[] tlsProtocolVersion;
+
+    /**
      * Flag to enable auth.
      */
     @Getter
@@ -198,6 +206,7 @@ public class SingleNodeConfig {
         this.passwd = properties.get(PASSWD);
         this.enableRestServer = properties.getBoolean(ENABLE_REST_SERVER);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.tlsProtocolVersion = new TLSProtocolVersion(properties.get(TLS_PROTOCOL_VERSION)).getProtocols();
         this.enableAuth = properties.getBoolean(ENABLE_AUTH);
         this.keyStoreJKS = properties.get(KEYSTORE_JKS);
         this.keyStoreJKSPasswordFile = properties.get(KEYSTORE_JKS_PASSWORD_FILE);
