@@ -782,7 +782,6 @@ public class SegmentHelper implements AutoCloseable {
      * @param qualifiedStreamSegmentName StreamSegmentName
      * @param requestType         request which reply need to be transformed
      * @param type                WireCommand for this request
-     * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
     protected void handleReply(long callerRequestId,
