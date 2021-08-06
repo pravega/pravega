@@ -115,7 +115,7 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         getSegmentStore().flushToStorage(containerId, TIMEOUT)
                 .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
-                    getConnection().send(new WireCommands.StorageFlush(flushToStorage.getRequestId()));
+                    getConnection().send(new WireCommands.StorageFlushed(flushToStorage.getRequestId()));
                 })
                 .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, operation, ex));
     }

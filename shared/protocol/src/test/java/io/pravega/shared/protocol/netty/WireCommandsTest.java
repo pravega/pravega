@@ -557,8 +557,8 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testStorageFlush() throws IOException {
-        testCommand(new WireCommands.StorageFlush(l));
+    public void testStorageFlushed() throws IOException {
+        testCommand(new WireCommands.StorageFlushed(l));
     }
 
     @Test

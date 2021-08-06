@@ -220,6 +220,11 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+            throw new UnsupportedOperationException("Not Expected");
+        }
+
+        @Override
         public Service startAsync() {
             throw new UnsupportedOperationException("Not Expected");
         }
@@ -286,11 +291,6 @@ public class TableContext implements AutoCloseable {
 
         @Override
         public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 

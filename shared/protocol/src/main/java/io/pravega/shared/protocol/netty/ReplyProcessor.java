@@ -48,7 +48,7 @@ public interface ReplyProcessor {
     
     void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended);
 
-    void storageFlush(WireCommands.StorageFlush storageFlush);
+    void storageFlushed(WireCommands.StorageFlushed storageFlushed);
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
     

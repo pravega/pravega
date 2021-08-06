@@ -371,11 +371,6 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
-            return null;
-        }
-
-        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             return null;
         }
@@ -433,6 +428,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> flushToStorage(Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
             return null;
         }
 

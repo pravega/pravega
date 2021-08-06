@@ -117,8 +117,8 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void storageFlush(WireCommands.StorageFlush storageFlush) {
-        throw new IllegalStateException("Unexpected operation: " + storageFlush);
+    public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+        throw new IllegalStateException("Unexpected operation: " + storageFlushed);
     }
 
     @Override

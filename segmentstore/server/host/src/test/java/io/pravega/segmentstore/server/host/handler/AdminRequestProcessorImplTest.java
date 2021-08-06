@@ -46,6 +46,6 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
-        order.verify(connection).send(new WireCommands.StorageFlush(1));
+        order.verify(connection).send(new WireCommands.StorageFlushed(1));
     }
 }

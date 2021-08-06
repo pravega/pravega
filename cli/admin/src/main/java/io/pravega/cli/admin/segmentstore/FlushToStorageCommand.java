@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class FlushToStorageCommand extends ContainerCommand {
 
-    private static final int REQUEST_TIMEOUT_SECONDS = 10;
+    private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -51,10 +51,10 @@ public class FlushToStorageCommand extends ContainerCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = (AdminSegmentHelper) instantiateSegmentHelper(zkClient);
-        CompletableFuture<WireCommands.StorageFlush> reply = adminSegmentHelper.flushToStorage(containerId,
+        CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        output("Flushed the Segment Container with containerId %d to Storage successfully.", containerId);
+        output("Flushed the Segment Container with containerId %d to Storage.", containerId);
     }
 
     public static CommandDescriptor descriptor() {

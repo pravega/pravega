@@ -26,6 +26,9 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Used by the Admin CLI for interacting with the admin-gateway on the Segment Store.
+ */
 public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
 
     public AdminSegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore,
@@ -33,7 +36,17 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
         super(connectionPool, hostStore, executorService);
     }
 
-    public CompletableFuture<WireCommands.StorageFlush> flushToStorage(int containerId, PravegaNodeUri uri, String delegationToken) {
+    /**
+     * This method sends a WireCommand to flush the container corresponding to the given containerId to storage.
+     *
+     * @param containerId     The Id of the container that needs to be persisted to storage.
+     * @param uri             The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return A CompletableFuture that will complete normally when the provided keys are deleted.
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be
+     * retried then the future will be failed.
+     */
+    public CompletableFuture<WireCommands.StorageFlushed> flushToStorage(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
@@ -42,13 +55,8 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
                    handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
-                   assert r instanceof WireCommands.StorageFlush;
-                   return (WireCommands.StorageFlush) r;
+                   assert r instanceof WireCommands.StorageFlushed;
+                   return (WireCommands.StorageFlushed) r;
                 });
-    }
-
-    @Override
-    public void close() {
-        connectionPool.close();
     }
 }

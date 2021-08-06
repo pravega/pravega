@@ -809,24 +809,19 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
             String delegationToken = in.readUTF();
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            long requestId = in.readLong();
             return new FlushToStorage(containerId, delegationToken, requestId);
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
         }
     }
 
     @Data
-    public static final class StorageFlush implements Reply, WireCommand {
+    public static final class StorageFlushed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
         final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.storageFlush(this);
+            cp.storageFlushed(this);
         }
 
         @Override
@@ -835,8 +830,8 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new StorageFlush(requestId);
+            long requestId = in.readLong();
+            return new StorageFlushed(requestId);
         }
     }
 

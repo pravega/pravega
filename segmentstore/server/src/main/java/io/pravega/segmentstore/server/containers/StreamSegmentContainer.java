@@ -481,14 +481,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
-        ensureRunning();
-
-        LogFlusher flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
-        return flusher.flushToStorage(timeout);
-    }
-
-    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         ensureRunning();
 
@@ -728,6 +720,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> flushToStorage(Duration timeout) {
         LogFlusher flusher = new LogFlusher(this.metadata.getContainerId(), this.durableLog, this.writer, this.metadataCleaner, this.executor);
+        return flusher.flushToStorage(timeout);
+    }
+
+    @Override
+    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+        ensureRunning();
+
+        LogFlusher flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout);
     }
 

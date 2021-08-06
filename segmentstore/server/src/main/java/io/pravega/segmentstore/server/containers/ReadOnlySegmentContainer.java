@@ -168,6 +168,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
+    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+        return unsupported("flushToStorage");
+    }
+
+    @Override
     public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return unsupported("append");
     }
@@ -185,11 +190,6 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
         return unsupported("getAttributes");
-    }
-
-    @Override
-    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
-        return unsupported("flushToStorage");
     }
 
     @Override
