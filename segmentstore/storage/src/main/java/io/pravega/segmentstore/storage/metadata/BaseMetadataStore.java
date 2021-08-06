@@ -554,7 +554,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 if (0 == activeKeys.count(key)) {
                     // Synchronization prevents error when key becomes active between the check and remove.
                     // Move the key to cache
-                    cache.put(key, bufferedTxnData.get(key));
+                    val v = bufferedTxnData.get(key);
+                    if (null != v) {
+                        cache.put(key, v);
+                    }
                     // Remove from buffer.
                     bufferedTxnData.remove(key);
                     count++;

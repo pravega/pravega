@@ -77,6 +77,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
     private static final int OWNER_EPOCH = 100;
+    private static final int THREAD_POOL_SIZE = 10;
     protected final Random rnd = new Random(0);
 
     @Rule
@@ -96,7 +97,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 1;
+        return THREAD_POOL_SIZE;
     }
 
     public ChunkStorage createChunkStorage() throws Exception {
@@ -1047,7 +1048,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             // Append some data to the last chunk to simulate partial write during failure
             val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
                     TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName).getLastChunk());
-            testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
             writeAt += i;
         }
 

@@ -54,12 +54,18 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     protected static final String VALUE5 = "avian";
     protected static final String VALUE6 = "bird";
 
+    private static final int THREAD_POOL_SIZE = 10;
     private static final String[] KEYS = new String[]{ KEY0, KEY1, KEY2, KEY3};
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(300);
 
     protected BaseMetadataStore metadataStore;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return THREAD_POOL_SIZE;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -84,7 +90,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             Assert.assertFalse(txn.isCommitted());
             assertNull(txn.get(null));
 
-            txn.abort();
+            txn.abort().join();
             Assert.assertTrue(txn.isAborted());
 
             AssertExtensions.assertThrows(
@@ -492,7 +498,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertNull(txn2.get(KEY3));
             assertNull(txn2.get(KEY1));
             // abort
-            txn2.abort();
+            txn2.abort().join();
         } catch (Exception e) {
             throw e;
         }
@@ -608,7 +614,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertNull(txn2.get(KEY3));
             assertNull(txn2.get(KEY1));
             // abort
-            txn2.abort();
+            txn2.abort().join();
         } catch (Exception e) {
             throw e;
         }
@@ -1323,7 +1329,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertNull(txn.get(KEY0));
             txn.create(new MockStorageMetadata(KEY0, VALUE0));
             Assert.assertNotNull(txn.get(KEY0));
-            txn.commit();
+            txn.commit().join();
         }
 
         try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY0, KEY1)) {
@@ -1356,7 +1362,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertNull(txn.get(KEY0));
             txn.create(new MockStorageMetadata(KEY0, VALUE0));
             Assert.assertNotNull(txn.get(KEY0));
-            txn.commit();
+            txn.commit().join();
             AssertExtensions.assertThrows("commit should throw an exception",
                     () -> txn.commit(),
                     ex -> ex instanceof IllegalStateException);
@@ -1373,7 +1379,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
             txn.update(new MockStorageMetadata(KEY0, VALUE0));
             Assert.assertNotNull(txn.get(KEY0));
-            txn.abort();
+            txn.abort().join();
             AssertExtensions.assertThrows("create should throw an exception",
                     () -> txn.commit(),
                     ex -> ex instanceof IllegalStateException);

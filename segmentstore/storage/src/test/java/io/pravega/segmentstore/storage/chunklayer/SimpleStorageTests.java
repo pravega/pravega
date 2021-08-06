@@ -47,8 +47,15 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 public abstract class SimpleStorageTests extends StorageTestBase {
     private static final int CONTAINER_ID = 42;
     private static final int WRITE_COUNT = 5;
+    private static final int THREAD_POOL_SIZE = 10;
+
     ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return THREAD_POOL_SIZE;
+    }
 
     /**
      * Creates a new instance of the Storage implementation to be tested. This will be cleaned up (via close()) upon
