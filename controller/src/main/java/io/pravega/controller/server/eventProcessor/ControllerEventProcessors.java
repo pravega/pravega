@@ -142,7 +142,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     @VisibleForTesting
-    ControllerEventProcessors(final String host,
+    public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
