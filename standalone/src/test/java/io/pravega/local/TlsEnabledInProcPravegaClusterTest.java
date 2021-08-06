@@ -41,7 +41,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 public class TlsEnabledInProcPravegaClusterTest {
 
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, true, false);
+    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().tlsEnabled(true).build();
     final String scope = "TlsTestScope";
     final String stream = "TlsTestStream";
     final String msg = "Test message on the encrypted channel";
