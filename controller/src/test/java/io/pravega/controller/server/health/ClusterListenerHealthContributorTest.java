@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.spy;
 
 /**
  * Unit tests for ClusterListenerHealthContributor
@@ -58,10 +57,11 @@ public class ClusterListenerHealthContributorTest {
         doReturn(true).when(serviceConfig).isControllerClusterListenerEnabled();
         clusterListener = spy(new ControllerClusterListener(host, cluster, executor, failoverSweepers));
         doReturn(true).when(clusterListener).isReady();
-        contributor = new ClusterListenerHealthContributor ("clusterlistener", clusterListener);
+        contributor = new ClusterListenerHealthContributor("clusterlistener", clusterListener);
         builder = Health.builder().name("clusterlistener");
 
     }
+
     @Test
     public void testHealthCheck() throws Exception {
         clusterListener.startAsync();

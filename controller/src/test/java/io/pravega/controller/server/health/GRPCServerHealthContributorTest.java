@@ -41,6 +41,7 @@ public class GRPCServerHealthContributorTest {
         contributor = new GRPCServerHealthContributor("grpc", grpcServer);
         builder = Health.builder().name("grpc");
     }
+
     @Test
     public void testHealthCheck() throws Exception {
         grpcServer.startAsync();

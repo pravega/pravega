@@ -45,7 +45,10 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.mockito.Mockito.*;
 
@@ -101,8 +104,8 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite  
         eventProcessors.awaitTerminated();
         status = contributor.doHealthCheck(builder);
         Assert.assertTrue(status == Status.DOWN);
-
     }
+
     private EventProcessorGroup<ControllerEvent> getProcessor() {
         return new EventProcessorGroup<ControllerEvent>() {
             @Override

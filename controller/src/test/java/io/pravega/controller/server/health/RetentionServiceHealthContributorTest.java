@@ -15,7 +15,10 @@
  */
 package io.pravega.controller.server.health;
 
-import io.pravega.controller.server.bucket.*;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.server.bucket.PeriodicRetention;
+import io.pravega.controller.server.bucket.ZooKeeperBucketManager;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
@@ -32,7 +35,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.mock;
 
 public class RetentionServiceHealthContributorTest {
     private BucketManager retentionService;
@@ -47,13 +49,14 @@ public class RetentionServiceHealthContributorTest {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         PeriodicRetention periodicRetention = mock(PeriodicRetention.class);
         retentionService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicRetention::retention, executor));
-        doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager)retentionService).initializeService();
-        doNothing().when((ZooKeeperBucketManager)retentionService).startBucketOwnershipListener();
-        doReturn(true).when((ZooKeeperBucketManager)retentionService).isZKConnected();
+        doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) retentionService).initializeService();
+        doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
+        doReturn(true).when((ZooKeeperBucketManager) retentionService).isZKConnected();
 
         contributor = new RetentionServiceHealthContributor("retentionservice", retentionService);
         builder = Health.builder().name("retentionservice");
     }
+
     @Test
     public void testHealthCheck() throws Exception {
         retentionService.startAsync();

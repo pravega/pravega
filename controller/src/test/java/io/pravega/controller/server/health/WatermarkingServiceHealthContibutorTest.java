@@ -1,6 +1,24 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.controller.server.health;
 
-import io.pravega.controller.server.bucket.*;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.server.bucket.PeriodicWatermarking;
+import io.pravega.controller.server.bucket.ZooKeeperBucketManager;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.shared.health.Health;
@@ -16,7 +34,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.spy;
 
 /**
  * Unit tests for WatermarkingServiceHealthContibutor
@@ -34,12 +51,13 @@ public  class WatermarkingServiceHealthContibutorTest {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         PeriodicWatermarking periodicWatermarking = mock(PeriodicWatermarking.class);
         watermarkingService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(10), periodicWatermarking::watermark, executor));
-        doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager)watermarkingService).initializeService();
-        doNothing().when((ZooKeeperBucketManager)watermarkingService).startBucketOwnershipListener();
-        doReturn(true).when((ZooKeeperBucketManager)watermarkingService).isZKConnected();
+        doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) watermarkingService).initializeService();
+        doNothing().when((ZooKeeperBucketManager) watermarkingService).startBucketOwnershipListener();
+        doReturn(true).when((ZooKeeperBucketManager) watermarkingService).isZKConnected();
         contributor = new WatermarkingServiceHealthContributor("watermarkingservice", watermarkingService);
         builder = Health.builder().name("watermark");
     }
+
     @Test
     public void testHealthCheck() throws Exception {
         watermarkingService.startAsync();
