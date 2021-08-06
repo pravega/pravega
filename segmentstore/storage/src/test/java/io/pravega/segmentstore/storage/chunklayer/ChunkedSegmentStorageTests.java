@@ -1898,14 +1898,14 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Add some garbage data at the end of last chunk
         val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
                 TestUtils.getSegmentMetadata(testContext.metadataStore, targetSegmentName).getLastChunk());
-        testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+        testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
 
         // Write some garbage at the end.
         val sourceList = TestUtils.getChunkList(testContext.metadataStore, sourceSegmentName);
         for (int i : chunksWithGarbageIndex) {
             // Append some data to the last chunk to simulate partial write during failure
             val chunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, sourceList.get(i).getName());
-            testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
         }
         val hTarget = testContext.chunkedSegmentStorage.openWrite(targetSegmentName).get();
         val concatAt = Arrays.stream(targetLayoutBefore).sum();
