@@ -45,6 +45,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -135,7 +136,7 @@ public class EndToEndTransactionOrderTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
-                true, serviceBuilder.getLowPriorityExecutor());
+                true, serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper.awaitRunning();
