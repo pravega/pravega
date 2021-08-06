@@ -48,8 +48,7 @@ public class SegmentContainerMonitorHealthContributorTest {
         monitor = spy(new SegmentContainerMonitor(hostStore, client, balancer, 1));
         contributor = new SegmentContainerMonitorHealthContributor("segmentcontainermonitor", monitor);
         builder = Health.builder().name("monitor");
-        doReturn(true).when(monitor).isRunning();
-        }
+    }
 
     @Test
     public void testHealthCheck() throws Exception {
