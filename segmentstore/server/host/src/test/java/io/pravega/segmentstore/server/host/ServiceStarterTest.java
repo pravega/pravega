@@ -15,8 +15,11 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
@@ -64,6 +67,10 @@ public class ServiceStarterTest {
         @Cleanup
         CuratorFramework zkClient = serviceStarter.createZKClient();
         zkClient.blockUntilConnected();
+        ZKHealthContributor zkHealthContributor = new ZKHealthContributor(zkClient);
+        Health.HealthBuilder builder = Health.builder().name(zkHealthContributor.getName());
+        Status zkStatus = zkHealthContributor.doHealthCheck(builder);
         Assert.assertTrue(zkClient.getZookeeperClient().isConnected());
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, zkStatus);
     }
 }

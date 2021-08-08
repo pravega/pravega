@@ -41,6 +41,9 @@ import io.pravega.common.io.filesystem.FileModificationPollingMonitor;
 import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
 import io.pravega.segmentstore.server.host.security.TLSHelper;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +51,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -59,8 +64,6 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
     private final String host;
     private final int port;
 
-    @VisibleForTesting
-    @Getter
     private Channel serverChannel; // tracks the status of the connection
 
     private EventLoopGroup bossGroup;
@@ -225,4 +228,39 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
             tlsCertFileModificationMonitor.stopMonitoring();
         }
     }
+
+    public static class ConnectionListenerHealthContributor extends AbstractHealthContributor {
+        private AbstractConnectionListener listener;
+        private String host;
+        private int port;
+
+        public ConnectionListenerHealthContributor(String connectionType, AbstractConnectionListener listener, String host, int port) {
+            super(connectionType);
+            this.listener = listener;
+            this.host = host;
+            this.port = port;
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = Status.DOWN;
+            boolean running = listener.serverChannel.isOpen();
+            if (running) {
+                status = Status.NEW;
+            }
+
+            boolean ready = listener.serverChannel.isActive();
+            if (ready) {
+                status = Status.UP;
+            }
+
+            Map<String, Object> details = new HashMap<String, Object>();
+            details.put("host", host);
+            details.put("port", port);
+            builder.details(details);
+            return status;
+        }
+    }
 }
+
+

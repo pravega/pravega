@@ -24,9 +24,9 @@ import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
+import io.pravega.segmentstore.server.host.handler.AbstractConnectionListener.ConnectionListenerHealthContributor;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.health.AbstractConnectionListenerHealthContributor;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
@@ -158,9 +158,9 @@ public final class ServiceStarter {
         healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
         healthServiceManager.start();
         healthServiceManager.register(new ZKHealthContributor(zkClient));
-        healthServiceManager.register(new AbstractConnectionListenerHealthContributor("PravegaConnectionListener",
+        healthServiceManager.register(new ConnectionListenerHealthContributor("PravegaConnectionListener",
                 this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
-        healthServiceManager.register(new AbstractConnectionListenerHealthContributor("AdminConnectionListener",
+        healthServiceManager.register(new ConnectionListenerHealthContributor("AdminConnectionListener",
                 this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort()));
 
         if (this.serviceConfig.isRestServerEnabled()) {
