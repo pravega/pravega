@@ -26,12 +26,15 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.segmentstore.server.host.handler.AbstractConnectionListener.ConnectionListenerHealthContributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -194,5 +197,30 @@ public class PravegaConnectionListenerTest {
         PravegaConnectionListener listener = new PravegaConnectionListener(false, 6622,
                 mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
         Assert.assertTrue(listener.createRequestProcessor(new TrackedConnection(new ServerConnectionInboundHandler())) instanceof AppendProcessor);
+    }
+
+    // Test the health status created with pravega listener.
+    @Test
+    public void testHealth() {
+        int port = TestUtils.getAvailableListenPort();
+        PravegaConnectionListener listener = new PravegaConnectionListener(false, port,
+                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
+        listener.startListening();
+        try {
+            ServerSocket serverSocket = new ServerSocket(port);
+            serverSocket.close();
+            throw new AssertionError("Port should not be available");
+        } catch (IOException e) {
+            // Fine, the port is being used
+        }
+
+        ConnectionListenerHealthContributor contributor = new ConnectionListenerHealthContributor("PravegaConnectionListener",
+                listener, "localhost", port);
+        Health.HealthBuilder builder = Health.builder().name(contributor.getName());
+        Status connectionHealth = contributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, connectionHealth);
+        listener.close();
+        connectionHealth = contributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.DOWN, connectionHealth);
     }
 }
