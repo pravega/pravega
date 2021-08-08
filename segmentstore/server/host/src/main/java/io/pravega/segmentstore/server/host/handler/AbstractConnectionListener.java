@@ -265,5 +265,3 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         }
     }
 }
-
-
