@@ -20,11 +20,8 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.*;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
@@ -78,19 +75,24 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                .thenCompose(versionedState -> streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
-                        .thenCompose(versionedMetadata -> {
-                            if (!versionedMetadata.getObject().isUpdating()) {
-                                if (versionedState.getObject().equals(State.UPDATING)) {
-                                    return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                            versionedState, context, executor));
+                .thenCompose(versionedState -> {
+                    if(versionedState.equals(State.SEALED)){
+                        throw new StoreException.IllegalStreamStateException("ERROR: Attempting to update sealed stream " + stream, null);
+                    }
+                    return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                            .thenCompose(versionedMetadata -> {
+                                if (!versionedMetadata.getObject().isUpdating()) {
+                                    if (versionedState.getObject().equals(State.UPDATING)) {
+                                        return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                                versionedState, context, executor));
+                                    } else {
+                                        return CompletableFuture.completedFuture(null);
+                                    }
                                 } else {
-                                    return CompletableFuture.completedFuture(null);
+                                    return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);
                                 }
-                            } else {
-                                return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);
-                            }
-                        }));
+                            });
+                });
     }
 
     private CompletableFuture<Void> processUpdate(String scope, String stream, VersionedMetadata<StreamConfigurationRecord> record,
