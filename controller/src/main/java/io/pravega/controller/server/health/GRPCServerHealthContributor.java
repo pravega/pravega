@@ -22,7 +22,7 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 
 public class GRPCServerHealthContributor extends AbstractHealthContributor {
 
-    private GRPCServer grpcServer;
+    private final GRPCServer grpcServer;
 
     public GRPCServerHealthContributor(String name, GRPCServer grpcServer) {
         super(name);

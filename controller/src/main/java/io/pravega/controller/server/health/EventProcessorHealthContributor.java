@@ -21,7 +21,7 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 
 public class EventProcessorHealthContributor extends AbstractHealthContributor {
-    private ControllerEventProcessors controllerEventProcessors;
+    private final ControllerEventProcessors controllerEventProcessors;
     public EventProcessorHealthContributor(String name, ControllerEventProcessors  controllerEventProcessors) {
         super(name);
         this.controllerEventProcessors =  controllerEventProcessors;

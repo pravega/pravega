@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RetentionServiceHealthContributor extends AbstractHealthContributor {
-    private BucketManager retentionService;
+    private final BucketManager retentionService;
     public RetentionServiceHealthContributor(String name, BucketManager retentionService) {
         super(name);
         this.retentionService = retentionService;

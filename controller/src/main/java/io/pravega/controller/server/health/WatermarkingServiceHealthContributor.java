@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class WatermarkingServiceHealthContributor extends AbstractHealthContributor {
-    private BucketManager watermarkingService;
+    private final BucketManager watermarkingService;
     public WatermarkingServiceHealthContributor(String name, BucketManager watermarkingService) {
         super(name);
         this.watermarkingService = watermarkingService;

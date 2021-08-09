@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SegmentContainerMonitorHealthContributor extends  AbstractHealthContributor {
-    private SegmentContainerMonitor segmentContainerMonitor;
+    private final SegmentContainerMonitor segmentContainerMonitor;
 
     public SegmentContainerMonitorHealthContributor(String name, SegmentContainerMonitor segmentContainerMonitor) {
         super(name);
