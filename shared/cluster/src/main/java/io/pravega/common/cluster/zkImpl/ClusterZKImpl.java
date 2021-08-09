@@ -21,7 +21,6 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.ClusterListener;
 import io.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
-import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -42,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static io.pravega.common.cluster.ClusterListener.EventType.ERROR;
@@ -65,8 +65,7 @@ public class ClusterZKImpl implements Cluster {
 
     private final CuratorFramework client;
 
-    @Getter
-    private boolean isZKConnected = true;
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(true);
 
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
@@ -78,7 +77,7 @@ public class ClusterZKImpl implements Cluster {
             client.start();
         }
         client.getConnectionStateListenable().addListener(
-                (curatorClient, newState) -> this.isZKConnected = newState.isConnected());
+                (curatorClient, newState) -> this.isZKConnected.set(newState.isConnected()));
     }
 
     /**
@@ -113,6 +112,10 @@ public class ClusterZKImpl implements Cluster {
         Preconditions.checkNotNull(node, "Host is not present in cluster.");
         entryMap.remove(host);
         close(node);
+    }
+
+    public boolean isZKConnected() {
+        return isZKConnected.get();
     }
 
     /**
