@@ -64,6 +64,9 @@ import javax.annotation.concurrent.ThreadSafe;
 public final class ServiceStarter {
     //region Members
 
+    @VisibleForTesting
+    protected HealthServiceManager healthServiceManager;
+
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
@@ -72,7 +75,6 @@ public final class ServiceStarter {
     private AdminConnectionListener adminListener;
     private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
-    private HealthServiceManager healthServiceManager;
     private RESTServer restServer;
     private boolean closed;
 

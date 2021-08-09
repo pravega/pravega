@@ -18,35 +18,43 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import java.io.IOException;
 
 @RunWith(SerializedClassRunner.class)
 public class ServiceStarterTest {
 
-    private String zkUrl;
-    private TestingServer zkTestServer;
+    private ServiceStarter serviceStarter;
+    private ZooKeeperServiceRunner zkService;
 
     @Before
-    public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-        zkUrl = zkTestServer.getConnectString();
+    public void setup() throws Exception {
+        zkService = new ZooKeeperServiceRunner(4000, false, null, null, null);
+        zkService.initialize();
+        zkService.start();
+        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.ZK_URL, "localhost:4000")
+                        .with(ServiceConfig.HEALTH_CHECK_INTERVAL_SECONDS, 10)
+                    );
+        serviceStarter = new ServiceStarter(configBuilder.build());
+        serviceStarter.start();
     }
 
     @After
-    public void stopZookeeper() throws IOException {
-        zkTestServer.close();
+    public void stopZookeeper() throws Exception {
+        serviceStarter.shutdown();
+        zkService.close();
     }
 
     /**
@@ -57,14 +65,6 @@ public class ServiceStarterTest {
      */
     @Test
     public void testCuratorClientCreation() throws Exception {
-        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
-                .builder()
-                .include(ServiceConfig.builder()
-                        .with(ServiceConfig.CONTAINER_COUNT, 1)
-                        .with(ServiceConfig.ZK_URL, zkUrl));
-        @Cleanup("shutdown")
-        ServiceStarter serviceStarter = new ServiceStarter(configBuilder.build());
-        @Cleanup
         CuratorFramework zkClient = serviceStarter.createZKClient();
         zkClient.blockUntilConnected();
         ZKHealthContributor zkHealthContributor = new ZKHealthContributor(zkClient);
@@ -72,5 +72,18 @@ public class ServiceStarterTest {
         Status zkStatus = zkHealthContributor.doHealthCheck(builder);
         Assert.assertTrue(zkClient.getZookeeperClient().isConnected());
         Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, zkStatus);
+        zkClient.close();
+        zkStatus = zkHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, zkStatus);
+    }
+
+    /**
+     * Check the health status of ServiceStarter
+     *
+     */
+    @Test
+    public void testHealth() {
+        Health health = serviceStarter.healthServiceManager.getHealthSnapshot();
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
     }
 }

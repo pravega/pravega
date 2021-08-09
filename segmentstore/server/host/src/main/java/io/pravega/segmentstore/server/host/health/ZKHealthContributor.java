@@ -21,8 +21,6 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
-import java.util.HashMap;
-import java.util.Map;
 
 public class ZKHealthContributor  extends AbstractHealthContributor {
     private CuratorFramework zk;
@@ -45,9 +43,6 @@ public class ZKHealthContributor  extends AbstractHealthContributor {
             status = Status.UP;
         }
 
-        Map<String, Object> details = new HashMap<String, Object>();
-        details.put("zkIsconnected", ready);
-        builder.details(details);
         return status;
     }
 
