@@ -252,7 +252,7 @@ public class PravegaTablesScope implements Scope {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
 
         return getStreamsFromNextTagChunk(tag, continuationToken, context).thenCompose(pair -> {
-            if (pair.getLeft().isEmpty() && !pair.getRight().contains(LAST_TAG_CHUNK)) {
+            if (pair.getLeft().isEmpty() && !pair.getRight().endsWith(LAST_TAG_CHUNK)) {
                 return listStreamsForTag(tag, pair.getRight(), executor, context);
             } else {
                 return CompletableFuture.completedFuture(pair);
@@ -269,7 +269,7 @@ public class PravegaTablesScope implements Scope {
      * @return A future that returns a List of Streams and the token.
      */
     CompletableFuture<Pair<List<String>, String>> getStreamsFromNextTagChunk(String tag, String token, OperationContext context) {
-        if (token.contains(LAST_TAG_CHUNK)) {
+        if (token.endsWith(LAST_TAG_CHUNK)) {
             return CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), token));
         } else {
             return getAllStreamTagsInScopeTableNames(context).thenApply(
@@ -283,7 +283,13 @@ public class PravegaTablesScope implements Scope {
                         }
                     }
             ).thenCompose(table -> storeHelper.expectingDataNotFound(
-                    storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId())
+                    storeHelper.getEntry(table, tag, bytes -> {
+                                    if (bytes.length == 0) {
+                                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Empty value returned");
+                                    } else {
+                                        return TagRecord.fromBytes(bytes);
+                                    }
+                               }, context.getRequestId())
                                .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), table)),
                     new ImmutablePair<>(Collections.emptyList(), table)));
         }
@@ -323,12 +329,15 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<Void> addTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
         return getAllStreamTagsInScopeTableNames(stream, context)
                 .thenCompose(table -> Futures.allOf(tags.stream()
-                                                        .parallel()
-                                                        .map(key -> storeHelper.getAndUpdateEntry(table, key,
-                                                                                                  e -> appendStreamToEntry(stream, e),
-                                                                                                  e -> false, // no need of cleanup
-                                                                                                  context.getRequestId()))
-                                                        .collect(Collectors.toList())));
+                                                    .parallel()
+                                                    .map(key -> {
+                                             log.debug(context.getRequestId(), "Adding stream {} to tag {} index on table {}", stream, key, table);
+                                             return storeHelper.getAndUpdateEntry(table, key,
+                                                                                  e -> appendStreamToEntry(stream, e),
+                                                                                  e -> false, // no need of cleanup
+                                                                                  context.getRequestId());
+                                         })
+                                                    .collect(Collectors.toList())));
     }
 
     private TableSegmentEntry appendStreamToEntry(String appendValue, TableSegmentEntry entry) {
@@ -356,10 +365,13 @@ public class PravegaTablesScope implements Scope {
         return getAllStreamTagsInScopeTableNames(stream, context)
                 .thenCompose(table -> Futures.allOf(tags.stream()
                                                         .parallel()
-                                                        .map(key -> storeHelper.getAndUpdateEntry(table, key,
-                                                                                                  e -> removeStreamFromEntry(stream, e),
-                                                                                                  this::isEmptyTagRecord,
-                                                                                                  context.getRequestId()))
+                                                        .map(key -> {
+                                                            log.debug(context.getRequestId(), "Removing stream {} from tag {} index on table {}", stream, key, table);
+                                                            return storeHelper.getAndUpdateEntry(table, key,
+                                                                                                 e -> removeStreamFromEntry(stream, e),
+                                                                                                 this::isEmptyTagRecord,
+                                                                                                 context.getRequestId());
+                                                        })
                                                         .collect(Collectors.toList())));
     }
 
