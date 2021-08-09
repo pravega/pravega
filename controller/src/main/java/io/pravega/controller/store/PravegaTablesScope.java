@@ -283,13 +283,7 @@ public class PravegaTablesScope implements Scope {
                         }
                     }
             ).thenCompose(table -> storeHelper.expectingDataNotFound(
-                    storeHelper.getEntry(table, tag, bytes -> {
-                                    if (bytes.length == 0) {
-                                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Empty value returned");
-                                    } else {
-                                        return TagRecord.fromBytes(bytes);
-                                    }
-                               }, context.getRequestId())
+                    storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId())
                                .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), table)),
                     new ImmutablePair<>(Collections.emptyList(), table)));
         }
@@ -392,7 +386,7 @@ public class PravegaTablesScope implements Scope {
 
     private boolean isEmptyTagRecord(TableSegmentEntry entry) {
         byte[] array = storeHelper.getArray(entry.getValue());
-        return array.length != 0 && TagRecord.fromBytes(array).getStreams().isEmpty();
+        return array.length == 0 || TagRecord.fromBytes(array).getStreams().isEmpty();
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {
