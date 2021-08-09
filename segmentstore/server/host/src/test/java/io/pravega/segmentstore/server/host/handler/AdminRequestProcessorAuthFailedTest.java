@@ -30,7 +30,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class AdminRequestProcessorAuthFailedTest extends PravegaRequestProcessorAuthFailedTest {
+public class AdminRequestProcessorAuthFailedTest {
 
     private AdminRequestProcessor processor;
     private ServerConnection connection;
