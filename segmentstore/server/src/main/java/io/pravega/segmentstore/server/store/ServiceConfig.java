@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.store;
 
 import com.google.common.base.Strings;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.server.CachePolicy;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.Arrays;
 
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.shared.rest.RESTServerConfig;
@@ -78,6 +80,7 @@ public class ServiceConfig {
 
     // TLS-related config for the service
     public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
+    public static final Property<String> TLS_PROTOCOL_VERSION = Property.named("security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
     public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
@@ -273,6 +276,12 @@ public class ServiceConfig {
     private final boolean enableTls;
 
     /**
+     * Tls Protocol Version
+     */
+    @Getter
+    private final String[] tlsProtocolVersion;
+
+    /**
      * Represents the certificate file for the TLS server.
      */
     @Getter
@@ -387,6 +396,8 @@ public class ServiceConfig {
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
         this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
+        TLSProtocolVersion tpr = new TLSProtocolVersion(properties.get(TLS_PROTOCOL_VERSION));
+        this.tlsProtocolVersion = Arrays.copyOf(tpr.getProtocols(), tpr.getProtocols().length);
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);
         this.enableTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
@@ -405,6 +416,7 @@ public class ServiceConfig {
                 .host(properties.get(REST_LISTENING_HOST))
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
+                .tlsProtocolVersion(TLSProtocolVersion.parse(properties.get(TLS_PROTOCOL_VERSION)))
                 .keyFilePath(properties.get(KEY_FILE))
                 .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
                 .build();
@@ -453,6 +465,7 @@ public class ServiceConfig {
                 .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
                 .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
                 .append(String.format("enableTls: %b, ", enableTls))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("certFile is %s, ",
                         Strings.isNullOrEmpty(certFile) ? "unspecified" : "specified"))
                 .append(String.format("keyFile is %s, ",

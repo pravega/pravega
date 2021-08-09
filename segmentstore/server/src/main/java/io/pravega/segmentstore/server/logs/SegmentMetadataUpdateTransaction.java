@@ -395,9 +395,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentNotSealedException If the source Segment is not sealed.
      * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
+     * @throws BadAttributeUpdateException     If any of the given AttributeUpdates is invalid given the current state of the segment.
      */
     void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -413,10 +414,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation);
         }
 
         if (!this.recoveryMode) {
+            // Update attributes first on the target Segment, if any.
+            preProcessAttributes(operation.getAttributeUpdates());
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
         }
@@ -652,9 +655,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation);
         }
-
+        acceptAttributes(operation.getAttributeUpdates());
         this.length += transLength;
         this.isChanged = true;
     }

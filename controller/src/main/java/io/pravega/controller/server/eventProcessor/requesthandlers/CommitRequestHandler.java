@@ -87,7 +87,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent event) {
-        return withCompletion(this, event, event.getScope(), event.getStream(), EVENT_RETRY_PREDICATE);
+        return withCompletion(this, event, event.getScope(), event.getStream(), OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     /**

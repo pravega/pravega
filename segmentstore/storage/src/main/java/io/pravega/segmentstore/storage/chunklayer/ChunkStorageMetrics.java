@@ -65,6 +65,19 @@ public class ChunkStorageMetrics {
     static final Counter SLTS_SYSTEM_WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_WRITE_BYTES);
     static final Counter SLTS_CONCAT_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_BYTES);
 
+    static final Counter SLTS_GC_TASK_PROCESSED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_TASK_PROCESSED);
+
+    static final Counter SLTS_GC_CHUNK_NEW = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_NEW);
+    static final Counter SLTS_GC_CHUNK_QUEUED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_QUEUED);
+    static final Counter SLTS_GC_CHUNK_DELETED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_DELETED);
+    static final Counter SLTS_GC_CHUNK_RETRY = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_RETRY);
+    static final Counter SLTS_GC_CHUNK_FAILED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_FAILED);
+
+    static final Counter SLTS_GC_SEGMENT_QUEUED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_SEGMENT_QUEUED);
+    static final Counter SLTS_GC_SEGMENT_PROCESSED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_SEGMENT_PROCESSED);
+    static final Counter SLTS_GC_SEGMENT_RETRY = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_SEGMENT_RETRY);
+    static final Counter SLTS_GC_SEGMENT_FAILED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_SEGMENT_FAILED);
+
     static final OpStatsLogger SLTS_NUM_CHUNKS_READ = STATS_LOGGER.createStats(MetricsNames.SLTS_NUM_CHUNKS_READ);
     static final OpStatsLogger SLTS_SYSTEM_NUM_CHUNKS_READ = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_NUM_CHUNKS_READ);
     static final OpStatsLogger SLTS_NUM_CHUNKS_ADDED = STATS_LOGGER.createStats(MetricsNames.SLTS_NUM_CHUNKS_ADDED);
