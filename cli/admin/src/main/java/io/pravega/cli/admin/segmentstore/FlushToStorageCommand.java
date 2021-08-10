@@ -53,7 +53,7 @@ public class FlushToStorageCommand extends ContainerCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        AdminSegmentHelper adminSegmentHelper = (AdminSegmentHelper) instantiateSegmentHelper(zkClient);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         if (containerId.equalsIgnoreCase(ALL_CONTAINERS)) {
             int containerCount = getServiceConfig().getContainerCount();
             for (int id = 0; id < containerCount; id++) {
