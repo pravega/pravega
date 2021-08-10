@@ -129,6 +129,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenario() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         val testSegmentName = testContext.segmentNames[0];
         @Cleanup
@@ -192,6 +193,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenarioWithSnapshots() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
@@ -270,6 +272,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     @Test
     public void testWithSnapshots() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(3)
@@ -283,33 +286,32 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val instance =  new TestInstance(testContext, 1);
         instance.bootstrap();
         instance.validate();
-        checkJournalsNotExist(testContext, instance, 1, 1, 1);
 
         // Add chunk.
         instance.append(testSegmentName, "A", 0, 1);
-        checkJournalsExist(testContext, instance, 1, 1, 1);
+        checkJournalsExist(testContext, instance, 1, 2, 2);
 
         // Add chunk.
         instance.append(testSegmentName, "B", 1, 2);
-        checkJournalsExist(testContext, instance, 1, 1, 2);
+        checkJournalsExist(testContext, instance, 1, 2, 3);
 
         // Add chunk.
         instance.append(testSegmentName, "C", 3, 3);
-        checkJournalsExist(testContext, instance, 1, 1, 3);
+        checkJournalsExist(testContext, instance, 1, 2, 4);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
-        checkJournalsExist(testContext, instance, 1, 1, 4);
+        checkJournalsExist(testContext, instance, 1, 2, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 2, 2, 5);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 5);
+        checkJournalsExist(testContext, instance, 2, 3, 6);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 3, 6);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
-        checkJournalsExist(testContext, instance, 2, 2, 6);
+        checkJournalsExist(testContext, instance, 2, 3, 7);
 
         // Bootstrap new instance.
         @Cleanup
@@ -368,6 +370,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     @Test
     public void testWithSnapshotsAndTime() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
@@ -381,34 +384,34 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val instance =  new TestInstance(testContext, 1);
         instance.bootstrap();
         instance.validate();
-        checkJournalsNotExist(testContext, instance, 1, 1, 1);
+        //checkJournalsNotExist(testContext, instance, 1, 1, 1);
         // Add chunk.
         instance.append(testSegmentName, "A", 0, 1);
-        checkJournalsExist(testContext, instance, 1, 1, 1);
+        checkJournalsExist(testContext, instance, 1, 2, 2);
         // Add chunk.
         instance.append(testSegmentName, "B", 1, 2);
-        checkJournalsExist(testContext, instance, 1, 1, 2);
+        checkJournalsExist(testContext, instance, 1, 2, 3);
 
         // Trigger Time and add chunk
         testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
         instance.append(testSegmentName, "C", 3, 3);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 2, 2, 3);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 2, 3);
+        checkJournalsExist(testContext, instance, 2, 3, 4);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 2, 3, 4);
 
         // Add chunk.
         instance.append(testSegmentName, "D", 6, 4);
-        checkJournalsExist(testContext, instance, 2, 2, 4);
+        checkJournalsExist(testContext, instance, 2, 3, 5);
 
         // Add chunk.
         instance.append(testSegmentName, "E", 10, 5);
-        checkJournalsExist(testContext, instance, 2, 2, 5);
+        checkJournalsExist(testContext, instance, 2, 3, 6);
 
         // Add chunk.
         instance.append(testSegmentName, "F", 15, 6);
         instance.deleteGarbage();
-        checkJournalsExist(testContext, instance, 3, 3, 6);
-        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 3, 6);
+        checkJournalsExist(testContext, instance, 3, 4, 7);
+        checkJournalsNotExistBefore(testContext, instance.epoch, 3, 4, 7);
 
         // Bootstrap new instance.
         @Cleanup
@@ -745,6 +748,229 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test basic zombie scenario with truncate.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testZombieScenario() throws Exception {
+        @Cleanup
+        val testContext = new TestContext(CONTAINER_ID);
+        val testSegmentName = testContext.segmentNames[0];
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        // Add a chunk
+        instance.append(testSegmentName, "A", 0, 10);
+
+        // Bootstrap.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+
+        // Validate.
+        instance2.validate();
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata2.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata2.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata2.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata2.getLastChunkStartOffset());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance3 =  new TestInstance(testContext, 3);
+        instance3.bootstrap();
+        instance3.validate();
+        TestUtils.checkSegmentBounds(instance3.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance3.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance3.metadataStore, testSegmentName);
+        val segmentMetadata3 = TestUtils.getSegmentMetadata(instance3.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata3.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata3.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata3.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata3.getLastChunkStartOffset());
+
+        // Zombie Truncate
+        instance2.writeZombieRecord(SystemJournal.TruncationRecord.builder()
+                .offset(4)
+                .startOffset(0)
+                .segmentName(testSegmentName)
+                .firstChunkName("A")
+                .build());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance4 =  new TestInstance(testContext, 4);
+        instance4.bootstrap();
+        TestUtils.checkSegmentBounds(instance4.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkSegmentLayout(instance4.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance4.metadataStore, testSegmentName);
+        val segmentMetadata4 = TestUtils.getSegmentMetadata(instance4.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata4.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata4.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata4.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata4.getLastChunkStartOffset());
+    }
+
+    /**
+     * Test zombie scenario with multiple truncates.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testZombieScenarioMultipleTruncates() throws Exception {
+        @Cleanup
+        val testContext = new TestContext(CONTAINER_ID);
+        val testSegmentName = testContext.segmentNames[0];
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        // Add a chunk
+        instance.append(testSegmentName, "A", 0, 10);
+        instance.truncate(testSegmentName, 2);
+        // Bootstrap.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+
+        // Validate.
+        instance2.validate();
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 2, 10);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata2.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata2.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata2.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata2.getLastChunkStartOffset());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance3 =  new TestInstance(testContext, 3);
+        instance3.bootstrap();
+        instance3.validate();
+        TestUtils.checkSegmentBounds(instance3.metadataStore, testSegmentName, 2, 10);
+        TestUtils.checkSegmentLayout(instance3.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance3.metadataStore, testSegmentName);
+        val segmentMetadata3 = TestUtils.getSegmentMetadata(instance3.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata3.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata3.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata3.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata3.getLastChunkStartOffset());
+        instance3.truncate(testSegmentName, 3);
+
+        // Zombie Truncate
+        instance2.writeZombieRecord(SystemJournal.TruncationRecord.builder()
+                .offset(4)
+                .startOffset(0)
+                .segmentName(testSegmentName)
+                .firstChunkName("A")
+                .build());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance4 =  new TestInstance(testContext, 4);
+        instance4.bootstrap();
+        TestUtils.checkSegmentBounds(instance4.metadataStore, testSegmentName, 3, 10);
+        TestUtils.checkSegmentLayout(instance4.metadataStore, testSegmentName, new long[] { 10});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance4.metadataStore, testSegmentName);
+        val segmentMetadata4 = TestUtils.getSegmentMetadata(instance4.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata4.getFirstChunk());
+        Assert.assertEquals("A", segmentMetadata4.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata4.getFirstChunkStartOffset());
+        Assert.assertEquals(0, segmentMetadata4.getLastChunkStartOffset());
+    }
+
+    /**
+     * Test zombie scenario with multiple chunks.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testZombieScenarioMultipleChunks() throws Exception {
+        @Cleanup
+        val testContext = new TestContext(CONTAINER_ID);
+        val testSegmentName = testContext.segmentNames[0];
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        // Add a chunk
+        instance.append(testSegmentName, "A", 0, 10);
+        instance.append(testSegmentName, "B", 10, 20);
+        instance.append(testSegmentName, "C", 30, 30);
+        instance.truncate(testSegmentName, 2);
+        // Bootstrap.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+
+        // Validate.
+        instance2.validate();
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 2, 60);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 10, 20, 30});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata2.getFirstChunk());
+        Assert.assertEquals("C", segmentMetadata2.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata2.getFirstChunkStartOffset());
+        Assert.assertEquals(30, segmentMetadata2.getLastChunkStartOffset());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance3 =  new TestInstance(testContext, 3);
+        instance3.bootstrap();
+        instance3.validate();
+        TestUtils.checkSegmentBounds(instance3.metadataStore, testSegmentName, 2, 60);
+        TestUtils.checkSegmentLayout(instance3.metadataStore, testSegmentName, new long[] { 10, 20, 30});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance3.metadataStore, testSegmentName);
+        val segmentMetadata3 = TestUtils.getSegmentMetadata(instance3.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata3.getFirstChunk());
+        Assert.assertEquals("C", segmentMetadata3.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata3.getFirstChunkStartOffset());
+        Assert.assertEquals(30, segmentMetadata3.getLastChunkStartOffset());
+        instance3.truncate(testSegmentName, 15);
+        instance3.append(testSegmentName, "D", 60, 100);
+
+        // Zombie Truncate
+        instance2.writeZombieRecord(SystemJournal.TruncationRecord.builder()
+                .offset(40)
+                .startOffset(30)
+                .segmentName(testSegmentName)
+                .firstChunkName("C")
+                .build());
+        instance2.writeZombieRecord(SystemJournal.ChunkAddedRecord.builder()
+                .offset(60)
+                .oldChunkName("C")
+                .newChunkName("X")
+                .segmentName(testSegmentName)
+                .build());
+        instance2.writeZombieRecord(SystemJournal.ChunkAddedRecord.builder()
+                .offset(100)
+                .oldChunkName("X")
+                .newChunkName("Y")
+                .segmentName(testSegmentName)
+                .build());
+
+        // Bootstrap a new instance.
+        @Cleanup
+        val instance4 =  new TestInstance(testContext, 4);
+        instance4.bootstrap();
+        TestUtils.checkSegmentBounds(instance4.metadataStore, testSegmentName, 15, 160);
+        TestUtils.checkSegmentLayout(instance4.metadataStore, testSegmentName, new long[] { 20, 30, 100});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance4.metadataStore, testSegmentName);
+        val segmentMetadata4 = TestUtils.getSegmentMetadata(instance4.metadataStore, testSegmentName);
+        Assert.assertEquals("B", segmentMetadata4.getFirstChunk());
+        Assert.assertEquals("D", segmentMetadata4.getLastChunk());
+        Assert.assertEquals(10, segmentMetadata4.getFirstChunkStartOffset());
+        Assert.assertEquals(60, segmentMetadata4.getLastChunkStartOffset());
+        // Keep
+        instance2.close();
+    }
+
+    /**
      * Represents a test method.
      */
     interface TestMethod {
@@ -902,6 +1128,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         SystemJournal systemJournal;
         SnapshotInfoStore snapshotInfoStore;
         long epoch;
+        boolean isZombie;
 
         TestInstance(TestContext testContext, long epoch) {
             this.testContext = testContext;
@@ -940,9 +1167,18 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         }
 
         /**
+         * Commit a zombie record.
+         */
+        void writeZombieRecord(SystemJournal.SystemJournalRecord record) throws Exception {
+            isZombie = true;
+            systemJournal.commitRecord(record).join();
+        }
+
+        /**
          * Append a chunk.
          */
         void append(String segmentName, String chunkName, int offset, int length) throws Exception {
+            Assert.assertFalse( "Attempt to use zombie instance", isZombie);
             append(segmentName, chunkName, offset, length, length);
         }
 
@@ -1033,6 +1269,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          * Truncate.
          */
         synchronized void truncate(String segmentName, int offset) throws Exception {
+            Assert.assertFalse( "Attempt to use zombie instance", isZombie);
             val list = testContext.expectedChunks.get(segmentName);
             val segmentInfo = testContext.expectedSegments.get(segmentName);
 
@@ -1109,7 +1346,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          * Validates the metadata against expected results.
          */
         void validate() throws Exception {
-            Assert.assertEquals(0, systemJournal.getCurrentFileIndex().get());
             for (val expectedSegmentInfo : testContext.expectedSegments.values()) {
                 // Check segment metadata.
                 val expectedChunkInfoList =  testContext.expectedChunks.get(expectedSegmentInfo.name);
