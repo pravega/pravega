@@ -44,6 +44,8 @@ plugins.withId('com.google.protobuf') {
         compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
+        // override grpc's transitive protobuf version with allprojects' force-upgraded version
+        compile group: 'com.google.protobuf', name: 'protobuf-java', version: protobufProtocVersion
     }
 
     idea {

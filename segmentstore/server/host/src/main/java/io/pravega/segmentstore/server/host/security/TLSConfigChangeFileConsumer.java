@@ -29,8 +29,8 @@ public class TLSConfigChangeFileConsumer implements Consumer<File> {
     private final TLSConfigChangeHandler handler;
 
     public TLSConfigChangeFileConsumer(AtomicReference<SslContext> sslContext, String pathToCertificateFile,
-                                       String pathToKeyFile) {
-        handler = new TLSConfigChangeHandler(sslContext, pathToCertificateFile, pathToKeyFile);
+                                       String pathToKeyFile, String[] tlsProtocolVersion) {
+        handler = new TLSConfigChangeHandler(sslContext, pathToCertificateFile, pathToKeyFile, tlsProtocolVersion);
     }
 
     @Override
