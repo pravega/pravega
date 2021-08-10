@@ -85,6 +85,7 @@ public class ServiceConfig {
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
     public static final Property<String> KEY_PASSWORD_FILE = Property.named("security.tls.server.privateKey.password.location", "");
+    public static final Property<String> JKS_FILE = Property.named("security.tls.server.keyStore.location", "");
 
     // Admin Gateway-related parameters
     public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", false);
@@ -417,7 +418,7 @@ public class ServiceConfig {
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
                 .tlsProtocolVersion(TLSProtocolVersion.parse(properties.get(TLS_PROTOCOL_VERSION)))
-                .keyFilePath(properties.get(KEY_FILE))
+                .keyFilePath(properties.get(JKS_FILE))
                 .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
                 .build();
         this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
