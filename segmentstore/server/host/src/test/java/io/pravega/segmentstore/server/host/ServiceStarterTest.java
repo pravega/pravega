@@ -22,6 +22,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.test.common.SerializedClassRunner;
+import io.pravega.test.common.TestUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.junit.After;
 import org.junit.Assert;
@@ -37,14 +38,15 @@ public class ServiceStarterTest {
 
     @Before
     public void setup() throws Exception {
-        zkService = new ZooKeeperServiceRunner(4000, false, null, null, null);
+        int port = TestUtils.getAvailableListenPort();
+        zkService = new ZooKeeperServiceRunner(port, false, null, null, null);
         zkService.initialize();
         zkService.start();
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
-                        .with(ServiceConfig.ZK_URL, "localhost:4000")
+                        .with(ServiceConfig.ZK_URL, "localhost:" + port)
                         .with(ServiceConfig.HEALTH_CHECK_INTERVAL_SECONDS, 10)
                     );
         serviceStarter = new ServiceStarter(configBuilder.build());

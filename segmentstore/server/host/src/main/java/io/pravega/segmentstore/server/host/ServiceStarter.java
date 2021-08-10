@@ -24,7 +24,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
-import io.pravega.segmentstore.server.host.handler.AbstractConnectionListener.ConnectionListenerHealthContributor;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
@@ -103,6 +102,9 @@ public final class ServiceStarter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
+        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
+        healthServiceManager.start();
+
         MetricsConfig metricsConfig = builderConfig.getConfig(MetricsConfig::builder);
         if (metricsConfig.isEnableStatistics()) {
             log.info("Initializing metrics provider ...");
@@ -141,7 +143,8 @@ public final class ServiceStarter {
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(), this.serviceConfig.getTlsProtocolVersion());
+                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
+                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -149,7 +152,8 @@ public final class ServiceStarter {
         if (serviceConfig.isEnableAdminGateway()) {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
-                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion());
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
+                    healthServiceManager);
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
         }
@@ -157,13 +161,7 @@ public final class ServiceStarter {
 
         log.info("Initializing HealthService ...");
 
-        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
-        healthServiceManager.start();
         healthServiceManager.register(new ZKHealthContributor(zkClient));
-        healthServiceManager.register(new ConnectionListenerHealthContributor("PravegaConnectionListener",
-                this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
-        healthServiceManager.register(new ConnectionListenerHealthContributor("AdminConnectionListener",
-                this.listener, this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort()));
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
