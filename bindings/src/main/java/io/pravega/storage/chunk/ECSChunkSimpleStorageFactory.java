@@ -55,7 +55,7 @@ public class ECSChunkSimpleStorageFactory implements SimpleStorageFactory {
     private S3Client createS3Client() {
        return S3Client.builder()
                .region(Region.EU_WEST_2)
-               .endpointOverride(ECSChunkStorageConfig.getEndpoint())
+               .endpointOverride(config.getEndpoint())
                .credentialsProvider(AnonymousCredentialsProvider.create())
                .overrideConfiguration(ClientOverrideConfiguration.builder()
                        .retryPolicy(RetryPolicy.builder()

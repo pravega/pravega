@@ -18,16 +18,21 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
-import lombok.Getter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility methods for StreamSegment Names.
  */
+@Slf4j
 public final class NameUtils {
     //region Members
 
@@ -54,6 +59,8 @@ public final class NameUtils {
      * Size of the name that can be specified by user.
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
+
+    static final Pattern pattern = Pattern.compile("\\w{0,7}/\\w{4}/\\w{16}");
 
     /**
      * This is used for composing metric tags.
@@ -311,7 +318,31 @@ public final class NameUtils {
      * @return formatted chunk name.
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
-        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
+        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, ChunkObjectKeyGenerator.randomChunkObjectKey());
+    }
+
+
+    public static String extractECSChunkIdFromChunkName(String chunkName) {
+        Matcher matcher = pattern.matcher(chunkName);
+        if(matcher.find()){
+            return matcher.group();
+        } else {
+            if (chunkName.length() > 13) {
+                log.warn("chunk name length is larger than 13 {}", chunkName);
+                chunkName = chunkName.substring(chunkName.length() - 13);
+            }
+            StringBuilder builder = new StringBuilder();
+            char[] ch = chunkName.toCharArray();
+
+            for(int i = 0; i < 27 - chunkName.length() * 2; i++){
+                builder.append("0");
+            }
+            for (char c : ch) {
+                String hexCode=String.format("%H", c);
+                builder.append(hexCode);
+            }
+            return ChunkObjectKeyGenerator.randomChunkObjectKey(builder.toString());
+        }
     }
 
 
@@ -378,7 +409,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
-        return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
+        return ChunkObjectKeyGenerator.randomChunkObjectKey(containerId, (int)epoch, currentFileIndex);
     }
 
 
@@ -390,7 +421,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
-        return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
+        return ChunkObjectKeyGenerator.randomChunkObjectKey(containerId, (int)epoch, currentSnapshotIndex);
     }
 
     /**

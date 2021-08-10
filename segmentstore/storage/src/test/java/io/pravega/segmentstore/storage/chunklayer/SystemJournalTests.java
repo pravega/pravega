@@ -22,24 +22,22 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import io.pravega.shared.ChunkObjectKeyGenerator;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.*;
+import org.junit.rules.Timeout;
+
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.function.Consumer;
-import lombok.Cleanup;
-import lombok.val;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
@@ -944,8 +942,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
+        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
-            String newChunk = "chunk" + i;
+            String newChunk = "chunk" + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
@@ -1024,8 +1023,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
+        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
-            String newChunk = "chunk" + i;
+            String newChunk = "chunk"  + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
@@ -1107,8 +1107,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
+        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
-            String newChunk = "chunk" + i;
+            String newChunk = "chunk" + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
@@ -1143,7 +1144,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             systemJournalAfter.commitRecord(SystemJournal.TruncationRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(i)
-                    .firstChunkName("chunk" + firstChunkIndex)
+                    .firstChunkName("chunk" + uuid + firstChunkIndex)
                     .startOffset(policy.getMaxLength() * firstChunkIndex)
                     .build()).join();
         }
@@ -1170,7 +1171,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             systemJournalAfter2.commitRecord(SystemJournal.TruncationRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(i)
-                    .firstChunkName("chunk" + firstChunkIndex)
+                    .firstChunkName("chunk" + uuid + firstChunkIndex)
                     .startOffset(policy.getMaxLength() * firstChunkIndex)
                     .build()).join();
         }

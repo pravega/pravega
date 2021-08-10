@@ -30,9 +30,6 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.SerializedClassRunner;
-import java.io.ByteArrayInputStream;
-import java.util.Iterator;
-import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
@@ -41,10 +38,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.ByteArrayInputStream;
+import java.util.Iterator;
+import java.util.concurrent.Executor;
+
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * Unit tests for ExtendedS3Storage.

@@ -3,6 +3,7 @@ package io.pravega.storage.chunk;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.shared.NameUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
@@ -15,8 +16,6 @@ import software.amazon.awssdk.services.s3.model.*;
 import java.io.InputStream;
 import java.util.concurrent.Executor;
 
-import static io.pravega.storage.chunk.ECSChunkStorageConfig.HeaderEMCExtensionIndexGranularity;
-import static io.pravega.storage.chunk.ECSChunkStorageConfig.indexGranularity;
 import static software.amazon.awssdk.http.HttpStatusCode.*;
 
 @Slf4j
@@ -39,7 +38,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
-        this.bucket = ECSChunkStorageConfig.getBucket();
+        this.bucket = config.getBucket();
     }
 
     @Override
@@ -64,7 +63,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             var requestBuilder = PutObjectRequest
                     .builder()
                     .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
-                            .putHeader(HeaderEMCExtensionIndexGranularity, String.valueOf(indexGranularity))
+                            .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
             var response = client.putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(chunkName)).contentLength(0L)
@@ -98,6 +97,9 @@ public class ECSChunkStorage extends BaseChunkStorage {
         } catch (Exception e) {
             if (e instanceof S3Exception) {
                 S3Exception se = (S3Exception) e;
+                if (se instanceof NoSuchKeyException){
+                    return false;
+                }
                 if (se.statusCode() == 404) {
                     return false;
                 }
@@ -159,7 +161,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             var requestBuilder = PutObjectRequest
                     .builder()
                     .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
-                            .putHeader(HeaderEMCExtensionIndexGranularity, String.valueOf(indexGranularity))
+                            .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
             var response = client.putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(handle.getChunkName())).contentLength((long) length)
@@ -180,7 +182,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             var requestBuilder = PutObjectRequest
                     .builder()
                     .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
-                            .putHeader(HeaderEMCExtensionIndexGranularity, String.valueOf(indexGranularity))
+                            .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
             var response = client.putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(chunkName)).contentLength((long) length)
@@ -211,7 +213,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                     var requestBuilder = PutObjectRequest
                             .builder()
                             .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
-                                    .putHeader(HeaderEMCExtensionIndexGranularity, String.valueOf(indexGranularity))
+                                    .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                                     .build());
                     var headRes = client.headObject(HeadObjectRequest.builder()
                             .bucket(bucket)
@@ -254,12 +256,12 @@ public class ECSChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsAppend() {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsConcat() {
-        return true;
+        return false;
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
@@ -327,7 +329,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
     }
 
     private String getObjectPath(String objectName) {
-        return ECSChunkStorageConfig.getPrefix() + objectName;
+        return NameUtils.extractECSChunkIdFromChunkName(objectName);
     }
 
 }
