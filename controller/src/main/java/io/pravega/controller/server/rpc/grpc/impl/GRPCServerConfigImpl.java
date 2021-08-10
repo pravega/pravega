@@ -20,9 +20,12 @@ import com.google.common.base.Strings;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 
+import io.pravega.controller.util.Config;
 import lombok.Builder;
 import lombok.Data;
 
@@ -37,6 +40,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final boolean authorizationEnabled;
     private final String userPasswordFile;
     private final boolean tlsEnabled;
+    private final String[] tlsProtocolVersion;
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
@@ -48,7 +52,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
-                                boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
+                                boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled, String[] tlsProtocolVersion,
                                 String tlsCertFile, String tlsKeyFile, String tokenSigningKey,
                                 Integer accessTokenTTLInSeconds, boolean isRGWritesWithReadPermEnabled,
                                 String tlsTrustStore,
@@ -73,6 +77,11 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.authorizationEnabled = authorizationEnabled;
         this.userPasswordFile = userPasswordFile;
         this.tlsEnabled = tlsEnabled;
+        if (tlsProtocolVersion == null) {
+            this.tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]);
+        } else {
+            this.tlsProtocolVersion =  Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
+        }
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
@@ -108,6 +117,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("tlsCertFile is %s, ",
                         Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
                 .append(String.format("tlsKeyFile is %s, ",

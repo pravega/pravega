@@ -47,6 +47,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.List;
 import java.util.Optional;
@@ -262,6 +263,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                                                                                             .port(grpcPort)
                                                                                             .authorizationEnabled(false)
                                                                                             .tlsEnabled(false)
+                                                                                            .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                                                                             .build()))
                                           .restServerConfig(Optional.empty())
                                           .build();
