@@ -327,24 +327,23 @@ public class PravegaTablesScope implements Scope {
                                                     .map(key -> {
                                              log.debug(context.getRequestId(), "Adding stream {} to tag {} index on table {}", stream, key, table);
                                              return storeHelper.getAndUpdateEntry(table, key,
-                                                                                  e -> appendStreamToEntry(stream, e),
+                                                                                  e -> appendStreamToEntry(key, stream, e),
                                                                                   e -> false, // no need of cleanup
                                                                                   context.getRequestId());
                                          })
                                                     .collect(Collectors.toList())));
     }
 
-    private TableSegmentEntry appendStreamToEntry(String appendValue, TableSegmentEntry entry) {
-        String key = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
+    private TableSegmentEntry appendStreamToEntry(String tag, String appendValue, TableSegmentEntry entry) {
         byte[] array = storeHelper.getArray(entry.getValue());
         byte[] updatedBytes;
         if (array.length == 0) {
-            updatedBytes = TagRecord.builder().tagName(key).stream(appendValue).build().toBytes();
+            updatedBytes = TagRecord.builder().tagName(tag).stream(appendValue).build().toBytes();
         } else {
             TagRecord record = TagRecord.fromBytes(array);
             updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
         }
-        return TableSegmentEntry.versioned(key.getBytes(StandardCharsets.UTF_8), updatedBytes,
+        return TableSegmentEntry.versioned(tag.getBytes(StandardCharsets.UTF_8), updatedBytes,
                                            entry.getKey().getVersion().getSegmentVersion());
     }
 
@@ -362,15 +361,14 @@ public class PravegaTablesScope implements Scope {
                                                         .map(key -> {
                                                             log.debug(context.getRequestId(), "Removing stream {} from tag {} index on table {}", stream, key, table);
                                                             return storeHelper.getAndUpdateEntry(table, key,
-                                                                                                 e -> removeStreamFromEntry(stream, e),
+                                                                                                 e -> removeStreamFromEntry(key, stream, e),
                                                                                                  this::isEmptyTagRecord,
                                                                                                  context.getRequestId());
                                                         })
                                                         .collect(Collectors.toList())));
     }
 
-    private TableSegmentEntry removeStreamFromEntry(String removeValue, TableSegmentEntry currentEntry) {
-        String k = currentEntry.getKey().getKey().toString(StandardCharsets.UTF_8);
+    private TableSegmentEntry removeStreamFromEntry(String tag, String removeValue, TableSegmentEntry currentEntry) {
         byte[] array = storeHelper.getArray(currentEntry.getValue());
         byte[] updatedBytes = new byte[0];
         if (array.length != 0) {
@@ -379,7 +377,7 @@ public class PravegaTablesScope implements Scope {
             TagRecord updatedRecord = record.toBuilder().removeStream(removeValue).build();
             updatedBytes = updatedRecord.toBytes();
         }
-        return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+        return TableSegmentEntry.versioned(tag.getBytes(StandardCharsets.UTF_8),
                                            updatedBytes,
                                            currentEntry.getKey().getVersion().getSegmentVersion());
     }
