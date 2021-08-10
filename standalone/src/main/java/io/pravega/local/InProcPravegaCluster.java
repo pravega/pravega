@@ -48,7 +48,6 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
-import java.security.Provider;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
