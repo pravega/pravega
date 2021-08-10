@@ -553,10 +553,10 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
                 recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
 
         // Try to merge the transaction conditionally, when the attributes on the parent segment do not match.
@@ -605,10 +605,10 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
                 recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
         assertTrue(append(transactionName, 1, store));
 
