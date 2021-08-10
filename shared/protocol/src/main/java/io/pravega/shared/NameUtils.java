@@ -39,6 +39,10 @@ public final class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
+    public static final short JOURNAL_FILE_PREFIX = 1;
+
+    public static final short JOURNAL_SNAPSHOT_PREFIX = 2;
+
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
@@ -409,7 +413,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
-        return ChunkObjectKeyGenerator.randomChunkObjectKey(containerId, (int)epoch, currentFileIndex);
+        return ChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_FILE_PREFIX, containerId, (int)epoch, currentFileIndex);
     }
 
 
@@ -421,7 +425,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
-        return ChunkObjectKeyGenerator.randomChunkObjectKey(containerId, (int)epoch, currentSnapshotIndex);
+        return ChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_SNAPSHOT_PREFIX, containerId, (int)epoch, currentSnapshotIndex);
     }
 
     /**

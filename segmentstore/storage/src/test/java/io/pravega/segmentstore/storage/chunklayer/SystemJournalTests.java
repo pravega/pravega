@@ -37,13 +37,14 @@ import org.junit.rules.Timeout;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 /**
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
  */
 public class SystemJournalTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(600);
     private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
@@ -89,7 +90,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = 40;
         @Cleanup
         val garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
@@ -121,7 +122,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = 41;
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -187,7 +188,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = 43;
         @Cleanup
         val garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
@@ -215,7 +216,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = 44;
         int maxLength = 8;
         long epoch = 1;
 
@@ -270,7 +271,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
-        int containerId = 42;
+        int containerId = 45;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         int maxLength = 8;
         long epoch = 1;
@@ -341,7 +342,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
         @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-        int containerId = 42;
+        int containerId = 46;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(8);
@@ -415,7 +416,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkMetadataStore metadataStore = getMetadataStore();
         @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-        int containerId = 42;
+        int containerId = 47;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(4);
@@ -488,7 +489,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithMultipleFailovers() throws Exception {
-        val containerId = 42;
+        val containerId = 48;
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, null);
@@ -565,7 +566,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testSimpleBootstrapWithIncompleteSnapshot() throws Exception {
-        val containerId = 42;
+        val containerId = 55;
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
@@ -584,7 +585,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testSimpleBootstrapWithMissingSnapshot() throws Exception {
-        val containerId = 42;
+        val containerId = 56;
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         try {
@@ -614,7 +615,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
 
-        int containerId = 42;
+        int containerId = 49;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
         val policy = new SegmentRollingPolicy(1024);
@@ -771,7 +772,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
-        int containerId = 42;
+        int containerId = ThreadLocalRandom.current().nextInt(Short.MAX_VALUE);
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -848,7 +849,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
         @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-        int containerId = 42;
+        int containerId = 51;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(8);
@@ -919,7 +920,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
-        int containerId = 42;
+        int containerId = 52;
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -1000,7 +1001,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
-        int containerId = 42;
+        int containerId = 53;
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -1085,7 +1086,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
-        int containerId = 42;
+        int containerId = 54;
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
