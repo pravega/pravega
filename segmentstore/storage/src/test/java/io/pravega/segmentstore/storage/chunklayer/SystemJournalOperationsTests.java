@@ -129,6 +129,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenario() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         val testSegmentName = testContext.segmentNames[0];
         @Cleanup
@@ -192,6 +193,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenarioWithSnapshots() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
@@ -270,6 +272,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     @Test
     public void testWithSnapshots() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(3)
@@ -367,6 +370,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     @Test
     public void testWithSnapshotsAndTime() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
@@ -749,6 +753,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testZombieScenario() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         val testSegmentName = testContext.segmentNames[0];
         @Cleanup
@@ -816,6 +821,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testZombieScenarioMultipleTruncates() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         val testSegmentName = testContext.segmentNames[0];
         @Cleanup
@@ -884,6 +890,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testZombieScenarioMultipleChunks() throws Exception {
+        @Cleanup
         val testContext = new TestContext(CONTAINER_ID);
         val testSegmentName = testContext.segmentNames[0];
         @Cleanup
