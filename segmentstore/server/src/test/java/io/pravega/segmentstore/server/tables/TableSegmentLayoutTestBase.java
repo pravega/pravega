@@ -332,8 +332,8 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
     @SneakyThrows
     protected void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         val config = TableExtensionConfig.builder()
-                .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
-                .compactionFrequency(Duration.ofMillis(1))
+                .with(TableExtensionConfig.MAX_COMPACTION_SIZE, (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
+                .with(TableExtensionConfig.COMPACTION_FREQUENCY, 1)
                 .build();
         @Cleanup
         val context = new TableContext(config, keyHasher, executorService());

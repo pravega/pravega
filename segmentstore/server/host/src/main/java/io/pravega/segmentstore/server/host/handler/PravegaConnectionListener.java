@@ -37,6 +37,7 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VERSION;
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
@@ -69,13 +70,29 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param streamSegmentStore  The SegmentStore to delegate all requests to.
      * @param tableStore          The SegmentStore to delegate all requests to.
      * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
+     * @param tlsProtocolVersion the version of the TLS protocol
+     */
+    @VisibleForTesting
+    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
+                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, String[] tlsProtocolVersion) {
+        this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
+                null, true, tokenExpiryExecutor, tlsProtocolVersion);
+    }
+
+    /**
+     * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
+     *
+     * @param enableTls           Whether to enable SSL/TLS.
+     * @param port                The port to listen on.
+     * @param streamSegmentStore  The SegmentStore to delegate all requests to.
+     * @param tableStore          The SegmentStore to delegate all requests to.
+     * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
-        this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
-                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
-                null, true, tokenExpiryExecutor);
+        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, TLS_PROTOCOL_VERSION.getDefaultValue().split(","));
     }
 
     /**
@@ -94,12 +111,13 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      * @param executor           The executor to be used for running token expiration handling tasks.
+     * @param tlsProtocolVersion the version of the TLS protocol
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
-                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile);
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion) {
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");

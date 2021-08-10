@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
@@ -42,6 +43,7 @@ import org.apache.curator.test.TestingServer;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -122,6 +124,10 @@ public class ClusterWrapper implements AutoCloseable {
     @Builder.Default
     private boolean tlsEnabled = false;
 
+    @Getter
+    @Builder.Default
+    private String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
+
     @Builder.Default
     private boolean controllerRestEnabled = false;
 
@@ -140,6 +146,10 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     private String tlsServerKeystorePasswordPath;
+
+    @Getter
+    @Builder.Default
+    private Duration accessTokenTtl = Duration.ofSeconds(300);
 
     private ClusterWrapper() {}
 
@@ -217,7 +227,7 @@ public class ClusterWrapper implements AutoCloseable {
         segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
 
         segmentStoreServer.startListening();
     }
@@ -256,6 +266,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)
