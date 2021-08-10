@@ -88,7 +88,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(
-                0L, "", true, true, false, 0L, 0L, 0L, 0L)))
+                0L, "", true, true, false, 0L, 0L, 0L)))
                 .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
