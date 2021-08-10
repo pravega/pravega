@@ -89,19 +89,18 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
         // Validate preconditions.
         checkState();
-        val currentIndexOffset = targetSegmentMetadata.getLastChunkStartOffset();
         // Update list of chunks by appending sources list of chunks.
         return updateMetadata(txn).thenComposeAsync(v -> {
             // Finally defrag immediately.
             final CompletableFuture<Void> f;
-            if (shouldDefrag() && null != targetLastChunk) {
+            if (chunkedSegmentStorage.shouldDefrag(targetSegmentMetadata) && null != targetSegmentMetadata.getDefragStartChunk()) {
                 f = chunkedSegmentStorage.defrag(txn,
                         targetSegmentMetadata,
-                        targetLastChunk.getName(),
+                        targetSegmentMetadata.getDefragStartChunk(),
                         null,
                         chunksToDelete,
                         newReadIndexEntries,
-                        currentIndexOffset);
+                        targetSegmentMetadata.getDefragStartOffset());
             } else {
                 f = CompletableFuture.completedFuture(null);
             }
@@ -135,7 +134,10 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private void postCommit() {
             // Update the read index.
             chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
-            chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);
+            if (newReadIndexEntries.size() > 0) {
+                chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(targetHandle.getSegmentName(), newReadIndexEntries.get(0).getOffset(), true);
+                chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);
+            }
             logEnd();
 
     }
@@ -181,6 +183,9 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
                                 targetSegmentMetadata.setChunkCount(targetSegmentMetadata.getChunkCount() + sourceSegmentMetadata.getChunkCount());
 
+                                // Update defrag info.
+                                updateDefragInfo();
+
                                 // Delete read index block entries for source.
                                 // To avoid possibility of unintentional deadlock, skip this step for storage system segments.
                                 if (!sourceSegmentMetadata.isStorageSystemSegment()) {
@@ -191,6 +196,26 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor());
+    }
+
+    private void updateDefragInfo() {
+        if (null == targetSegmentMetadata.getDefragStartChunk()) {
+            if (null == sourceSegmentMetadata.getDefragStartChunk()) {
+                targetSegmentMetadata.setDefragStartChunk(sourceSegmentMetadata.getFirstChunk());
+                if (null == sourceSegmentMetadata.getFirstChunk()) {
+                    targetSegmentMetadata.setDefragStartOffset(0);
+                } else {
+                    targetSegmentMetadata.setDefragStartOffset(offset);
+                    targetSegmentMetadata.setDefragPendingChunkCount(sourceSegmentMetadata.getChunkCount());
+                }
+            } else {
+                targetSegmentMetadata.setDefragStartChunk(sourceSegmentMetadata.getDefragStartChunk());
+                targetSegmentMetadata.setDefragStartOffset(offset + sourceSegmentMetadata.getDefragStartOffset());
+                targetSegmentMetadata.setDefragPendingChunkCount(sourceSegmentMetadata.getDefragPendingChunkCount());
+            }
+        } else {
+            targetSegmentMetadata.setDefragPendingChunkCount(targetSegmentMetadata.getDefragPendingChunkCount() + sourceSegmentMetadata.getChunkCount());
+        }
     }
 
     private void checkState() {
@@ -226,10 +251,5 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         if (!sourceSegmentMetadata.isSealed()) {
             throw new IllegalStateException("Source segment must be sealed.");
         }
-    }
-
-    private boolean shouldDefrag() {
-        return (chunkedSegmentStorage.shouldAppend() || chunkedSegmentStorage.getChunkStorage().supportsConcat())
-                && chunkedSegmentStorage.getConfig().isInlineDefragEnabled();
     }
 }

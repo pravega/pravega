@@ -116,6 +116,22 @@ public class SegmentMetadata extends StorageMetadata {
     private volatile long ownerEpoch;
 
     /**
+     * Number of chunks added since last defrag.
+     */
+    private volatile int defragPendingChunkCount;
+
+    /**
+     * Offset where the fragmentation starts.
+     */
+    private volatile long defragStartOffset;
+
+    /**
+     * Name of chunk at the start of the fragmentation.
+     */
+    private volatile String defragStartChunk;
+
+
+    /**
      * Retrieves the key associated with the metadata, which is the name of the segment.
      *
      * @return Name of the segment.
@@ -242,12 +258,29 @@ public class SegmentMetadata extends StorageMetadata {
             Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when firstChunk is null. %s", this);
             Preconditions.checkState(length == startOffset, "length must equal startOffset when firstChunk is null. %s", this);
             Preconditions.checkState(chunkCount == 0, "chunkCount should be 0. %s", this);
-
+            Preconditions.checkState(defragStartChunk == null, "firstChunkStartOffset must be 0 when firstChunk is null");
         } else if (firstChunk.equals(lastChunk)) {
             Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when there is only one chunk. %s", this);
             Preconditions.checkState(chunkCount == 1, "chunkCount should be 1. %s", this);
+            if (null != defragStartChunk) {
+                Preconditions.checkState(defragStartChunk.equals(firstChunk), "firstFragmentedChunk must equal firstChunk when there is only one chunk. %s", this);
+                Preconditions.checkState(firstChunkStartOffset == defragStartOffset, "firstChunkStartOffset must equal firstFragmentedChunkStartOffset when there is only one chunk. %s", this);
+                Preconditions.checkState(defragPendingChunkCount == 1, "chunksSinceLastDefrag must be 1 when there is only one chunk. %s", this);
+            }
         } else {
             Preconditions.checkState(chunkCount >= 2, "chunkCount should be 2 or more. %s", this);
+        }
+        if (isStorageSystemSegment()) {
+            Preconditions.checkState(defragStartChunk == null, "defragStartChunk must be null for storage system segments. %s", this);
+        }
+        if (null != defragStartChunk) {
+            Preconditions.checkState(defragStartOffset >= firstChunkStartOffset, "firstFragmentedChunkStartOffset must be equal or greater than firstChunkStartOffset. %s", this);
+            Preconditions.checkState(defragStartOffset < length, "firstFragmentedChunkStartOffset must be less than length. %s", this);
+            Preconditions.checkState(defragPendingChunkCount > 0, "chunksSinceLastDefrag must be a positive number. %s", this);
+            Preconditions.checkState(defragPendingChunkCount <= chunkCount, "chunksSinceLastDefrag must not be greater than chunkCount. %s", this);
+        } else {
+            Preconditions.checkState(defragStartOffset == 0, "firstFragmentedChunkStartOffset must be 0. %s", this);
+            Preconditions.checkState(defragPendingChunkCount == 0, "chunksSinceLastDefrag must be 0. %s", this);
         }
     }
 
@@ -289,6 +322,7 @@ public class SegmentMetadata extends StorageMetadata {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(0).revision(1, this::write01, this::read01);
         }
 
         private void write00(SegmentMetadata object, RevisionDataOutput output) throws IOException {
@@ -319,6 +353,20 @@ public class SegmentMetadata extends StorageMetadata {
             b.firstChunkStartOffset(input.readCompactLong());
             b.lastChunkStartOffset(input.readCompactLong());
             b.ownerEpoch(input.readCompactLong());
+        }
+
+        private void write01(SegmentMetadata object, RevisionDataOutput output) throws IOException {
+            // Add new fields
+            output.writeCompactInt(object.defragPendingChunkCount);
+            output.writeCompactLong(object.defragStartOffset);
+            output.writeUTF(nullToEmpty(object.defragStartChunk));
+        }
+
+        private void read01(RevisionDataInput input, SegmentMetadataBuilder b) throws IOException {
+            // Read new fields
+            b.defragPendingChunkCount(input.readCompactInt());
+            b.defragStartOffset(input.readCompactLong());
+            b.defragStartChunk(emptyToNull(input.readUTF()));
         }
     }
 }

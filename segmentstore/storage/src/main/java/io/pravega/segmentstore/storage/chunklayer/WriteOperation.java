@@ -67,9 +67,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final Timer timer;
     private final List<SystemJournal.SystemJournalRecord> systemLogRecords = new Vector<>();
     private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
+    private final Vector<String> chunksToDelete = new Vector<>();
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
 
-    private volatile boolean isCommitted = false;
     private volatile SegmentMetadata segmentMetadata;
     private volatile boolean isSystemSegment;
 
@@ -131,6 +131,29 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 return getLastChunk(txn)
                                         .thenComposeAsync(v ->
                                                         writeData(txn)
+                                                                .thenComposeAsync( vv -> {
+                                                                    // Finally defrag if required.
+                                                                    val newReadIndexEntriesAfterDefrag = new Vector<ChunkNameOffsetPair>();
+
+                                                                    if (chunkedSegmentStorage.shouldDefrag(segmentMetadata) && null != segmentMetadata.getDefragStartChunk()) {
+                                                                        return chunkedSegmentStorage.defrag(txn,
+                                                                                segmentMetadata,
+                                                                                segmentMetadata.getDefragStartChunk(),
+                                                                                null,
+                                                                                chunksToDelete,
+                                                                                newReadIndexEntriesAfterDefrag,
+                                                                                segmentMetadata.getDefragStartOffset())
+                                                                           .thenAcceptAsync(vvv -> {
+                                                                               if (newReadIndexEntriesAfterDefrag.size() > 0 ) {
+                                                                                   newReadIndexEntries.clear();
+                                                                                   newReadIndexEntries.addAll(newReadIndexEntriesAfterDefrag);
+                                                                               }
+                                                                           }, chunkedSegmentStorage.getExecutor());
+                                                                    } else {
+                                                                        return CompletableFuture.completedFuture(null);
+                                                                    }
+                                                                }, chunkedSegmentStorage.getExecutor())
+                                                                .thenComposeAsync(vv -> chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete), chunkedSegmentStorage.getExecutor())
                                                                 .thenComposeAsync(vv ->
                                                                                 commit(txn)
                                                                                         .thenApplyAsync(vvvv ->
@@ -160,7 +183,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private Object postCommit() {
         // Post commit actions.
         // Update the read index.
-        chunkedSegmentStorage.getReadIndexCache().addIndexEntries(handle.getSegmentName(), newReadIndexEntries);
+        if (newReadIndexEntries.size() > 0) {
+            chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), newReadIndexEntries.get(0).getOffset(), true);
+            chunkedSegmentStorage.getReadIndexCache().addIndexEntries(handle.getSegmentName(), newReadIndexEntries);
+        }
         return null;
     }
 
@@ -205,8 +231,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
         // Commit
-        return txn.commit()
-                .thenRunAsync(() -> isCommitted = true, chunkedSegmentStorage.getExecutor());
+        return txn.commit();
 
     }
 
@@ -388,6 +413,15 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
         segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
+        if (!segmentMetadata.isStorageSystemSegment()) {
+            if (null == segmentMetadata.getDefragStartChunk()) {
+                segmentMetadata.setDefragStartChunk(newChunkName);
+                segmentMetadata.setDefragStartOffset(segmentMetadata.getLength());
+                segmentMetadata.setDefragPendingChunkCount(1);
+            } else {
+                segmentMetadata.setDefragPendingChunkCount(segmentMetadata.getDefragPendingChunkCount() + 1);
+            }
+        }
 
         // Update the transaction.
         txn.create(newChunkMetadata);

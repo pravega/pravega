@@ -828,6 +828,18 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         }
     }
 
+    boolean shouldDefrag(SegmentMetadata segmentMetadata) {
+        return (shouldAppend() || chunkStorage.supportsConcat())
+                && config.isInlineDefragEnabled()
+                && isFragmented(segmentMetadata)
+                && !segmentMetadata.isStorageSystemSegment();
+    }
+
+    private boolean isFragmented(SegmentMetadata segmentMetadata) {
+        return segmentMetadata.getDefragPendingChunkCount() > config.getMaxFragmentedChunkCount()
+                || (segmentMetadata.getLength() - segmentMetadata.getDefragStartOffset() > config.getMaxFragmentedDataSize());
+    }
+
     /**
      * Adds block index entries for given chunk.
      */
