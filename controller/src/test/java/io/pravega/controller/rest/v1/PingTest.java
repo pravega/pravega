@@ -124,6 +124,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
+                                       .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                        .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                                        .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
                                        .build();
@@ -140,6 +141,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
+                                       .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                        .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                                        .keyFilePasswordPath("Wrong_Path")
                                        .build();

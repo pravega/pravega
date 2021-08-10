@@ -41,7 +41,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 public class AuthEnabledInProcPravegaClusterTest {
 
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(true, false, false);
+    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().authEnabled(true).build();
     final String scope = "AuthTestScope";
     final String stream = "AuthTestStream";
     final String msg = "Test message on the plaintext channel with auth credentials";

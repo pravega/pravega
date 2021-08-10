@@ -47,6 +47,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -97,7 +98,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor());
+                    serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]));
             server.startListening();
 
             controllerWrapper.awaitRunning();
