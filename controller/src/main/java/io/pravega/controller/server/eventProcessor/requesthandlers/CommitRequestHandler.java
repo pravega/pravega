@@ -153,7 +153,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     }
 
     /**
-     * Try creating txn commit list first. if node already exists and doesn't match the processing in the event, throw
+     * Try creating txn commit list first. If node already exists and doesn't match the processing in the event, throw
      * operation not allowed.
      * This will result in event being posted back in the stream and retried later. Generally if a transaction commit starts,
      * it will come to an end. However, during failover, once we have created the node, we are guaranteed that it will 
