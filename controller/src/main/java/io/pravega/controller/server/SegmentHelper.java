@@ -784,15 +784,39 @@ public class SegmentHelper implements AutoCloseable {
      * @param type                WireCommand for this request
      */
     @SneakyThrows(ConnectionFailedException.class)
-    protected void handleReply(long callerRequestId,
+    private void handleReply(long callerRequestId,
                              Reply reply,
                              RawClient client,
                              String qualifiedStreamSegmentName,
                              Class<? extends Request> requestType,
                              WireCommandType type) {
+        handleExpectedReplies(callerRequestId, reply, client, qualifiedStreamSegmentName, requestType, type, EXPECTED_SUCCESS_REPLIES, EXPECTED_FAILING_REPLIES);
+    }
+
+    /**
+     * This method handles the reply returned from RawClient.sendRequest given the expected success and failure cases.
+     *
+     * @param callerRequestId     request id issues by the client
+     * @param reply               actual reply received
+     * @param client              RawClient for sending request
+     * @param qualifiedStreamSegmentName StreamSegmentName
+     * @param requestType         request which reply need to be transformed
+     * @param type                WireCommand for this request
+     * @param expectedSuccessReplies the expected replies for a successful case
+     * @param expectedFailureReplies the expected replies for a failing case
+     * @throws ConnectionFailedException in case the reply is unexpected
+     */
+    protected void handleExpectedReplies(long callerRequestId,
+                                         Reply reply,
+                                         RawClient client,
+                                         String qualifiedStreamSegmentName,
+                                         Class<? extends Request> requestType,
+                                         WireCommandType type,
+                                         Map<Class<? extends Request>, Set<Class<? extends Reply>>> expectedSuccessReplies,
+                                         Map<Class<? extends Request>, Set<Class<? extends Reply>>> expectedFailureReplies) throws ConnectionFailedException {
         closeConnection(reply, client, callerRequestId);
-        Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
-        Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
+        Set<Class<? extends Reply>> expectedReplies = expectedSuccessReplies.get(requestType);
+        Set<Class<? extends Reply>> expectedFailingReplies = expectedFailureReplies.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
             log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());

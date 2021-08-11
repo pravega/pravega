@@ -15,12 +15,22 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
+import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 
-public abstract class ContainerCommand extends SegmentStoreCommand {
+/**
+ * Base class for all Segment Container related commands.
+ */
+public abstract class ContainerCommand extends AdminCommand {
     static final String COMPONENT = "container";
+    protected final GrpcAuthHelper authHelper;
 
     public ContainerCommand(CommandArgs args) {
         super(args);
+
+        authHelper = new GrpcAuthHelper(true,
+                "secret",
+                600);
     }
 }

@@ -15,14 +15,22 @@
  */
 package io.pravega.cli.admin.utils;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.SneakyThrows;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -30,6 +38,15 @@ import java.util.concurrent.ScheduledExecutorService;
  * Used by the Admin CLI for interacting with the admin-gateway on the Segment Store.
  */
 public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
+
+    private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
+            ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
+                    .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.StorageFlushed.class))
+                    .build();
+
+    private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
+            ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
+                    .build();
 
     public AdminSegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore,
                               ScheduledExecutorService executorService) {
@@ -58,5 +75,25 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                    assert r instanceof WireCommands.StorageFlushed;
                    return (WireCommands.StorageFlushed) r;
                 });
+    }
+
+    /**
+     * This method handle reply returned from RawClient.sendRequest.
+     *
+     * @param callerRequestId     request id issues by the client
+     * @param reply               actual reply received
+     * @param client              RawClient for sending request
+     * @param qualifiedStreamSegmentName StreamSegmentName
+     * @param requestType         request which reply need to be transformed
+     * @param type                WireCommand for this request
+     */
+    @SneakyThrows(ConnectionFailedException.class)
+    private void handleReply(long callerRequestId,
+                             Reply reply,
+                             RawClient client,
+                             String qualifiedStreamSegmentName,
+                             Class<? extends Request> requestType,
+                             WireCommandType type) {
+        handleExpectedReplies(callerRequestId, reply, client, qualifiedStreamSegmentName, requestType, type, EXPECTED_SUCCESS_REPLIES, EXPECTED_FAILING_REPLIES);
     }
 }

@@ -58,7 +58,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     // Setup utility.
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
-    protected static final int CONTAINER_COUNT = 4;
+    protected static final int CONTAINER_COUNT = 1;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
@@ -221,8 +221,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
         writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
         writer.flush();
 
-        String commandResult = TestUtils.executeCommand("container flush-to-storage 0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
+        String commandResult = TestUtils.executeCommand("container flush-to-storage all localhost", STATE.get());
+        for (int id = 1; id < CONTAINER_COUNT; id++) {
+            Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
+        }
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
     }
 
