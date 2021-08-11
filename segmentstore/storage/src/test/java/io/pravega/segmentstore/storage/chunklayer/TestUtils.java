@@ -105,7 +105,7 @@ public class TestUtils {
         // Assert
         Assert.assertNotNull(segmentMetadata.getFirstChunk());
         Assert.assertNotNull(segmentMetadata.getLastChunk());
-        long expectedLength = 0;
+        long expectedLength = segmentMetadata.getFirstChunkStartOffset();
         int i = 0;
         val chunks = getChunkList(metadataStore, segmentName);
         for (val chunk : chunks) {
