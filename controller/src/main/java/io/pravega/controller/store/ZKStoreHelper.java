@@ -48,7 +48,7 @@ public class ZKStoreHelper {
     @VisibleForTesting
     @Getter(AccessLevel.PUBLIC)
     private final Cache cache;
-    private final AtomicBoolean isZKConnected = new AtomicBoolean(true);
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
 
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;

@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -42,12 +43,14 @@ import org.apache.zookeeper.data.Stat;
  * Zookeeper based checkpoint store.
  */
 @Slf4j
+public
 class ZKCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
     private final Serializer<Position> positionSerializer;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
 
     ZKCheckpointStore(CuratorFramework client) {
         this.client = client;
@@ -63,6 +66,11 @@ class ZKCheckpointStore implements CheckpointStore {
             }
         };
         this.groupDataSerializer = new JavaSerializer<>();
+        //Listen for any zookeeper connectivity error and relinquish leadership.
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    this.isZKConnected.set(newState.isConnected());
+                });
     }
 
     @Data
@@ -76,6 +84,10 @@ class ZKCheckpointStore implements CheckpointStore {
         private final State state;
         private final List<String> readerIds;
     }
+
+    public boolean isZKConnected() {
+        return isZKConnected.get();
+     }
 
     @Override
     public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {

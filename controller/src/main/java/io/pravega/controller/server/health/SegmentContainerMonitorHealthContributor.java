@@ -35,12 +35,13 @@ public class SegmentContainerMonitorHealthContributor extends  AbstractHealthCon
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
         boolean running = segmentContainerMonitor.isRunning();
         Status status = Status.DOWN;
-
         if (running) {
             status = Status.NEW;
+        } else {
+            return status;
         }
-        boolean ready = segmentContainerMonitor.isZKConnected();
-        if (running && ready) {
+        boolean ready = segmentContainerMonitor.isMetadataServiceConnected();
+        if (ready) {
             status = Status.UP;
         }
         return status;

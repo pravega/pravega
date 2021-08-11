@@ -43,7 +43,7 @@ public class SegmentContainerMonitor extends AbstractIdleService {
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
 
-    private final AtomicBoolean isZKConnected = new AtomicBoolean(true);
+    private final AtomicBoolean metadataServiceConnected = new AtomicBoolean(false);
 
 
     /**
@@ -69,7 +69,7 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
-                    this.isZKConnected.set(newState.isConnected());
+                    this.metadataServiceConnected.set(newState.isConnected());
                     switch (newState) {
                         case LOST:
                             log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
@@ -95,8 +95,8 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         );
     }
 
-    public boolean isZKConnected() {
-        return isZKConnected.get();
+    public boolean isMetadataServiceConnected() {
+        return metadataServiceConnected.get();
     }
 
     /**

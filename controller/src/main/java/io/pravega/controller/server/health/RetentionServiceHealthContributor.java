@@ -33,17 +33,18 @@ public class RetentionServiceHealthContributor extends AbstractHealthContributor
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
         boolean running = retentionService.isRunning();
-        boolean zkHealthy = true;
+        boolean zkHealthy = false;
         Status status = Status.DOWN;
         if (running) {
             status = Status.NEW;
+        } else {
+            return status;
         }
         if (retentionService instanceof ZooKeeperBucketManager) {
             zkHealthy =  ((ZooKeeperBucketManager) retentionService).isZKConnected();
         }
-        if (running && zkHealthy) {
+        if (zkHealthy) {
             status = Status.UP;
-
         }
         return status;
     }

@@ -58,6 +58,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Delet
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.checkpoint.ZKCheckpointStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -123,7 +124,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
     @Getter
-    private boolean isReady = false;
+    private boolean bootstrapCompleted = false;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -182,6 +183,17 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
         this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
+    }
+
+    public boolean isMetadataServiceConnected() {
+        if (checkpointStore instanceof ZKCheckpointStore) {
+            return ((ZKCheckpointStore) checkpointStore ).isZKConnected();
+        }
+        return false;
+    }
+
+    public boolean isReady() {
+        return isMetadataServiceConnected() && isBootstrapCompleted();
     }
 
     @Override
@@ -341,7 +353,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
                     () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
                     delay, executor), executor);
-            this.isReady = true;
+            this.bootstrapCompleted = true;
         }, executor);
     }
 

@@ -33,15 +33,17 @@ public class WatermarkingServiceHealthContributor extends AbstractHealthContribu
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
         boolean running = watermarkingService.isRunning();
-        boolean zkHealthy  = true;
+        boolean zkHealthy  = false;
         Status status = Status.DOWN;
         if (running) {
             status = Status.NEW;
+        } else {
+            return status;
         }
         if (watermarkingService instanceof ZooKeeperBucketManager) {
-            zkHealthy =  ((ZooKeeperBucketManager) watermarkingService).isZKConnected();
+            zkHealthy = ((ZooKeeperBucketManager) watermarkingService).isZKConnected();
         }
-        if (running && zkHealthy) {
+        if (zkHealthy) {
             status = Status.UP;
         }
         return status;

@@ -35,13 +35,13 @@ public class ClusterListenerHealthContributor  extends AbstractHealthContributor
         Status status = Status.DOWN;
         if (running) {
             status = Status.NEW;
+        } else {
+            return status;
         }
         boolean ready = controllerClusterListener.isReady();
-        if (running && ready) {
+        if (ready) {
             status = Status.UP;
-
         }
         return status;
     }
-
 }

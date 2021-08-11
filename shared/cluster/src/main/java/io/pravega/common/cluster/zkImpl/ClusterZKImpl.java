@@ -65,7 +65,7 @@ public class ClusterZKImpl implements Cluster {
 
     private final CuratorFramework client;
 
-    private final AtomicBoolean isZKConnected = new AtomicBoolean(true);
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
 
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();

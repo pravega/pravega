@@ -68,24 +68,19 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.sweepers = Lists.newArrayList(sweepers);
     }
 
-    public boolean isZKConnected() {
+    public boolean isMetadataServiceConnected() {
         if (cluster instanceof ClusterZKImpl) {
             return ((ClusterZKImpl) cluster).isZKConnected();
         }
         return false;
     }
 
-    public boolean isSweepersReady() {
-        for (int i = 0; i < sweepers.size(); i++) {
-             if (!sweepers.get(i).isReady()) {
-                 return false;
-             }
-        }
-        return true;
+    public boolean areAllSweepersReady() {
+        return sweepers.stream().allMatch(s -> s.isReady());
     }
 
     public boolean isReady() {
-        return isZKConnected() && isSweepersReady();
+        return isMetadataServiceConnected() && areAllSweepersReady();
     }
 
     @Override
