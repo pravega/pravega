@@ -58,7 +58,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Delet
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.checkpoint.ZKCheckpointStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -186,11 +185,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     public boolean isMetadataServiceConnected() {
-        if (checkpointStore instanceof ZKCheckpointStore) {
-            return ((ZKCheckpointStore) checkpointStore ).isZKConnected();
-        }
-        return false;
-    }
+        return  checkpointStore.isHealthy();
+     }
 
     public boolean isReady() {
         return isMetadataServiceConnected() && isBootstrapCompleted();

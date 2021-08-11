@@ -16,7 +16,6 @@
 package io.pravega.controller.server.health;
 
 import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.ZooKeeperBucketManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
@@ -33,16 +32,13 @@ public class RetentionServiceHealthContributor extends AbstractHealthContributor
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
         boolean running = retentionService.isRunning();
-        boolean zkHealthy = false;
         Status status = Status.DOWN;
         if (running) {
             status = Status.NEW;
         } else {
             return status;
         }
-        if (retentionService instanceof ZooKeeperBucketManager) {
-            zkHealthy =  ((ZooKeeperBucketManager) retentionService).isZKConnected();
-        }
+        boolean zkHealthy = retentionService.isHealthy();
         if (zkHealthy) {
             status = Status.UP;
         }

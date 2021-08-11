@@ -40,7 +40,7 @@ public class SegmentContainerMonitorHealthContributor extends  AbstractHealthCon
         } else {
             return status;
         }
-        boolean ready = segmentContainerMonitor.isMetadataServiceConnected();
+        boolean ready = segmentContainerMonitor.isZKConnected();
         if (ready) {
             status = Status.UP;
         }

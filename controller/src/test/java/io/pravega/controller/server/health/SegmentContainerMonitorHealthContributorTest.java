@@ -46,6 +46,7 @@ public class SegmentContainerMonitorHealthContributorTest {
         doNothing().when(listen).addListener(any(ConnectionStateListener.class));
         doReturn(listen).when(client).getConnectionStateListenable();
         monitor = spy(new SegmentContainerMonitor(hostStore, client, balancer, 1));
+        doReturn(true).when(monitor).isZKConnected();
         contributor = new SegmentContainerMonitorHealthContributor("segmentcontainermonitor", monitor);
         builder = Health.builder().name("monitor");
     }

@@ -85,7 +85,8 @@ class ZKCheckpointStore implements CheckpointStore {
         private final List<String> readerIds;
     }
 
-    public boolean isZKConnected() {
+    @Override
+    public boolean isHealthy() {
         return isZKConnected.get();
      }
 

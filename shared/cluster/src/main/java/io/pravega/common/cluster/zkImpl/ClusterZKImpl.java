@@ -114,7 +114,8 @@ public class ClusterZKImpl implements Cluster {
         close(node);
     }
 
-    public boolean isZKConnected() {
+    @Override
+    public boolean isHealthy() {
         return isZKConnected.get();
     }
 

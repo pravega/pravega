@@ -51,7 +51,7 @@ public class RetentionServiceHealthContributorTest {
         retentionService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicRetention::retention, executor));
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) retentionService).initializeService();
         doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
-        doReturn(true).when((ZooKeeperBucketManager) retentionService).isZKConnected();
+        doReturn(true).when(retentionService).isHealthy();
 
         contributor = new RetentionServiceHealthContributor("retentionservice", retentionService);
         builder = Health.builder().name("retentionservice");

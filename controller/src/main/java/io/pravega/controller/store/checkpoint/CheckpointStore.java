@@ -134,4 +134,13 @@ public interface CheckpointStore {
             throws CheckpointStoreException;
 
     Set<String> getProcesses() throws CheckpointStoreException;
+
+    /**
+     * Get the health.
+     *
+     * @return boolean value.
+     */
+    default public boolean isHealthy() {
+        return true;
+    }
 }

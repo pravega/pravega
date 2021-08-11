@@ -53,7 +53,7 @@ public  class WatermarkingServiceHealthContibutorTest {
         watermarkingService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(10), periodicWatermarking::watermark, executor));
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) watermarkingService).initializeService();
         doNothing().when((ZooKeeperBucketManager) watermarkingService).startBucketOwnershipListener();
-        doReturn(true).when((ZooKeeperBucketManager) watermarkingService).isZKConnected();
+        doReturn(true).when(watermarkingService).isHealthy();
         contributor = new WatermarkingServiceHealthContributor("watermarkingservice", watermarkingService);
         builder = Health.builder().name("watermark");
     }
