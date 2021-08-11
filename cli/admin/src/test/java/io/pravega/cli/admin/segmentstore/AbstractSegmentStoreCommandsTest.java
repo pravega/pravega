@@ -213,14 +213,6 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommand() throws Exception {
-        TestUtils.createScopeStream(SETUP_UTILS.getController(), "container", "flushtostorage", StreamConfiguration.builder().build());
-        @Cleanup
-        EventStreamClientFactory factory = EventStreamClientFactory.withScope("container", clientConfig);
-        @Cleanup
-        EventStreamWriter<String> writer = factory.createEventWriter("flushtostorage", new JavaSerializer<>(), EventWriterConfig.builder().build());
-        writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
-        writer.flush();
-
         String commandResult = TestUtils.executeCommand("container flush-to-storage all localhost", STATE.get());
         for (int id = 1; id < CONTAINER_COUNT; id++) {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
