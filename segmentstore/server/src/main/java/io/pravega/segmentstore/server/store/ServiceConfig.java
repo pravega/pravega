@@ -58,6 +58,8 @@ public class ServiceConfig {
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
     public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
     public static final Property<Boolean> REST_LISTENING_ENABLE = Property.named("rest.listener.enable", true);
+    public static final Property<String> REST_KEYSTORE_FILE = Property.named("security.tls.server.keyStore.location", "", "rest.tlsKeyStoreFile");
+    public static final Property<String> REST_KEYSTORE_PASSWORD_FILE = Property.named("security.tls.server.keyStore.pwd.location", "", "rest.tlsKeyStorePasswordFile");
     public static final Property<Integer> HEALTH_CHECK_INTERVAL_SECONDS = Property.named("health.interval.seconds", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
@@ -85,7 +87,6 @@ public class ServiceConfig {
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
     public static final Property<String> KEY_PASSWORD_FILE = Property.named("security.tls.server.privateKey.password.location", "");
-    public static final Property<String> JKS_FILE = Property.named("security.tls.server.keyStore.location", "");
 
     // Admin Gateway-related parameters
     public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", false);
@@ -346,6 +347,12 @@ public class ServiceConfig {
 
     @Getter
     private final Duration healthCheckInterval;
+
+    @Getter
+    private final String restKeyStoreFile;
+
+    @Getter
+    private final String restKeyStorePasswordFile;
     //endregion
 
     //region Constructor
@@ -418,11 +425,13 @@ public class ServiceConfig {
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
                 .tlsProtocolVersion(TLSProtocolVersion.parse(properties.get(TLS_PROTOCOL_VERSION)))
-                .keyFilePath(properties.get(JKS_FILE))
-                .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
+                .keyFilePath(properties.get(REST_KEYSTORE_FILE))
+                .keyFilePasswordPath(properties.get(REST_KEYSTORE_PASSWORD_FILE))
                 .build();
         this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
+        this.restKeyStoreFile = properties.get(REST_KEYSTORE_FILE);
+        this.restKeyStorePasswordFile = properties.get(REST_KEYSTORE_PASSWORD_FILE);
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
     }
@@ -481,6 +490,10 @@ public class ServiceConfig {
                 .append(String.format("restListeningPort: %d", restListeningPort))
                 .append(String.format("restListeningIPAddress: %s", restListeningIPAddress))
                 .append(String.format("restServerEnabled: %b", restServerEnabled))
+                .append(String.format("restKeyStoreFile is %s, ",
+                        Strings.isNullOrEmpty(restKeyStoreFile) ? "unspecified" : "specified"))
+                .append(String.format("restKeyStorePasswordFile is %s, ",
+                        Strings.isNullOrEmpty(restKeyStorePasswordFile) ? "unspecified" : "specified"))
                 .append(")")
                 .toString();
     }
