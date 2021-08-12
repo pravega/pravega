@@ -112,7 +112,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      * @param executor           The executor to be used for running token expiration handling tasks.
      * @param tlsProtocolVersion the version of the TLS protocol
-     * @param healthServiceManager The healService to register new health contributors related to the listeners.
+     * @param healthServiceManager The healthService to register new health contributors related to the listeners.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,

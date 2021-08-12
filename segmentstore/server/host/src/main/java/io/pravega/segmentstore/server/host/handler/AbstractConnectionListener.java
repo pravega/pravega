@@ -48,6 +48,7 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileNotFoundException;
@@ -82,7 +83,6 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
     @Getter
     private final boolean enableTlsReload; // whether to reload TLS certificate when the certificate changes
 
-    private final String type;
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
     private final String[] tlsProtocolVersion;
@@ -131,7 +131,6 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.connectionTracker = new ConnectionTracker();
         this.healthServiceManager = healthServiceManager;
-        this.type = this.getClass().getSimpleName();
     }
 
     /**
@@ -204,8 +203,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
 
         if (healthServiceManager != null) {
-            healthServiceManager.register(new ConnectionListenerHealthContributor(type,
-                    this, this.host, this.port));
+            healthServiceManager.register(new ConnectionListenerHealthContributor(this));
         }
     }
 
@@ -275,15 +273,12 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
     // A contributor for managing health of a connection listener.
     private static class ConnectionListenerHealthContributor extends AbstractHealthContributor {
+        @NonNull
         private final AbstractConnectionListener listener;
-        private final String host;
-        private final int port;
 
-        private ConnectionListenerHealthContributor(String connectionType, AbstractConnectionListener listener, String host, int port) {
-            super(connectionType);
+        private ConnectionListenerHealthContributor(AbstractConnectionListener listener) {
+            super(listener.getClass().getSimpleName());
             this.listener = listener;
-            this.host = host;
-            this.port = port;
         }
 
         @Override
@@ -299,7 +294,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
                 status = Status.UP;
             }
 
-            builder.details(ImmutableMap.of("host", host, "port", port));
+            builder.details(ImmutableMap.of("host", listener.host, "port", listener.port));
             return status;
         }
     }
