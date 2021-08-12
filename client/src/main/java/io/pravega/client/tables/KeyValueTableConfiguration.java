@@ -55,7 +55,11 @@ public class KeyValueTableConfiguration implements Serializable {
     private final int secondaryKeyLength;
 
     /**
-     * The rollover size for table segment in LTS. A default value will be used if this field is not specified.
+     * The rollover size for table segment in LTS.
+     *
+     * The default value for this field is 0.
+     * If default value is passed down to the server, a non-zero value defined in the server
+     * will be used for the actual rollover size.
      *
      * @param rolloverSizeBytes The rollover size for the table segment in LTS.
      * @return The rollover size for the table segment in LTS.

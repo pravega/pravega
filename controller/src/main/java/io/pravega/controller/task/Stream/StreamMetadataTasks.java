@@ -454,7 +454,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).thenCompose(x -> createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).rolloverSizeBytes(config.getRolloverSizeBytes()).build(),
                 System.currentTimeMillis(), 10, getRequestId(context))
                 .thenCompose(createStatus -> {
                     if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)

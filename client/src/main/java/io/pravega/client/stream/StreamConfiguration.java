@@ -85,6 +85,9 @@ public class StreamConfiguration implements Serializable {
 
     /**
      * API to return segment rollover size.
+     * The default value for this field is 0.
+     * If default value is passed down to the server, a non-zero value defined in the server
+     * will be used for the actual rollover size.
      *
      * @param rolloverSizeBytes The segment rollover size in this stream.
      * @return Rollover size for the segment in this Stream.
@@ -96,7 +99,7 @@ public class StreamConfiguration implements Serializable {
 
         public StreamConfiguration build() {
             Set<String> tagSet = validateTags(this.tags);
-            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
+            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
             return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet, this.rolloverSizeBytes);
         }
 

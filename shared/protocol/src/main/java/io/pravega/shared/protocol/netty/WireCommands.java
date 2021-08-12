@@ -1066,7 +1066,6 @@ public final class WireCommands {
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
             long startOffset = 0;
-            long rolloverSizeBytes = 0;
             if (in.available() >= Long.BYTES) {
                 // Versioning workaround until PDP-21 is implemented (https://github.com/pravega/pravega/issues/1948).
                 startOffset = in.readLong();

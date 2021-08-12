@@ -217,8 +217,8 @@ public class ControllerService {
      * @return Create Readergroup status future. 
      */
     public CompletableFuture<CreateReaderGroupResponse> createReaderGroup(String scope, String rgName,
-                                                                            final ReaderGroupConfig rgConfig,
-                                                                            final long createTimestamp,
+                                                                          final ReaderGroupConfig rgConfig,
+                                                                          final long createTimestamp,
                                                                           final long requestId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
@@ -630,8 +630,9 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Timer timer = new Timer();
-
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, requestId)
+        OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
+        return streamStore.getConfiguration(scope, stream, context, executor).thenCompose(streamConfig ->
+                streamTransactionMetadataTasks.createTxn(scope, stream, lease, requestId, streamConfig.getRolloverSizeBytes()))
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<StreamSegmentRecord> segments = pair.getValue();

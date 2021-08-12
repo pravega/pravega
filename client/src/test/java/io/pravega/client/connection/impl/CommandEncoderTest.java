@@ -94,7 +94,7 @@ public class CommandEncoderTest {
         WireCommand command = new WireCommands.Hello(0, 1);
         commandEncoder.write(command);
         assertEquals(output.decoded.remove(0), command);
-        command = new WireCommands.CreateTableSegment(0, "segment", false, 16, "", 0);
+        command = new WireCommands.CreateTableSegment(0, "segment", false, 16, "", 1024 * 1024 * 1024);
         commandEncoder.write(command);
         assertEquals(output.decoded.remove(0), command);
         command = new WireCommands.TruncateSegment(12, "s", 354, "d");

@@ -440,7 +440,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String operation = "createSegment";
 
         Preconditions.checkArgument(createStreamSegment.getRolloverSizeBytes() >= 0,
-                "Segment rollover size must not be negative; actual %s.", createStreamSegment.getRolloverSizeBytes());
+                "Segment rollover size bytes cannot be less than 0, actual is %s", createStreamSegment.getRolloverSizeBytes());
 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
@@ -635,7 +635,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             configBuilder.keyLength(createTableSegment.getKeyLength());
         }
         Preconditions.checkArgument(createTableSegment.getRolloverSizeBytes() >= 0,
-                "Segment rollover size must not be negative; actual %s.", createTableSegment.getRolloverSizeBytes());
+                "Segment rollover size bytes cannot be less than 0, actual is %s", createTableSegment.getRolloverSizeBytes());
         configBuilder.rolloverSizeBytes(createTableSegment.getRolloverSizeBytes());
 
         tableStore.createSegment(createTableSegment.getSegment(), typeBuilder.build(), configBuilder.build(), TIMEOUT)

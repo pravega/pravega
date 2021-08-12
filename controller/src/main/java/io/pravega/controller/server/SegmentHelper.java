@@ -239,7 +239,8 @@ public class SegmentHelper implements AutoCloseable {
                                                      final long segmentId,
                                                      final UUID txId,
                                                      final String delegationToken,
-                                                     final long clientRequestId) {
+                                                     final long clientRequestId,
+                                                     final long rolloverSizeBytes) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -248,7 +249,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
-                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken, 0);
+                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken, rolloverSizeBytes);
 
         return sendRequest(connection, clientRequestId, request)
                 .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class,

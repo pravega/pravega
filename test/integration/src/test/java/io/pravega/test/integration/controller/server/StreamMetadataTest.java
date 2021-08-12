@@ -67,6 +67,7 @@ public class StreamMetadataTest {
         @Cleanup
         TestingServer zkTestServer = new TestingServerStarter().start();
 
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();

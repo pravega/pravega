@@ -237,7 +237,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
-                "", System.nanoTime());
+                "", System.nanoTime(), 1024 * 1024L);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -248,18 +248,18 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         CompletableFuture<Void> result = helper.createTransaction("", "", 0L, 
-                new UUID(0L, 0L), "", System.nanoTime());
+                new UUID(0L, 0L), "", System.nanoTime(), 1024 * 1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
         
-        result = helper.createTransaction("", "", 0L, new UUID(0L, 0L), "", System.nanoTime());
+        result = helper.createTransaction("", "", 0L, new UUID(0L, 0L), "", System.nanoTime(), 1024 * 1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTransaction("", "", 0L, txId,
-                "", System.nanoTime());
+                "", System.nanoTime(), 1024 * 1024L);
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);

@@ -69,6 +69,8 @@ public class ReaderGroupConfig implements Serializable {
     @EqualsAndHashCode.Exclude
     private final UUID readerGroupId;
 
+    private final long rolloverSizeBytes;
+
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
@@ -258,6 +260,17 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
+       /**
+        * Set the rollover size for the {@link ReaderGroup} internal stream segment.
+        *
+        * @param rolloverSizeBytes rollover size for the internal stream segment.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder rolloverSizeBytes(final long rolloverSizeBytes) {
+           this.rolloverSizeBytes = rolloverSizeBytes;
+           return this;
+       }
+
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
@@ -280,7 +293,8 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType, generation, readerGroupId);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType,
+                   generation, readerGroupId, rolloverSizeBytes);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
