@@ -29,6 +29,9 @@ import org.junit.Test;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
+/**
+ * Unit tests for GRPCServiceHealthContibutor
+ */
 public class GRPCServerHealthContributorTest {
     private GRPCServer grpcServer;
     private GRPCServerHealthContributor contributor;

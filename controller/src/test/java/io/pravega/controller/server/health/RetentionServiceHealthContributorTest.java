@@ -33,10 +33,15 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
+/**
+ * Unit tests for RetentionServiceHealthContibutor
+ */
 public class RetentionServiceHealthContributorTest {
     private BucketManager retentionService;
     private RetentionServiceHealthContributor contributor;
@@ -67,11 +72,9 @@ public class RetentionServiceHealthContributorTest {
     @Test
     public void testHealthCheck() throws Exception {
         retentionService.startAsync();
-        TimeUnit.SECONDS.sleep(5);
         Status status = contributor.doHealthCheck(builder);
         Assert.assertEquals(Status.UP, status);
         retentionService.stopAsync();
-        TimeUnit.SECONDS.sleep(5);
         status = contributor.doHealthCheck(builder);
         Assert.assertEquals(Status.DOWN, status);
     }

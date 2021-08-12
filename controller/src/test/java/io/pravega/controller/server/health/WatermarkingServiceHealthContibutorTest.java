@@ -32,9 +32,11 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Unit tests for WatermarkingServiceHealthContibutor
@@ -68,12 +70,10 @@ public class WatermarkingServiceHealthContibutorTest {
     @Test
     public void testHealthCheck() throws Exception {
         watermarkingService.startAsync();
-        TimeUnit.SECONDS.sleep(5);
         Assert.assertTrue(watermarkingService.isRunning());
         Status status = contributor.doHealthCheck(builder);
         Assert.assertEquals(Status.UP, status);
         watermarkingService.stopAsync();
-        TimeUnit.SECONDS.sleep(5);
         status = contributor.doHealthCheck(builder);
         Assert.assertEquals(Status.DOWN, status);
     }

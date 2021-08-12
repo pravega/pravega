@@ -52,7 +52,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for EventProcessorHealthContributor
@@ -97,11 +102,11 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
     @After
     public void tearDown() {
         contributor.close();
+        eventProcessors.close();
     }
 
     @Test
-    public void
-    testHealthCheck() throws Exception {
+    public void testHealthCheck() throws Exception {
         eventProcessors.startAsync();
         eventProcessors.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
