@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -22,25 +23,22 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ClusterListenerHealthContributor  extends AbstractHealthContributor {
+public class ClusterListenerHealthContributor extends AbstractHealthContributor {
     private final ControllerClusterListener controllerClusterListener;
-      public ClusterListenerHealthContributor(String name, ControllerClusterListener controllerClusterListener) {
+
+    public ClusterListenerHealthContributor(String name, ControllerClusterListener controllerClusterListener) {
         super(name);
-        this.controllerClusterListener = controllerClusterListener;
+        this.controllerClusterListener = Preconditions.checkNotNull(controllerClusterListener, "controllerClusterListener");
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        boolean running = controllerClusterListener.isRunning();
         Status status = Status.DOWN;
-        if (running) {
+        if (controllerClusterListener.isRunning()) {
             status = Status.NEW;
-        } else {
-            return status;
-        }
-        boolean ready = controllerClusterListener.isReady();
-        if (ready) {
-            status = Status.UP;
+            if (controllerClusterListener.isReady()) {
+                status = Status.UP;
+            }
         }
         return status;
     }

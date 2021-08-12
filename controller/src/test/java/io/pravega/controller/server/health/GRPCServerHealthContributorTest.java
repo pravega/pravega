@@ -21,6 +21,7 @@ import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,6 +33,7 @@ public class GRPCServerHealthContributorTest {
     private GRPCServer grpcServer;
     private GRPCServerHealthContributor contributor;
     private Health.HealthBuilder builder;
+
     @Before
     public void setup() {
         ControllerService service = mock(ControllerService.class);
@@ -42,15 +44,20 @@ public class GRPCServerHealthContributorTest {
         builder = Health.builder().name("grpc");
     }
 
+    @After
+    public void tearDown() {
+        contributor.close();
+    }
+
     @Test
     public void testHealthCheck() throws Exception {
         grpcServer.startAsync();
         grpcServer.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         grpcServer.stopAsync();
         grpcServer.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 }

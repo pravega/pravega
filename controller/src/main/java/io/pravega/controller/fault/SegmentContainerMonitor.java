@@ -45,7 +45,6 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
     private final AtomicBoolean zkConnected = new AtomicBoolean(false);
 
-
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
      *

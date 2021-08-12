@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,10 +39,11 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for WatermarkingServiceHealthContibutor
  */
-public  class WatermarkingServiceHealthContibutorTest {
+public class WatermarkingServiceHealthContibutorTest {
     private BucketManager watermarkingService;
     private WatermarkingServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
+
     @Before
     public void setup() {
         ZookeeperBucketStore bucketStore = mock(ZookeeperBucketStore.class);
@@ -58,16 +60,21 @@ public  class WatermarkingServiceHealthContibutorTest {
         builder = Health.builder().name("watermark");
     }
 
+    @After
+    public void tearDown() {
+        contributor.close();
+    }
+
     @Test
     public void testHealthCheck() throws Exception {
         watermarkingService.startAsync();
         TimeUnit.SECONDS.sleep(5);
         Assert.assertTrue(watermarkingService.isRunning());
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         watermarkingService.stopAsync();
         TimeUnit.SECONDS.sleep(5);
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 }

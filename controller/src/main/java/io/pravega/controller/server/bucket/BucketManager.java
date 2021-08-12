@@ -83,10 +83,14 @@ public abstract class BucketManager extends AbstractService {
 
     protected abstract int getBucketCount();
 
+    /**
+     * Get the health status.
+     *
+     * @return true by default.
+     */
     public boolean isHealthy() {
         return true;
     }
-
 
     CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return takeBucketOwnership(bucket, processId, executor)

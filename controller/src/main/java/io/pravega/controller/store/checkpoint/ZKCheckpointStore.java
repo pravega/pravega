@@ -43,8 +43,7 @@ import org.apache.zookeeper.data.Stat;
  * Zookeeper based checkpoint store.
  */
 @Slf4j
-public
-class ZKCheckpointStore implements CheckpointStore {
+public class ZKCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
@@ -85,6 +84,11 @@ class ZKCheckpointStore implements CheckpointStore {
         private final List<String> readerIds;
     }
 
+    /**
+     * Get the zookeeper health status.
+     *
+     * @return true if zookeeper is connected.
+     */
     @Override
     public boolean isHealthy() {
         return isZKConnected.get();

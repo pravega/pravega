@@ -23,6 +23,7 @@ import io.pravega.shared.health.Status;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.listen.Listenable;
 import org.apache.curator.framework.state.ConnectionStateListener;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.Assert;
@@ -51,15 +52,20 @@ public class SegmentContainerMonitorHealthContributorTest {
         builder = Health.builder().name("monitor");
     }
 
+    @After
+    public void tearDown() {
+        contributor.close();
+    }
+
     @Test
     public void testHealthCheck() throws Exception {
         monitor.startAsync();
         monitor.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         monitor.stopAsync();
         monitor.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 }

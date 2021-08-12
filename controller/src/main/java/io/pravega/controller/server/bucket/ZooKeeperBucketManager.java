@@ -45,6 +45,11 @@ public class ZooKeeperBucketManager extends BucketManager {
         this.bucketStore = bucketStore;
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected.
+     */
     @Override
     public boolean isHealthy() {
         return this.bucketStore.isZKConnected();

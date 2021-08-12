@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -22,27 +23,22 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SegmentContainerMonitorHealthContributor extends  AbstractHealthContributor {
+public class SegmentContainerMonitorHealthContributor extends AbstractHealthContributor {
     private final SegmentContainerMonitor segmentContainerMonitor;
 
     public SegmentContainerMonitorHealthContributor(String name, SegmentContainerMonitor segmentContainerMonitor) {
         super(name);
-        this.segmentContainerMonitor = segmentContainerMonitor;
+        this.segmentContainerMonitor = Preconditions.checkNotNull(segmentContainerMonitor, "segmentContainerMonitor");
     }
-
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        boolean running = segmentContainerMonitor.isRunning();
         Status status = Status.DOWN;
-        if (running) {
+        if (segmentContainerMonitor.isRunning()) {
             status = Status.NEW;
-        } else {
-            return status;
-        }
-        boolean ready = segmentContainerMonitor.isZKConnected();
-        if (ready) {
-            status = Status.UP;
+            if (segmentContainerMonitor.isZKConnected()) {
+                status = Status.UP;
+            }
         }
         return status;
     }

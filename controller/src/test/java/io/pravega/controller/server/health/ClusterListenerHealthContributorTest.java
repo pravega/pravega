@@ -25,8 +25,8 @@ import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import org.junit.After;
 import org.junit.Assert;
-
 import org.junit.Before;
 import org.junit.Test;
 import java.util.ArrayList;
@@ -42,6 +42,7 @@ public class ClusterListenerHealthContributorTest {
     private ControllerClusterListener  clusterListener;
     private ClusterListenerHealthContributor contributor;
     private Health.HealthBuilder builder;
+
     @Before
     public void setup() {
         Host host = mock(Host.class);
@@ -59,7 +60,11 @@ public class ClusterListenerHealthContributorTest {
         doReturn(true).when(clusterListener).isReady();
         contributor = new ClusterListenerHealthContributor("clusterlistener", clusterListener);
         builder = Health.builder().name("clusterlistener");
+    }
 
+    @After
+    public void tearDown() {
+        contributor.close();
     }
 
     @Test
@@ -67,10 +72,10 @@ public class ClusterListenerHealthContributorTest {
         clusterListener.startAsync();
         clusterListener.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         clusterListener.stopAsync();
         clusterListener.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 }

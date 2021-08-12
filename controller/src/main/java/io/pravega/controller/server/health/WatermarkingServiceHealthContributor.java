@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -24,23 +25,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class WatermarkingServiceHealthContributor extends AbstractHealthContributor {
     private final BucketManager watermarkingService;
+
     public WatermarkingServiceHealthContributor(String name, BucketManager watermarkingService) {
         super(name);
-        this.watermarkingService = watermarkingService;
+        this.watermarkingService = Preconditions.checkNotNull(watermarkingService, "watermarkingService");
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        boolean running = watermarkingService.isRunning();
-           Status status = Status.DOWN;
-        if (running) {
+        Status status = Status.DOWN;
+        if (watermarkingService.isRunning()) {
             status = Status.NEW;
-        } else {
-            return status;
-        }
-        boolean zkHealthy = watermarkingService.isHealthy();
-        if (zkHealthy) {
-            status = Status.UP;
+            if (watermarkingService.isHealthy()) {
+                status = Status.UP;
+            }
         }
         return status;
     }

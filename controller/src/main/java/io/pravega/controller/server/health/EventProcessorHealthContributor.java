@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -22,23 +23,20 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 
 public class EventProcessorHealthContributor extends AbstractHealthContributor {
     private final ControllerEventProcessors controllerEventProcessors;
-    public EventProcessorHealthContributor(String name, ControllerEventProcessors  controllerEventProcessors) {
+
+    public EventProcessorHealthContributor(String name, ControllerEventProcessors controllerEventProcessors) {
         super(name);
-        this.controllerEventProcessors =  controllerEventProcessors;
+        this.controllerEventProcessors = Preconditions.checkNotNull(controllerEventProcessors, "controllerEventProcessors");
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        boolean running = controllerEventProcessors.isRunning();
         Status status = Status.DOWN;
-        if (running) {
+        if (controllerEventProcessors.isRunning()) {
             status = Status.NEW;
-        } else {
-            return status;
-        }
-        boolean ready = controllerEventProcessors.isReady();
-        if (ready) {
-            status = Status.UP;
+            if (controllerEventProcessors.isReady()) {
+                status = Status.UP;
+            }
         }
         return status;
     }

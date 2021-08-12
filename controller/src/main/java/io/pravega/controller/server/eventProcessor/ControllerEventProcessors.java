@@ -184,10 +184,20 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected.
+     */
     public boolean isMetadataServiceConnected() {
         return  checkpointStore.isHealthy();
      }
 
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected and bootstrap is completed.
+     */
     public boolean isReady() {
         return isMetadataServiceConnected() && isBootstrapCompleted();
     }

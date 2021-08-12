@@ -41,9 +41,11 @@ import io.pravega.shared.health.Status;
 import io.pravega.test.common.ThreadPooledTestSuite;
 
 import lombok.SneakyThrows;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -55,7 +57,7 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for EventProcessorHealthContributor
  */
-public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite  {
+public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
     private ControllerEventProcessors eventProcessors;
     private EventProcessorHealthContributor contributor;
     private Health.HealthBuilder builder;
@@ -92,18 +94,22 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite  
         builder = Health.builder().name("eventprocessors");
     }
 
+    @After
+    public void tearDown() {
+        contributor.close();
+    }
+
     @Test
     public void
     testHealthCheck() throws Exception {
         eventProcessors.startAsync();
         eventProcessors.awaitRunning();
-        Assert.assertTrue(eventProcessors.isRunning());
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         eventProcessors.stopAsync();
         eventProcessors.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 
     private EventProcessorGroup<ControllerEvent> getProcessor() {
@@ -179,5 +185,4 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite  
             }
         };
     }
-
 }

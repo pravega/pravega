@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -26,14 +27,13 @@ public class GRPCServerHealthContributor extends AbstractHealthContributor {
 
     public GRPCServerHealthContributor(String name, GRPCServer grpcServer) {
         super(name);
-        this.grpcServer = grpcServer;
+        this.grpcServer = Preconditions.checkNotNull(grpcServer, "grpcServer");
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        boolean running = grpcServer.isRunning();
         Status status = Status.DOWN;
-        if (running) {
+        if (grpcServer.isRunning()) {
             status = Status.UP;
         }
         return status;

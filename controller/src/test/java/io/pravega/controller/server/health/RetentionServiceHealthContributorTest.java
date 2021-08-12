@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +41,7 @@ public class RetentionServiceHealthContributorTest {
     private BucketManager retentionService;
     private RetentionServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
+
     @Before
     public void setup() {
         BucketStore bucketStore = mock(ZookeeperBucketStore.class);
@@ -57,15 +59,20 @@ public class RetentionServiceHealthContributorTest {
         builder = Health.builder().name("retentionservice");
     }
 
+    @After
+    public void tearDown() {
+        contributor.close();
+    }
+
     @Test
     public void testHealthCheck() throws Exception {
         retentionService.startAsync();
         TimeUnit.SECONDS.sleep(5);
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.UP);
+        Assert.assertEquals(Status.UP, status);
         retentionService.stopAsync();
         TimeUnit.SECONDS.sleep(5);
         status = contributor.doHealthCheck(builder);
-        Assert.assertTrue(status == Status.DOWN);
+        Assert.assertEquals(Status.DOWN, status);
     }
 }
