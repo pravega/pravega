@@ -73,6 +73,14 @@ interface TableWriterConnector extends AutoCloseable {
     int getMaxCompactionSize();
 
     /**
+     * Gets a value representing the maximum number of bytes to attempt to index (flush) at once.
+     * @return The maximum flush size.
+     */
+    default int getMaxFlushSize() {
+        return 134217728; // 128MB
+    }
+
+    /**
      * This method will be invoked by the {@link WriterTableProcessor} when it is closed.
      */
     @Override

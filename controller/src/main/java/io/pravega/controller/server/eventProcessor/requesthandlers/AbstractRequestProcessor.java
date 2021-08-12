@@ -21,7 +21,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -67,18 +66,8 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 @Slf4j
 public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> 
         implements StreamRequestProcessor {
-    protected static final Predicate<Throwable> ILLEGAL_STATE_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException;
-    protected static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
-    protected static final Predicate<Throwable> SEGMENT_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException;
-    protected static final Predicate<Throwable> NON_RETRYABLE_EXCEPTIONS = ILLEGAL_STATE_PREDICATE.or(DATA_NOT_FOUND_PREDICATE)
-                                                                            .or(SEGMENT_NOT_FOUND_PREDICATE)
-                                                                            .or(e -> Exceptions.unwrap(e) instanceof IllegalArgumentException)
-                                                                            .or(e -> Exceptions.unwrap(e) instanceof NullPointerException);
-    protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.negate();
-    protected static final Predicate<Throwable> SCALE_EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.or(e -> e instanceof EpochTransitionOperationExceptions.ConditionInvalidException)
-                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.InputInvalidException)
-                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.PreConditionFailureException)
-                                                                                .negate();
+    protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) 
+            instanceof StoreException.OperationNotAllowedException;
 
     protected final StreamMetadataStore streamMetadataStore;
 
@@ -178,7 +167,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                                 stream, getProcessorName(), context, executor),
                                                 null, "Exception while trying to create waiting request. Logged and ignored.")
                                                 .thenCompose(ignore ->  retryIndefinitelyThenComplete(
-                                                        () -> task.writeBack(event), resultFuture, null));
+                                                        () -> task.writeBack(event), resultFuture, ex));
                                     } else {
                                         // Processing was done for this event, whether it succeeded or failed, we should remove
                                         // the waiting request if it matches the current processor.
@@ -199,11 +188,8 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-                    if (writeBackPredicate.test(e)) {
-                        retryIndefinitelyThenComplete(
-                                () -> task.writeBack(event), resultFuture, null);
-                    }
-                    return null;
+            resultFuture.completeExceptionally(e);
+            return null;
         });
 
         return resultFuture;

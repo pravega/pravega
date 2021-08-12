@@ -57,11 +57,12 @@ public class AdminConnectionListener extends AbstractConnectionListener {
      * @param tokenVerifier      The object to verify delegation token.
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
+     * @param tlsProtocolVersion the version of the TLS protocol
      */
     public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
-                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile);
+                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion) {
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion );
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
