@@ -16,14 +16,18 @@
 
 package io.pravega.segmentstore.server.host.health;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
+import lombok.NonNull;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 
-public class ZKHealthContributor  extends AbstractHealthContributor {
-    private CuratorFramework zk;
+// A contributor to manage the health of zookeeper client connection.
+public class ZKHealthContributor extends AbstractHealthContributor {
+    @NonNull
+    private final CuratorFramework zk;
 
     public ZKHealthContributor(CuratorFramework zk) {
         super("zookeeper");
@@ -33,15 +37,17 @@ public class ZKHealthContributor  extends AbstractHealthContributor {
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
         Status status = Status.DOWN;
-        boolean running = zk.getState() == CuratorFrameworkState.STARTED;
+        boolean running = this.zk.getState() == CuratorFrameworkState.STARTED;
         if (running) {
             status = Status.NEW;
         }
 
-        boolean ready = zk.getZookeeperClient().isConnected();
+        boolean ready = this.zk.getZookeeperClient().isConnected();
         if (ready) {
             status = Status.UP;
         }
+
+        builder.details(ImmutableMap.of("zk-connection-url", this.zk.getZookeeperClient().getCurrentConnectionString()));
 
         return status;
     }

@@ -48,8 +48,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE
 @Slf4j
 public final class PravegaConnectionListener extends AbstractConnectionListener {
     //region Members
-    private static final String TYPE = "PravegaConnectionListener";
-
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
@@ -79,7 +77,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, String[] tlsProtocolVersion) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
-                null, true, tokenExpiryExecutor, tlsProtocolVersion);
+                null, true, tokenExpiryExecutor, tlsProtocolVersion, null);
     }
 
     /**
@@ -121,7 +119,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
                                      boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion,
                                      HealthServiceManager healthServiceManager) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager, TYPE);
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");

@@ -27,6 +27,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
@@ -34,11 +35,11 @@ import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.segmentstore.server.host.handler.AbstractConnectionListener.ConnectionListenerHealthContributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -47,6 +48,7 @@ import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VERSION;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -202,25 +204,17 @@ public class PravegaConnectionListenerTest {
     // Test the health status created with pravega listener.
     @Test
     public void testHealth() {
+        HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));
+        healthServiceManager.start();
         int port = TestUtils.getAvailableListenPort();
-        PravegaConnectionListener listener = new PravegaConnectionListener(false, port,
-                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
-        listener.startListening();
-        try {
-            ServerSocket serverSocket = new ServerSocket(port);
-            serverSocket.close();
-            throw new AssertionError("Port should not be available");
-        } catch (IOException e) {
-            // Fine, the port is being used
-        }
+        @Cleanup
+        PravegaConnectionListener listener = new PravegaConnectionListener(false, false, "localhost",
+                port, mock(StreamSegmentStore.class), mock(TableStore.class), SegmentStatsRecorder.noOp(),
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, true,
+                NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION.getDefaultValue().split(","), healthServiceManager);
 
-        ConnectionListenerHealthContributor contributor = new ConnectionListenerHealthContributor("PravegaConnectionListener",
-                listener, "localhost", port);
-        Health.HealthBuilder builder = Health.builder().name(contributor.getName());
-        Status connectionHealth = contributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, connectionHealth);
-        listener.close();
-        connectionHealth = contributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.DOWN, connectionHealth);
+        listener.startListening();
+        Health health = listener.getHealthServiceManager().getHealthSnapshot();
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
     }
 }

@@ -45,6 +45,8 @@ import io.pravega.shared.rest.security.AuthHandlerManager;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -62,9 +64,9 @@ import javax.annotation.concurrent.ThreadSafe;
 @Slf4j
 public final class ServiceStarter {
     //region Members
-
     @VisibleForTesting
-    protected HealthServiceManager healthServiceManager;
+    @Getter
+    private HealthServiceManager healthServiceManager;
 
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
@@ -104,6 +106,7 @@ public final class ServiceStarter {
 
         healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
         healthServiceManager.start();
+        log.info("Initializing HealthService ...");
 
         MetricsConfig metricsConfig = builderConfig.getConfig(MetricsConfig::builder);
         if (metricsConfig.isEnableStatistics()) {
@@ -158,8 +161,6 @@ public final class ServiceStarter {
             log.info("AdminConnectionListener started successfully.");
         }
         log.info("StreamSegmentService started.");
-
-        log.info("Initializing HealthService ...");
 
         healthServiceManager.register(new ZKHealthContributor(zkClient));
 

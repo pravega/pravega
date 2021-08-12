@@ -41,8 +41,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE
 @Slf4j
 public class AdminConnectionListener extends AbstractConnectionListener {
     //region Members
-    private static final String TYPE = "AdminConnectionListener";
-
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
@@ -87,7 +85,7 @@ public class AdminConnectionListener extends AbstractConnectionListener {
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                    DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion,
                                    HealthServiceManager healthServiceManager) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager, TYPE);
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
