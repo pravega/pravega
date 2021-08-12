@@ -205,6 +205,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> writeData(MetadataTransaction txn) {
+        val oldChunkCount = segmentMetadata.getChunkCount();
+        val oldLength = segmentMetadata.getLength();
         return Futures.loop(
                 () -> bytesRemaining.get() > 0,
                 () -> {
@@ -241,6 +243,17 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
+                    Preconditions.checkState(oldChunkCount + chunksAddedCount.get() == segmentMetadata.getChunkCount(),
+                            "Number of chunks do not match. old value (%s) + number of chunks added (%s) must match current chunk count(%s)",
+                            oldChunkCount, chunksAddedCount.get(), segmentMetadata.getChunkCount());
+                    Preconditions.checkState(oldLength + length == segmentMetadata.getLength(),
+                            "New length must match. old value (%s) + length (%s) must match current chunk count(%s)",
+                            oldLength, length, segmentMetadata.getLength());
+                    if (null != lastChunkMetadata.get()) {
+                        Preconditions.checkState(segmentMetadata.getLastChunkStartOffset() + lastChunkMetadata.get().getLength() == segmentMetadata.getLength(),
+                                "Last chunk start offset (%s) + Last chunk length (%s) must match segment length (%s)",
+                                segmentMetadata.getLastChunkStartOffset(), lastChunkMetadata.get().getLength(), segmentMetadata.getLength());
+                    }
                 }, chunkedSegmentStorage.getExecutor());
     }
 
