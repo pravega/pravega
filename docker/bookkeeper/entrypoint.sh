@@ -35,11 +35,14 @@ PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
+BK_ID_DIR="/bk/conf"
+BK_ID_FILE="${BK_ID_DIR}/id"
 BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 BK_HOME=/opt/bookkeeper
 BINDIR=${BK_HOME}/bin
 BOOKKEEPER=${BINDIR}/bookkeeper
 SCRIPTS_DIR=${BK_HOME}/scripts
+HOST=`hostname -s`
 
 export PATH=$PATH:/opt/bookkeeper/bin
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
@@ -71,6 +74,24 @@ create_bookie_dirs() {
           chown -R "${BK_USER}:${BK_USER}" $i
       fi
   done
+}
+
+# Create a Bookie ID if this is a newly added bookkeeper pod
+# or read the Bookie ID if it already exists
+set_bookieid() {
+  if [ `find ${BK_ID_FILE} | wc -l` -gt 0 ]; then
+    echo "Found Bookie ID"
+    BK_bookieId=`cat ${BK_ID_FILE}`
+    export BK_bookieId
+  else
+    echo "Bookie ID not found"
+    TIMESTAMP="`date "+%Y%m%d-%H%M%S"`"
+    BK_bookieId="${HOST}-${TIMESTAMP}"
+    mkdir -p ${BK_ID_DIR}
+#    chown -R "${BK_USER}:${BK_USER}" ${BK_ID_DIR}
+    echo ${BK_bookieId} > ${BK_ID_FILE}
+    export BK_bookieId
+  fi
 }
 
 wait_for_zookeeper() {
@@ -169,6 +190,9 @@ format_bookie_data_and_metadata() {
 echo "Creating directories for Bookkeeper journal and ledgers"
 create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
+
+echo "Configuring the Bookie ID"
+set_bookieid
 
 echo "Sourcing ${SCRIPTS_DIR}/common.sh"
 source ${SCRIPTS_DIR}/common.sh
