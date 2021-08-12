@@ -113,6 +113,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.AccessLevel;
@@ -528,7 +529,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(mergeSegments.getRequestId(), "Merging Segments batch {} ", mergeSegments);
 
-        Futures.allOfWithResults(sources.stream().map(source ->
+        Function<String, CompletableFuture<Long>> mergeFunction = source ->
                 Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
                         source, TIMEOUT), (r, e) -> {
                     if (e != null) {
@@ -536,7 +537,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
                                     sources);
                             return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                               .thenApply(SegmentProperties::getLength);
+                                    .thenApply(SegmentProperties::getLength);
                         } else {
                             throw new CompletionException(e);
                         }
@@ -544,14 +545,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         recordStatForTransaction(r, mergeSegments.getTarget());
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
-                })).collect(toList()))
-               .thenAccept(mergeResults -> {
-                   connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
+                });
+        CompletableFuture.completedFuture(sources.stream().map(x -> mergeFunction.apply(x).join()).collect(toList()))
+                .thenAccept(mergeResults -> connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
                            mergeSegments.getTarget(),
                            sources,
-                           mergeResults));
-               })
-               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
+                           mergeResults))).exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
     }
 
     @Override

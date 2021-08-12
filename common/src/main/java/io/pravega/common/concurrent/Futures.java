@@ -19,10 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -501,7 +498,7 @@ public final class Futures {
         CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
         return allDoneFuture.thenApply(v -> futures.stream().map(CompletableFuture::join).collect(Collectors.toList()));
     }
-
+    
     /**
      * Similar to CompletableFuture.allOf(varargs), but that works on a Map and that returns another Map which has the
      * results of the given CompletableFutures, with the same input keys.
@@ -715,6 +712,30 @@ public final class Futures {
     //endregion
 
     //region Loops
+
+    /**
+     * Executes a loop using CompletableFutures over the given Iterable, processing each item in order, without overlap,
+     * using the given Executor for task execution and returns the results in an ordered list.
+     *
+     * @param iterable An Iterable instance to loop over.
+     * @param loopBody A Function that, when applied to an element in the given iterable, returns a CompletableFuture which
+     *                 will complete when the given element has been processed. This function is invoked every time the
+     *                 loopBody needs to execute.
+     * @param executor An Executor that is used to execute the condition and the loop support code.
+     * @param <T>      Type of items in the given iterable.
+     * @param <R>      Type of result in the list being returned.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * the loopBody throws/returns Exceptions, these will be set as the result of this returned Future.
+     */
+
+    public static <T,R> CompletableFuture<List<R>> loopWithResults(Iterable<T> iterable, Function<T, CompletableFuture<R>> loopBody, Executor executor) {
+        Iterator<T> iterator = iterable.iterator();
+        List<R> resultList = new ArrayList<>();
+        return loop(
+                () -> iterator.hasNext() ,
+                () -> loopBody.apply(iterator.next()),
+                resultList::add, executor).thenApply(v -> resultList);
+    }
 
     /**
      * Executes a loop using CompletableFutures over the given Iterable, processing each item in order, without overlap,
