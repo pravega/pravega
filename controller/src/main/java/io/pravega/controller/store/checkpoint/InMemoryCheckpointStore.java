@@ -183,6 +183,16 @@ class InMemoryCheckpointStore implements CheckpointStore {
         return map.keySet().stream().map(this::getProcess).collect(Collectors.toSet());
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true by deafult.
+     */
+    @Override
+    public boolean isHealthy() {
+        return true;
+    }
+
     private String getKey(final String process, final String readerGroup) {
         return process + SEPARATOR + readerGroup;
     }
