@@ -630,8 +630,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
      */
     @Test
     public void testStartWithFailedFuturesInDurableLog() throws Exception {
-        int streamSegmentCount = 10;
-        int appendsPerStreamSegment = 10;
+        int streamSegmentCount = 100;
+        int appendsPerStreamSegment = 100;
         int transactionsPerStreamSegment = 2;
         boolean mergeTransactions = true;
         boolean sealStreamSegments = true;
@@ -654,13 +654,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment,
                 METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
+        CompletableFuture<LogAddress> failedFuture = CompletableFuture.failedFuture(new ObjectClosedException("Intentional"));
+        doReturn(failedFuture).when(dataLog).append(any(CompositeArrayView.class), any(Duration.class));
         List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
-        doReturn(CompletableFuture.failedFuture(new ObjectClosedException("Intentional")))
-                .when(dataLog).append(any(CompositeArrayView.class), any(Duration.class));
 
         // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
-        AssertExtensions.assertFutureThrows(
-                "No operations failed or failed with wrong exception.",
+        AssertExtensions.assertFutureThrows("No operations failed or failed with wrong exception.",
                 OperationWithCompletion.allOf(completionFutures),
                 ex -> ex instanceof ObjectClosedException);
 

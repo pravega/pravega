@@ -150,9 +150,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
                 .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
-                        () -> Futures.exceptionallyExpecting(this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor),
-                                e -> Exceptions.unwrap(e) instanceof TimeoutException, new ArrayDeque<>())
-                                .thenAcceptAsync(this::processCommits, this.executor),
+                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
+                                  .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
@@ -167,6 +166,20 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 });
         return CompletableFuture.allOf(queueProcessor, commitProcessor)
                 .exceptionally(this::iterationErrorHandler);
+    }
+
+    @SneakyThrows
+    private Void handleProcessCommits(Queue<List<CompletableOperation>> items, Throwable ex) {
+        // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
+        // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
+        if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
+            return null;
+        } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)){
+            throw ex;
+        }
+        // No exceptions and we got some elements to process.
+        processCommits(items);
+        return null;
     }
 
     @Override
