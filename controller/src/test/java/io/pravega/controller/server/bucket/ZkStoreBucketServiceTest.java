@@ -165,6 +165,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
         Thread.sleep(10000);
         assertTrue(service2.getBucketServices().values().stream().allMatch(x -> x.getKnownStreams().size() == 2));
+        
         service2.stopAsync();
         service2.awaitTerminated();
         zkClient2.close();
