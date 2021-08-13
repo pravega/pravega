@@ -40,6 +40,16 @@ public class InMemoryBucketManager extends BucketManager {
         return bucketStore.getBucketCount(getServiceType());
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true by default.
+     */
+    @Override
+    public boolean isHealthy() {
+        return true;
+    }
+
     @Override
     void startBucketOwnershipListener() {
 
