@@ -347,12 +347,6 @@ public class ServiceConfig {
 
     @Getter
     private final Duration healthCheckInterval;
-
-    @Getter
-    private final String restKeyStoreFile;
-
-    @Getter
-    private final String restKeyStorePasswordFile;
     //endregion
 
     //region Constructor
@@ -430,8 +424,6 @@ public class ServiceConfig {
                 .build();
         this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
-        this.restKeyStoreFile = properties.get(REST_KEYSTORE_FILE);
-        this.restKeyStorePasswordFile = properties.get(REST_KEYSTORE_PASSWORD_FILE);
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
     }
@@ -490,10 +482,6 @@ public class ServiceConfig {
                 .append(String.format("restListeningPort: %d", restListeningPort))
                 .append(String.format("restListeningIPAddress: %s", restListeningIPAddress))
                 .append(String.format("restServerEnabled: %b", restServerEnabled))
-                .append(String.format("restKeyStoreFile is %s, ",
-                        Strings.isNullOrEmpty(restKeyStoreFile) ? "unspecified" : "specified"))
-                .append(String.format("restKeyStorePasswordFile is %s, ",
-                        Strings.isNullOrEmpty(restKeyStorePasswordFile) ? "unspecified" : "specified"))
                 .append(")")
                 .toString();
     }
