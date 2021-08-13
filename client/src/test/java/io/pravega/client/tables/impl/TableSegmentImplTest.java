@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.tables.impl;
 
@@ -24,7 +30,9 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -35,7 +43,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,13 +51,11 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -167,6 +172,22 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link TableSegmentImpl#getEntryCount()} method.
+     */
+    @Test
+    public void testGetEntryCount() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+        val getInfoResult = context.segment.getEntryCount();
+        val wireCommand = (WireCommands.GetTableSegmentInfo) context.getConnection().getLastSentWireCommand();
+        Assert.assertEquals(SEGMENT.getKVTScopedName(), wireCommand.getSegmentName());
+        context.sendReply(new WireCommands.TableSegmentInfo(context.getConnection().getLastRequestId(), SEGMENT.getKVTScopedName(),
+                1, 2, 3L, 4));
+        val actualResult = getInfoResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected return value", 3L, (long) actualResult);
+    }
+
+    /**
      * Tests the {@link TableSegmentImpl#get} method when the response coming back from the server is truncated.
      * Connection reset failures are not tested here; they're checked in {@link #testReconnect()}.
      */
@@ -226,13 +247,13 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         testIterator(context.segment::keyIterator,
-                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getContinuationToken(),
-                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getPrefixFilter(),
+                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getArgs().getFromKey(),
+                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getArgs().getToKey(),
                 TableSegmentEntry::getKey,
-                (expectedResult, replyToken) -> {
+                expectedResult -> {
                     val replyKeys = toWireKeys(expectedResult);
                     context.sendReply(
-                            new WireCommands.TableKeysRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyKeys, replyToken));
+                            new WireCommands.TableKeysRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyKeys, Unpooled.EMPTY_BUFFER));
                 },
                 this::keyEquals);
     }
@@ -246,86 +267,73 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         testIterator(context.segment::entryIterator,
-                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getContinuationToken(),
-                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getPrefixFilter(),
+                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getArgs().getFromKey(),
+                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getArgs().getToKey(),
                 e -> e,
-                (expectedResult, replyToken) -> {
+                expectedResult -> {
                     val replyEntries = toWireEntries(expectedResult, null);
                     context.sendReply(
-                            new WireCommands.TableEntriesRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyEntries, replyToken));
+                            new WireCommands.TableEntriesRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyEntries, Unpooled.EMPTY_BUFFER));
                 },
                 this::entryEquals);
     }
 
-    private <T> void testIterator(Function<IteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
-                                  Supplier<ByteBuf> getLastRequestContinuationToken,
-                                  Supplier<ByteBuf> getLastRequestPrefix,
+    private <T> void testIterator(Function<SegmentIteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
+                                  Supplier<ByteBuf> getLastRequestFromKey,
+                                  Supplier<ByteBuf> getLastRequestToKey,
                                   Function<TableSegmentEntry, T> getItemFromEntry,
-                                  BiConsumer<List<T>, ByteBuf> sendReply,
+                                  Consumer<List<T>> sendReply,
                                   BiPredicate<T, T> checkItemEquality) throws Exception {
-        val suggestedKeyCount = 123;
-        val prefixFilter = new byte[31];
-        val rnd = new Random(0);
-        rnd.nextBytes(prefixFilter);
+        val suggestedKeyCount = 3;
 
         // Generate 100 Entries and split them into batches.
         val allEntries = IntStream.range(0, 100)
                                   .mapToObj(i -> versionedEntry(i * 10L, Integer.toString(i * 10), 1L))
                                   .collect(Collectors.toList());
         val inputEntries = splitIteratorInputs(allEntries);
-
-        // Convert a numeric Continuation Token (IteratorState) into a Wire-friendly format and back.
-        Function<Integer, ByteBuf> generateContinuationToken = index -> index == 0
-                ? IteratorStateImpl.EMPTY.getToken()
-                : IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(Integer.toString(index).getBytes())).getToken();
-        Function<ByteBuffer, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
+        inputEntries.add(allEntries); // Do an full iteration as well.
 
         // Check regular iteration.
-        val iterator = newIterator.apply(IteratorArgs.builder()
-                                                     .maxItemsAtOnce(suggestedKeyCount)
-                                                     .keyPrefixFilter(Unpooled.wrappedBuffer(prefixFilter))
-                                                     .build());
         for (int i = 0; i < inputEntries.size(); i++) {
-            val iteratorFuture = iterator.getNext();
+            val entryList = inputEntries.get(i);
+            SegmentIteratorArgs args = SegmentIteratorArgs.builder()
+                    .fromKey(entryList.get(0).getKey().getKey())
+                    .toKey(entryList.get(entryList.size() - 1).getKey().getKey())
+                    .maxItemsAtOnce(suggestedKeyCount)
+                    .build();
+            val actualItems = new ArrayList<T>(); // We collect iterated items in this list.
+            val itemsToReturn = entryList.iterator();
+            val tableIterator = newIterator.apply(args);
+            while (itemsToReturn.hasNext()) {
+                val iteratorFuture = tableIterator.getNext();
 
-            // Verify the wire command got sent as expected.
-            val expectedRequestToken = generateContinuationToken.apply(i);
-            val requestToken = getLastRequestContinuationToken.get();
-            Assert.assertEquals("Unexpected token sent.", 0, expectedRequestToken.compareTo(requestToken));
-            val actualPrefixFilter = getLastRequestPrefix.get();
-            Assert.assertEquals("Unexpected prefix filter sent.", Unpooled.wrappedBuffer(prefixFilter), actualPrefixFilter);
+                // Verify the wire command got sent as expected.
+                val requestFromKey = getLastRequestFromKey.get();
+                Assert.assertEquals("Unexpected fromKey sent.", args.getFromKey(), requestFromKey);
+                val requestToKey = getLastRequestToKey.get();
+                Assert.assertEquals("Unexpected toKey sent.", args.getToKey(), requestToKey);
 
-            // Send a reply.
-            val expectedResult = inputEntries.get(i).stream().map(getItemFromEntry).collect(Collectors.toList());
-            final int replyToken = i + 1;
-            sendReply.accept(expectedResult, generateContinuationToken.apply(replyToken));
+                // Send a reply.
+                val expectedResult = new ArrayList<T>();
+                int count = suggestedKeyCount;
+                while (itemsToReturn.hasNext() && count > 0) {
+                    val next = itemsToReturn.next();
+                    expectedResult.add(getItemFromEntry.apply(next));
+                    args = args.next(next.getKey().getKey());
+                    count--;
+                }
+                sendReply.accept(expectedResult);
 
-            // Check the result. First the continuation token.
-            val iteratorResult = iteratorFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
-            final int iteratorToken = parseContinuationToken.apply(iteratorResult.getState().toBytes());
-            Assert.assertEquals("Unexpected reply token.", replyToken, iteratorToken);
+                // Check the partial result.
+                val iteratorResult = iteratorFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+                AssertExtensions.assertListEquals("Unexpected partial result.", expectedResult, iteratorResult.getItems(), checkItemEquality);
+                actualItems.addAll(iteratorResult.getItems());
+            }
 
-            // Then the result.
-            AssertExtensions.assertListEquals("Unexpected result.", expectedResult, iteratorResult.getItems(), checkItemEquality);
+            // Then the final result.
+            val expected = entryList.stream().map(getItemFromEntry).collect(Collectors.toList());
+            AssertExtensions.assertListEquals("Unexpected result.", expected, actualItems, checkItemEquality);
         }
-
-        // Verify the end-of-iteration. The server-side should send a null (converted to IteratorState.EMPTY).
-        val lastIteratorFuture = iterator.getNext();
-        sendReply.accept(Collections.emptyList(), IteratorStateImpl.EMPTY.getToken());
-        val lastIteratorResult = lastIteratorFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
-        Assert.assertNull("Unexpected result for last iteration.", lastIteratorResult);
-
-        // Check new iterator with pre-existing state.
-        final ByteBuf resumeToken = generateContinuationToken.apply(2);
-        val resumeIterator = newIterator.apply(IteratorArgs.builder()
-                .maxItemsAtOnce(suggestedKeyCount)
-                .state(IteratorStateImpl.fromBytes(resumeToken))
-                .build());
-        val resumeFuture = resumeIterator.getNext();
-        val resumeRequestToken = getLastRequestContinuationToken.get();
-        Assert.assertEquals("Unexpected token sent (resume iterator).", 0, resumeToken.compareTo(resumeRequestToken));
-        sendReply.accept(Collections.emptyList(), IteratorStateImpl.EMPTY.getToken());
-        Assert.assertNull("Unexpected result for last  (resume iterator).", resumeFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS));
     }
 
     /**
@@ -370,8 +378,12 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                     result -> {
                     });
 
-            // Iterators. It is sufficient to test one of them,
-            testConnectionFailure(ts -> ts.entryIterator(IteratorArgs.builder().maxItemsAtOnce(1).build()).getNext(), fr,
+            // Iterators. It is sufficient to test one of them.
+            val args = SegmentIteratorArgs.builder().maxItemsAtOnce(1)
+                    .fromKey(Unpooled.wrappedBuffer(new byte[]{1}))
+                    .toKey(Unpooled.wrappedBuffer(new byte[]{1}))
+                    .build();
+            testConnectionFailure(ts -> ts.entryIterator(args).getNext(), fr,
                     requestId -> new WireCommands.TableEntriesRead(requestId, SEGMENT.getScopedName(), toWireEntries(entries, null), Unpooled.wrappedBuffer(new byte[1])),
                     result -> AssertExtensions.assertListEquals("", entries, result.getItems(), this::entryEquals));
         }
@@ -405,6 +417,58 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val resultContents = result.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
         checkResult.accept(resultContents);
         Assert.assertEquals("Unexpected number of connection attempts.", 2, context.getReconnectCount());
+    }
+
+    /**
+     * Tests the ability to separate read and write requests on their own connections.
+     */
+    @Test
+    public void testDualConnections() throws Exception {
+        val testEntries = Arrays.asList(
+                notExistsEntry(1L, "one"),
+                unversionedEntry(2L, "two"),
+                versionedEntry(3L, "three", 123L));
+        val expectedVersions = Arrays.asList(0L, 1L, 2L);
+
+        // No retry attempts - this will speed up the testing.
+        val config = KeyValueTableClientConfiguration.builder().retryAttempts(1).build();
+
+        @Cleanup
+        val context = new TestContext(config);
+        context.autoReconnect.set(false); // Disable auto-reconnects; this will make our testing life easier.
+
+        // Successful operation. This should cause the "write" connection to be established (the "read" connection is not, yet).
+        // We need to do this because MockConnectionFactoryImpl only supports one outstanding connection per URI.
+        val put1 = context.segment.put(testEntries.iterator());
+        context.sendReply(new WireCommands.TableEntriesUpdated(context.getConnection().getLastRequestId(), expectedVersions));
+        val result1 = put1.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS)
+                .stream().map(TableSegmentKeyVersion::getSegmentVersion).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("Unexpected return value", expectedVersions, result1, Long::equals);
+
+        // Close the active connection and disable auto-reconnects.
+        context.getConnection().close();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected update operation to fail when write connection forcibly closed.",
+                () -> context.segment.put(testEntries.iterator()),
+                ex -> ex instanceof RetriesExhaustedException
+                        && Exceptions.unwrap(ex.getCause()) instanceof ConnectionFailedException);
+
+        // Reestablish a connection, and do a read request to set up the "read" context.
+        context.autoReconnect.set(true);
+        context.reconnect();
+        val getResult = context.segment.get(Iterators.singletonIterator(Unpooled.wrappedBuffer(new byte[1])));
+        context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), new WireCommands.TableEntries(Collections.emptyList())));
+        val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+        Assert.assertEquals(1, actualEntries.size());
+
+        // Again, close the active connection. Verify that read requests fail.
+        context.getConnection().close();
+        context.autoReconnect.set(false);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected update operation to fail when write connection forcibly closed.",
+                () -> context.segment.get(Iterators.singletonIterator(Unpooled.wrappedBuffer(new byte[1]))),
+                ex -> ex instanceof RetriesExhaustedException
+                        && Exceptions.unwrap(ex.getCause()) instanceof ConnectionFailedException);
     }
 
     /**
@@ -596,12 +660,15 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         final AtomicInteger reconnectCount = new AtomicInteger();
 
         TestContext() {
+            this(KeyValueTableClientConfiguration.builder().build());
+        }
+
+        TestContext(KeyValueTableClientConfiguration config) {
             this.connection = new AtomicReference<>();
             this.connectionFactory = new MockConnectionFactoryImpl();
             this.connectionFactory.setExecutor(executorService());
             this.controller = new MockController(URI.getEndpoint(), URI.getPort(), this.connectionFactory, true);
-            val factory = new TableSegmentFactoryImpl(this.controller, this.connectionFactory,
-                    KeyValueTableClientConfiguration.builder().build(),
+            val factory = new TableSegmentFactoryImpl(this.controller, this.connectionFactory, config,
                     DelegationTokenProviderFactory.createWithEmptyToken());
             this.segment = factory.forSegment(SEGMENT);
             reconnect();

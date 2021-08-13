@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.controller.server;
 
@@ -22,6 +28,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -35,12 +42,17 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -49,8 +61,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ControllerServiceTest {
@@ -63,7 +77,8 @@ public class ControllerServiceTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    
+    private ScheduledExecutorService executor;
+
     @Before
     public void setUp() throws Exception {
         zkTestServer = new TestingServerStarter().start();
@@ -79,17 +94,67 @@ public class ControllerServiceTest {
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                                                                     controllerPort, serviceHost, servicePort, containerCount);
         controllerWrapper.awaitRunning();
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "collector");
     }
     
     @After
     public void tearDown() throws Exception {
+        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
     }
-    
-    
+
+    @Test
+    public void streamTagTest() {
+        final String scope = "sc";
+        final String stream = "st";
+        final String stream2 = "st2";
+
+        Controller controller = controllerWrapper.getController();
+        controller.createScope(scope).join();
+        System.out.println("scope created");
+        // Create Stream with tags t1, t2
+        StreamConfiguration strCfg = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build();
+        controller.createStream(scope, stream, strCfg).join();
+        assertEquals(Set.of("t1", "t2"), controller.getStreamConfiguration(scope, stream).join().getTags());
+        // Update stream to have tags t2, t3
+        StreamConfiguration strCfgNew = strCfg.toBuilder().clearTags().tags(Set.of("t2", "t3")).build();
+        controller.updateStream(scope, stream, strCfgNew).join();
+        // Check if the stream tags are infact t2, t3
+        assertEquals(Set.of("t2", "t3"), controller.getStreamConfiguration(scope, stream).join().getTags());
+
+        // List Streams with tag t2. only one stream should be listed
+        assertEquals(Collections.singletonList(stream), listStreamsForTag(scope, controller, "t2"));
+
+        // Create stream2 with tags t1, t2
+        controller.createStream(scope, stream2, strCfg).join();
+
+        // List Streams with tag t2. two stream should be listed
+        assertEquals(Arrays.asList(stream2, stream), listStreamsForTag(scope, controller, "t2"));
+
+        controller.sealStream(scope, stream2).join();
+        controller.deleteStream(scope, stream2).join();
+
+        // List Streams with tag t2. two stream should be listed
+        assertEquals(Arrays.asList(stream), listStreamsForTag(scope, controller, "t2"));
+        assertEquals(strCfgNew, controller.getStreamConfiguration(scope, stream).join());
+
+        controller.sealStream(scope, stream).join();
+        controller.deleteStream(scope, stream).join();
+        assertEquals(Collections.emptyList(), listStreamsForTag(scope, controller, "t2"));
+
+    }
+
+    private ArrayList<String> listStreamsForTag(String scope, Controller controller, String tag) {
+        ArrayList<String> resultList = new ArrayList<String>();
+        controller.listStreamsForTag(scope, tag)
+                  .collectRemaining(stream1 -> resultList.add(stream1.getStreamName()))
+                  .join();
+        return resultList;
+    }
+
     @Test(timeout = 40000)
     public void streamMetadataTest() throws Exception {
         final String scope = "testScope";
@@ -139,8 +204,8 @@ public class ControllerServiceTest {
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
-        controllerWrapper.getControllerService().createScope("scope1").get();
-        controllerWrapper.getControllerService().createScope("scope2").get();
+        controllerWrapper.getControllerService().createScope("scope1", 0L).get();
+        controllerWrapper.getControllerService().createScope("scope2", 0L).get();
         Controller controller = controllerWrapper.getController();
 
         final String streamName1 = "stream1";
@@ -166,19 +231,14 @@ public class ControllerServiceTest {
 
         final String kvtName1 = "kvtable1";
         final String kvtName2 = "kvtable2";
-        final String kvtZero = "kvtableZero";
         final KeyValueTableConfiguration kvtConfig1 = KeyValueTableConfiguration.builder()
-                .partitionCount(2).build();
-        final KeyValueTableConfiguration kvtConfigZeroPC = KeyValueTableConfiguration.builder()
-                .partitionCount(0).build();
+                .partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         createAKeyValueTable(scope1, kvtName1, controller, kvtConfig1);
         //Same name in different scope
         createAKeyValueTable(scope2, kvtName1, controller, kvtConfig1);
         //Different name in different scope
         createAKeyValueTable(scope2, kvtName2, controller, kvtConfig1);
-        //KVTable with 0 partitions should fail
-        createAKeyValueTableZeroPC(scope2, kvtZero, controller, kvtConfigZeroPC);
 
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
@@ -237,8 +297,7 @@ public class ControllerServiceTest {
                                                   final String streamName) throws InterruptedException,
                                                                            ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() - 36000);
-        assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() != controller.getCurrentSegments(scope, streamName).get().getSegments().size());
-       
+        assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() == 1);
     }
 
     private static void getSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
@@ -246,7 +305,6 @@ public class ControllerServiceTest {
         try {
             CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(stream, System.currentTimeMillis());
             assertTrue("FAILURE: Fetching positions for non existent stream", segments.get().isEmpty());
-            
             log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         } catch (ExecutionException | CompletionException e) {
             assertTrue("FAILURE: Fetching positions for non existent stream", Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
@@ -260,7 +318,7 @@ public class ControllerServiceTest {
         assertFalse("FAILURE: Fetching positions at given time stamp failed", segments.get().isEmpty()); 
     }
 
-    private static void getActiveSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
+    private static void getActiveSegmentsForNonExistentStream(Controller controller) {
         
         AssertExtensions.assertFutureThrows("", controller.getCurrentSegments("scope", "streamName"),
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
@@ -285,6 +343,7 @@ public class ControllerServiceTest {
         assertTrue(controller.updateStream(scope, streamName, StreamConfiguration.builder()
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
                                           .build()).get());
+        assertEquals(3, controller.getCurrentSegments(scope, streamName).get().getSegments().size());
     }
 
     private static void updateScaleFactor(Controller controller, final String scope,
@@ -317,6 +376,9 @@ public class ControllerServiceTest {
 
     private static void readerGroupsTest(Controller controller, final String scope, final String stream1,
                                          final String stream2, final String stream3) throws InterruptedException, ExecutionException {
+        final String scopedStreamName1 = NameUtils.getScopedStreamName(scope, stream1);
+        final String scopedStreamName2 = NameUtils.getScopedStreamName(scope, stream2);
+        final String scopedStreamName3 = NameUtils.getScopedStreamName(scope, stream3);
         final Segment seg0 = new Segment(scope, stream1, 0L);
         final Segment seg1 = new Segment(scope, stream1, 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -327,41 +389,49 @@ public class ControllerServiceTest {
         Map<Stream, StreamCut> endSC = ImmutableMap.of(
                 Stream.of(scope, stream1), new StreamCutImpl(Stream.of(scope, stream1), endStreamCut),
                 Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), endStreamCut));
-        final ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
-                .readerGroupId(UUID.randomUUID())
                 .endingStreamCuts(endSC).build();
+        final ReaderGroupConfig rgConfig1 = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
+        // Create Reader Group rg1
+        ReaderGroupConfig createRGResult = controller.createReaderGroup(scope, "rg1", rgConfig1).get();
+        assertEquals(rgConfig1.getReaderGroupId(), createRGResult.getReaderGroupId());
 
-        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
-        assertTrue(createRG.get());
+        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig1).get());
+        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig1).get());
 
-        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig).get());
-
-        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
-        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
+        ReaderGroupConfig rgConfig2 = ReaderGroupConfig.builder()
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .stream(scopedStreamName1).stream(scopedStreamName2)
+                .automaticCheckpointIntervalMillis(7000L)
+                .build();
+        rgConfig2 = ReaderGroupConfig.cloneConfig(rgConfig2, UUID.randomUUID(), 0L);
+        // Create Reader Group rg2
+        createRGResult = controller.createReaderGroup(scope, "rg2", rgConfig2).get();
+        assertEquals(rgConfig2.getReaderGroupId(), createRGResult.getReaderGroupId());
 
         List<String> subscribers = controller.listSubscribers(scope, stream1).get();
         assertTrue(subscribers.size() == 2);
 
-        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId(), rgConfig.getGeneration()).get());
+        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig2.getReaderGroupId()).get());
+
         assertThrows(IllegalArgumentException.class, () -> controller.getReaderGroupConfig(scope, "rg2").get());
 
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertTrue(subscribers.size() == 1);
+
         ReaderGroupConfig config = controller.getReaderGroupConfig(scope, "rg1").get();
-        assertEquals(rgConfig.getGroupRefreshTimeMillis(), config.getGroupRefreshTimeMillis());
-        assertEquals(rgConfig.getGeneration(), config.getGeneration());
-        assertEquals(rgConfig.getMaxOutstandingCheckpointRequest(), config.getMaxOutstandingCheckpointRequest());
-        assertEquals(rgConfig.getRetentionType(), config.getRetentionType());
-        assertEquals(rgConfig.getReaderGroupId(), config.getReaderGroupId());
-        assertEquals(rgConfig.getStartingStreamCuts().keySet().size(), config.getStartingStreamCuts().keySet().size());
-        assertEquals(rgConfig.getEndingStreamCuts().keySet().size(), config.getEndingStreamCuts().keySet().size());
+        assertEquals(rgConfig1.getGroupRefreshTimeMillis(), config.getGroupRefreshTimeMillis());
+        assertEquals(rgConfig1.getGeneration(), config.getGeneration());
+        assertEquals(rgConfig1.getMaxOutstandingCheckpointRequest(), config.getMaxOutstandingCheckpointRequest());
+        assertEquals(rgConfig1.getRetentionType(), config.getRetentionType());
+        assertEquals(rgConfig1.getReaderGroupId(), config.getReaderGroupId());
+        assertEquals(rgConfig1.getStartingStreamCuts().keySet().size(), config.getStartingStreamCuts().keySet().size());
+        assertEquals(rgConfig1.getEndingStreamCuts().keySet().size(), config.getEndingStreamCuts().keySet().size());
         assertTrue(config.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream1)));
         assertTrue(config.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
 
@@ -371,16 +441,16 @@ public class ControllerServiceTest {
         Map<Stream, StreamCut> endSCNew = ImmutableMap.of(
                 Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), endStreamCut),
                 Stream.of(scope, stream3), new StreamCutImpl(Stream.of(scope, stream3), endStreamCut));
-        final ReaderGroupConfig newRGConfig = ReaderGroupConfig.builder()
+        ReaderGroupConfig newRGConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(1000L)
                 .groupRefreshTimeMillis(5000L)
                 .maxOutstandingCheckpointRequest(7)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgConfig.getReaderGroupId())
                 .startingStreamCuts(startSCNew)
                 .endingStreamCuts(endSCNew).build();
-        assertTrue(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
+        newRGConfig = ReaderGroupConfig.cloneConfig(newRGConfig, rgConfig1.getReaderGroupId(), rgConfig1.getGeneration());
+        // Update Reader Group rg1
+        assertNotNull(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
         ReaderGroupConfig updatedConfig = controller.getReaderGroupConfig(scope, "rg1").get();
         assertEquals(newRGConfig.getGroupRefreshTimeMillis(), updatedConfig.getGroupRefreshTimeMillis());
         assertEquals(newRGConfig.getGeneration() + 1, updatedConfig.getGeneration());
@@ -392,26 +462,36 @@ public class ControllerServiceTest {
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
 
-        // re-create ReaderGroup with same name
-        String scopedStreamName3 = NameUtils.getScopedStreamName(scope, stream3);
-        final ReaderGroupConfig rgConfig1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(scopedStreamName3).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+        // re-create ReaderGroup "rg2"
+        ReaderGroupConfig rgConfigRecreate = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName3)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
-        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig1).get());
+        rgConfigRecreate = ReaderGroupConfig.cloneConfig(rgConfigRecreate, UUID.randomUUID(), 0L);
+        ReaderGroupConfig recreateRGResponse = controller.createReaderGroup(scope, "rg2", rgConfigRecreate).get();
+        assertEquals(rgConfigRecreate.getReaderGroupId(), recreateRGResponse.getReaderGroupId());
+        assertEquals(rgConfigRecreate.getRetentionType(), recreateRGResponse.getRetentionType());
 
         // Update a ReaderGroup from Subscriber to Non-subscriber
-        String scopedStreamName = NameUtils.getScopedStreamName(scope, stream1);
+        final String readerGroupName = "rg3";
         ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .stream(scopedStreamName1).retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-        ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(scopedStreamName).readerGroupId(rgConfigSubscriber.getReaderGroupId()).generation(rgConfigSubscriber.getGeneration())
-                .build();
-        assertTrue(controller.createReaderGroup(scope, "group", rgConfigSubscriber).join());
+        rgConfigSubscriber = ReaderGroupConfig.cloneConfig(rgConfigSubscriber, UUID.randomUUID(), 0L);
+        ReaderGroupConfig subscriberRG = controller.createReaderGroup(scope, readerGroupName, rgConfigSubscriber).join();
+        assertEquals(rgConfigSubscriber.getReaderGroupId(), subscriberRG.getReaderGroupId());
+
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertEquals(1, subscribers.size());
-        assertTrue(controller.updateReaderGroup(scope, "group", rgConfigNonSubscriber).join());
-        updatedConfig = controller.getReaderGroupConfig(scope, "group").join();
+
+        ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName1)
+                .build();
+        rgConfigNonSubscriber = ReaderGroupConfig.cloneConfig(rgConfigNonSubscriber, rgConfigSubscriber.getReaderGroupId(), rgConfigSubscriber.getGeneration());
+        long updatedGen = controller.updateReaderGroup(scope, readerGroupName, rgConfigNonSubscriber).join();
+        assertEquals(rgConfigNonSubscriber.getGeneration() + 1, updatedGen);
+
+        updatedConfig = controller.getReaderGroupConfig(scope, readerGroupName).join();
         assertEquals(rgConfigNonSubscriber.getReaderGroupId(), updatedConfig.getReaderGroupId());
         assertEquals(rgConfigNonSubscriber.getRetentionType(), updatedConfig.getRetentionType());
         assertEquals(rgConfigNonSubscriber.getGeneration() + 1, updatedConfig.getGeneration());
@@ -421,14 +501,15 @@ public class ControllerServiceTest {
 
         // Update ReaderGroup from Non-Subscriber to Subscriber
         ReaderGroupConfig subscriberConfig = ReaderGroupConfig.builder()
-                .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(updatedConfig.getGeneration()).readerGroupId(updatedConfig.getReaderGroupId())
+                .stream(scopedStreamName1).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
-        assertTrue(controller.updateReaderGroup(scope, "group", subscriberConfig).join());
-        ReaderGroupConfig newUpdatedConfig = controller.getReaderGroupConfig(scope, "group").join();
+        subscriberConfig = ReaderGroupConfig.cloneConfig(subscriberConfig, updatedConfig.getReaderGroupId(), updatedConfig.getGeneration());
+        long gen = controller.updateReaderGroup(scope, readerGroupName, subscriberConfig).join();
+        assertEquals(subscriberConfig.getGeneration() + 1, gen);
+        ReaderGroupConfig newUpdatedConfig = controller.getReaderGroupConfig(scope, readerGroupName).join();
         assertEquals(subscriberConfig.getReaderGroupId(), newUpdatedConfig.getReaderGroupId());
         assertEquals(subscriberConfig.getRetentionType(), newUpdatedConfig.getRetentionType());
-        assertEquals(updatedConfig.getGeneration() + 1, newUpdatedConfig.getGeneration());
+        assertEquals(gen, newUpdatedConfig.getGeneration());
 
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertEquals(1, subscribers.size());
@@ -447,14 +528,13 @@ public class ControllerServiceTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
 
         final String rg1 = "rg1";
-        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, rg1, rgConfig);
-        assertTrue(createRG.get());
+        ReaderGroupConfig createConfig = controller.createReaderGroup(scope, rg1, rgConfig).get();
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createConfig.getReaderGroupId()));
+        assertEquals(0L, createConfig.getGeneration());
 
         List<String> subs = controller.listSubscribers(scope, stream).get();
         assertEquals(1, subs.size());
@@ -467,17 +547,17 @@ public class ControllerServiceTest {
         ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg0, 1L, seg1, 11L);
         StreamCut streamCut = new StreamCutImpl(streamToBeUpdated, streamCutPositions);
 
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, rgConfig.getReaderGroupId(), 0L, streamCut).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, createConfig.getReaderGroupId(), createConfig.getGeneration(), streamCut).get());
 
         ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg0, 2L, seg1, 22L);
         StreamCut streamCutNew = new StreamCutImpl(streamToBeUpdated, streamCutPositionsNew);
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, rgConfig.getReaderGroupId(), 0L, streamCutNew).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, createConfig.getReaderGroupId(), createConfig.getGeneration(), streamCutNew).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
                                    final ScalingPolicy scalingPolicy, final String scopeSeal,
                                    final String streamNameSeal) throws InterruptedException, ExecutionException {
-        controllerWrapper.getControllerService().createScope("scopeSeal").get();
+        controllerWrapper.getControllerService().createScope("scopeSeal", 0L).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)

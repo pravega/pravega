@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -113,26 +119,28 @@ public class ZkInt96Counter {
 
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
-        return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                          .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
-                                                       .thenCompose(data -> {
-                                                           Int96 previous = data.getObject();
-                                                           Int96 nextLimit = previous.add(COUNTER_RANGE);
-                                                           return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
-                                                                             .thenAccept(x -> {
-                                                                                 // Received new range, we should reset the counter and limit under the lock
-                                                                                 // and then reset refreshfutureref to null
-                                                                                 synchronized (lock) {
-                                                                                     // Note: counter is set to previous range's highest value. Always get the
-                                                                                     // next counter by calling counter.incrementAndGet otherwise there will
-                                                                                     // be a collision with counter used by someone else.
-                                                                                     counter.set(previous.getMsb(), previous.getLsb());
-                                                                                     limit.set(nextLimit.getMsb(), nextLimit.getLsb());
-                                                                                     refreshFutureRef = null;
-                                                                                     log.info("Refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-                                                                                 }
-                                                                             });
-                                                       }));
+        return storeHelper
+                .createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
+                           .thenCompose(data -> {
+                               Int96 previous = data.getObject();
+                               Int96 nextLimit = previous.add(COUNTER_RANGE);
+                               return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
+                                     .thenAccept(x -> {
+                                         // Received new range, we should reset the counter and limit under the lock
+                                         // and then reset refreshfutureref to null
+                                         synchronized (lock) {
+                                             // Note: counter is set to previous range's highest value. Always get the
+                                             // next counter by calling counter.incrementAndGet otherwise there will
+                                             // be a collision with counter used by someone else.
+                                             counter.set(previous.getMsb(), previous.getLsb());
+                                             limit.set(nextLimit.getMsb(), nextLimit.getLsb());
+                                             refreshFutureRef = null;
+                                             log.info("Refreshed counter range. Current counter is {}. Current limit is {}",
+                                                     counter.get(), limit.get());
+                                         }
+                                     });
+                           }));
     }
 
     // region getters and setters for testing

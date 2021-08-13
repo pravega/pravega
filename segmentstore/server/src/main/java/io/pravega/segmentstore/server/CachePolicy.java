@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
@@ -46,11 +52,19 @@ public class CachePolicy {
     @Getter
     private final double maxUtilization;
     /**
-     * The maximum usable size of the cache. When the cache reaches or exceeds this threshold, cache eviction will kick in.
-     * This is a pre-calculated value of {@link #getMaxSize()} * {@link #getTargetUtilization()} ()}.
+     * The target size of the cache (ideally, the cache would contain at most this amount of data). When the cache reaches
+     * or exceeds this threshold, cache eviction will kick in.
+     * This is a pre-calculated value of {@link #getMaxSize()} * {@link #getTargetUtilization()}.
      */
     @Getter
     private final long evictionThreshold;
+    /**
+     * The maximum usable size of the cache. If the cache reaches or exceeds this threshold, the cache is considered to
+     * be under critical stress, and there is no guarantee that a subsequent cache insertion would succeed.
+     * This is a pre-calculated value of {@link  #getMaxSize()} * {@link #getMaxUtilization()}.
+     */
+    @Getter
+    private final long criticalThreshold;
     /**
      * The maximum number of generations a cache entry can be inactive in the cache for, before being eligible for eviction.
      */
@@ -97,6 +111,7 @@ public class CachePolicy {
         this.targetUtilization = targetUtilization;
         this.maxUtilization = maxUtilization;
         this.evictionThreshold = (long) Math.floor(this.maxSize * this.targetUtilization);
+        this.criticalThreshold = (long) Math.floor(this.maxSize * this.maxUtilization);
         this.generationDuration = generationDuration;
         this.maxGenerations = Math.max(1, (int) ((double) maxTime.toMillis() / generationDuration.toMillis()));
     }
@@ -105,7 +120,7 @@ public class CachePolicy {
 
     @Override
     public String toString() {
-        return String.format("MaxSize = %d, UsableSize = %d, MaxGen = %d, Generation = %s",
-                this.maxSize, this.evictionThreshold, this.maxGenerations, this.generationDuration);
+        return String.format("MaxSize = %d, UsableSize = %d, CriticalSize = %d, MaxGen = %d, Generation = %s",
+                this.maxSize, this.evictionThreshold, this.criticalThreshold, this.maxGenerations, this.generationDuration);
     }
 }

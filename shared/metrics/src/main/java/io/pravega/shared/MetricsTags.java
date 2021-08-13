@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared;
 
@@ -24,12 +30,14 @@ public final class MetricsTags {
     public static final String TAG_HOST = "host";
     public static final String TAG_SCOPE = "scope";
     public static final String TAG_STREAM = "stream";
+    public static final String TAG_READER_GROUP = "readergroup";
     public static final String TAG_SEGMENT = "segment";
     public static final String TAG_TRANSACTION = "transaction";
     public static final String TAG_EPOCH = "epoch";
     public static final String TAG_CLASS = "class";
     public static final String TAG_EXCEPTION = "exception";
     public static final String TAG_THROTTLER = "throttler";
+    public static final String TAG_EVENT_PROCESSOR = "eventprocessor";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -85,6 +93,16 @@ public final class MetricsTags {
     }
 
     /**
+     * Generate reader group tags (string array) on the input scope and reader group name to be associated with a metric.
+     * @param scope scope of the stream.
+     * @param rgName Reader Group name.
+     * @return string array as the reader group tag of metric.
+     */
+    public static String[] readerGroupTags(String scope, String rgName) {
+        return new String[] {TAG_SCOPE, scope, TAG_READER_GROUP, rgName};
+    }
+
+    /**
      * Generate transaction tags (string array) on the input scope, stream and transactionId to be associated with a metric.
      * @param scope scope of the stream.
      * @param stream stream name.
@@ -93,6 +111,17 @@ public final class MetricsTags {
      */
     public static String[] transactionTags(String scope, String stream, String transactionId) {
         return new String[] {TAG_SCOPE, scope, TAG_STREAM, stream, TAG_TRANSACTION, transactionId};
+    }
+
+    /**
+     * Generate EventProcessor tags (String array) given the event processor name and container id.
+     *
+     * @param containerId         Container id for this EventProcessor.
+     * @param eventProcessorName  Name of the EventProcessor.
+     * @return                    String array with the EventProcessor tags.
+     */
+    public static String[] eventProcessorTag(int containerId, String eventProcessorName) {
+        return new String[] {TAG_CONTAINER, String.valueOf(containerId), TAG_EVENT_PROCESSOR, eventProcessorName};
     }
 
     /**

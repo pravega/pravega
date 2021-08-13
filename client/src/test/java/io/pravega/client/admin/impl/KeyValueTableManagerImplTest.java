@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.admin.impl;
 
@@ -42,9 +48,13 @@ import static org.mockito.Mockito.mock;
 public class KeyValueTableManagerImplTest {
     private static final PravegaNodeUri SERVER_LOCATION = new PravegaNodeUri("localhost", 1234);
     private static final String DEFAULT_SCOPE = "DefaultScope";
-    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(4).build();
+    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
+            .partitionCount(4)
+            .primaryKeyLength(8)
+            .secondaryKeyLength(4)
+            .build();
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(30);
+    public final Timeout globalTimeout = Timeout.seconds(30);
     private MockConnectionFactoryImpl connectionFactory;
     private Controller controller = null;
     private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());

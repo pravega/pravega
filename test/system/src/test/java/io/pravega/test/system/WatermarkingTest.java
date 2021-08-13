@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * 
+ * Copyright Pravega Authors.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -73,7 +79,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -228,17 +233,18 @@ public class WatermarkingTest extends AbstractSystemTest {
         // read events from the reader. 
         // verify that events read belong to the bound
         EventRead<Long> event = reader.readNextEvent(10000L);
-        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        assertNotNull(currentTimeWindow);
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
-        assertNotNull(currentTimeWindow.getUpperTimeBound());
-        log.info("current time window = {}", currentTimeWindow);
+        AtomicReference<TimeWindow> currentTimeWindow = new AtomicReference<>();
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+            currentTimeWindow.set(reader.getCurrentTimeWindow(streamObj));
+            return currentTimeWindow.get() != null && currentTimeWindow.get().getLowerTimeBound() != null && currentTimeWindow.get().getUpperTimeBound() != null;
+        }, 100000);
+        log.info("current time window = {}", currentTimeWindow.get());
 
         while (event.getEvent() != null) {
             Long time = event.getEvent();
             log.info("event read = {}", time);
             event.getPosition();
-            assertTrue(time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(time >= currentTimeWindow.get().getLowerTimeBound());
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);

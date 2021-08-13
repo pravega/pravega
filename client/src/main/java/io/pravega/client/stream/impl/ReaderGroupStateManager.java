@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -42,12 +48,16 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -73,12 +83,17 @@ public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
+    static final Duration UPDATE_CONFIG_WINDOW = Duration.ofMillis(10000);
     private static final double COMPACTION_PROBABILITY = 0.05;
     private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 512 * 1024;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
     private final String readerId;
+    @Getter
+    private final String scope;
+    @Getter
+    private final String groupName;
     private final StateSynchronizer<ReaderGroupState> sync;
     private final Controller controller;
     private final TimeoutTimer releaseTimer;
@@ -86,12 +101,15 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
     private final TimeoutTimer lagUpdateTimer;
+    private final TimeoutTimer updateConfigTimer;
 
-    ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
+    ReaderGroupStateManager(String scope, String groupName, String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
         Preconditions.checkNotNull(sync);
         Preconditions.checkNotNull(controller);
         this.readerId = readerId;
+        this.scope = scope;
+        this.groupName = groupName;
         this.hashHelper = HashHelper.seededWith(readerId);
         this.sync = sync;
         this.controller = controller;
@@ -103,6 +121,7 @@ public class ReaderGroupStateManager {
         fetchStateTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         lagUpdateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        updateConfigTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     /**
@@ -174,16 +193,23 @@ public class ReaderGroupStateManager {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         boolean result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
+                log.error("Reader " + readerId + " is offline according to the state but is attempting to update it.");
                 reinitRequired.set(true);
-            } else {
-                log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
-                reinitRequired.set(false);
-                //This check guards against another checkpoint having started.
-                if (state.getCheckpointForReader(readerId) == null) {
-                    updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
-                    return true;
-                }
+                return false;
+            } 
+            if (!state.getSegments(readerId).contains(segmentCompleted.getSegment())) {
+                log.error("Reader " + readerId + " is does not own the segment " + segmentCompleted + "but is attempting to release it.");
+                reinitRequired.set(true);
+                return false;
             }
+            
+            log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
+            reinitRequired.set(false);
+            //This check guards against another checkpoint having started.
+            if (state.getCheckpointForReader(readerId) == null) {
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
+                return true;
+            } 
             return false;
         });
         if (reinitRequired.get()) {
@@ -330,6 +356,24 @@ public class ReaderGroupStateManager {
             compactIfNeeded();
         }
     }
+
+    void updateConfigIfNeeded() {
+        if (!updateConfigTimer.hasRemaining()) {
+            fetchUpdatesIfNeeded();
+            ReaderGroupState state = sync.getState();
+            if (state.isUpdatingConfig()) {
+                ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
+                log.debug("Updating the readergroup {} with the new config {} obtained from the controller", groupName, controllerConfig);
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+                sync.updateState((s, updates) -> {
+                    if (s.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                        updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+                    }
+                });
+            }
+            updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
+        }
+    }
     
     private void compactIfNeeded() {
         //Make sure it has been a while, and compaction are staggered.
@@ -459,7 +503,12 @@ public class ReaderGroupStateManager {
                 reinitRequired.set(true);
             } else {
                 reinitRequired.set(false);
-                updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                String cpName = state.getCheckpointForReader(readerId);
+                if (checkpointName.equals(cpName)) {
+                    updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                } else {
+                    log.warn("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);
+                }
             }
         });
         if (reinitRequired.get()) {
@@ -482,7 +531,8 @@ public class ReaderGroupStateManager {
             cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
                  .entrySet().forEach(entry ->
                         controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                                readerId, state.getConfig().getReaderGroupId(), state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
+                                NameUtils.getScopedReaderGroupName(scope, groupName), state.getConfig().getReaderGroupId(),
+                                state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
                 sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }

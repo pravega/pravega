@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
@@ -19,8 +25,8 @@ import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -42,10 +48,13 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -67,13 +76,18 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
-    private boolean enableMetrics;
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
+    private String[] tlsProtocolVersion;
 
     private boolean enableTlsReload;
+
+    /* Metrics related variables*/
+    private boolean enableMetrics;
+    private boolean enableInfluxDB;
+    private int metricsReportInterval;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -122,11 +136,16 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String keyPasswordFile;
     private String jksKeyFile;
 
+    private boolean enableAdminGateway;
+    private int adminGatewayPort;
+    private boolean replyWithStackTraceOnError;
+
     public static final class InProcPravegaClusterBuilder {
 
         // default values
         private int containerCount = 4;
         private boolean enableRestServer = true;
+        private boolean replyWithStackTraceOnError = true;
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
@@ -151,12 +170,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
-            this.isInProcHDFS = this.isInMemStorage ? false : true;
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
+            this.isInProcHDFS = !this.isInMemStorage;
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
+                    enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile,
+                    jksKeyFile, enableAdminGateway, adminGatewayPort, replyWithStackTraceOnError);
         }
     }
 
@@ -277,11 +298,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).collect(Collectors.joining(",")))
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
-                        .with(ServiceConfig.LISTENING_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
-                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
+                        .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)
+                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, LOCALHOST)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -290,7 +312,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM))
+                                ServiceConfig.StorageType.FILESYSTEM)
+                        .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
+                        .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
+                        .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)
+                        .with(ServiceConfig.REST_LISTENING_PORT, this.restServerPort + segmentStoreId + 1)
+                        .with(ServiceConfig.REST_LISTENING_ENABLE, this.enableRestServer))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
@@ -304,7 +331,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
                                          .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
-                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
+                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
+                        .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
@@ -361,15 +390,18 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
-                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .containerCount(containerCount)
+                .hostMonitorMinRebalanceInterval(1)
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl
+                .withDefaultBuilder()
+                .shutdownTimeout(Duration.ofMillis(100))
+                .build();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
                 .builder()
@@ -378,6 +410,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
+                .tlsProtocolVersion(this.tlsProtocolVersion)
                 .tlsTrustStore(this.certFile)
                 .tlsCertFile(this.certFile)
                 .tlsKeyFile(this.keyFile)
@@ -394,6 +427,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .host("0.0.0.0")
                     .port(this.restServerPort)
                     .tlsEnabled(this.enableTls)
+                    .tlsProtocolVersion(this.tlsProtocolVersion)
                     .keyFilePath(this.jksKeyFile)
                     .keyFilePasswordPath(this.keyPasswordFile)
                     .build();
@@ -408,6 +442,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
+                .shutdownTimeout(Duration.ofMillis(100))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

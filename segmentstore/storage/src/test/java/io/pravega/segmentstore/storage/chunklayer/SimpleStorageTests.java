@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -17,6 +23,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -26,7 +33,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 
@@ -49,7 +56,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      */
     @Override
     protected Storage createStorage() throws Exception {
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         synchronized (SimpleStorageTests.class) {
             if (null == chunkStorage) {
                 chunkMetadataStore = getMetadataStore();
@@ -57,6 +64,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             }
         }
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return chunkedSegmentStorage;
     }
 
@@ -72,11 +80,12 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected Storage forkStorage(ChunkedSegmentStorage storage) throws Exception {
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                storage.getConfig());
+        forkedChunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return forkedChunkedSegmentStorage;
     }
 
@@ -87,7 +96,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     /**

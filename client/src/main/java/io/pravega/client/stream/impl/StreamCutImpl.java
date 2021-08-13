@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -23,7 +29,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -213,7 +218,7 @@ public class StreamCutImpl extends StreamCutInternal {
     }
 
     @SneakyThrows(IOException.class)
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new SerializedForm(SERIALIZER.serialize(this).getCopy());
     }
 
@@ -222,7 +227,7 @@ public class StreamCutImpl extends StreamCutInternal {
         private static final long serialVersionUID = 1L;
         private final byte[] value;
         @SneakyThrows(IOException.class)
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }

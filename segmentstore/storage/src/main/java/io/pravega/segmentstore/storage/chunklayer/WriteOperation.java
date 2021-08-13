@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -28,6 +34,7 @@ import lombok.val;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -35,9 +42,13 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_ADDED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_ADDED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_INSTANT_TPUT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_LATENCY;
 
 /**
@@ -52,8 +63,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
-    private final ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords = new ArrayList<>();
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = new ArrayList<>();
+    private final List<SystemJournal.SystemJournalRecord> systemLogRecords = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
 
     private volatile boolean isCommitted = false;
@@ -69,7 +80,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicLong bytesRemaining = new AtomicLong();
     private final AtomicLong currentOffset = new AtomicLong();
 
-
     private volatile boolean didSegmentLayoutChange = false;
 
     WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
@@ -82,6 +92,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         timer = new Timer();
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         // Validate preconditions.
         checkPreconditions();
@@ -121,7 +132,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                                                                 postCommit(), chunkedSegmentStorage.getExecutor())
                                                                                         .exceptionally(this::handleException),
                                                                         chunkedSegmentStorage.getExecutor())
-                                                                .whenCompleteAsync((value, e) -> collectGarbage(), chunkedSegmentStorage.getExecutor())
                                                                 .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
                                                 chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
@@ -158,6 +168,17 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_WRITE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_WRITE_BYTES.add(length);
+        SLTS_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_WRITE_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_SYSTEM_WRITE_BYTES.add(length);
+            SLTS_SYSTEM_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
+        if (elapsed.toMillis() > 0) {
+            val bytesPerSecond = 1000L * length / elapsed.toMillis();
+            SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} write - late op={}, segment={}, offset={}, length={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
@@ -168,22 +189,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset);
     }
 
-    private void collectGarbage() {
-        if (!isCommitted && chunksAddedCount.get() > 0) {
-            // Collect garbage.
-            chunkedSegmentStorage.getGarbageCollector().addToGarbage(newReadIndexEntries.stream().map(ChunkNameOffsetPair::getChunkName).collect(Collectors.toList()));
-        }
-    }
-
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // commit all system log records if required.
         if (isSystemSegment && chunksAddedCount.get() > 0) {
             // commit all system log records.
-            Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size());
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords);
-                return null;
-            });
+            Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size(),
+                    "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
 
         // if layout did not change then commit with lazyWrite.
@@ -193,6 +205,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> writeData(MetadataTransaction txn) {
+        val oldChunkCount = segmentMetadata.getChunkCount();
+        val oldLength = segmentMetadata.getLength();
         return Futures.loop(
                 () -> bytesRemaining.get() > 0,
                 () -> {
@@ -201,6 +215,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     return openChunkToWrite(txn)
                             .thenComposeAsync(v -> {
                                 // Calculate the data that needs to be written.
+                                val oldOffset = currentOffset.get();
                                 val offsetToWriteAt = currentOffset.get() - segmentMetadata.getLastChunkStartOffset();
                                 val writeSize = (int) Math.min(bytesRemaining.get(), segmentMetadata.getMaxRollinglength() - offsetToWriteAt);
 
@@ -211,12 +226,34 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         chunkHandle,
                                         lastChunkMetadata.get(),
                                         offsetToWriteAt,
-                                        writeSize);
+                                        writeSize)
+                                .thenRunAsync(() -> {
+                                    // Update block index.
+                                    if (!segmentMetadata.isStorageSystemSegment()) {
+                                        chunkedSegmentStorage.addBlockIndexEntriesForChunk(txn,
+                                                segmentMetadata.getName(),
+                                                chunkHandle.getChunkName(),
+                                                segmentMetadata.getLastChunkStartOffset(),
+                                                oldOffset,
+                                                segmentMetadata.getLength());
+                                    }
+                                }, chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor())
                 .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
+                    Preconditions.checkState(oldChunkCount + chunksAddedCount.get() == segmentMetadata.getChunkCount(),
+                            "Number of chunks do not match. old value (%s) + number of chunks added (%s) must match current chunk count(%s)",
+                            oldChunkCount, chunksAddedCount.get(), segmentMetadata.getChunkCount());
+                    Preconditions.checkState(oldLength + length == segmentMetadata.getLength(),
+                            "New length must match. old value (%s) + length (%s) must match current chunk count(%s)",
+                            oldLength, length, segmentMetadata.getLength());
+                    if (null != lastChunkMetadata.get()) {
+                        Preconditions.checkState(segmentMetadata.getLastChunkStartOffset() + lastChunkMetadata.get().getLength() == segmentMetadata.getLength(),
+                                "Last chunk start offset (%s) + Last chunk length (%s) must match segment length (%s)",
+                                segmentMetadata.getLastChunkStartOffset(), lastChunkMetadata.get().getLength(), segmentMetadata.getLength());
+                    }
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -230,8 +267,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
         } else {
             // No new chunk needed just write data to existing chunk.
-            return chunkedSegmentStorage.getChunkStorage().openWrite(lastChunkMetadata.get().getName())
-                    .thenAcceptAsync(h -> chunkHandle = h, chunkedSegmentStorage.getExecutor());
+            chunkHandle = ChunkHandle.writeHandle(lastChunkMetadata.get().getName());
+            return CompletableFuture.completedFuture(null);
         }
     }
 
@@ -239,38 +276,48 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         // Create new chunk
         String newChunkName = getNewChunkName(handle.getSegmentName(),
                 segmentMetadata.getLength());
-        return chunkedSegmentStorage.getChunkStorage().create(newChunkName)
-                .thenAcceptAsync(h -> {
-                    chunkHandle = h;
-                    String previousLastChunkName = lastChunkMetadata.get() == null ? null : lastChunkMetadata.get().getName();
 
-                    // update first and last chunks.
-                    lastChunkMetadata.set(updateMetadataForChunkAddition(txn,
-                            segmentMetadata,
-                            newChunkName,
-                            isFirstWriteAfterFailover,
-                            lastChunkMetadata.get()));
-
-                    // Record the creation of new chunk.
-                    if (isSystemSegment) {
-                        addSystemLogRecord(systemLogRecords,
-                                handle.getSegmentName(),
-                                segmentMetadata.getLength(),
-                                previousLastChunkName,
-                                newChunkName);
-                        txn.markPinned(lastChunkMetadata.get());
+        return chunkedSegmentStorage.getGarbageCollector().trackNewChunk(txn.getVersion(), newChunkName)
+                .thenComposeAsync( v -> {
+                    CompletableFuture<ChunkHandle> createdHandle;
+                    if (chunkedSegmentStorage.shouldAppend()) {
+                        createdHandle = chunkedSegmentStorage.getChunkStorage().create(newChunkName);
+                    } else {
+                        createdHandle = CompletableFuture.completedFuture(ChunkHandle.writeHandle(newChunkName));
                     }
-                    // Update read index.
-                    newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
+                    return createdHandle
+                            .thenAcceptAsync(h -> {
+                                chunkHandle = h;
+                                String previousLastChunkName = lastChunkMetadata.get() == null ? null : lastChunkMetadata.get().getName();
 
-                    isFirstWriteAfterFailover = false;
-                    skipOverFailedChunk = false;
-                    didSegmentLayoutChange = true;
-                    chunksAddedCount.incrementAndGet();
+                                // update first and last chunks.
+                                lastChunkMetadata.set(updateMetadataForChunkAddition(txn,
+                                        segmentMetadata,
+                                        newChunkName,
+                                        isFirstWriteAfterFailover,
+                                        lastChunkMetadata.get()));
 
-                    log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
-                            chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
-                }, chunkedSegmentStorage.getExecutor());
+                                // Record the creation of new chunk.
+                                if (isSystemSegment) {
+                                    addSystemLogRecord(systemLogRecords,
+                                            handle.getSegmentName(),
+                                            segmentMetadata.getLength(),
+                                            previousLastChunkName,
+                                            newChunkName);
+                                    txn.markPinned(lastChunkMetadata.get());
+                                }
+                                // Update read index.
+                                newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
+
+                                isFirstWriteAfterFailover = false;
+                                skipOverFailedChunk = false;
+                                didSegmentLayoutChange = true;
+                                chunksAddedCount.incrementAndGet();
+
+                                log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
+                            }, chunkedSegmentStorage.getExecutor());
+        }, chunkedSegmentStorage.getExecutor());
     }
 
     private void checkState() {
@@ -287,12 +334,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != handle, "handle");
-        Preconditions.checkArgument(null != data, "data");
-        Preconditions.checkArgument(null != handle.getSegmentName(), "handle.segmentName");
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle");
-        Preconditions.checkArgument(offset >= 0, "offset");
-        Preconditions.checkArgument(length >= 0, "length");
+        Preconditions.checkArgument(null != data, "data must not be null");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment = %s", handle.getSegmentName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment = %s", handle.getSegmentName());
+        Preconditions.checkArgument(length >= 0, "length must be non negative. Segment = %s", handle.getSegmentName());
     }
 
     private String getNewChunkName(String segmentName, long offset) {
@@ -326,7 +371,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             segmentMetadata.setOwnershipChanged(false);
             log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
-        segmentMetadata.incrementChunkCount();
+        segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
 
         // Update the transaction.
         txn.create(newChunkMetadata);
@@ -343,7 +388,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * @param oldChunkName      Name of the previous last chunk.
      * @param newChunkName      Name of the new last chunk.
      */
-    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
+    private void addSystemLogRecord(List<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
                         .segmentName(streamSegmentName)
@@ -363,13 +408,21 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                     ChunkMetadata chunkWrittenMetadata,
                                                     long offsetToWriteAt,
                                                     int bytesCount) {
-        Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes");
+        Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes. Segment=%s Chunk=%s offsetToWriteAt=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
-        return chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis)
+        CompletableFuture<Integer> retValue;
+        if (chunkedSegmentStorage.shouldAppend()) {
+            retValue = chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis);
+        } else {
+            retValue = chunkedSegmentStorage.getChunkStorage().createWithContent(chunkHandle.getChunkName(), bytesCount, bis)
+                    .thenApplyAsync(h -> bytesCount, chunkedSegmentStorage.getExecutor());
+        }
+        return retValue
                 .thenAcceptAsync(bytesWritten -> {
                     // Update the metadata for segment and chunk.
-                    Preconditions.checkState(bytesWritten >= 0, "bytesWritten must be non-negative");
+                    Preconditions.checkState(bytesWritten >= 0, "bytesWritten (%s) must be non-negative. Segment=%s Chunk=%s offsetToWriteAt=%s",
+                            bytesWritten, segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);

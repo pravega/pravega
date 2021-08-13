@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services.marathon;
 
@@ -129,7 +135,7 @@ public class PravegaControllerService extends MarathonBasedService {
                 buildSystemProperty("log.level", "DEBUG") +
                 buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 buildSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(120 * 1000)) +
+                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(600 * 1000)) +
                 buildSystemProperty(propertyName("retention.frequency.minutes"), String.valueOf(2));
 
         Map<String, Object> map = new HashMap<>();

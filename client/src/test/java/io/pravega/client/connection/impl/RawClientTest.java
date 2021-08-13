@@ -1,10 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -21,8 +28,8 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -79,9 +86,28 @@ public class RawClientTest {
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
     }
+    
+    @Test
+    public void testReplyWithoutRequest() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
+
+        UUID id = UUID.randomUUID();
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        DataAppended reply = new DataAppended(requestId, id, 1, 0, -1);
+        processor.process(reply);
+        assertFalse(rawClient.isClosed());
+    }
 
     @Test
-    public void testRecvErrorMessage() throws InterruptedException, ExecutionException, ConnectionFailedException {
+    public void testRecvErrorMessage() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -109,7 +135,6 @@ public class RawClientTest {
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         Segment segment = new Segment("scope", "test", 0);
-        @Cleanup
         RawClient rawClient = new RawClient(controller, connectionFactory, segment);
 
         WireCommands.ReadSegment request1 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "",
@@ -125,7 +150,8 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof ConnectionFailedException);
-
+        rawClient.close();
+        rawClient = new RawClient(controller, connectionFactory, segment);
         WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
         future = rawClient.sendRequest(2L, request2);
         // Verify if the request was sent over the connection.
@@ -137,6 +163,7 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof AuthenticationException);
+        rawClient.close();
     }
 
     @Test
@@ -167,17 +194,20 @@ public class RawClientTest {
         Mockito.when(controller.getEndpointForSegment(Mockito.any(String.class))).thenReturn(endpointFuture);
 
         ConnectionPool connectionPool = Mockito.mock(ConnectionPool.class);
-        CompletableFuture<ClientConnection> connectionFuture = new CompletableFuture<>();
         // simulate error when obtaining a client connection.
-        connectionFuture.completeExceptionally(new RuntimeException("Mock error"));
-        Mockito.when(connectionPool.getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class)))
-                .thenReturn(connectionFuture);
+        Mockito.doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            future.completeExceptionally(new ConnectionFailedException(new RuntimeException("Mock error")));
+            return null;
+        }).when(connectionPool).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
 
         // Test exception paths.
+        @Cleanup
         RawClient rawClient = new RawClient(endpoint, connectionPool);
         CompletableFuture<Reply> reply = rawClient.sendRequest(100L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply, t -> t instanceof ConnectionFailedException);
 
+        @Cleanup
         RawClient rawClient1 = new RawClient(controller, connectionPool, new Segment("scope", "stream", 1));
         CompletableFuture<Reply> reply1 = rawClient1.sendRequest(101L, new WireCommands.Hello(0, 0));
         assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply1, t -> t instanceof ConnectionFailedException);

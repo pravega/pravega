@@ -1,18 +1,27 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -27,7 +36,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import lombok.val;
+import org.junit.Assert;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 
 /**
@@ -50,6 +62,15 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
                 ex -> ex instanceof IntentionalException);
     }
 
+    @Test
+    public void testSegmentCompactionAttributes() {
+        @Cleanup
+        TableTestContext context = (TableTestContext) createTestContext();
+        val si = context.metadataStore.getSegmentInfo(NameUtils.getMetadataSegmentName(context.connector.getContainerMetadata().getContainerId()), TIMEOUT).join();
+        Assert.assertEquals(context.config.getDefaultRolloverSize(), (long) si.getAttributes().get(Attributes.ROLLOVER_SIZE));
+        Assert.assertEquals(context.config.getDefaultMinUtilization(), (long) si.getAttributes().get(TableAttributes.MIN_UTILIZATION));
+    }
+
     @Override
     protected TestContext createTestContext(TestConnector connector) {
         TableTestContext context = new TableTestContext(connector);
@@ -62,11 +83,16 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         @Getter
         final TableMetadataStore metadataStore;
         final AtomicInteger storageReadCount;
+        final TableExtensionConfig config;
 
         TableTestContext(TestConnector connector) {
             super(connector);
             this.tableStore = new TestTableStore(executorService());
-            this.metadataStore = new TableMetadataStore(this.connector, this.tableStore, executorService());
+            this.config = TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.DEFAULT_ROLLOVER_SIZE, 12345L)
+                    .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, 90)
+                    .build();
+            this.metadataStore = new TableMetadataStore(this.connector, this.tableStore, config, executorService());
             this.storageReadCount = new AtomicInteger(0);
         }
 

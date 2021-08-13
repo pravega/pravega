@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -51,16 +57,29 @@ import java.util.concurrent.ScheduledExecutorService;
 public interface StreamMetadataStore extends AutoCloseable {
 
     /**
-     * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
-     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
-     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
-     * Once an operation completes, the context is discarded.
+     * Method to create an operation context for an operation intended on a specific scope. An operation context
+     * encapsulates a particular operation which is tracked against the specified request id. A context object also
+     * ensures that the store requests using the same context object optimizes on the number of store calls that are made
+     * by reusing previously retrieved values from the cache.
+     *
+     * @param scope Stream scope.
+     * @param requestId requestId.
+     * @return Return a streamContext
+     */
+    OperationContext createScopeContext(final String scope, long requestId);
+
+    /**
+     * Method to create an operation context for an operation intended on a specific stream. An operation context
+     * encapsulates a particular operation which is tracked against the specified request id. A context object also
+     * ensures that the store requests using the same context object optimizes on the number of store calls that are made
+     * by reusing previously retrieved values from the cache.
      *
      * @param scope Stream scope.
      * @param name  Stream name.
+     * @param requestId requestId.
      * @return Return a streamContext
      */
-    OperationContext createContext(final String scope, final String name);
+    OperationContext createStreamContext(final String scope, final String name, long requestId);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -84,17 +103,23 @@ public interface StreamMetadataStore extends AutoCloseable {
      * Api to check if a stream exists in the store or not.
      * @param scopeName scope name
      * @param streamName stream name
+     * @param context Operation context
+     * @param executor executor
      * @return true if stream exists, false otherwise
      */
     CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                 final String streamName);
+                                                 final String streamName,
+                                                 final OperationContext context,
+                                                 final Executor executor);
 
     /**
      * Api to check if a stream exists in the store or not.
      * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
      * @return true if stream exists, false otherwise
      */
-    CompletableFuture<Boolean> checkScopeExists(final String scopeName);
+    CompletableFuture<Boolean> checkScopeExists(final String scopeName, OperationContext context, Executor executor);
 
     /**
      * Api to get creation time for the stream. 
@@ -133,9 +158,9 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<Void> setState(String scope, String name,
-                                        State state, OperationContext context,
-                                        Executor executor);
+    CompletableFuture<Void> setState(final String scope, final String name,
+                                     final State state, final OperationContext context,
+                                     final Executor executor);
 
     /**
      * Api to get the state for stream from metadata.
@@ -147,7 +172,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<State> getState(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
+    CompletableFuture<State> getState(final String scope, final String name, final boolean ignoreCached,
+                                      final OperationContext context, final Executor executor);
 
     /**
      * Api to get the current state with its current version.
@@ -158,7 +184,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return Future which when completed has the versioned state.
      */
-    CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name,
+                                                                  final OperationContext context, final Executor executor);
 
     /**
      * Api to update versioned state as a CAS operation.
@@ -172,40 +199,52 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
-                                                    final State state, final VersionedMetadata<State> previous, final OperationContext context,
-                                                    final Executor executor);
+                                                                     final State state,
+                                                                     final VersionedMetadata<State> previous,
+                                                                     final OperationContext context,
+                                                                     final Executor executor);
 
     /**
      * Creates a new scope with the given name.
      *
      * @param scopeName Scope name
+     * @param context operation context
+     * @param executor executor
+     *
      * @return null on success and exception on failure.
      */
-    CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+    CompletableFuture<CreateScopeStatus> createScope(final String scopeName, final OperationContext context, Executor executor);
 
     /**
      * Deletes a Scope if contains no streams.
      *
      * @param scopeName Name of scope to be deleted
+     * @param context operation context
+     * @param executor executor
      * @return null on success and exception on failure.
      */
-    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName, final OperationContext context, Executor executor);
 
     /**
      * Retrieve configuration of scope.
      *
      * @param scopeName Name of scope.
+     * @param context operation context
+     * @param executor executor
      * @return Returns configuration of scope.
      */
-    CompletableFuture<String> getScopeConfiguration(final String scopeName);
+    CompletableFuture<String> getScopeConfiguration(final String scopeName, final OperationContext context, Executor executor);
 
     /**
      * List existing streams in scopes.
      *
      * @param scopeName Name of the scope
+     * @param context operation context
+     * @param executor executor
      * @return A map of streams in scope to their configurations
      */
-    CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName);
+    CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName, final OperationContext context,
+                                                                           final Executor executor);
 
     /**
      * List existing streams in scopes with pagination. This api continues listing streams from the supplied continuation token
@@ -214,18 +253,35 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scopeName Name of the scope
      * @param continuationToken continuation token
      * @param limit limit on number of streams to return.
-     * @param executor 
+     * @param context operation context
+     * @param executor executor
      * @return A pair of list of streams in scope with the continuation token. 
      */
     CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
-                                                             final int limit, final Executor executor);
+                                                             final int limit, final Executor executor, OperationContext context);
+
+    /**
+     * List streams with the provided tag inside a scope with pagination. This api continues listing streams from the supplied continuation token
+     * and returns list of streams and a new continuation token.
+     *
+     * @param scopeName Name of the scope
+     * @param tag Stream tag.
+     * @param continuationToken continuation token
+     * @param context operation context
+     * @param executor executor
+     * @return A pair of list of streams in scope with the continuation token.
+     */
+    CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String scopeName, final String tag, final String continuationToken,
+                                                                    final Executor executor, OperationContext context);
 
     /**
      * List Scopes in cluster.
      *
+     * @param requestId requestId
+     * @param executor executor service.
      * @return List of scopes
      */
-    CompletableFuture<List<String>> listScopes();
+    CompletableFuture<List<String>> listScopes(Executor executor, long requestId);
 
     /**
      * List scopes with pagination. This api continues listing scopes from the supplied continuation token
@@ -234,10 +290,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param continuationToken continuation token
      * @param limit limit on number of scopes to return.
      * @param executor executor
-     * @return A pair of list of scopes with the continuation token. 
+     * @param requestId request id
+     * @return A pair of list of scopes with the continuation token.
      */
     CompletableFuture<Pair<List<String>, String>> listScopes(final String continuationToken,
-                                                             final int limit, final Executor executor);
+                                                             final int limit, final Executor executor, long requestId);
     
     /**
      * Updates the configuration of an existing stream.
@@ -298,16 +355,40 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final Executor executor);
 
     /**
-     * Method to create an operation context for ReaderGroup. A context ensures that multiple calls to store for the same data are avoided
-     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
+     * Add Stream tags into the IndexTable.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param config       stream configuration.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return Future of the operation.
+     */
+    CompletableFuture<Void> addStreamTagsToIndex(final String scope, final String name, final StreamConfiguration config, final OperationContext context, final Executor executor);
+
+    /**
+     * Remove Stream tags from the IndexTable.
+     * @param scope stream scope.
+     * @param name stream name.
+     * @param tagsRemoved tags to be removed.
+     * @param context operation context.
+     * @param executor callers executor.
+     * @return Future of the operation.
+     */
+    CompletableFuture<Void> removeTagsFromIndex(final String scope, final String name, Set<String> tagsRemoved, final OperationContext context, final Executor executor);
+
+    /**
+     * Method to create an operation context for ReaderGroup. A context ensures that multiple calls to store for the same
+     * data are avoided within the same operation.
+     * All api signatures are changed to accept context. If context is supplied, the data will be
      * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
-     * Once an operation completes, the context is discarded.
      *
      * @param scope Reader Group scope.
-     * @param name  REader Group name.
+     * @param name  Reader Group name.
+     * @param requestId request id
      * @return Return a Reader Group Context
      */
-    RGOperationContext createRGContext(final String scope, final String name);
+    OperationContext createRGContext(final String scope, final String name, long requestId);
 
     /**
      * Api to get the versioned state for Reader Group from metadata.
@@ -319,7 +400,10 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future which when completed has the VersionedState.
      */
-    CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
+    CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedReaderGroupState(final String scope, final String name,
+                                                                                        final boolean ignoreCached,
+                                                                                        final OperationContext context,
+                                                                                        final Executor executor);
 
     /**
      * Api to get the state for Reader Group from metadata.
@@ -331,7 +415,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future of ReaderGroupState.
      */
-    CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
+    CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name, final boolean ignoreCached,
+                                                            final OperationContext context, final Executor executor);
 
     /**
      * Add ReaderGroup to scope.
@@ -339,11 +424,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scopeName       scope name
      * @param rgName          Reader Group name
      * @param readerGroupId   Reader Group Identifier
+     * @param executor        Executor
+     * @param context         operation context
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<Void> addReaderGroupToScope(final String scopeName,
                                               final String rgName,
-                                              final UUID readerGroupId);
+                                              final UUID readerGroupId, final OperationContext context, final Executor executor);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -357,11 +444,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<Void> createReaderGroup(final String scopeName,
-                                                            final String rgName,
-                                                            final ReaderGroupConfig configuration,
-                                                            final long createTimestamp,
-                                                            final RGOperationContext context,
-                                                            final Executor executor);
+                                              final String rgName,
+                                              final ReaderGroupConfig configuration,
+                                              final long createTimestamp,
+                                              final OperationContext context,
+                                              final Executor executor);
 
     /**
      * Updates the configuration of an existing Reader Group.
@@ -376,7 +463,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> startRGConfigUpdate(final String scope,
                                                 final String name,
                                                 final ReaderGroupConfig configuration,
-                                                final RGOperationContext context,
+                                                final OperationContext context,
                                                 final Executor executor);
 
     /**
@@ -392,11 +479,11 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> completeRGConfigUpdate(final String scope,
                                                     final String name,
                                                     final VersionedMetadata<ReaderGroupConfigRecord> configRecord,
-                                                    final RGOperationContext context,
+                                                    final OperationContext context,
                                                     final Executor executor);
 
     /**
-     * Delete a Reader Group with the given scope & name.
+     * Delete a Reader Group with the given scope and name.
      *
      * @param scopeName       scope name
      * @param rgName          Reader Group name
@@ -406,7 +493,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Void> deleteReaderGroup(final String scopeName,
                                               final String rgName,
-                                              final RGOperationContext context,
+                                              final OperationContext context,
                                               final Executor executor);
 
     /**
@@ -420,9 +507,10 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
-    CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
-                                                                     final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
-                                                                     final RGOperationContext context, final Executor executor);
+    CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(
+            final String scope, final String name, final ReaderGroupState state,
+            final VersionedMetadata<ReaderGroupState> previous,
+            final OperationContext context, final Executor executor);
 
     /**
      * Fetches the current ReaderGroup configuration.
@@ -434,8 +522,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return current ReaderGroup configuration record.
      */
     CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getReaderGroupConfigRecord(final String scope, final String name,
-                                                            final RGOperationContext context,
-                                                            final Executor executor);
+                                                                                             final OperationContext context,
+                                                                                             final Executor executor);
 
     /**
      * Creates a new subscribers record in metadata for an existing stream.
@@ -574,7 +662,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context,
+                                      final Executor executor);
 
     /**
      * Get the stream sealed status.
@@ -585,7 +674,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return boolean indicating whether the stream is sealed.
      */
-    CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context,
+                                        final Executor executor);
 
     /**
      * Get Segment.
@@ -597,7 +687,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return segment at given number.
      */
-    CompletableFuture<StreamSegmentRecord> getSegment(final String scope, final String name, final long number, final OperationContext context, final Executor executor);
+    CompletableFuture<StreamSegmentRecord> getSegment(final String scope, final String name, final long number,
+                                                      final OperationContext context, final Executor executor);
 
     /**
      * Api to get all segments in the stream. 
@@ -609,8 +700,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      *                 
      * @return Future, which when complete will contain a list of all segments in the stream. 
      */
-    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final OperationContext context, 
-                                                   final Executor executor);
+    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final OperationContext context,
+                                                  final Executor executor);
 
     /**
      * Get active segments.
@@ -621,7 +712,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param context  operation context
      * @return currently active segments
      */
-    CompletableFuture<List<StreamSegmentRecord>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<List<StreamSegmentRecord>> getActiveSegments(final String scope, final String name,
+                                                                   final OperationContext context, final Executor executor);
     
     /**
      * Returns the segments at the head of the stream.
@@ -633,9 +725,9 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return         list of active segments in specified epoch.
      */
     CompletableFuture<Map<StreamSegmentRecord, Long>> getSegmentsAtHead(final String scope,
-                                                            final String stream,
-                                                            final OperationContext context,
-                                                            final Executor executor);
+                                                                        final String stream,
+                                                                        final OperationContext context,
+                                                                        final Executor executor);
 
     /**
      * Returns the segments in the specified epoch of the specified stream.
@@ -648,10 +740,10 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return         list of active segments in specified epoch.
      */
     CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(final String scope,
-                                                       final String stream,
-                                                       final int epoch,
-                                                       final OperationContext context,
-                                                       final Executor executor);
+                                                                    final String stream,
+                                                                    final int epoch,
+                                                                    final OperationContext context,
+                                                                    final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
@@ -665,10 +757,10 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
     CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessors(final String scope,
-                                                                                     final String streamName,
-                                                                                     final long segmentId,
-                                                                                     final OperationContext context,
-                                                                                     final Executor executor);
+                                                                          final String streamName,
+                                                                          final long segmentId,
+                                                                          final OperationContext context,
+                                                                          final Executor executor);
 
     /**
      * Given two stream cuts, this method return a list of segments that lie between given stream cuts.
@@ -682,11 +774,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return Future which when completed contains list of segments between given stream cuts.
      */
     CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(final String scope,
-                                                           final String streamName,
-                                                           final Map<Long, Long> from,
-                                                           final Map<Long, Long> to,
-                                                           final OperationContext context,
-                                                           final Executor executor);
+                                                                              final String streamName,
+                                                                              final Map<Long, Long> from,
+                                                                              final Map<Long, Long> to,
+                                                                              final OperationContext context,
+                                                                              final Executor executor);
 
     /**
      * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
@@ -717,7 +809,23 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(String scope, String stream,
                                                                                    OperationContext context,
                                                                                    ScheduledExecutorService executor);
-    
+
+    /**
+     * ResetEpoch transition record back to EMPTY.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param record         versioned record
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return A future which when completed indicates that epoch transition record has been reset and holds the updated
+     * versioned record.
+     */
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resetEpochTransition(final String scope, final String name,
+                                          final VersionedMetadata<EpochTransitionRecord> record,
+                                          final OperationContext context,
+                                          final Executor executor);
+
     /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update
      * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
@@ -834,9 +942,9 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return A future which when completed will capture updated versioned committing transactions record that represents 
      * an ongoing rolling transaction.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
-                                                                                       int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
-                                                                                       OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(
+            String scope, String stream, int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
+            OperationContext context, ScheduledExecutorService executor);
 
     /**
      * This method is called from Rolling transaction workflow after new transactions that are duplicate of active transactions
@@ -946,7 +1054,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return transaction status.
      */
-    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
+    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId,
+                                                   final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark transaction as sealed.
@@ -993,7 +1102,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return map of txId to TxRecord
      */
-    CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream,
+                                                                final OperationContext context, final Executor executor);
 
     /**
      * Adds specified resource as a child of current host's hostId node.
@@ -1118,7 +1228,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor      callers executor
      * @return Completable future
      */
-    CompletableFuture<Void> markCold(final String scope, final String stream, final long segmentId, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> markCold(final String scope, final String stream, final long segmentId,
+                                     final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Api to return if a cold marker is set.
@@ -1130,7 +1241,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Completable future Optional of marker's creation time.
      */
-    CompletableFuture<Boolean> isCold(final String scope, final String stream, final long segmentId, final OperationContext context, final Executor executor);
+    CompletableFuture<Boolean> isCold(final String scope, final String stream, final long segmentId,
+                                      final OperationContext context, final Executor executor);
 
     /**
      * Api to clear marker.
@@ -1142,7 +1254,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Completable Future
      */
-    CompletableFuture<Void> removeMarker(final String scope, final String stream, final long segmentId, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> removeMarker(final String scope, final String stream, final long segmentId,
+                                         final OperationContext context, final Executor executor);
 
     /**
      * Get all scale history segments.
@@ -1237,7 +1350,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope,
+                                                                                               final String stream,
                                                                                                final int limit,
                                                                                                final OperationContext context,
                                                                                                final ScheduledExecutorService executor);
@@ -1253,8 +1367,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommittingTransactionsRecord(final String scope, final String stream,
-                                                                                                                final OperationContext context, final ScheduledExecutorService executor);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommittingTransactionsRecord(
+            final String scope, final String stream, final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * Method to delete committing transaction record from the store for a given stream.
@@ -1266,7 +1380,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
-    CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, final VersionedMetadata<CommittingTransactionsRecord> record,
+    CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
+                                                       final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor);
 
 
@@ -1281,7 +1396,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
      */
-    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> commitOffsets,
+    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId,
+                                                final Map<Long, Long> commitOffsets,
                                                 final OperationContext context, final ScheduledExecutorService executor);
     
     /**
@@ -1295,7 +1411,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
      */
-    CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName,
+                                                         OperationContext context, ScheduledExecutorService executor);
 
     /**
      * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
@@ -1307,7 +1424,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
      * such request.
      */
-    CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context,
+                                                         ScheduledExecutorService executor);
 
     /**
      * Delete existing waiting request processor if the name of the existing matches suppied processor name.
@@ -1319,7 +1437,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return CompletableFuture which indicates completion of processing.
      */
-    CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName,
+                                                              OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 
@@ -1349,7 +1468,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture, which when completed, will have shutdown writer. 
      */
-    CompletableFuture<Void> shutdownWriter(String scope, String stream, String writer, OperationContext context, Executor executor);
+    CompletableFuture<Void> shutdownWriter(String scope, String stream, String writer, OperationContext context,
+                                           Executor executor);
 
     /**
      * Method to remove writer specific metadata conditionally from the metadata store.  
@@ -1363,7 +1483,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture, which when completed, will have removed writer metadata. 
      */
-    CompletableFuture<Void> removeWriter(String scope, String stream, String writer, WriterMark writerMark, OperationContext context, Executor executor);
+    CompletableFuture<Void> removeWriter(String scope, String stream, String writer, WriterMark writerMark,
+                                         OperationContext context, Executor executor);
 
     /**
      * Method to retrieve writer's latest recorded mark.  
@@ -1374,7 +1495,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture, which when completed, will contain writer's mark.  
      */
-    CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer, OperationContext context, Executor executor);
+    CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer, OperationContext context,
+                                                Executor executor);
 
     /**
      * Method to retrieve latest recorded mark for all known writers.  
@@ -1384,7 +1506,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
      */
-    CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream, OperationContext context, Executor executor);
+    CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream, OperationContext context,
+                                                                 Executor executor);
     
     /**
      * Method to get the requested chunk of the HistoryTimeSeries.
@@ -1429,9 +1552,8 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final OperationContext context, final Executor executor);
 
     /**
-     * Compares two Stream cuts and returns true if streamcut1 is strictly ahead of streamcut2 else returns false. 
-     * This method will return false for both strictly less than and overlapping streamcuts.
-     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * Compares two Stream cuts and returns StreamCutComparison enum.
+     * A streamcut is considered greater than equals another if for all key ranges the segment/offset in one streamcut is ahead of 
      * second streamcut. 
      *
      * @param scope      stream scope.
@@ -1441,12 +1563,12 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param context    operation context.
      * @param executor   callers executor.
      *                   
-     * @return A completable future which when completed will hold a boolean which will indicate if streamcut1 is strictly
-     * ahead of streamcut2. 
+     * @return A completable future which when completed will hold an integer which will determine the order between 
+     * streamcut1 and streamcut2. 
      */
-    CompletableFuture<Boolean> streamCutStrictlyGreaterThan(final String scope, final String streamName,
-                                                            Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
-                                                            final OperationContext context, final Executor executor);
+    CompletableFuture<StreamCutComparison> compareStreamCut(final String scope, final String streamName,
+                                                Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
+                                                final OperationContext context, final Executor executor);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    
@@ -1469,9 +1591,21 @@ public interface StreamMetadataStore extends AutoCloseable {
      * Api to check if a ReaderGroup exists in the store or not.
      * @param scope scope name
      * @param rgName Name ReaderGroup name
+     * @param context operation context
+     * @param executor executor
      * @return true if stream exists, false otherwise
      */
-    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName);
+    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName, OperationContext context,
+                                                      Executor executor);
 
-    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName);
+    /**
+     * Api to retrieve ReaderGroup id from the metadata.
+     * @param scopeName scope name
+     * @param rgName Name ReaderGroup name
+     * @param context operation context
+     * @param executor executor
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
+                                             Executor executor);
 }

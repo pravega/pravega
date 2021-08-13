@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -108,8 +114,7 @@ public class MultiControllerTest extends AbstractSystemTest {
      * @throws InterruptedException If test is interrupted.
      */
     @Test(timeout = 300000)
-    public void multiControllerTest() throws ExecutionException, InterruptedException {
-
+    public void multiControllerTest() throws Exception {
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with 2 controller instances running");
@@ -127,13 +132,10 @@ public class MultiControllerTest extends AbstractSystemTest {
         // All APIs should throw exception and fail.
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
 
-        if (!controllerService.getServiceDetails().isEmpty()) {
-            controllerURIDirect.set(controllerService.getServiceDetails().get(0));
-            controllerURIDiscover.set(controllerService.getServiceDetails().get(0));
-        } else {
-            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
-            controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
-        }
+        AssertExtensions.assertEventuallyEquals("Problem scaling down the Controller service.", true,
+                () -> controllerService.getServiceDetails().isEmpty(), 1000, 30000);
+        controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+        controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");

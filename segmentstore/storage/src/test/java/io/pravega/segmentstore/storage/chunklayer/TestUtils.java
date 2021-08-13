@@ -1,23 +1,36 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
+import io.pravega.shared.NameUtils;
 import lombok.val;
 import org.junit.Assert;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Test utility.
@@ -92,7 +105,7 @@ public class TestUtils {
         // Assert
         Assert.assertNotNull(segmentMetadata.getFirstChunk());
         Assert.assertNotNull(segmentMetadata.getLastChunk());
-        int expectedLength = 0;
+        long expectedLength = segmentMetadata.getFirstChunkStartOffset();
         int i = 0;
         val chunks = getChunkList(metadataStore, segmentName);
         for (val chunk : chunks) {
@@ -107,6 +120,68 @@ public class TestUtils {
         Assert.assertEquals(expectedLengths.length, i);
         Assert.assertEquals(expectedLength, segmentMetadata.getLength());
         Assert.assertEquals(expectedLengths.length, segmentMetadata.getChunkCount());
+    }
+
+    /**
+     * Checks the existence of read index block metadata records for given segment.
+     * @param chunkedSegmentStorage  ChunkedSegmentStorage.
+     * @param metadataStore  Metadata store to query.
+     * @param segmentName    Name of the segment.
+     * @param startOffset    Start offset of the segment.
+     * @param endOffset      End offset of the segment.
+     * @param checkReadIndex True if readIndex entries should be checked.
+     * @throws Exception Exceptions are thrown in case of any errors.
+     */
+    public static void checkReadIndexEntries(ChunkedSegmentStorage chunkedSegmentStorage, ChunkMetadataStore metadataStore, String segmentName, long startOffset, long endOffset, boolean checkReadIndex) throws Exception {
+        val blockSize = chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        val segmentReadIndex = chunkedSegmentStorage.getReadIndexCache().getSegmentsReadIndexCache().getIfPresent(segmentName);
+        try (val txn = metadataStore.beginTransaction(true, new String[] {segmentName})) {
+            val segmentMetadata = (SegmentMetadata) txn.get(segmentName).get();
+            Assert.assertNotNull(segmentMetadata);
+            TreeMap<Long, String> index = new TreeMap<>();
+            String current = segmentMetadata.getFirstChunk();
+            long offset = segmentMetadata.getFirstChunkStartOffset();
+            while (null != current) {
+                val chunk = (ChunkMetadata) txn.get(current).get();
+                Assert.assertNotNull(chunk);
+                if (checkReadIndex && startOffset <= offset) {
+                    Assert.assertNotNull("Offset=" + offset, segmentReadIndex.getOffsetToChunkNameIndex().get(offset));
+                    Assert.assertEquals("Offset=" + offset, chunk.getName(), segmentReadIndex.getOffsetToChunkNameIndex().get(offset).getChunkName());
+                }
+                index.put(offset, chunk.getName());
+                offset += chunk.getLength();
+                current = chunk.getNextChunk();
+            }
+            if (checkReadIndex) {
+                for (val entry : segmentReadIndex.getOffsetToChunkNameIndex().entrySet()) {
+                    Assert.assertNotNull("Offset=" + entry.getKey(), index.get(entry.getKey()));
+                    Assert.assertEquals("Offset=" + entry.getKey(), entry.getValue().getChunkName(), index.get(entry.getKey()));
+                }
+            }
+
+            long blockStartOffset;
+            for (blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset +=  blockSize) {
+                // For all offsets below start offset, there should not be any index entries.
+                if (segmentMetadata.getStartOffset() > blockStartOffset) {
+                    Assert.assertNull("for offset:" + blockStartOffset, txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get());
+                }
+
+                // For all valid offsets, there should be index entries.
+                if (segmentMetadata.getStartOffset() <= blockStartOffset) {
+                    val blockIndexEntry = (ReadIndexBlockMetadata) txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get();
+                    Assert.assertNotNull("for offset:" + blockStartOffset, blockIndexEntry);
+                    Assert.assertNotNull("for offset:" + blockStartOffset, txn.get(blockIndexEntry.getChunkName()));
+                    val mappedChunk = index.floorEntry(blockStartOffset);
+                    Assert.assertNotNull(mappedChunk);
+                    Assert.assertEquals("for offset:" + blockStartOffset, mappedChunk.getValue(), blockIndexEntry.getChunkName());
+                }
+            }
+            // For all offsets after end of the segment, there should not be any index entries
+            Assert.assertNull("for offset:" + segmentMetadata.getLength(),
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength())).get());
+            Assert.assertNull("for offset:" + segmentMetadata.getLength() + blockSize,
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength() + blockSize)).get());
+        }
     }
 
     /**
@@ -168,10 +243,58 @@ public class TestUtils {
             while (null != current) {
                 val chunk = (ChunkMetadata) txn.get(current).get();
                 Assert.assertNotNull(chunk);
-                chunkList.add(chunk);
+                chunkList.add((ChunkMetadata) chunk.deepCopy());
                 current = chunk.getNextChunk();
             }
             return chunkList;
+        }
+    }
+
+    /**
+     * Gets the list of names of chunks for the given segment.
+     *
+     * @param metadataStore Metadata store to query.
+     * @param key           Key.
+     * @return List of names of chunks for the segment.
+     * @throws Exception Exceptions are thrown in case of any errors.
+     */
+    public static Set<String> getChunkNameList(ChunkMetadataStore metadataStore, String key) throws Exception {
+        return getChunkList(metadataStore, key).stream().map( c -> c.getName()).collect(Collectors.toSet());
+    }
+
+    /**
+     * Checks garbage collection queue to ensure new chunks and truncated chunks are added to GC queue.
+     *
+     * @param chunkedSegmentStorage instance of {@link ChunkedSegmentStorage}
+     * @param beforeSet set of chunks before.
+     * @param afterSet set of chunks after.
+     */
+    public static void checkGarbageCollectionQueue(ChunkedSegmentStorage chunkedSegmentStorage, Set<String> beforeSet, Set<String> afterSet) {
+        // Get the enqueued tasks.
+        // Need to de-dup
+        val tasks = new HashMap<String, GarbageCollector.TaskInfo>();
+        val tasksList = ((InMemoryTaskQueueManager) chunkedSegmentStorage.getGarbageCollector().getTaskQueue())
+                .drain(chunkedSegmentStorage.getGarbageCollector().getTaskQueueName(), Integer.MAX_VALUE).stream()
+                .collect(Collectors.toList());
+        for (val task : tasksList) {
+            tasks.put(task.getName(), task);
+        }
+
+        // All chunks not in new set must be enqueued for deletion.
+        for ( val oldChunk: beforeSet) {
+            if (!afterSet.contains(oldChunk)) {
+                val task = tasks.get(oldChunk);
+                Assert.assertNotNull(task);
+                Assert.assertEquals(GarbageCollector.TaskInfo.DELETE_CHUNK, task.getTaskType() );
+            }
+        }
+        // All chunks not in old set must be enqueued for deletion.
+        for ( val newChunk: afterSet) {
+            if (!beforeSet.contains(newChunk)) {
+                val task = tasks.get(newChunk);
+                Assert.assertNotNull(task);
+                Assert.assertEquals(GarbageCollector.TaskInfo.DELETE_CHUNK, task.getTaskType() );
+            }
         }
     }
 

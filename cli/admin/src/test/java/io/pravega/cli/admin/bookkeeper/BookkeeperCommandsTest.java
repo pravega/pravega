@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.admin.bookkeeper;
 
@@ -59,6 +65,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         super(1);
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
@@ -94,6 +101,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setOut(new PrintStream(outContent));
     }
 
+    @Override
     @After
     public void tearDown() {
         System.setOut(originalOut);
@@ -185,6 +193,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.unwrapDataCorruptionException(new DataCorruptionException("test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", (DataCorruptionException) null));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
@@ -201,6 +210,31 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         state.operationComplete(op, new DataCorruptionException("Test exception"));
         state.newOperation(op, entries);
         state.operationComplete(op, null);
+    }
+
+    @Test
+    public void testBookKeeperReconcileCommand() throws Exception {
+        // Try the command against a non-existent log.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        Assert.assertFalse(TestUtils.executeCommand("bk reconcile 0", STATE.get()).contains("reconciliation completed"));
+        createLedgerInBookkeeperTestCluster(0);
+        // Try the command against an enabled log.
+        Assert.assertFalse(TestUtils.executeCommand("bk reconcile 0", STATE.get()).contains("reconciliation completed"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+        // Now, let's try the command under the expected conditions.
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk reconcile 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        String commandResult = TestUtils.executeCommand("bk reconcile 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("reconciliation completed"));
+    }
+
+    @Test
+    public void testBookKeeperListAllLedgersCommand() throws Exception {
+        Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("List of ledgers in the system"));
+        createLedgerInBookkeeperTestCluster(0);
+        Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("bookieLogID: 0"));
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {

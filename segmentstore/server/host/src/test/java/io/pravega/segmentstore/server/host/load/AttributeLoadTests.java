@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host.load;
 
@@ -14,6 +20,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -37,7 +44,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -279,13 +285,13 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
                 getPerBatchMillis));
     }
 
-    private void executeInBatches(int attributeCount, int batchSize, boolean random, BiConsumer<Integer, Map<UUID, Long>> processBatch) {
+    private void executeInBatches(int attributeCount, int batchSize, boolean random, BiConsumer<Integer, Map<AttributeId, Long>> processBatch) {
         int count = 0;
         int batchId = 0;
         Random rnd = random ? new Random(0) : null;
         while (count < attributeCount) {
             int bs = Math.min(batchSize, attributeCount - count);
-            val batch = new HashMap<UUID, Long>(bs);
+            val batch = new HashMap<AttributeId, Long>(bs);
             for (int indexInBatch = 0; indexInBatch < bs; indexInBatch++) {
                 val key = random ? getRandomKey(attributeCount, rnd) : getKey(count + indexInBatch);
                 val value = getValue(batchId, indexInBatch, batchSize);
@@ -321,17 +327,17 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         return offset - SEGMENT_ROLLING_SIZE;
     }
 
-    private UUID getKey(int count) {
-        return new UUID(count, count);
+    private AttributeId getKey(int count) {
+        return AttributeId.uuid(count, count);
     }
 
-    private UUID getRandomKey(int attributeCount, Random rnd) {
+    private AttributeId getRandomKey(int attributeCount, Random rnd) {
         int r = rnd.nextInt(attributeCount);
-        return new UUID(r, r);
+        return AttributeId.uuid(r, r);
     }
 
     private long getValue(int batchId, int indexInBatch, int batchSize) {
-        return (long) (batchId * batchSize + indexInBatch);
+        return batchId * batchSize + indexInBatch;
     }
 
     private double calculateExcessPercentage(long actualDataSize, long theoreticalDataSize) {

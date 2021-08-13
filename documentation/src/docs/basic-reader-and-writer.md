@@ -1,15 +1,21 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Working with Pravega: Basic Reader and Writer
 
-Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
+Let's examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be
 found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
 
@@ -31,17 +37,17 @@ public void run(String routingKey, String message) {
 
     final boolean scopeCreation = streamManager.createScope(scope);
     StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                          .scalingPolicy(ScalingPolicy.fixed(1))
-                                                          .build();
+            .scalingPolicy(ScalingPolicy.fixed(1))
+            .build();
     final boolean streamCreation = streamManager.createStream(scope, streamName, streamConfig);
 
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                                                          new JavaSerializer<String>(),
-                                                          EventWriterConfig.builder().build())) {
-
+                new JavaSerializer<String>(),
+                EventWriterConfig.builder().build()))
+    {
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
-                                                        message, routingKey, scope, streamName);
+                           message, routingKey, scope, streamName);
          final CompletableFuture<Void> writeFuture = writer.writeEvent(routingKey, message);
     }
 }
@@ -136,9 +142,9 @@ several things a developer needs to know before creating a Writer:
 
 ```Java
 
-     EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                                                      new JavaSerializer<String>(),
-                                                      EventWriterConfig.builder().build()))
+EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
+        new JavaSerializer<String>(),
+        EventWriterConfig.builder().build()))
 
 ```
 
@@ -181,44 +187,45 @@ is in the `run()` method:
 ```Java
 
 public void run() {
-   StreamManager streamManager = StreamManager.create(controllerURI);
+    StreamManager streamManager = StreamManager.create(controllerURI);
 
-   final boolean scopeIsNew = streamManager.createScope(scope);
-   StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                         .scalingPolicy(ScalingPolicy.fixed(1))
-                                                         .build();
+    final boolean scopeIsNew = streamManager.createScope(scope);
+    StreamConfiguration streamConfig = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.fixed(1))
+            .build();
    final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
 
    final String readerGroup = UUID.randomUUID().toString().replace("-", "");
    final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                                                                .stream(Stream.of(scope, streamName))
-                                                                .build();
-   try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI))
+            .stream(Stream.of(scope, streamName))
+            .build();
+    try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI))
     {
-       readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
-   }
+        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
+    }
 
-   try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+    try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
         EventStreamReader<String> reader = clientFactory.createReader("reader",
-                                                                      readerGroup,
-                                                                      new JavaSerializer<String>(),
-                                                                      ReaderConfig.builder().build()))
-        {
+                readerGroup,
+                new JavaSerializer<String>(),
+                ReaderConfig.builder().build()))
+    {
         System.out.format("Reading all the events from %s/%s%n", scope, streamName);
         EventRead<String> event = null;
         do {
-           try {
-               event = reader.readNextEvent(READER_TIMEOUT_MS);
-               if (event.getEvent() != null) {
-                   System.out.format("Read event '%s'%n", event.getEvent());
-               }
-           } catch (ReinitializationRequiredException e) {
-               //There are certain circumstances where the reader needs to be reinitialized
-               e.printStackTrace();
-           }
-       } while (event.getEvent() != null);
-       System.out.format("No more events from %s/%s%n", scope, streamName);
-   }
+            try {
+                event = reader.readNextEvent(READER_TIMEOUT_MS);
+                if (event.getEvent() != null) {
+                    System.out.format("Read event '%s'%n", event.getEvent());
+                }
+            } catch (ReinitializationRequiredException e) {
+                //There are certain circumstances where the reader needs to be reinitialized
+                e.printStackTrace();
+            }
+        } while (event.getEvent() != null);
+        System.out.format("No more events from %s/%s%n", scope, streamName);
+    }
+}
 ```
 
 The API `streamManager.createScope()` and `streamManager.createStream()` set up the Scope and Stream just like in the `HelloWorldWriter`
@@ -249,8 +256,8 @@ upper bounds. In the sample application, we start at the beginning of the Stream
 
 ```Java
 final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                                                             .stream(Stream.of(scope, streamName))
-                                                             .build();
+        .stream(Stream.of(scope, streamName))
+        .build();
 ```
 Other configuration items, such as Checkpointing are options
 that will be available through the `ReaderGroupConfig`.
@@ -276,10 +283,10 @@ objects and a `ReaderConfig`.
 
 ```Java
 EventStreamReader<String> reader = clientFactory.createReader("reader",
-                                                              readerGroup,
-                                                              new JavaSerializer<String>(),
-                                                              ReaderConfig.builder().build()))
-```                                        
+        readerGroup,
+        new JavaSerializer<String>(),
+        ReaderConfig.builder().build()))
+```
 
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to

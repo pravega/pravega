@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.bucket;
 
@@ -32,16 +38,21 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     BucketManager retentionService;
@@ -67,7 +78,7 @@ public abstract class BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
-                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
@@ -75,7 +86,7 @@ public abstract class BucketServiceTest {
         retentionService.awaitRunning();
         
         ClientConfig clientConfig = ClientConfig.builder().build();
-        periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
+        periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor, requestTracker);
         watermarkingService = bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicWatermarking::watermark, executor);
 
         watermarkingService.startAsync();

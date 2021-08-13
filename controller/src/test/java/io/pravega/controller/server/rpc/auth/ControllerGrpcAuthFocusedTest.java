@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rpc.auth;
 
@@ -101,14 +107,12 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.Timeout;
 
-import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
+import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -161,7 +165,7 @@ public class ControllerGrpcAuthFocusedTest {
     @Before
     public void setup() throws IOException {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore();
         this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, EXECUTOR));
 
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
@@ -173,15 +177,16 @@ public class ControllerGrpcAuthFocusedTest {
         GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
         EventHelper helper = EventHelperMock.getEventHelperMock(EXECUTOR, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                EXECUTOR, "host", authHelper, requestTracker, helper);
+                EXECUTOR, "host", authHelper, helper);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 EXECUTOR, "host", authHelper);
 
         kvtMetadataTasks = new TableMetadataTasks(kvtStore,  segmentHelper,
-                EXECUTOR, EXECUTOR, "host", authHelper, requestTracker, helper);
+                EXECUTOR, EXECUTOR, "host", authHelper, helper);
 
-        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, 
+                streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
@@ -205,7 +210,7 @@ public class ControllerGrpcAuthFocusedTest {
                                       streamTransactionMetadataTasks,
                                       segmentHelper,
                                       EXECUTOR,
-                                      mockCluster),
+                                      mockCluster, requestTracker),
                 authHelper, requestTracker, true, true, 2);
 
         ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBaseStrict = new ControllerServiceImpl(
@@ -214,7 +219,7 @@ public class ControllerGrpcAuthFocusedTest {
                         streamTransactionMetadataTasks,
                         segmentHelper,
                         EXECUTOR,
-                        mockCluster),
+                        mockCluster, requestTracker),
                 authHelper, requestTracker, true, false, 2);
 
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
@@ -310,10 +315,10 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
 
         //Verify
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
     @Test
@@ -327,10 +332,10 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
 
         //Verify
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
     @Test
@@ -348,7 +353,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("PERMISSION_DENIED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -366,7 +371,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("PERMISSION_DENIED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -384,7 +389,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("UNAUTHENTICATED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -394,6 +399,7 @@ public class ControllerGrpcAuthFocusedTest {
         String stream = "test";
         String readerGroup = "group";
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         createReaderGroupStrict(scope, readerGroup, config);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
@@ -414,6 +420,7 @@ public class ControllerGrpcAuthFocusedTest {
         String stream = "test";
         String readerGroup = "group";
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
         createReaderGroup(scope, readerGroup, config);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
@@ -488,13 +495,17 @@ public class ControllerGrpcAuthFocusedTest {
         String stream1 = "test1";
         String stream2 = "test2";
         String readerGroup = "group";
-        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        oldConfig = ReaderGroupConfig.cloneConfig(oldConfig, rgId, 0L);
         createScopeAndStreamsStrict(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroupStrict(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
-                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream2)).build();
+        rgConf = ReaderGroupConfig.cloneConfig(rgConf, oldConfig.getReaderGroupId(), 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, rgConf);
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
@@ -510,13 +521,18 @@ public class ControllerGrpcAuthFocusedTest {
         String stream1 = "test1";
         String stream2 = "test2";
         String readerGroup = "group";
-        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        oldConfig = ReaderGroupConfig.cloneConfig(oldConfig, rgId, 0L);
         createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroup(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
-                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream2)).build();
+        rgConf = ReaderGroupConfig.cloneConfig(rgConf, rgId, 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, rgConf);
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
@@ -530,11 +546,14 @@ public class ControllerGrpcAuthFocusedTest {
         //Arrange
         String scope = "scope1";
         String stream = "test";
+        UUID rgId = UUID.randomUUID();
         createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
-                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream))
+                .build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", rgConfig);
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
@@ -855,16 +874,16 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
         createScope(stub, scope);
 
-        doAnswer(x -> CompletableFuture.completedFuture(true)).when(this.kvtStore).checkScopeExists(any());
+        doAnswer(x -> CompletableFuture.completedFuture(true)).when(this.kvtStore).checkScopeExists(any(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table1", "table2"), "2")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq(""), anyInt(), any());
+                eq(""), anyInt(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table3", "table4"), "4")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq("2"), anyInt(), any());
+                eq("2"), anyInt(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "4")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq("4"), anyInt(), any());
+                eq("4"), anyInt(), any(), any());
         
         stub = prepareBlockingCallStub(UserNames.SCOPE1_TABLE1_LIST_READ, DEFAULT_PASSWORD);
         Controller.KVTablesInScopeRequest request = Controller.KVTablesInScopeRequest
@@ -1044,8 +1063,8 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub =
                 prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
 
-        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
-        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+        Controller.CreateReaderGroupResponse status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupResponse.Status.SUCCESS)) {
             throw new RuntimeException("Failed to create reader-group");
         }
     }
@@ -1057,8 +1076,8 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub =
                 prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
 
-        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
-        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+        Controller.CreateReaderGroupResponse status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupResponse.Status.SUCCESS)) {
             throw new RuntimeException("Failed to create reader-group");
         }
     }

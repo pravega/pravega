@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream;
 
@@ -29,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -37,8 +44,12 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingLong;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
+@EqualsAndHashCode
 public class ReaderGroupConfig implements Serializable {
+
+    public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
+    public static final long DEFAULT_GENERATION = -1;
 
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
@@ -53,8 +64,9 @@ public class ReaderGroupConfig implements Serializable {
 
     private final StreamDataRetention retentionType;
 
+    @EqualsAndHashCode.Exclude
     private final long generation;
-
+    @EqualsAndHashCode.Exclude
     private final UUID readerGroupId;
 
     /**
@@ -77,15 +89,38 @@ public class ReaderGroupConfig implements Serializable {
         AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT;
     }
 
-   public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
+    public static ReaderGroupConfig cloneConfig(final ReaderGroupConfig configToClone, final UUID readerGroupId, final long generation) {
+        return ReaderGroupConfig.builder()
+                .readerGroupId(readerGroupId)
+                .generation(generation)
+                .retentionType(configToClone.getRetentionType())
+                .automaticCheckpointIntervalMillis(configToClone.getAutomaticCheckpointIntervalMillis())
+                .groupRefreshTimeMillis(configToClone.getGroupRefreshTimeMillis())
+                .maxOutstandingCheckpointRequest(configToClone.getMaxOutstandingCheckpointRequest())
+                .startingStreamCuts(configToClone.getStartingStreamCuts())
+                .endingStreamCuts(configToClone.getEndingStreamCuts())
+                .build();
+    }
+
+    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
        private StreamDataRetention retentionType = StreamDataRetention.NONE; //default value
-       private long generation = 0;
-       private UUID readerGroupId = UUID.randomUUID();
+       private long generation = DEFAULT_GENERATION;
+       private UUID readerGroupId = DEFAULT_UUID;
 
+       private ReaderGroupConfigBuilder readerGroupId(UUID initReaderGroupId) {
+           this.readerGroupId = initReaderGroupId;
+           return this;
+       }
+
+       private ReaderGroupConfigBuilder generation(final long gen) {
+           this.generation = gen;
+           return this;
+       }
+       
        /**
         * Disables automatic checkpointing. Checkpoints need to be
         * generated manually, see this method:

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream;
 
@@ -84,7 +90,7 @@ public class StreamCutTest {
                                         (out, offset) -> out.writeCompactLong(offset));
         }
 
-        private void read00(RevisionDataInput revisionDataInput, StreamCutInternal target) throws IOException {
+        private void read00(RevisionDataInput revisionDataInput, StreamCutInternal target) {
             // NOP.
         }
     }
@@ -95,7 +101,7 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
-        StreamCut sc = new StreamCutImpl( Stream.of("scope", "stream"), segmentOffsetMap);
+        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
 
         // Obtain version 0 serialized data
         final byte[] bufV0 = new StreamCutSerializerV0().serialize(sc.asImpl()).array();

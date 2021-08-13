@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.store;
 
@@ -38,6 +44,7 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
@@ -128,7 +135,7 @@ public class ServiceBuilder implements AutoCloseable {
         this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
         this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
-        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
+        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
 
         this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
     }
@@ -253,7 +260,7 @@ public class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-        return new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        return new SegmentToContainerMapper(serviceConfig.getContainerCount(), serviceConfig.isEnableAdminGateway());
     }
 
     protected WriterFactory createWriterFactory() {
@@ -288,7 +295,8 @@ public class ServiceBuilder implements AutoCloseable {
 
     private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
-        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
+        TableExtensionConfig config = this.serviceBuilderConfig.getConfig(TableExtensionConfig::builder);
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(config, container, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -367,7 +375,9 @@ public class ServiceBuilder implements AutoCloseable {
      */
     @VisibleForTesting
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig, ExecutorBuilder executorBuilder) {
-        ServiceConfig serviceConfig = builderConfig.getConfig(ServiceConfig::builder);
+        ServiceConfig serviceConfig = builderConfig.getConfigBuilder(ServiceConfig::builder)
+            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
+            .build();
         ServiceBuilder builder;
         if (serviceConfig.isReadOnlySegmentStore()) {
             // Only components required for ReadOnly SegmentStore.
@@ -412,7 +422,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         @Override
         protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT);
+            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
         }
 
         @Override

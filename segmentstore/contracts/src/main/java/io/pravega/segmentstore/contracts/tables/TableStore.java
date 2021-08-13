@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -70,11 +77,11 @@ public interface TableStore {
      * Creates a new Segment and marks it as a Table Segment.
      * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
      *
+     * This cannot be used to create Fixed-Key Table Segments. Use {@link #createSegment(String, SegmentType, TableSegmentConfig, Duration)} instead.
+     *
      * @param segmentName The name of the Table Segment to create.
      * @param segmentType Type of Segment to Create. If not already specified, this will automatically set the
-     *                    {@link  SegmentType#isTableSegment()} to true. If {@link  SegmentType#isSortedTableSegment()}
-     *                    is true, this will create a Sorted Table Segment (EXPERIMENTAL), otherwise it will be a plain
-     *                    Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     *                    {@link  SegmentType#isTableSegment()} to true.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:
@@ -82,7 +89,29 @@ public interface TableStore {
      * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
      * </ul>
      */
-    CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout);
+    default CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+        Preconditions.checkArgument(!segmentType.isFixedKeyLengthTableSegment(), "Cannot create Fixed-Key-Length Table Segments using this API.");
+        return createSegment(segmentName, segmentType, TableSegmentConfig.NO_CONFIG, timeout);
+    }
+
+    /**
+     * Creates a Table Segment.
+     * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
+     *
+     * @param segmentName The name of the Table Segment to create.
+     * @param segmentType Type of Segment to Create. If not already specified, this will automatically set the
+     *                    {@link  SegmentType#isTableSegment()} to true. If {@link  SegmentType#isFixedKeyLengthTableSegment()}
+     *                    is true, this will create a Fixed-Key-Length Table Segment (EXPERIMENTAL), otherwise it will be
+     *                    a plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     * @param config      A {@link TableSegmentConfig} to use.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * led, the future will be failed with the causing exception. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
+     * </ul>
+     */
+    CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout);
 
     /**
      * Deletes an existing Table Segment.
@@ -100,35 +129,6 @@ public interface TableStore {
      * </ul>
      */
     CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout);
-
-    /**
-     * Merges a Table Segment into another Table Segment.
-     *
-     * @param targetSegmentName The name of the Table Segment to merge into.
-     * @param sourceSegmentName The name of the Table Segment to merge.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception. Notable Exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If either the Source or Target Table Segment do not exist.
-     * <li>{@link BadSegmentTypeException} If sourceSegmentName or targetSegmentName refer to non-Table Segments.
-     * </ul>
-     */
-    CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout);
-
-    /**
-     * Seals a Table Segment for modifications.
-     *
-     * @param segmentName The name of the Table Segment to seal.
-     * @param timeout     Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception. Notable Exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
-     */
-    CompletableFuture<Void> seal(String segmentName, Duration timeout);
 
     /**
      * Inserts new or updates existing Table Entries into the given Table Segment.
@@ -309,4 +309,19 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout);
+
+    /**
+     * Gets information about a Table Segment.
+     *
+     * @param segmentName The name of the Table Segment.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
+     * future will be failed with the causing exception. Note that this result will only contain the Core Attributes
+     * for this Segment. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
+     */
+    CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout);
 }

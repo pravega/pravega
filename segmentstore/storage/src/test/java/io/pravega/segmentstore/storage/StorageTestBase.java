@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage;
 
@@ -53,7 +59,7 @@ import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
  */
 public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(60);
     protected static final long DEFAULT_EPOCH = 1;
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
@@ -87,11 +93,6 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             assertThrows("create() did not throw for existing StreamSegment.",
                     () -> createSegment(segmentName, s),
                     ex -> ex instanceof StreamSegmentExistsException);
-
-            // Delete and make sure it can be recreated.
-            s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
-            createSegment(segmentName, s);
-            Assert.assertTrue("Expected the segment to exist.", s.exists(segmentName, null).join());
         }
     }
 

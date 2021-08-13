@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
@@ -23,6 +29,8 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import java.time.Duration;
 import java.util.Collection;
@@ -58,10 +66,10 @@ public class TableStoreMock implements TableStore {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(segmentType.isTableSegment(), "Expected SegmentType.isTableSegment");
-        Preconditions.checkArgument(!segmentType.isSortedTableSegment(), "Sorted Table Segments not supported in this mock.");
+        Preconditions.checkArgument(!segmentType.isFixedKeyLengthTableSegment(), "Fixed-Key-Length Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {
@@ -116,16 +124,6 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
-    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         throw new UnsupportedOperationException();
     }
@@ -137,6 +135,11 @@ public class TableStoreMock implements TableStore {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
         throw new UnsupportedOperationException();
     }
 

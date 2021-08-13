@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
@@ -14,7 +20,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.ConfigSetup;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
@@ -167,7 +172,7 @@ public class StorageLoaderTest {
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
     }
 
-    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
+    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageLoader loader = new StorageLoader();

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -41,30 +47,30 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<Void> create(ReaderGroupConfig configuration, long createTimestamp) {
-        return createMetadataTables()
-                  .thenCompose((Void v) -> storeCreationTimeIfAbsent(createTimestamp))
-                  .thenCompose((Void v) -> createConfigurationIfAbsent(configuration))
-                  .thenCompose((Void v) -> createStateIfAbsent());
+    public CompletableFuture<Void> create(ReaderGroupConfig configuration, long createTimestamp, OperationContext context) {
+        return createMetadataTables(context)
+                  .thenCompose((Void v) -> storeCreationTimeIfAbsent(createTimestamp, context))
+                  .thenCompose((Void v) -> createConfigurationIfAbsent(configuration, context))
+                  .thenCompose((Void v) -> createStateIfAbsent(context));
     }
 
     @Override
-    public CompletableFuture<Void> startUpdateConfiguration(ReaderGroupConfig configuration) {
-        return getVersionedConfigurationRecord()
+    public CompletableFuture<Void> startUpdateConfiguration(ReaderGroupConfig configuration, OperationContext context) {
+        return getVersionedConfigurationRecord(context)
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
                     Preconditions.checkArgument(configRecord.getObject().getGeneration() == configuration.getGeneration());
                     ReaderGroupConfigRecord update = ReaderGroupConfigRecord.update(configuration, configuration.getGeneration() + 1, true);
-                    return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion())));
+                    return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion()), context));
                 });
     }
 
     @Override
-    public CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfigRecord> existing) {
+    public CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfigRecord> existing, OperationContext context) {
         Preconditions.checkNotNull(existing.getObject());
         if (existing.getObject().isUpdating()) {
             ReaderGroupConfigRecord updatedRecord = ReaderGroupConfigRecord.complete(existing.getObject());
-            return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(updatedRecord, existing.getVersion())));
+            return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(updatedRecord, existing.getVersion()), context));
         } else {
             // idempotent
             return CompletableFuture.completedFuture(null);
@@ -72,20 +78,22 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getVersionedConfigurationRecord() {
-        return getConfigurationData(true);
+    public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getVersionedConfigurationRecord(OperationContext context) {
+        return getConfigurationData(true, context);
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedState() {
-        return getStateData(true)
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedState(OperationContext context) {
+        return getStateData(true, context)
                 .thenApply(x -> new VersionedMetadata<>(x.getObject().getState(), x.getVersion()));
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateVersionedState(VersionedMetadata<ReaderGroupState> previousState, ReaderGroupState newState) {
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateVersionedState(VersionedMetadata<ReaderGroupState> previousState, 
+                                                                                       ReaderGroupState newState, OperationContext context) {
         if (ReaderGroupState.isTransitionAllowed(previousState.getObject(), newState)) {
-            return setStateData(new VersionedMetadata<>(ReaderGroupStateRecord.builder().state(newState).build(), previousState.getVersion()))
+            return setStateData(new VersionedMetadata<>(ReaderGroupStateRecord.builder().state(newState).build(), previousState.getVersion()),
+                    context)
                     .thenApply(updatedVersion -> new VersionedMetadata<>(newState, updatedVersion));
         } else {
             return Futures.failedFuture(StoreException.create(
@@ -96,24 +104,28 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<ReaderGroupState> getState(boolean ignoreCached) {
-        return getStateData(ignoreCached)
+    public CompletableFuture<ReaderGroupState> getState(boolean ignoreCached, OperationContext context) {
+        return getStateData(ignoreCached, context)
                 .thenApply(x -> x.getObject().getState());
     }
 
-    abstract CompletableFuture<Void> createMetadataTables();
+    abstract CompletableFuture<Void> createMetadataTables(OperationContext context);
 
-    abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
+    abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime, OperationContext context);
 
-    abstract CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig data);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig data, OperationContext context);
 
-    abstract CompletableFuture<Void> createStateIfAbsent();
+    abstract CompletableFuture<Void> createStateIfAbsent(OperationContext context);
 
-    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<ReaderGroupStateRecord> state);
+    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<ReaderGroupStateRecord> state,
+                                                     OperationContext context);
 
-    abstract CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached);
+    abstract CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached, 
+                                                                                                OperationContext context);
 
-    abstract CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached);
+    abstract CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached, 
+                                                                                       OperationContext context);
 
-    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<ReaderGroupConfigRecord> configuration);
+    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<ReaderGroupConfigRecord> configuration, 
+                                                             OperationContext context);
 }

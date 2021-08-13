@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -94,7 +100,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReaderNotInReaderGroupException {
+    public void testEndOfSegmentWithoutSuccessors() throws ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -253,19 +259,19 @@ public class EventStreamReaderTest {
         ByteBuffer buffer3 = writeInt(stream, 3);
         EventRead<byte[]> e = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(new Long(WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES),
+        assertEquals(Long.valueOf(WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         e = reader.readNextEvent(0);
         assertEquals(buffer2, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(new Long(2 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+        assertEquals(Long.valueOf(2 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         e = reader.readNextEvent(0);
         assertEquals(buffer3, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(new Long(3 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+        assertEquals(Long.valueOf(3 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         e = reader.readNextEvent(0);
         assertNull(e.getEvent());
-        assertEquals(new Long(-1), e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        assertEquals(Long.valueOf(-1), e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         reader.close();
     }
 
@@ -316,7 +322,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
-    private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
+    private ByteBuffer writeInt(SegmentOutputStream stream, int value) {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
         stream.write(PendingEvent.withHeader(null, buffer, new CompletableFuture<Void>()));
@@ -703,13 +709,13 @@ public class EventStreamReaderTest {
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         writeInt(stream, 3);
-        long length = metadataClient.fetchCurrentSegmentLength();
+        long length = metadataClient.fetchCurrentSegmentLength().join();
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-        metadataClient.truncateSegment(length / 3);
+        metadataClient.truncateSegment(length / 3).join();
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        metadataClient.truncateSegment(length);
+        metadataClient.truncateSegment(length).join();
         ByteBuffer buffer4 = writeInt(stream, 4);
         assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
@@ -852,6 +858,7 @@ public class EventStreamReaderTest {
     public void testReaderClose() throws SegmentSealedException {
         String scope = "scope";
         String stream = "stream";
+        String groupName = "readerGroup";
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
@@ -876,11 +883,11 @@ public class EventStreamReaderTest {
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
                                                                                          segmentStreamFactory,
                                                                                          Stream.of(scope, stream),
-                                                                                         "reader1", clock, 2);
+                                                                                         "reader1", clock, 2, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader1 = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        EventStreamReaderImpl<byte[]> reader1 = createReader(controller, segmentStreamFactory, "reader1", sync, clock, scope, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader2 = createReader(controller, segmentStreamFactory, "reader2", sync, clock);
+        EventStreamReaderImpl<byte[]> reader2 = createReader(controller, segmentStreamFactory, "reader2", sync, clock, scope, groupName);
         
         assertEquals(1, readInt(reader1.readNextEvent(0)));
         assertEquals(2, readInt(reader2.readNextEvent(0)));
@@ -896,6 +903,7 @@ public class EventStreamReaderTest {
     public void testPositionsContainSealedSegments() throws SegmentSealedException {
         String scope = "scope";
         String stream = "stream";
+        String groupName = "readerGroup";
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
@@ -919,9 +927,9 @@ public class EventStreamReaderTest {
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
                                                                                          segmentStreamFactory,
                                                                                          Stream.of(scope, stream),
-                                                                                         "reader1", clock, 2);
+                                                                                         "reader1", clock, 2, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        EventStreamReaderImpl<byte[]> reader = createReader(controller, segmentStreamFactory, "reader1", sync, clock, scope, groupName);
         EventRead<byte[]> event = reader.readNextEvent(100);
         assertEquals(2, readInt(event));
         assertEquals(ImmutableSet.of(), event.getPosition().asImpl().getCompletedSegments());
@@ -953,7 +961,8 @@ public class EventStreamReaderTest {
         String scope = "scope";
         String streamName = "stream";
         Stream stream = Stream.of(scope, streamName);
-        String readerGroupStream = NameUtils.getStreamForReaderGroup("readerGroup");
+        String groupName = "readerGroup";
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
         String markStream = NameUtils.getMarkStreamForStream(streamName);
         
         //Create factories
@@ -990,7 +999,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), false));
         //Data segment writers
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
@@ -1016,7 +1025,7 @@ public class EventStreamReaderTest {
         
         //Create reader
         AtomicLong clock = new AtomicLong();
-        ReaderGroupStateManager groupState = new ReaderGroupStateManager("reader1", sync, controller, clock::get);
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(scope, groupName, "reader1", sync, controller, clock::get);
         groupState.initializeReader(0);
         @Cleanup
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
@@ -1069,8 +1078,9 @@ public class EventStreamReaderTest {
 
     private EventStreamReaderImpl<byte[]> createReader(MockController controller,
                                                        MockSegmentStreamFactory segmentStreamFactory, String readerId,
-                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock) {
-        ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
+                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock,
+                                                       String scope, String groupName) {
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(scope, groupName, readerId, sync, controller, clock::get);
         groupState.initializeReader(0);
         return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
                                            groupState, new Orderer(), clock::get, ReaderConfig.builder().build(),
@@ -1083,8 +1093,9 @@ public class EventStreamReaderTest {
                                                                                       MockSegmentStreamFactory streamFactory,
                                                                                       Stream stream, String readerId,
                                                                                       AtomicLong clock,
-                                                                                      int numSegments) {
-        String readerGroupStream = NameUtils.getStreamForReaderGroup("readerGroup");
+                                                                                      int numSegments,
+                                                                                      String groupName) {
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                               .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                               .build();
@@ -1106,7 +1117,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), false));
         return sync;
     }
     

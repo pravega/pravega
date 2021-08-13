@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -22,7 +28,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.val;
 import org.junit.Assert;
@@ -78,6 +86,7 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
     /**
      * Tests {@link CompositeBufferView#getReader()}.
      */
+    @Override
     @Test
     public void testGetReader() throws IOException {
         val components = createComponents();
@@ -125,6 +134,7 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
      * Tests {@link CompositeBufferView#slice(int, int)} and {@link CompositeBufferView#getReader(int, int)}.
      */
     @Test
+    @Override
     public void testSlice() throws IOException {
         val components = createComponents();
         val cb = BufferView.wrap(components);
@@ -132,8 +142,20 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
         val expected = StreamHelpers.readAll(
                 new SequenceInputStream(Iterators.asEnumeration(components.stream().map(BufferView::getReader).iterator())),
                 expectedSize);
+
+        val expectedInitialAllocatedSize = components.stream().mapToInt(BufferView::getAllocatedLength).sum();
+        Assert.assertEquals("Unexpected initial allocated size.", expectedInitialAllocatedSize, cb.getAllocatedLength());
+
+        val componentIndexByOffset = new TreeMap<Integer, Integer>();
+        int offset = 0;
+        for (int i = 0; i < components.size(); i++) {
+            val c = components.get(i);
+            componentIndexByOffset.put(offset, i);
+            offset += c.getLength();
+        }
+
         for (int i = 0; i < expectedSize / 2; i++) {
-            int sliceLength = expectedSize - i;
+            int sliceLength = expectedSize - 2 * i;
             val slice = cb.slice(i, sliceLength);
             val sliceData = slice.getCopy();
             AssertExtensions.assertArrayEquals("slice(offset, length)", expected, i, sliceData, 0, sliceLength);
@@ -141,6 +163,15 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
             val sliceReader = cb.getReader(i, sliceLength);
             val sliceReaderData = StreamHelpers.readAll(sliceReader, sliceLength);
             AssertExtensions.assertArrayEquals("getReader(offset, length)", expected, i, sliceReaderData, 0, sliceLength);
+
+            val startComponentIndex = componentIndexByOffset.floorEntry(i).getValue();
+            val endComponentIndex = componentIndexByOffset.floorEntry(i + sliceLength - 1).getValue();
+            val expectedAllocatedSize = IntStream.rangeClosed(startComponentIndex, endComponentIndex)
+                    .mapToObj(components::get)
+                    .mapToInt(BufferView::getAllocatedLength)
+                    .sum();
+            Assert.assertEquals("Unexpected allocated size for slice " + i + "-" + (i + sliceLength),
+                    expectedAllocatedSize, slice.getAllocatedLength());
         }
     }
 

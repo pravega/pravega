@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.storage;
 
@@ -75,7 +81,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof HDFSSimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -122,7 +128,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof ExtendedS3SimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -165,7 +171,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof FileSystemSimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage

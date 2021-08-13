@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage;
 
@@ -234,7 +240,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
                 Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
                         readBuffer.length, bytesRead);
                 AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
-                        readBuffer, (int) offset, readBuffer, 0, bytesRead);
+                        readBuffer, offset, readBuffer, 0, bytesRead);
             }
             s1.delete(writeHandle1, TIMEOUT).join();
         }

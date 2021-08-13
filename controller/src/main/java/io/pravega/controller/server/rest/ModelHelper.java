@@ -1,27 +1,40 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rest;
 
-import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
-import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.TagsList;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
+import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Provides translation between the Model classes and its REST representation.
@@ -40,7 +53,7 @@ public class ModelHelper {
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest) {
         ScalingPolicy scalingPolicy;
         if (createStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
-           scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
+            scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
         } else if (createStreamRequest.getScalingPolicy().getType() ==
                 ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC) {
             scalingPolicy = ScalingPolicy.byEventRate(
@@ -71,9 +84,9 @@ public class ModelHelper {
                     break;
                 case LIMITED_DAYS:
                     if (createStreamRequest.getRetentionPolicy().getMaxValue() == null
-                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
+                            && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                    createStreamRequest.getRetentionPolicy().getValue());
+                                createStreamRequest.getRetentionPolicy().getValue());
                     } else {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                                 createStreamRequest.getRetentionPolicy().getValue(),
@@ -86,9 +99,15 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
+
+        TagsList tagsList = new TagsList();
+        if (createStreamRequest.getStreamTags() != null) {
+            tagsList = createStreamRequest.getStreamTags();
+        }
         return StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
+                .tags(tagsList)
                 .build();
     }
 
@@ -125,23 +144,23 @@ public class ModelHelper {
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                                                        updateStreamRequest.getRetentionPolicy().getValue());
+                            updateStreamRequest.getRetentionPolicy().getValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
         return StreamConfiguration.builder()
-                                  .scalingPolicy(scalingPolicy)
-                                  .retentionPolicy(retentionPolicy)
-                                  .build();
+                .scalingPolicy(scalingPolicy)
+                .retentionPolicy(retentionPolicy)
+                .build();
     }
 
     /**
      * The method translates the internal object StreamConfiguration into REST response object.
      *
-     * @param scope the scope of the stream
-     * @param streamName the name of the stream
+     * @param scope               the scope of the stream
+     * @param streamName          the name of the stream
      * @param streamConfiguration The configuration of stream
      * @return Stream properties wrapped in StreamResponse object
      */
@@ -191,12 +210,53 @@ public class ModelHelper {
             }
         }
 
+        TagsList tagList = new TagsList();
+        tagList.addAll(streamConfiguration.getTags());
+
         StreamProperty streamProperty = new StreamProperty();
         streamProperty.setScopeName(scope);
         streamProperty.setStreamName(streamName);
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
+        streamProperty.setTags(tagList);
         return streamProperty;
+    }
+
+    /**
+     * The method translates the internal object ReaderGroupConfigRecord object into REST response object.
+     *
+     * @param scope the scope of the Reader Group.
+     * @param rgName the name of the Reader Group.
+     * @param rgConfig The configuration of Reader Group.
+     * @param rgId Reader Group Id.
+     * @return Stream properties wrapped in StreamResponse object
+     */
+    public static final Controller.ReaderGroupConfiguration encodeReaderGroupConfigRecord(String scope, String rgName,
+                                                                                           final ReaderGroupConfigRecord rgConfig,
+                                                                                           final UUID rgId) {
+        List<Controller.StreamCut> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(io.pravega.client.control.impl.ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        List<Controller.StreamCut> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(io.pravega.client.control.impl.ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        final Controller.ReaderGroupConfiguration.Builder builder = Controller.ReaderGroupConfiguration.newBuilder()
+                .setScope(scope)
+                .setReaderGroupName(rgName)
+                .setGroupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
+                .setAutomaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
+                .setMaxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
+                .setRetentionType(rgConfig.getRetentionTypeOrdinal())
+                .setGeneration(rgConfig.getGeneration())
+                .setReaderGroupId(rgId.toString())
+                .addAllStartingStreamCuts(startStreamCuts)
+                .addAllEndingStreamCuts(endStreamCuts);
+        return builder.build();
+
     }
 
     private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {
@@ -204,7 +264,7 @@ public class ModelHelper {
                 Duration.ofDays(timeRetention.getDays())
                         .plusHours(timeRetention.getHours())
                         .plusMinutes(timeRetention.getMinutes())
-                :  Duration.ofDays(retentionInDays);
+                : Duration.ofDays(retentionInDays);
         return RetentionPolicy.byTime(retentionDuration);
     }
 
@@ -214,22 +274,23 @@ public class ModelHelper {
                 Duration.ofDays(timeRetention.getDays())
                         .plusHours(timeRetention.getHours())
                         .plusMinutes(timeRetention.getMinutes())
-                :  Duration.ofDays(retentionInDays);
+                : Duration.ofDays(retentionInDays);
         Duration retentionDurationMax = (maxTimeRetention != null && maxRetentionInDays == 0) ?
                 Duration.ofDays(maxTimeRetention.getDays())
                         .plusHours(maxTimeRetention.getHours())
                         .plusMinutes(maxTimeRetention.getMinutes())
-                :  Duration.ofDays(maxRetentionInDays);
+                : Duration.ofDays(maxRetentionInDays);
         return RetentionPolicy.byTime(retentionDurationMin, retentionDurationMax);
     }
 
     /**
      * This method takes total retention duration in milliseconds and
      * computes minutes from remainder ms after subtracting (daysInMs + hoursInMs)
+     *
      * @param totalDurationInMs retention duration in milliseconds
-     * @param daysInMs milliseconds for days in the retention duration
-     * @param hours hours in the retention duration. This absolute value not in ms.
-     * */
+     * @param daysInMs          milliseconds for days in the retention duration
+     * @param hours             hours in the retention duration. This absolute value not in ms.
+     */
     private static long getMinsFromMillis(long totalDurationInMs, long daysInMs, long hours) {
         long remainderMs = 0L;
         if (hours > 0) {

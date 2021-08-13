@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -30,7 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -55,7 +63,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 11;
+    public static final int WIRE_VERSION = 13;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -349,6 +357,7 @@ public final class WireCommands {
     }
 
     @Data
+    @EqualsAndHashCode(exclude = "serverStackTrace")
     public static final class InvalidEventNumber implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
@@ -1105,12 +1114,77 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class GetTableSegmentInfo implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.GET_TABLE_SEGMENT_INFO;
+        final long requestId;
+        final String segmentName;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.getTableSegmentInfo(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segmentName);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            return new GetTableSegmentInfo(requestId, segment, delegationToken);
+        }
+    }
+
+    @Data
+    public static final class TableSegmentInfo implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_SEGMENT_INFO;
+        final long requestId;
+        final String segmentName;
+        final long startOffset;
+        final long length;
+        final long entryCount;
+        final int keyLength;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableSegmentInfo(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segmentName);
+            out.writeLong(startOffset);
+            out.writeLong(length);
+            out.writeLong(entryCount);
+            out.writeInt(keyLength);
+        }
+
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segmentName = in.readUTF();
+            long startOffset = in.readLong();
+            long segmentLength = in.readLong();
+            long entryCount = in.readLong();
+            int keyLength = in.readInt();
+            return new TableSegmentInfo(requestId, segmentName, startOffset, segmentLength, entryCount, keyLength);
+        }
+    }
+
+    @Data
     public static final class CreateTableSegment implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
-        final boolean sorted;
+        final boolean sortedDeprecated;
+        final int keyLength;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1124,7 +1198,8 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeBoolean(sorted);
+            out.writeBoolean(sortedDeprecated);
+            out.writeInt(keyLength);
         }
 
         public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
@@ -1132,11 +1207,15 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             boolean sorted = false;
+            int keyLength = 0;
             if (in.available() >= 1) {
                 sorted = in.readBoolean();
             }
+            if (in.available() >= Integer.BYTES) {
+                keyLength = in.readInt();
+            }
 
-            return new CreateTableSegment(requestId, segment, sorted, delegationToken);
+            return new CreateTableSegment(requestId, segment, sorted, keyLength, delegationToken);
         }
     }
 
@@ -1225,6 +1304,7 @@ public final class WireCommands {
     }
 
     @Data
+    @AllArgsConstructor
     public static final class MergeSegments implements Request, WireCommand {
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
         final long requestId;
@@ -1232,6 +1312,16 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
+        final List<ConditionalAttributeUpdate> attributeUpdates;
+
+        // Constructor to keep compatibility with all the calls not requiring attributes to merge Segments.
+        public MergeSegments(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+            this.attributeUpdates = Collections.emptyList();
+        }
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1244,45 +1334,27 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(attributeUpdates.size());
+            for (ConditionalAttributeUpdate entry : attributeUpdates) {
+                entry.writeFields(out);
+            }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            return new MergeSegments(requestId, target, source, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class MergeTableSegments implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.MERGE_TABLE_SEGMENTS;
-        final long requestId;
-        final String target;
-        final String source;
-        @ToString.Exclude
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.mergeTableSegments(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(target);
-            out.writeUTF(source);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String target = in.readUTF();
-            String source = in.readUTF();
-            String delegationToken = in.readUTF();
-            return new MergeTableSegments(requestId, target, source, delegationToken);
+            List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
+            if (in.available() <= 0) {
+                // MergeSegment Commands prior v5 do not allow attributeUpdates, so we can return.
+                return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
+            }
+            int numberOfEntries = in.readInt();
+            for (int i = 0; i < numberOfEntries; i++) {
+                attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
+            }
+            return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
         }
     }
 
@@ -1341,34 +1413,6 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             return new SealSegment(requestId, segment, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class SealTableSegment implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.SEAL_TABLE_SEGMENT;
-        final long requestId;
-        final String segment;
-        @ToString.Exclude
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.sealTableSegment(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String delegationToken = in.readUTF();
-            return new SealTableSegment(requestId, segment, delegationToken);
         }
     }
 
@@ -1702,9 +1746,9 @@ public final class WireCommands {
             }
 
             private final int code;
-            private final Class exception;
+            private final Class<? extends Throwable> exception;
 
-            private ErrorCode(int code, Class exception) {
+            private ErrorCode(int code, Class<? extends Exception> exception) {
                 this.code = code;
                 this.exception = exception;
             }
@@ -1713,7 +1757,7 @@ public final class WireCommands {
                 return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.UNSPECIFIED);
             }
 
-            public static ErrorCode valueOf(Class exception) {
+            public static ErrorCode valueOf(Class<? extends Throwable> exception) {
                 return OBJECTS_BY_CLASS.getOrDefault(exception, ErrorCode.UNSPECIFIED);
             }
 
@@ -1721,7 +1765,7 @@ public final class WireCommands {
                 return this.code;
             }
 
-            public Class getExceptionType() {
+            public Class<? extends Throwable> getExceptionType() {
                 return this.exception;
             }
 
@@ -1962,8 +2006,8 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        final TableIteratorArgs args;
+
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1976,15 +2020,7 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedKeyCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
-            }
-
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
-            }
+            args.writeFields(out);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1992,19 +2028,52 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int suggestedKeyCount = in.readInt();
-            int dataLength = in.readInt();
+            TableIteratorArgs args = new TableIteratorArgs(in);
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, args);
+        }
+    }
 
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
+    @RequiredArgsConstructor
+    @Getter
+    @EqualsAndHashCode
+    public static final class TableIteratorArgs {
+        final ByteBuf continuationToken; // Used to indicate the point from which the next entry should be fetched.
+        final ByteBuf prefixFilter;      // (Deprecated as of 0.10) Used to indicate any prefix filters to apply to keys.
+        final ByteBuf fromKey;           // Lower bound of the iteration.
+        final ByteBuf toKey;             // Upper bound of the iteration.
 
-            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
-            if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
+        TableIteratorArgs(ByteBufInputStream in) throws IOException {
+            this(readBuffer(in), readBuffer(in), readBuffer(in), readBuffer(in));
+        }
+
+        private static ByteBuf readBuffer(ByteBufInputStream in) throws IOException {
+            int dataLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
+            byte[] data = new byte[dataLength];
+            if (dataLength > 0) {
+                in.readFully(data);
+            }
+            return wrappedBuffer(data);
+        }
+
+        void writeFields(DataOutput out) throws IOException {
+            out.writeInt(continuationToken.readableBytes()); // continuation token length.
+            if (continuationToken.readableBytes() != 0) {
+                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
             }
 
-            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
+            // Prefix Filter has been removed as of 0.10. For backwards compatibility, encoding a length of 0 here.
+            out.writeInt(0);
+
+            // FromKey/ToKey introduced in 0.10.
+            out.writeInt(fromKey.readableBytes());
+            if (fromKey.readableBytes() != 0) {
+                fromKey.getBytes(fromKey.readerIndex(), (OutputStream) out, fromKey.readableBytes());
+            }
+
+            out.writeInt(toKey.readableBytes());
+            if (toKey.readableBytes() != 0) {
+                toKey.getBytes(toKey.readerIndex(), (OutputStream) out, toKey.readableBytes());
+            }
         }
     }
 
@@ -2069,8 +2138,7 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        final TableIteratorArgs args;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -2083,14 +2151,7 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedEntryCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
-            }
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
-            }
+            args.writeFields(out);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -2098,19 +2159,8 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int suggestedEntryCount = in.readInt();
-            int dataLength = in.readInt();
-
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
-
-            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
-            if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
-            }
-
-            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
+            TableIteratorArgs args = new TableIteratorArgs(in);
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, args);
         }
     }
 
@@ -2141,7 +2191,6 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
@@ -2514,5 +2563,41 @@ public final class WireCommands {
          * against multiple invocations.
          */
         abstract void releaseInternal();
+    }
+
+    /**
+     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
+     * WireCommand.
+     */
+    @Data
+    public static final class ConditionalAttributeUpdate {
+        public static final byte REPLACE = (byte) 1; // AttributeUpdate of type AttributeUpdateType.Replace.
+        public static final byte REPLACE_IF_EQUALS = (byte) 4; // AttributeUpdate of type AttributeUpdateType.ReplaceIfEquals.
+        public static final int LENGTH = 4 * Long.BYTES + 1; // UUID (2 longs) + oldValue + newValue + updateType (1 byte)
+
+        private final UUID attributeId;
+        private final byte attributeUpdateType;
+        private final long newValue;
+        private final long oldValue;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(attributeId.getMostSignificantBits());
+            out.writeLong(attributeId.getLeastSignificantBits());
+            out.writeByte(attributeUpdateType);
+            out.writeLong(newValue);
+            out.writeLong(oldValue);
+        }
+
+        public static ConditionalAttributeUpdate readFrom(DataInput in, int length) throws IOException {
+            UUID attributeId = new UUID(in.readLong(), in.readLong());
+            byte attributeUpdateType = in.readByte();
+            long newValue = in.readLong();
+            long oldValue = in.readLong();
+            return new ConditionalAttributeUpdate(attributeId, attributeUpdateType, newValue, oldValue);
+        }
+
+        public int size() {
+            return LENGTH;
+        }
     }
 }

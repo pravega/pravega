@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -59,11 +65,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
@@ -105,6 +111,20 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
+    }
+
+    /**
+     * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param config            The client config.
+     * @param connectionFactory The reference to Connection Factory impl.
+     */
+    @VisibleForTesting
+    public ClientFactoryImpl(String scope, Controller controller, ClientConfig config, ConnectionFactory connectionFactory) {
+        this(scope, controller, new ConnectionPoolImpl(config, connectionFactory));
     }
     
     /**
@@ -150,7 +170,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         NameUtils.validateWriterId(writerId);
         log.info("Creating writer: {} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100,
+        ExecutorService retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100,
                 "ScalingRetransmission-" + stream.getScopedName());
         try {
             return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
@@ -194,7 +214,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
                 synchronizerConfig);
-        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
+        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(scope, readerGroup, readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
         if (!config.isDisableTimeWindows()) {

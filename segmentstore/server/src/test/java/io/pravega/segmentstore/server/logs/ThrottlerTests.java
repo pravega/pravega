@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -16,6 +22,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
@@ -40,10 +47,12 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Unit tests for the {@link Throttler} class.
  */
+@RunWith(SerializedClassRunner.class)
 public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
     private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
@@ -241,7 +250,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // the duration supplied.
         AssertExtensions.assertLessThanOrEqual(
                 "Throttler should be at most the first supplied delay",
-                (int) suppliedDelays.get(0),
+                suppliedDelays.get(0),
                 (int) getThrottlerMetric(calculator.getName())
         );
     }

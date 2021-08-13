@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -42,14 +48,6 @@ interface TableWriterConnector extends AutoCloseable {
     KeyHasher getKeyHasher();
 
     /**
-     * Gets the {@link SegmentSortedKeyIndex} associated with this Table Segment. If this Table Segment is not Sorted,
-     * this should return {@link SegmentSortedKeyIndex#noop()}.
-     *
-     * @return The {@link SegmentSortedKeyIndex} for this Table Segment.
-     */
-    SegmentSortedKeyIndex getSortedKeyIndex();
-
-    /**
      * Gets a {@link DirectSegmentAccess} that can be used to operate directly on the Table Segment.
      *
      * @param timeout Timeout for the operation.
@@ -62,9 +60,10 @@ interface TableWriterConnector extends AutoCloseable {
      * {@link WriterTableProcessor#flush} which advanced the value of the {@link TableAttributes#INDEX_OFFSET} attribute
      * on the Table Segment this connector refers to.
      *
-     * @param lastIndexedOffset The current value of the {@link TableAttributes#INDEX_OFFSET} attribute.
+     * @param lastIndexedOffset  The current value of the {@link TableAttributes#INDEX_OFFSET} attribute.
+     * @param processedSizeBytes The number of bytes processed during this update (including duplicates).
      */
-    void notifyIndexOffsetChanged(long lastIndexedOffset);
+    void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes);
 
     /**
      * Gets a value representing the maximum length that a Table Segment compaction can process at once.
@@ -72,6 +71,14 @@ interface TableWriterConnector extends AutoCloseable {
      * @return The maximum compaction length.
      */
     int getMaxCompactionSize();
+
+    /**
+     * Gets a value representing the maximum number of bytes to attempt to index (flush) at once.
+     * @return The maximum flush size.
+     */
+    default int getMaxFlushSize() {
+        return 134217728; // 128MB
+    }
 
     /**
      * This method will be invoked by the {@link WriterTableProcessor} when it is closed.

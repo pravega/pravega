@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util.btree;
 
@@ -47,6 +53,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     private static final int KEY_LENGTH = 4;
     private static final int VALUE_LENGTH = 2;
     private static final int MAX_PAGE_SIZE = 128;
+    private static final int MAX_ENTRIES_PER_PAGE = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -60,8 +67,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInsertNoSplitSequential() {
-        final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
-        testInsert(count, false, false);
+        testInsert(MAX_ENTRIES_PER_PAGE, false, false);
     }
 
     /**
@@ -69,8 +75,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInsertNoSplitBulk() {
-        final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
-        testInsert(count, false, true);
+        testInsert(MAX_ENTRIES_PER_PAGE, false, true);
     }
 
     /**
@@ -187,7 +192,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         for (val e : entries) {
             index.update(Collections.singleton(e), TIMEOUT).join();
             val value = index.get(e.getKey(), TIMEOUT).join();
-            assertEquals("Unexpected key.", e.getValue(), value);
+            Assert.assertEquals("Unexpected key.", e.getValue(), value);
         }
     }
 
@@ -286,6 +291,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val recoveredIndex = defaultBuilder(ds).build();
         recoveredIndex.initialize(TIMEOUT).join();
         check("after recovery", recoveredIndex, entries, 0);
+
+        // Now verify how it would behave if we had no root pointer. An exception should be thrown.
+        ds.rootPointer.set(-1L);
+        val corruptedIndex = defaultBuilder(ds).build();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected corrupted index to fail initialization.",
+                () -> corruptedIndex.initialize(TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException); // Captures IllegalDataFormatException as well.
     }
 
     /**
@@ -346,6 +359,61 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index3 = defaultBuilder(ds1).build();
         index3.initialize(TIMEOUT).join();
         check("Expected recovered index to reflect changes now", index3, entries2, 0);
+    }
+
+    /**
+     * Tests the behavior of {@link BTreeIndex.BTreeIndexBuilder#maintainStatistics(boolean)} when disabled and eventually
+     * enabled (on a previously disabled index). This simulates an "accidental upgrade" - we cannot compute statistics on
+     * segments that haven't had statistics computed from the beginning.
+     */
+    @Test
+    public void testMaintainStatisticsDisabled() {
+        // Normal operations (start fresh).
+        val ds1 = new DataSource();
+        val index1 = defaultBuilder(ds1).maintainStatistics(false).build();
+        index1.initialize(TIMEOUT).join();
+        Assert.assertNull(index1.getStatistics());
+        val allEntries = generate(3);
+        allEntries.sort((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()));
+
+        index1.update(allEntries.subList(0, 1), TIMEOUT).join();
+        Assert.assertNull(index1.getStatistics());
+        index1.update(allEntries.subList(1, 2), TIMEOUT).join();
+        Assert.assertNull(index1.getStatistics());
+
+        // Test recovery.
+        val index2 = defaultBuilder(ds1).maintainStatistics(false).build();
+        index2.initialize(TIMEOUT).join();
+        Assert.assertNull(index2.getStatistics());
+        index2.update(allEntries.subList(2, 3), TIMEOUT).join();
+
+        val expectedValues = allEntries.stream()
+                .map(PageEntry::getValue)
+                .collect(Collectors.toList());
+        val actualValues = index2.get(allEntries.stream().map(PageEntry::getKey).collect(Collectors.toList()), TIMEOUT).join();
+        AssertExtensions.assertListEquals("Unexpected results after recovery.", expectedValues, actualValues, Object::equals);
+
+        // Test "upgrade" to maintainStatistics==true
+        val index3 = defaultBuilder(ds1).maintainStatistics(true).build();
+        index3.initialize(TIMEOUT).join();
+        Assert.assertNull(index3.getStatistics());
+        val actualValues2 = index3.get(allEntries.stream().map(PageEntry::getKey).collect(Collectors.toList()), TIMEOUT).join();
+        AssertExtensions.assertListEquals("Unexpected results after recovery and upgrade.", expectedValues, actualValues2, Object::equals);
+
+        // Make one modification and verify it still works (remove one entry).
+        index3.update(Collections.singletonList(PageEntry.noValue(allEntries.get(0).getKey())), TIMEOUT).join();
+        expectedValues.set(0, null);
+        val actualValues3 = index3.get(allEntries.stream().map(PageEntry::getKey).collect(Collectors.toList()), TIMEOUT).join();
+        AssertExtensions.assertListEquals("Unexpected results after recovery and upgrade.", expectedValues, actualValues3, Object::equals);
+        Assert.assertNull(index3.getStatistics());
+
+        // Now remove all entries.
+        index3.update(allEntries.stream().map(e -> PageEntry.noValue(e.getKey())).collect(Collectors.toList()), TIMEOUT).join();
+
+        // Final recovery - empty index.
+        val index4 = defaultBuilder(ds1).maintainStatistics(true).build();
+        index4.initialize(TIMEOUT).join();
+        Assert.assertNull(index4.getStatistics());
     }
 
     private void testDelete(int count, int deleteBatchSize) {
@@ -436,14 +504,25 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         // Bulk-get returns a list of values in the same order as the keys, so we need to match up on the indices.
         Assert.assertEquals("Unexpected key count.", keys.size(), actualValues.size());
+        int entryCount = 0;
         for (int i = 0; i < keys.size(); i++) {
             val av = actualValues.get(i);
             if (i < firstValidEntryIndex) {
                 Assert.assertNull("Not expecting a result for index " + i, av);
             } else {
                 val expectedValue = entries.get(i).getValue();
-                assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
+                Assert.assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
             }
+
+            if (av != null) {
+                entryCount++;
+            }
+        }
+
+        val stats = index.getStatistics();
+        Assert.assertEquals("Unexpected entry count.", entryCount, stats.getEntryCount());
+        if (entryCount <= MAX_ENTRIES_PER_PAGE) {
+            Assert.assertEquals(1, stats.getPageCount());
         }
     }
 
@@ -478,19 +557,13 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                 .maxPageSize(MAX_PAGE_SIZE)
                 .keyLength(KEY_LENGTH)
                 .valueLength(VALUE_LENGTH)
+                .maintainStatistics(true)
                 .readPage(ds::read)
                 .writePages(ds::write)
                 .getLength(ds::getLength)
                 .executor(executorService());
     }
 
-    private void assertEquals(String message, ByteArraySegment expected, ByteArraySegment actual) {
-        Assert.assertNotNull(message, expected);
-        Assert.assertNotNull(message, actual);
-        if (expected.getLength() != actual.getLength() || KEY_COMPARATOR.compare(expected, actual) != 0) {
-            Assert.fail(message);
-        }
-    }
 
     @ThreadSafe
     private class DataSource {
@@ -530,7 +603,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }, executorService());
         }
 
-        CompletableFuture<ByteArraySegment> read(long offset, int length, Duration timeout) {
+        CompletableFuture<ByteArraySegment> read(long offset, int length, boolean shouldCache, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
                     if (this.checkOffsets.get()) {
@@ -546,7 +619,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }, executorService());
         }
 
-        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets,
+        CompletableFuture<Long> write(List<BTreeIndex.WritePage> toWrite, Collection<Long> obsoleteOffsets,
                                       long truncateOffset, Duration timeout) {
             val wi = this.writeInterceptor.get();
             if (wi != null) {
@@ -562,7 +635,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }
         }
 
-        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite,
+        private CompletableFuture<Long> writeInternal(List<BTreeIndex.WritePage> toWrite,
                                                       Collection<Long> obsoleteOffsets, long truncateOffset) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
@@ -573,16 +646,16 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     long originalOffset = this.data.size();
                     long expectedOffset = this.data.size();
                     for (val e : toWrite) {
-                        Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.",
-                                expectedOffset, e.getKey());
+                        Preconditions.checkArgument(expectedOffset == e.getOffset(), "Bad Offset. Expected %s, given %s.",
+                                expectedOffset, e.getOffset());
                         try {
-                            e.getValue().copyTo(this.data);
+                            e.getContents().copyTo(this.data);
                         } catch (Exception ex) {
                             throw new CompletionException(ex);
                         }
 
-                        this.offsets.put(e.getKey(), true);
-                        expectedOffset += e.getValue().getLength();
+                        this.offsets.put(e.getOffset(), true);
+                        expectedOffset += e.getContents().getLength();
                     }
 
                     assert expectedOffset == this.data.size() : "unexpected number of bytes copied";
@@ -614,7 +687,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     toRemove.forEach(this.offsets::remove);
 
                     // Update root pointer.
-                    this.rootPointer.set(Math.max(this.rootPointer.get(), toWrite.get(toWrite.size() - 1).getKey())); // Last thing to write is the root pointer.
+                    this.rootPointer.set(Math.max(this.rootPointer.get(), toWrite.get(toWrite.size() - 1).getOffset())); // Last thing to write is the root pointer.
                     return (long) this.data.size();
                 }
             }, executorService());

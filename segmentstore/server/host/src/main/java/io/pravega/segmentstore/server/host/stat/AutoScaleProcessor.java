@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host.stat;
 
@@ -90,6 +96,12 @@ public class AutoScaleProcessor implements AutoCloseable {
         this.writer.complete(writer);
     }
 
+    @VisibleForTesting
+    AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
+                       @NonNull ScheduledExecutorService executor) {
+        this(configuration, clientFactory, executor, null);
+    }
+
     /**
      * Creates a new instance of the {@link AutoScaleProcessor} class.
      *
@@ -99,14 +111,17 @@ public class AutoScaleProcessor implements AutoCloseable {
      */
     @VisibleForTesting
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
-                       @NonNull ScheduledExecutorService executor) {
+                       @NonNull ScheduledExecutorService executor, SimpleCache<String, Pair<Long, Long>> simpleCache) {
         this.configuration = configuration;
         this.writer = new CompletableFuture<>();
         this.clientFactory = clientFactory;
         this.startInitWriter = new AtomicBoolean(false);
-
-        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
-
+        
+        if (simpleCache == null) {
+            this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
+        } else {
+            this.cache = simpleCache;
+        }
         // Even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
         // caches do not perform clean up if there is no activity. This is because they do not maintain their
         // own background thread.
@@ -137,7 +152,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
         Futures.completeAfter(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
-                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w), 
+                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w),
                                                  executor).thenApply(v -> w.get()), writer);
     }
 
@@ -153,7 +168,9 @@ public class AutoScaleProcessor implements AutoCloseable {
             if (!startInitWriter.get()) {
                 throw new RuntimeException("Init not requested");
             }
-            EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+            // Ensure the writer tries indefinitely to establish connection. This retry will continue in the background
+            // until the AutoScaleProcessor is closed.
+            EventWriterConfig writerConfig = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build();
             writerRef.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(),
                     SERIALIZER, writerConfig));
             log.info("AutoScale Processor Initialized. RequestStream={}",
@@ -257,6 +274,7 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
+        cache.get(streamSegmentName);
         // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
         // possible.
         // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'

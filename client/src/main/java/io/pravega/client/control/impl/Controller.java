@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -79,6 +85,15 @@ public interface Controller extends AutoCloseable {
     AsyncIterator<Stream> listStreams(final String scopeName);
 
     /**
+     * Gets an async iterator on streams in scope.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @param tag The Stream tag.
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope.
+     */
+    AsyncIterator<Stream> listStreamsForTag(final String scopeName, final String tag);
+
+    /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If
      * the scope contains at least one stream, then the delete request will fail.
      *
@@ -112,6 +127,16 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
 
     /**
+     * Fetch the current Stream Configuration. This includes the {@link io.pravega.client.stream.ScalingPolicy},
+     * {@link io.pravega.client.stream.RetentionPolicy} and tags for the given stream.
+     *
+     * @param scopeName name of scope.
+     * @param streamName name of stream.
+     * @return CompletableFuture which returns the current stream configuration.
+     */
+    CompletableFuture<StreamConfiguration> getStreamConfiguration(final String scopeName, final String streamName);
+
+    /**
      * API to update the configuration of a stream.
      * @param scope Scope
      * @param streamName Stream name
@@ -125,23 +150,25 @@ public interface Controller extends AutoCloseable {
      * API create a ReaderGroup.
      * @param scopeName Scope name for Reader Group.
      * @param rgName Stream name.
-     * @param config ReaderGroup confguration.
+     * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<ReaderGroupConfig> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to update a ReaderGroup config.
      * @param scopeName Scope name for Reader Group.
      * @param rgName Stream name.
-     * @param config ReaderGroup confguration.
+     * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the subscriber was updated in Stream Metadata.
+     * @throws ReaderGroupConfigRejectedException if the provided ReaderGroupConfig is invalid
+     * @return A future which will throw if the operation fails, otherwise
+     *         the subscriber was updated in Stream Metadata and a long indicating
+     *         the updated config generation is returned.
      */
-    CompletableFuture<Boolean> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to get Reader Group Configuration.
@@ -157,10 +184,9 @@ public interface Controller extends AutoCloseable {
      * @param scope Scope name for Reader Group.
      * @param rgName Reader Group name.
      * @param readerGroupId Unique Id for this readerGroup.
-     * @param generation generation number for this readerGroup.
      * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
      */
-    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId, final long generation);
+    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId);
 
     /**
      * Get list of Subscribers for the Stream.
@@ -301,7 +327,7 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      *
      * @param stream Stream name
-     * @param writerId The writer that is comiting the transaction.
+     * @param writerId The writer that is committing the transaction.
      * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException
@@ -469,6 +495,17 @@ public interface Controller extends AutoCloseable {
      * @return An {@link AsyncIterator} which can be used to iterate over all KeyValueTables in the scope.
      */
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
+
+    /**
+     * API to get the {@link KeyValueTableConfiguration}.
+     *
+     * @param scope   Scope
+     * @param kvtName KeyValueTable name
+     * @throws IllegalArgumentException if the key-value table does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning the KeyValueTableConfiguration of
+     * the corresponding KeyValueTable name.
+     */
+    CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(final String scope, final String kvtName);
 
     /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.

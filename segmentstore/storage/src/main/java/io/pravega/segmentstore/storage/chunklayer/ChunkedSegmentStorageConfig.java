@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -33,17 +39,25 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
+    public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
-    public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
+    public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
-    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
-    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
+    public static final Property<Integer> JOURNAL_SNAPSHOT_UPDATE_FREQUENCY = Property.named("journal.snapshot.update.frequency.minutes", 5);
+    public static final Property<Integer> MAX_PER_SNAPSHOT_UPDATE_COUNT = Property.named("journal.snapshot.update.count.max", 100);
+    public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
+    public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
+    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -51,7 +65,7 @@ public class ChunkedSegmentStorageConfig {
     public static final ChunkedSegmentStorageConfig DEFAULT_CONFIG = ChunkedSegmentStorageConfig.instanceBuilder()
             .minSizeLimitForConcat(0L)
             .maxSizeLimitForConcat(Long.MAX_VALUE)
-            .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)
+            .storageMetadataRollingPolicy(new SegmentRollingPolicy(128 * 1024 * 1024L))
             .maxBufferSizeForChunkDataTransfer(1024 * 1024)
             .maxIndexedSegments(1024)
             .maxIndexedChunksPerSegment(1024)
@@ -63,8 +77,16 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionMaxConcurrency(10)
             .garbageCollectionMaxQueueSize(16 * 1024)
-            .garbageCollectionSleep(Duration.ofSeconds(60))
+            .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
+            .indexBlockSize(1024 * 1024)
+            .maxEntriesInCache(5000)
+            .maxEntriesInTxnBuffer(1024)
+            .journalSnapshotInfoUpdateFrequency(Duration.ofMinutes(5))
+            .maxJournalUpdatesPerSnapshot(100)
+            .maxJournalReadAttempts(100)
+            .maxJournalWriteAttempts(10)
+            .selfCheckEnabled(false)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -83,11 +105,11 @@ public class ChunkedSegmentStorageConfig {
     final private long maxSizeLimitForConcat;
 
     /**
-     * A SegmentRollingPolicy to apply to every StreamSegment that does not have its own policy defined.
+     * A SegmentRollingPolicy to apply to storage metadata segments.
      */
     @Getter
     @NonNull
-    final private SegmentRollingPolicy defaultRollingPolicy;
+    final private SegmentRollingPolicy storageMetadataRollingPolicy;
 
     /**
      * Maximum size for the buffer used while copying of data from one chunk to other.
@@ -112,6 +134,12 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private int maxIndexedChunks;
+
+    /**
+     * The fixed block size used for creating block index entries.
+     */
+    @Getter
+    final private long indexBlockSize;
 
     /**
      * Whether the append functionality is enabled or disabled.
@@ -170,6 +198,48 @@ public class ChunkedSegmentStorageConfig {
     final private int garbageCollectionMaxAttempts;
 
     /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInTxnBuffer;
+
+    /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInCache;
+
+    /**
+     * Duration between two system journal snapshot.
+     */
+    @Getter
+    final private Duration journalSnapshotInfoUpdateFrequency;
+
+    /**
+     * Number of journal writes since last snapshot after which new snapshot is taken.
+     */
+    @Getter
+    final private int maxJournalUpdatesPerSnapshot;
+
+    /**
+     * Max number of times snapshot read is retried.
+     */
+    @Getter
+    final private int maxJournalReadAttempts;
+
+    /**
+     * Max number of times snapshot write is retried.
+     */
+    @Getter
+    final private int maxJournalWriteAttempts;
+
+    /**
+     * When enabled, SLTS will perform extra validation.
+     */
+    @Getter
+    final private boolean selfCheckEnabled;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -185,14 +255,21 @@ public class ChunkedSegmentStorageConfig {
         this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
         this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
         this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
-        long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
-        this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
+        this.storageMetadataRollingPolicy = new SegmentRollingPolicy(properties.getLong(DEFAULT_ROLLOVER_SIZE));
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
         this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
-        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
-        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
+        this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
+        this.maxJournalUpdatesPerSnapshot =  properties.getInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
+        this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
+        this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);
+        this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
+        this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
+        this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
+        this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
     }
 
     /**

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -16,7 +22,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -38,9 +43,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -57,7 +61,11 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
-    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(5).build();
+    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
+            .partitionCount(5)
+            .primaryKeyLength(Long.BYTES)
+            .secondaryKeyLength(Integer.BYTES)
+            .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
@@ -72,6 +80,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
 
+    @Override
     @Before
     public void setup() throws Exception {
         super.setup();
@@ -127,13 +136,13 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         for (val s : segments.getSegments()) {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
-            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT).join();
         }
 
         // Verify re-creation does not work.
         Assert.assertFalse(this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join());
 
-        // Try to create a KVTable with 0 paritions, and it should fail
+        // Try to create a KVTable with 0 partitions, and it should fail
         val kvtZero = newKeyValueTableName();
         assertThrows(IllegalArgumentException.class, () -> this.controller.createKeyValueTable(kvtZero.getScope(), kvtZero.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(0).build()).join());
@@ -183,7 +192,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
             log.info("Segment Number {}", s.getSegmentId());
-            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT).join();
         }
 
         // Delete and verify segments have been deleted too.
@@ -194,24 +203,23 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         for (val s : segments.getSegments()) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "Segment " + s + " has not been deleted.",
-                    () -> this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
+                    () -> this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
     }
 
     @Override
-    protected KeyValueTable<Integer, String> createKeyValueTable() {
-        return createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
+    protected KeyValueTable createKeyValueTable() {
+        val kvt = newKeyValueTableName();
+        return createKeyValueTable(kvt, DEFAULT_CONFIG);
     }
 
     @Override
-    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        val kvt = newKeyValueTableName();
-        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
+    protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration) {
+        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), configuration).join();
         Assert.assertTrue(created);
-        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), keySerializer, valueSerializer,
-                KeyValueTableClientConfiguration.builder().build());
+        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KeyValueTableClientConfiguration.builder().build());
     }
 
     private KeyValueTableInfo newKeyValueTableName() {

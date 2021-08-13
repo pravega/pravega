@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.segmentstore.server.tables;
@@ -57,7 +63,9 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     private static final int NUM_ENTRIES = 10;
     private static final int MAX_UPDATE_COUNT = 10000;
-    private static final int COMPACTION_SIZE = 50000;
+    private static final TableExtensionConfig CONFIG = TableExtensionConfig.builder()
+            .with(TableExtensionConfig.MAX_COMPACTION_SIZE, 50000)
+            .build();
 
     private static final TableEntry NON_EXISTING_ENTRY = TableEntry.notExists(
             new ByteArraySegment("NULL".getBytes()),
@@ -77,22 +85,13 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testUsingInvalidArgs() {
-        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        @Cleanup
+        TableContext context = new TableContext(CONFIG, executorService());
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
-    }
-
-    @Test
-    public void testSortedTableSegment() {
-        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
-        AssertExtensions.assertSuppliedFutureThrows(
-                "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
-                () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -160,7 +159,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     private TestData createTestData(int numEntriesToGenerate) {
         TestData data = TestData.builder()
-                .context(new TableContext(COMPACTION_SIZE, executorService()))
+                .context(new TableContext(CONFIG, executorService()))
                 .executorService(executorService())
                 .reader(new IndexReader(executorService()))
                 .expected(TestData.generateEntries(numEntriesToGenerate, 0))
@@ -175,29 +174,27 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     }
 
     private boolean compareKeys(TableEntry t1, TableEntry t2) {
-        return  t1.getKey().getKey().equals(t2.getKey().getKey());
+        return t1.getKey().getKey().equals(t2.getKey().getKey());
     }
-
-
 
     @Builder
     @NotThreadSafe
     private static class TestData {
 
         private static final String KEY_PREFIX = "KEY";
-        private static final Random RANDOM = new Random();
+        private static final Random RANDOM = new Random(0);
 
         private final IndexReader reader;
         private final TableContext context;
         private final ScheduledExecutorService executorService;
 
         @Getter
-        private List<TableEntry> expected;
+        private final List<TableEntry> expected;
         private List<TableEntry> actual;
         // Flag used to indicate we can be doing various concurrent operations on our TableSegment.
-        private AtomicReference<Boolean> iterating;
+        private final AtomicReference<Boolean> iterating;
 
-        private AtomicInteger entriesCreated;
+        private final AtomicInteger entriesCreated;
 
         // Continually update a particular key until some compaction occurs.Then end result should be a set of unique
         // TableKeys (after iteration), and the update Key maps to it's most recent value.
@@ -230,7 +227,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
             expected.add(0, mostRecent.get());
             Assert.assertTrue("The TableSegment has not performed any compactions.", hasCompacted());
 
-            log.info("Compaction Offset: {} Entry Version: {}", reader.getCompactionOffset(context.segment().getInfo()), toUpdate.getKey().getVersion());
+            log.info("Compaction Offset: {} Entry Version: {}", IndexReader.getCompactionOffset(context.segment().getInfo()), toUpdate.getKey().getVersion());
             // The initial key is returned because we want to test iteration when using a key that has been truncated due to compaction.
             return CompletableFuture.completedFuture(toUpdate);
         }
@@ -263,11 +260,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
                     entries.add(generateEntry(i + keyLowerBound));
             }
             return entries;
-        }
-
-        public static TableEntry deleteRandomEntry(List<TableEntry> entries) {
-            int i = RANDOM.nextInt(entries.size());
-            return TableEntry.notExists(entries.get(i).getKey().getKey(), new ByteArraySegment(new byte[0]));
         }
 
         public static TableEntry generateEntry(int i) {
@@ -336,7 +328,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
         }
 
         public boolean hasCompacted() {
-            return reader.getCompactionOffset(context.segment().getInfo()) > 0;
+            return IndexReader.getCompactionOffset(context.segment().getInfo()) > 0;
         }
 
         public void createSegment() {
