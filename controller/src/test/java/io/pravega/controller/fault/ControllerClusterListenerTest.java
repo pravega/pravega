@@ -139,7 +139,7 @@ public class ControllerClusterListenerTest {
 
         clusterListener.awaitRunning();
 
-        Assert.assertFalse(clusterListener.isReady());
+        Assert.assertTrue(clusterListener.areAllSweepersReady());
 
         validateAddedNode(host.getHostId());
 

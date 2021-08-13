@@ -138,9 +138,7 @@ public interface CheckpointStore {
     /**
      * Get the health status.
      *
-     * @return true by default.
+     * @return true/false.
      */
-    default public boolean isHealthy() {
-        return true;
-    }
+    public boolean isHealthy();
 }

@@ -63,9 +63,7 @@ public interface Cluster extends AutoCloseable {
     /**
      * Get the health status.
      *
-     * @return true by default.
+     * @return true/false.
      */
-    default public boolean isHealthy() {
-        return true;
-    }
+    public boolean isHealthy();
 }

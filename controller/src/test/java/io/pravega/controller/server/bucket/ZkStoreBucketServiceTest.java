@@ -163,7 +163,6 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null), executor2);
         service2.startAsync();
         service2.awaitRunning();
-        Assert.assertTrue(service2.isHealthy());
 
         Thread.sleep(10000);
         assertTrue(service2.getBucketServices().values().stream().allMatch(x -> x.getKnownStreams().size() == 2));
@@ -173,7 +172,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         zkServer2.close();
         streamMetadataTasks2.close();
         ExecutorServiceHelpers.shutdown(executor2);
-        Assert.assertTrue(service2.isHealthy());
+        Assert.assertFalse(service2.isHealthy());
     }
 
     @Test(timeout = 30000)
