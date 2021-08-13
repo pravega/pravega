@@ -438,10 +438,22 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link SegmentContainer#flushToStorage} method.
+     * Tests the {@link SegmentContainer#flushToStorage(Duration)} method.
      */
     @Test
     public void testForceFlush() throws Exception {
+        executeForceFlush(false);
+    }
+
+    /**
+     * Tests the {@link SegmentContainer#flushToStorage(int, Duration)} method.
+     */
+    @Test
+    public void testForceFlushWithContainerId() throws Exception {
+        executeForceFlush(true);
+    }
+
+    private void executeForceFlush(boolean withContainerId) throws Exception {
         final AttributeId attributeReplace = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final int entriesPerSegment = 10;
@@ -514,7 +526,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
-        val forceFlush = container.flushToStorage(TIMEOUT);
+        val forceFlush = withContainerId ? container.flushToStorage(CONTAINER_ID, TIMEOUT) : container.flushToStorage(TIMEOUT);
         forceFlush.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, container, context.storage);
 
