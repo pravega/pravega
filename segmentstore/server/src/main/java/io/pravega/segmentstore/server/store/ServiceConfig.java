@@ -58,8 +58,8 @@ public class ServiceConfig {
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
     public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
     public static final Property<Boolean> REST_LISTENING_ENABLE = Property.named("rest.listener.enable", true);
-    public static final Property<String> REST_KEYSTORE_FILE = Property.named("security.tls.server.keyStore.location", "", "rest.tlsKeyStoreFile");
-    public static final Property<String> REST_KEYSTORE_PASSWORD_FILE = Property.named("security.tls.server.keyStore.pwd.location", "", "rest.tlsKeyStorePasswordFile");
+    public static final Property<String> REST_KEYSTORE_FILE = Property.named("security.tls.server.keyStore.location", "");
+    public static final Property<String> REST_KEYSTORE_PASSWORD_FILE = Property.named("security.tls.server.keyStore.pwd.location", "");
     public static final Property<Integer> HEALTH_CHECK_INTERVAL_SECONDS = Property.named("health.interval.seconds", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
