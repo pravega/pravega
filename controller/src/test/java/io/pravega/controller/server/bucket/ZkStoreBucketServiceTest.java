@@ -47,7 +47,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -172,7 +171,6 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         zkServer2.close();
         streamMetadataTasks2.close();
         ExecutorServiceHelpers.shutdown(executor2);
-        Assert.assertFalse(service2.isHealthy());
     }
 
     @Test(timeout = 30000)
