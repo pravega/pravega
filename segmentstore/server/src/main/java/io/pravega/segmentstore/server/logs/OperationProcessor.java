@@ -151,7 +151,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val commitProcessor = Futures
                 .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
                         () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
-                                  .handleAsync(this::handleProcessCommits, this.executor),
+                                .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
@@ -174,7 +174,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
             return null;
-        } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)){
+        } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
             throw ex;
         }
         // No exceptions and we got some elements to process.
@@ -467,13 +467,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private void processCommits(Collection<List<CompletableOperation>> items) {
         try {
-            while (!items.isEmpty()) {
+            do {
                 Timer memoryCommitTimer = new Timer();
                 this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator(),
                         this.state::notifyOperationCommitted);
                 this.metrics.memoryCommit(items.size(), memoryCommitTimer.getElapsed());
                 items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
-            }
+            } while (!items.isEmpty());
         } catch (Throwable ex) {
             // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
             // throws something else (i.e. NullPtr), we still need to handle it.
