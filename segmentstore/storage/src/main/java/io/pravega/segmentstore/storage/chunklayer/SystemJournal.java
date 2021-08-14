@@ -341,17 +341,16 @@ public class SystemJournal {
                     return applyFinalTruncateOffsets(txn, state);
                 }, executor)
                 .thenComposeAsync(v -> {
-                    // Step 5: Create a snapshot record and validate it. However do not save it yet.
-                    return createSystemSnapshotRecord(txn, true, config.isSelfCheckEnabled())
-                            .thenComposeAsync(systemSnapshotRecord -> checkInvariants(systemSnapshotRecord), executor);
-                }, executor)
-                .thenAcceptAsync(v -> {
-                    // Step 6: Check invariants. These should never fail.
+                    // Step 5: Check invariants. These should never fail.
                     if (config.isSelfCheckEnabled()) {
                         Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
                         Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
                         Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
                     }
+                    // Step 6: Create a snapshot record and validate it. Save it in journals.
+                    return createSystemSnapshotRecord(txn, true, config.isSelfCheckEnabled())
+                            .thenComposeAsync(systemSnapshotRecord -> writeRecordBatch(Collections.singletonList(systemSnapshotRecord)), executor)
+                            .thenRunAsync(() -> newChunkRequired.set(true), executor);
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 7: Finally commit all data.
@@ -620,7 +619,17 @@ public class SystemJournal {
     private CompletableFuture<SystemSnapshotRecord> applySystemSnapshotRecord(MetadataTransaction txn,
                                                                               BootstrapState state,
                                                                               SystemSnapshotRecord systemSnapshot) {
+
+        //Now apply
         if (null != systemSnapshot) {
+            // validate
+            systemSnapshot.checkInvariants();
+            // reset all state so far
+            txn.getData().clear();
+            state.finalTruncateOffsets.clear();
+            state.finalFirstChunkStartsAtOffsets.clear();
+            state.chunkStartOffsets.clear();
+
             log.debug("SystemJournal[{}] Applying snapshot that includes journals up to epoch={} journal index={}", containerId,
                     systemSnapshot.epoch, systemSnapshot.fileIndex);
             log.trace("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
@@ -645,7 +654,6 @@ public class SystemJournal {
 
                     // make sure that the record is marked pinned.
                     txn.markPinned(metadata);
-
                     state.chunkStartOffsets.put(metadata.getName(), offset);
                     offset += metadata.getLength();
                 }
@@ -669,9 +677,7 @@ public class SystemJournal {
         }
 
         // Validate
-        return checkInvariants(systemSnapshot)
-                .thenComposeAsync(v ->
-                        validateSystemSnapshotExistsInTxn(txn, systemSnapshot), executor)
+        return validateSystemSnapshotExistsInTxn(txn, systemSnapshot)
                 .thenApplyAsync(v -> {
                     log.debug("SystemJournal[{}] Done applying snapshots.", containerId);
                     return systemSnapshot;
@@ -728,49 +734,6 @@ public class SystemJournal {
                                     }, executor),
                             executor);
                 }, executor);
-    }
-
-    /**
-     * Check invariants for given {@link SystemSnapshotRecord}.
-     */
-    private CompletableFuture<Void> checkInvariants(SystemSnapshotRecord systemSnapshot) {
-        if (null != systemSnapshot) {
-            for (val segmentSnapshot : systemSnapshot.getSegmentSnapshotRecords()) {
-                segmentSnapshot.segmentMetadata.checkInvariants();
-                Preconditions.checkState(segmentSnapshot.segmentMetadata.isStorageSystemSegment(),
-                        "Segment must be storage segment. Segment snapshot= %s", segmentSnapshot);
-                Preconditions.checkState(segmentSnapshot.segmentMetadata.getChunkCount() == segmentSnapshot.chunkMetadataCollection.size(),
-                        "Chunk count must match. Segment snapshot= %s", segmentSnapshot);
-                if (segmentSnapshot.chunkMetadataCollection.size() == 0) {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() == null,
-                            "First chunk must be null. Segment snapshot= %s", segmentSnapshot);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() == null,
-                            "Last chunk must be null. Segment snapshot= %s", segmentSnapshot);
-                } else if (segmentSnapshot.chunkMetadataCollection.size() == 1) {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null,
-                            "First chunk must not be null. Segment snapshot= %s", segmentSnapshot);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()),
-                            "First chunk and last chunk should be same. Segment snapshot= %s", segmentSnapshot);
-                } else {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null,
-                            "First chunk must be not be null. Segment snapshot= %s", segmentSnapshot);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() != null,
-                            "Last chunk must not be null. Segment snapshot= %s", segmentSnapshot);
-                    Preconditions.checkState(!segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()),
-                            "First chunk and last chunk should not match. Segment snapshot= %s", segmentSnapshot);
-                }
-                ChunkMetadata previous = null;
-                for (val metadata : segmentSnapshot.getChunkMetadataCollection()) {
-                    if (previous != null) {
-                        Preconditions.checkState(previous.getNextChunk().equals(metadata.getName()),
-                                "In correct link . chunk %s must point to chunk %s. Segment snapshot= %s",
-                                previous.getName(), metadata.getName(), segmentSnapshot);
-                    }
-                    previous = metadata;
-                }
-            }
-        }
-        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -942,27 +905,30 @@ public class SystemJournal {
         }
         state.visitedRecords.add(record);
         state.recordsProcessedCount.incrementAndGet();
-
+        CompletableFuture<Void> retValue = null;
         // ChunkAddedRecord.
         if (record instanceof ChunkAddedRecord) {
             val chunkAddedRecord = (ChunkAddedRecord) record;
-            return applyChunkAddition(txn, state.chunkStartOffsets,
+            retValue = applyChunkAddition(txn, state.chunkStartOffsets,
                     chunkAddedRecord.getSegmentName(),
                     nullToEmpty(chunkAddedRecord.getOldChunkName()),
                     chunkAddedRecord.getNewChunkName(),
                     chunkAddedRecord.getOffset());
-        }
-
-        // TruncationRecord.
-        if (record instanceof TruncationRecord) {
+        } else if (record instanceof TruncationRecord) {
+            // TruncationRecord.
             val truncationRecord = (TruncationRecord) record;
             state.finalTruncateOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getOffset());
             state.finalFirstChunkStartsAtOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getStartOffset());
-            return CompletableFuture.completedFuture(null);
+            retValue = CompletableFuture.completedFuture(null);
+        } else if (record instanceof SystemSnapshotRecord) {
+            val snapshotRecord = (SystemSnapshotRecord) record;
+            retValue = Futures.toVoid(applySystemSnapshotRecord(txn, state, snapshotRecord));
         }
-
-        // Unknown record.
-        return CompletableFuture.failedFuture(new IllegalStateException(String.format("Unknown record type encountered. record = %s", record)));
+        if (null == retValue) {
+            // Unknown record.
+            retValue = CompletableFuture.failedFuture(new IllegalStateException(String.format("Unknown record type encountered. record = %s", record)));
+        }
+        return retValue;
     }
 
     /**
@@ -1069,8 +1035,9 @@ public class SystemJournal {
                                                     .thenAcceptAsync(mmm -> {
                                                         val chunkToDelete = (ChunkMetadata) mmm;
                                                         txn.delete(toDelete.get());
-                                                        toDelete.set(chunkToDelete.getNextChunk());
                                                         segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
+                                                        // move to next chunk in list of now zombie chunks
+                                                        toDelete.set(chunkToDelete.getNextChunk());
                                                     }, executor),
                                             executor)
                                             .thenAcceptAsync(v -> {
@@ -1087,6 +1054,7 @@ public class SystemJournal {
                     } else {
                         segmentMetadata.setFirstChunk(newChunkName);
                         segmentMetadata.setStartOffset(offset);
+                        Preconditions.checkState(segmentMetadata.getChunkCount() == 0, "Chunk count must be 0. %s", segmentMetadata);
                         f = CompletableFuture.completedFuture(null);
                     }
                     return f.thenComposeAsync(v -> {
@@ -1228,7 +1196,10 @@ public class SystemJournal {
             futures.add(future);
         }
         return Futures.allOf(futures)
-                .thenApplyAsync(v -> systemSnapshot, executor);
+                .thenApplyAsync(vv -> {
+                    systemSnapshot.checkInvariants();
+                    return systemSnapshot;
+                }, executor);
     }
 
     /**
@@ -1259,7 +1230,7 @@ public class SystemJournal {
                                                 try {
                                                     val snapshotReadback = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
                                                     if (config.isSelfCheckEnabled()) {
-                                                        checkInvariants(snapshotReadback);
+                                                        snapshotReadback.checkInvariants();
                                                     }
                                                     Preconditions.checkState(systemSnapshot.equals(snapshotReadback), "Records do not match %s != %s", snapshotReadback, systemSnapshot);
                                                     // Record as successful.
@@ -1612,6 +1583,45 @@ public class SystemJournal {
         private final Collection<ChunkMetadata> chunkMetadataCollection;
 
         /**
+         * Check invariants.
+         */
+        public void checkInvariants() {
+            segmentMetadata.checkInvariants();
+            Preconditions.checkState(segmentMetadata.isStorageSystemSegment(),
+                    "Segment must be storage segment. Segment snapshot= %s", this);
+            Preconditions.checkState(segmentMetadata.getChunkCount() == chunkMetadataCollection.size(),
+                    "Chunk count must match. Segment snapshot= %s", this);
+
+            long dataSize = 0;
+            ChunkMetadata previous = null;
+            ChunkMetadata firstChunk = null;
+            for (val metadata : getChunkMetadataCollection()) {
+                dataSize += metadata.getLength();
+                if (previous != null) {
+                    Preconditions.checkState(previous.getNextChunk().equals(metadata.getName()),
+                            "In correct link . chunk %s must point to chunk %s. Segment snapshot= %s",
+                            previous.getName(), metadata.getName(), this);
+                } else {
+                    firstChunk = metadata;
+                }
+                previous = metadata;
+            }
+            Preconditions.checkState(dataSize == segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset(),
+                    "Data size does not match dataSize (%s). Segment=%s", dataSize, segmentMetadata);
+
+            if (chunkMetadataCollection.size() > 0) {
+                Preconditions.checkState(segmentMetadata.getFirstChunk().equals(firstChunk.getName()),
+                        "First chunk name is wrong. Segment snapshot= %s", this);
+                Preconditions.checkState(segmentMetadata.getLastChunk().equals(previous.getName()),
+                        "Last chunk name is wrong. Segment snapshot= %s", this);
+                Preconditions.checkState(previous.getNextChunk() == null,
+                        "Invalid last chunk Segment snapshot= %s", this);
+                Preconditions.checkState(segmentMetadata.getLength() == segmentMetadata.getLastChunkStartOffset() + previous.getLength(),
+                        "Last chunk start offset is wrong. snapshot= %s", this);
+            }
+        }
+
+        /**
          * Builder that implements {@link ObjectBuilder}.
          */
         public static class SegmentSnapshotRecordBuilder implements ObjectBuilder<SegmentSnapshotRecord> {
@@ -1676,6 +1686,15 @@ public class SystemJournal {
          */
         @NonNull
         private final Collection<SegmentSnapshotRecord> segmentSnapshotRecords;
+
+        /**
+         * Check invariants.
+         */
+        public void checkInvariants() {
+            for (val segmentSnapshot : getSegmentSnapshotRecords()) {
+                segmentSnapshot.checkInvariants();
+            }
+        }
 
         /**
          * Builder that implements {@link ObjectBuilder}.

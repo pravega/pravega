@@ -144,6 +144,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         final String reader1 = "reader1";
         final String reader2 = "reader2";
 
+        Assert.assertFalse(checkpointStore.isHealthy());
         Set<String> processes = checkpointStore.getProcesses();
         Assert.assertEquals(0, processes.size());
 

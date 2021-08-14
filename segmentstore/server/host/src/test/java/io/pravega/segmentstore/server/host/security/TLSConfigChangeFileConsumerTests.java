@@ -28,13 +28,13 @@ public class TLSConfigChangeFileConsumerTests {
 
     @Test(expected = NullPointerException.class)
     public void testNullCtorArgumentsAreRejected() {
-        new TLSConfigChangeFileConsumer(new AtomicReference<>(null), null, null);
+        new TLSConfigChangeFileConsumer(new AtomicReference<>(null), null, null, null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToCertificateFileIsRejected() {
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
-                    "", "non-existent");
+                    "", "non-existent", SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
@@ -43,7 +43,7 @@ public class TLSConfigChangeFileConsumerTests {
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToKeyFileIsRejected() {
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
-                "non-existent", "");
+                "non-existent", "", SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
@@ -54,10 +54,10 @@ public class TLSConfigChangeFileConsumerTests {
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
 
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
-                new File(pathToCertificateFile), new File(pathToKeyFile)));
+                new File(pathToCertificateFile), new File(pathToKeyFile), SecurityConfigDefaults.TLS_PROTOCOL_VERSION));
 
         TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(sslCtx, pathToCertificateFile,
-                pathToKeyFile);
+                pathToKeyFile, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         subjectUnderTest.accept(null);
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
