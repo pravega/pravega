@@ -154,6 +154,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                                 .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
+                    log.info("{}: Completing and closing commitProcessor.", this.traceObjectId);
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
                     // shut down normally.
                     val uncommittedOperations = this.commitQueue.close();
@@ -161,6 +162,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     // Update the cacheUtilizationProvider with the fact that these operations are no longer pending for the cache.
                     uncommittedOperations.stream().flatMap(Collection::stream).forEach(this.state::notifyOperationCommitted);
                     if (ex != null) {
+                        log.warn("{}: commitProcessor completed exceptionally {}.", this.traceObjectId, ex.toString());
                         throw new CompletionException(ex);
                     }
                 });
