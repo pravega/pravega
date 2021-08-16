@@ -792,7 +792,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(1, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
         Assert.assertEquals("testSegment", testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).peek().getName());
 
-        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 10)).join();
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1)).join();
 
         // Validate state after
         Assert.assertEquals(4, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());

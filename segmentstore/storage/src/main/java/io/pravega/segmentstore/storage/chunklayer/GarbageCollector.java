@@ -297,25 +297,38 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                     } else {
                         val chunksToDelete = Collections.synchronizedSet(new HashSet<String>());
                         val currentBatch = Collections.synchronizedSet(new HashSet<ChunkMetadata>());
-                        val batchFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
-                        return new ChunkIterator(storageExecutor, txn, segmentMetadata)
-                                .forEach((metadata, name) -> {
-                                    chunksToDelete.add(name);
-                                    if (metadata.isActive()) {
-                                        if (currentBatch.size() >= config.getGarbageCollectionTransactionBatchSize()) {
-                                            addTransactionForUpdateBatch(currentBatch, batchFutures, name);
-                                        }
-                                        currentBatch.add(metadata);
-                                    }
-                                })
-                                .thenRunAsync(() -> {
-                                    // Add remaining.
+                        val currentChunkName = new AtomicReference<String>(segmentMetadata.getFirstChunk());
+
+                        return Futures.loop(
+                                () -> null != currentChunkName.get(),
+                                () -> txn.get(currentChunkName.get())
+                                        .thenComposeAsync(metadata -> {
+                                            val chunkMetadata = (ChunkMetadata) metadata;
+                                            // Add to list of chunks to delete and the current batch.
+                                            chunksToDelete.add(chunkMetadata.getName());
+                                            currentBatch.add(chunkMetadata);
+
+                                            // Commit batch if required.
+                                            CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+                                            if (chunkMetadata.isActive()) {
+                                                if (currentBatch.size() > config.getGarbageCollectionTransactionBatchSize()) {
+                                                    // Commit batch
+                                                    future = addTransactionForUpdateBatch(currentBatch, streamSegmentName);
+                                                    // Clear batch
+                                                    currentBatch.clear();
+                                                }
+                                            }
+                                            // Move next
+                                            currentChunkName.set(chunkMetadata.getNextChunk());
+                                            return future;
+                                        }, storageExecutor),
+                                storageExecutor)
+                                .thenComposeAsync( v -> {
                                     if (currentBatch.size() > 0) {
-                                        // Start a sub transaction for a batch.
-                                        addTransactionForUpdateBatch(currentBatch, batchFutures, currentBatch.stream().findFirst().toString());
+                                        return addTransactionForUpdateBatch(currentBatch, streamSegmentName);
                                     }
-                                })
-                                .thenComposeAsync(v -> Futures.allOf(batchFutures))
+                                    return CompletableFuture.completedFuture(null);
+                                }, storageExecutor)
                                 .thenComposeAsync(v -> this.addChunksToGarbage(txn.getVersion(), chunksToDelete), storageExecutor)
                                 .thenComposeAsync(v -> deleteBlockIndexEntriesForSegment(streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()))
                                 .thenComposeAsync(v -> {
@@ -352,18 +365,15 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                 }, storageExecutor);
     }
 
-    private void addTransactionForUpdateBatch(Set<ChunkMetadata> batch, List<CompletableFuture<Void>> batchFutures, String name) {
-        // Start a sub transaction for a batch.
+    private CompletableFuture<Void> addTransactionForUpdateBatch(Set<ChunkMetadata> batch, String name) {
+        // create a sub transaction for a batch.
         @Cleanup
         val innerTxn = metadataStore.beginTransaction(false, name);
         for (val chunkMetadata : batch) {
             chunkMetadata.setActive(false);
             innerTxn.update(chunkMetadata);
         }
-        // Commit batch
-        batchFutures.add(innerTxn.commit());
-        // Clear batch
-        batch.clear();
+        return innerTxn.commit();
     }
 
     /**
@@ -381,32 +391,41 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      */
     CompletableFuture<Void> deleteBlockIndexEntriesForSegment(String segmentName, long startOffset, long endOffset) {
         val currentBatch = Collections.synchronizedSet(new HashSet<String>());
-        val batchFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
         val firstBlock = startOffset / config.getIndexBlockSize();
-        for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
-            val name = NameUtils.getSegmentReadIndexBlockName(segmentName, offset);
-            if (currentBatch.size() >= config.getGarbageCollectionTransactionBatchSize()) {
-                addTransactionForDeleteBatch(currentBatch, batchFutures, name);
-            } 
-            currentBatch.add(name);
-        }
-        if (currentBatch.size() > 0) {
-            addTransactionForDeleteBatch(currentBatch, batchFutures, currentBatch.stream().findFirst().get());
-        }
-        return Futures.allOf(batchFutures);
+        AtomicBoolean isDone = new AtomicBoolean(false);
+        AtomicLong offset = new AtomicLong(firstBlock * config.getIndexBlockSize());
+
+        return Futures.loop(
+                () -> !isDone.get(),
+                () -> {
+                    currentBatch.clear();
+                    while (offset.get() < endOffset) {
+                        val name = NameUtils.getSegmentReadIndexBlockName(segmentName, offset.get());
+                        if (currentBatch.size() >= config.getGarbageCollectionTransactionBatchSize()) {
+                            return addTransactionForDeleteBatch(currentBatch, segmentName);
+                        }
+                        currentBatch.add(name);
+                        offset.set( offset.get() + config.getIndexBlockSize());
+                    }
+                    // We are done
+                    isDone.set(true);
+                    if (currentBatch.size() > 0) {
+                        return addTransactionForDeleteBatch(currentBatch, segmentName);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                },
+                storageExecutor);
     }
 
-    private void addTransactionForDeleteBatch(Set<String> sublist, List<CompletableFuture<Void>> batchFutures, String name) {
-        // Start a sub transaction for a batch.
+    private CompletableFuture<Void> addTransactionForDeleteBatch(Set<String> batch, String segmentName) {
+        // create a sub transaction for a batch.
         @Cleanup
-        val innerTxn = metadataStore.beginTransaction(false, name);
-        for (val entryName : sublist) {
+        val innerTxn = metadataStore.beginTransaction(false, segmentName);
+        for (val entryName : batch) {
             innerTxn.delete(entryName);
         }
-        // Commit batch
-        batchFutures.add(innerTxn.commit());
-        // Clear batch
-        sublist.clear();
+        return innerTxn.commit();
     }
 
     /**
