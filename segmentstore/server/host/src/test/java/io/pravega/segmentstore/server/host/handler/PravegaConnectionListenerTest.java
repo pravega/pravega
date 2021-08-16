@@ -204,6 +204,7 @@ public class PravegaConnectionListenerTest {
     // Test the health status created with pravega listener.
     @Test
     public void testHealth() {
+        @Cleanup
         HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));
         healthServiceManager.start();
         int port = TestUtils.getAvailableListenPort();
@@ -216,5 +217,8 @@ public class PravegaConnectionListenerTest {
         listener.startListening();
         Health health = listener.getHealthServiceManager().getHealthSnapshot();
         Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+        listener.close();
+        health = listener.getHealthServiceManager().getHealthSnapshot();
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, health.getStatus());
     }
 }

@@ -24,12 +24,13 @@ import lombok.NonNull;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 
-// A contributor to manage the health of zookeeper client connection.
+/**
+ * A contributor to manage the health of zookeeper client connection.
+  */
 public class ZKHealthContributor extends AbstractHealthContributor {
-    @NonNull
     private final CuratorFramework zk;
 
-    public ZKHealthContributor(CuratorFramework zk) {
+    public ZKHealthContributor(@NonNull CuratorFramework zk) {
         super("zookeeper");
         this.zk = zk;
     }

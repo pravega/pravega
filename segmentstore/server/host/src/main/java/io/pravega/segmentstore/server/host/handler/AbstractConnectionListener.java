@@ -271,7 +271,9 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         }
     }
 
-    // A contributor for managing health of a connection listener.
+    /**
+     *  A contributor for managing health of a connection listener.
+      */
     private static class ConnectionListenerHealthContributor extends AbstractHealthContributor {
         @NonNull
         private final AbstractConnectionListener listener;
