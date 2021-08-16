@@ -128,11 +128,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
             final Connection connection;
             if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
-                log.info("Reusing connection: {}", suggestedConnection.get());
+                log.trace("Reusing connection: {}", suggestedConnection.get());
                 connection = suggestedConnection.get();
             } else {
                 // create a new connection.
-                log.info("Creating a new connection to {}", location);
+                log.trace("Creating a new connection to {}", location);
                 CompletableFuture<FlowHandler> establishedFuture = establishConnection(location);
                 connection = new Connection(location, establishedFuture);
                 prunedConnectionList.add(connection);
