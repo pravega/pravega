@@ -87,12 +87,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
     @Test
     public void testPartiallyDeletedScope() throws Exception {
         final String scopeName = "partialScope";
-        /*
-        PravegaTablesStoreHelper storeHelperSpy = spy(new PravegaTablesStoreHelper(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(), executor));
-        when(storeHelperSpy.getKeysPaginated(anyString(), any(), anyInt(), anyLong())).thenThrow(new CompletionException(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "kvTablesInScope not found.")));
-        StreamMetadataStore testStreamStore = TestStreamStoreFactory.createPravegaTablesStreamStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
-        KVTableMetadataStore testKVStore = TestStreamStoreFactory.createPravegaTablesKVStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
-         */
+
         OperationContext context = streamStore.createScopeContext(scopeName, 0L);
         CompletableFuture<Controller.CreateScopeStatus> createScopeFuture = streamStore.createScope(scopeName, context, executor);
         Controller.CreateScopeStatus status = createScopeFuture.get();
