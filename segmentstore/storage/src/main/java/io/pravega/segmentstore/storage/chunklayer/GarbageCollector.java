@@ -304,23 +304,30 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                 () -> txn.get(currentChunkName.get())
                                         .thenComposeAsync(metadata -> {
                                             val chunkMetadata = (ChunkMetadata) metadata;
-                                            // Add to list of chunks to delete and the current batch.
-                                            chunksToDelete.add(chunkMetadata.getName());
-                                            currentBatch.add(chunkMetadata);
+                                            CompletableFuture<Void> retFuture = CompletableFuture.completedFuture(null);
 
-                                            // Commit batch if required.
-                                            CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+                                            // Add to list of chunks to delete
+                                            chunksToDelete.add(chunkMetadata.getName());
+
+                                            // Skip if metadata is possibly deleted in last attempt, we are done.
+                                            if (null == chunkMetadata) {
+                                                currentChunkName.set(null);
+                                                return retFuture;
+                                            }
+
+                                            // Add to batch and commit batch if required.
+                                            currentBatch.add(chunkMetadata);
                                             if (chunkMetadata.isActive()) {
                                                 if (currentBatch.size() > config.getGarbageCollectionTransactionBatchSize()) {
                                                     // Commit batch
-                                                    future = addTransactionForUpdateBatch(currentBatch, streamSegmentName);
+                                                    retFuture = addTransactionForUpdateBatch(currentBatch, streamSegmentName);
                                                     // Clear batch
                                                     currentBatch.clear();
                                                 }
                                             }
                                             // Move next
                                             currentChunkName.set(chunkMetadata.getNextChunk());
-                                            return future;
+                                            return retFuture;
                                         }, storageExecutor),
                                 storageExecutor)
                                 .thenComposeAsync( v -> {
