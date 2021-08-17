@@ -270,7 +270,7 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
-        this.garbageCollectionTransactionBatchSize = properties.getInt(GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE);
+        this.garbageCollectionTransactionBatchSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE);
         this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
         this.maxJournalUpdatesPerSnapshot =  properties.getInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
         this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
