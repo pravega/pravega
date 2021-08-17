@@ -47,7 +47,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Valid values:|{`true`, `false`} |
    |Old name:|`controller.auth.tlsEnabled` (deprecated) |
     
-  * __<ins>controller.security.tls.protocolVersion</ins>__
+* __<ins>controller.security.tls.protocolVersion</ins>__
 
    |Property| Value | 
    |---:|:----|
