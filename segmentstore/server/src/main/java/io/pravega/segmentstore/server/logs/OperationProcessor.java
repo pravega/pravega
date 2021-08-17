@@ -154,7 +154,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                                 .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
-                    log.info("{}: Completing and closing commitProcessor.", this.traceObjectId);
+                    log.info("{}: Completing and closing commitProcessor. Is OperationProcessor running? {}", this.traceObjectId, isRunning());
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
                     // shut down normally.
                     val uncommittedOperations = this.commitQueue.close();
@@ -205,15 +205,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         closeQueue(ex);
-        if (!isShutdownException(ex)) {
-            // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
-            // record the failure and then stop the OperationProcessor.
-            super.errorHandler(ex);
-
-            // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
-            // will prevent anything new from being added while also cancelling in-flight requests.
-            this.executor.execute(this::stopAsync);
-        }
+        super.errorHandler(ex);
+        // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
+        // will prevent anything new from being added while also cancelling in-flight requests.
+        this.executor.execute(this::stopAsync);
     }
 
     @SneakyThrows
