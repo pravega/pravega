@@ -21,15 +21,19 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.stream.*;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.TestStreamStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
 
 import org.junit.Assert;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 import org.junit.ClassRule;
 
