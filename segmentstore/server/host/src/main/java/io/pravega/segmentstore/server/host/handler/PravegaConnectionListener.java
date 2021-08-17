@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -47,7 +48,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE
 @Slf4j
 public final class PravegaConnectionListener extends AbstractConnectionListener {
     //region Members
-
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
@@ -77,7 +77,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, String[] tlsProtocolVersion) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
-                null, true, tokenExpiryExecutor, tlsProtocolVersion);
+                null, true, tokenExpiryExecutor, tlsProtocolVersion, null);
     }
 
     /**
@@ -93,6 +93,40 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
                                      TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
         this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, TLS_PROTOCOL_VERSION.getDefaultValue().split(","));
+    }
+
+    /**
+     * Creates a new instance of the PravegaConnectionListener class with HealthServiceManager.
+     *
+     * @param enableTls          Whether to enable SSL/TLS.
+     * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
+     * @param host               The name of the host to listen to.
+     * @param port               The port to listen on.
+     * @param streamSegmentStore The SegmentStore to delegate all requests to.
+     * @param tableStore         The TableStore to delegate all requests to.
+     * @param statsRecorder      (Optional) A StatsRecorder for Metrics for Stream Segments.
+     * @param tableStatsRecorder (Optional) A Table StatsRecorder for Metrics for Table Segments.
+     * @param tokenVerifier      The object to verify delegation token.
+     * @param certFile           Path to the certificate file to be used for TLS.
+     * @param keyFile            Path to be key file to be used for TLS.
+     * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
+     * @param executor           The executor to be used for running token expiration handling tasks.
+     * @param tlsProtocolVersion the version of the TLS protocol
+     * @param healthServiceManager The healthService to register new health contributors related to the listeners.
+     */
+    public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
+                                     SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
+                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion,
+                                     HealthServiceManager healthServiceManager) {
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
+        this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
+        this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
+        this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
+        this.tokenExpiryHandlerExecutor = executor;
     }
 
     /**
@@ -117,14 +151,8 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
                                      boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion);
-        this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
-        this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
-        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
-        this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
-        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
-        this.tokenExpiryHandlerExecutor = executor;
+        this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, statsRecorder, tableStatsRecorder,
+                 tokenVerifier, certFile, keyFile, replyWithStackTraceOnError, executor, tlsProtocolVersion, null);
     }
 
     @Override
