@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
@@ -148,6 +149,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         useAppend.set(true);
         targetChunkName = startChunkName;
 
+        val oldChunkCount = segmentMetadata.getChunkCount();
+
         // Iterate through chunk list
         // Make sure no invariants are broken.
         return Futures.loop(
@@ -199,6 +202,9 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
                 .thenComposeAsync(vvv -> {
+                    Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
+                            "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
+                            oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
                     segmentMetadata.checkInvariants();
                     return updateReadIndex();
                 }, chunkedSegmentStorage.getExecutor());
