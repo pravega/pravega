@@ -157,7 +157,8 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
-        // Wait for 5 seconds to force reader group state update.
+        // Wait for 5 seconds to force reader group state update. This will allow for the silent
+        // checkpoint event generated as part of generateStreamCuts to be picked and processed.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
         EventRead<String> emptyEvent = reader.readNextEvent(READ_TIMEOUT);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts, 10_000));
@@ -173,6 +174,8 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         writer.writeEvent("e3", SIZE_30_EVENT).join();
 
         // Check to make sure truncation happened after the first event.
+        // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
+        // and a little longer in order to confirm that the retention has taken place.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
                 5 * 60 * 1000L);
@@ -186,7 +189,8 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(streamCutExecutor);
-        // Wait for 5 seconds to force reader group state update.
+        // Wait for 5 seconds to force reader group state update. This will allow for the silent
+        // checkpoint event generated as part of generateStreamCuts to be picked and processed.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
         EventRead<String> emptyEvent2 = reader.readNextEvent(READ_TIMEOUT);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts2, 10_000));
@@ -196,6 +200,8 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         readerGroup.updateRetentionStreamCut(streamCuts2);
 
         // Check to make sure truncation happened after the second event.
+        // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
+        // and a little longer in order to confirm that the retention has taken place.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
                 5 * 60 * 1000L);
