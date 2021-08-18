@@ -119,9 +119,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (entry.getValue().isInit()) {
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
+                foundInit = true;
                 if (isNewer(currentRevision)) {
                     updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
-                    foundInit = true;
                 }
             }
         }
@@ -214,6 +214,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision oldMark = client.getMark();
             if (oldMark == null || oldMark.compareTo(newMark) < 0) {
                 client.compareAndSetMark(oldMark, newMark);
+                log.info("Compacted state is written at {} the oldMark is {}", newMark, oldMark);
             }
             if (oldMark != null) {
                 client.truncateToRevision(oldMark);
@@ -254,7 +255,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Synchronized
     private boolean isNewer(Revision revision) {
-        return currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        boolean result = currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        if (!result ) {
+            log.debug("In memory state {} is newer than the provided revision {}", currentState.getRevision(), revision);
+        }
+        return result;
     }
 
     @Synchronized
