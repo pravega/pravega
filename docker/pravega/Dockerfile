@@ -13,27 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk:11.0.11_9-jre-hotspot-focal
+FROM adoptopenjdk/openjdk11:jre-11.0.11_9-alpine
 
-RUN apt-get update && apt-get install -y -q \
-    rpcbind \
-    nfs-common \
-    python \
-#    jq \
-    curl \
-    net-tools
-#    iproute2
-
-# Adding Java system truststore 'cacerts', as it is missing from the Java
-# distribution installed by the base image and one of the storage bindings(ECS)
-# depends on its presence.
-#
-# For installing ca-certificates for jre requires the presence of man folder
-# otherwise it fails with the following error
-# `Sub-process /usr/bin/dpkg returned an error code (1)`
-#RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
-#  && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
-#  && rm -rf /var/lib/apt/lists/*
+RUN apk --update --no-cache add curl python3 && ln -sf python3 /usr/bin/python
 
 EXPOSE 9090 9091 10000 12345
 
@@ -41,10 +23,6 @@ WORKDIR /opt/pravega
 
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
-
-# Default shell of jdk11 image is dash
-# Creating symlink to point to bash
-RUN ln -sf /bin/bash /bin/sh
 
 RUN chmod +x -R /opt/pravega/scripts/
 
