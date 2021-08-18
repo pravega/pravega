@@ -54,7 +54,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Description: | Configurable versions for TLS Protocol |
    |Type:|String|
    |Default:| `TLSv1.2,TLSv1.3`|
-   |Valid values:|{`TLSv1.2`, `TLSv1.3`} |
+   |Valid values:|{`TLSv1.2`, `TLSv1.3`, `TLSv1.2,TLSv1.3`, `TLSv1.3,TLSv1.2`} |
 
 
 * __<ins>controller.security.tls.server.certificate.location</ins>__
@@ -199,7 +199,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Description: | Configurable versions for TLS Protocol |
   |Type:|String|
   |Default:| `TLSv1.2,TLSv1.3`|
-  |Valid values:|{`TLSv1.2`, `TLSv1.3`} |
+  |Valid values:|{`TLSv1.2`, `TLSv1.3`, `TLSv1.2,TLSv1.3`, `TLSv1.3,TLSv1.2`} |
    
   
 * __<ins>pravegaservice.security.tls.certificate.autoReload.enable</ins>__
