@@ -146,6 +146,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         private int containerCount = 4;
         private boolean enableRestServer = true;
         private boolean replyWithStackTraceOnError = true;
+        private String[] tlsProtocolVersion = new String[]{"TLSv1.2","TLSv1.3"};
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
