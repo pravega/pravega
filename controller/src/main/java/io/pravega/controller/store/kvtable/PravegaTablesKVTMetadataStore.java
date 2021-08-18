@@ -65,6 +65,13 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
         this.executor = executor;
     }
 
+    @VisibleForTesting
+    public PravegaTablesKVTMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor, PravegaTablesStoreHelper storeHelper) {
+        super(new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
+        this.storeHelper = storeHelper;
+        this.executor = executor;
+    }
+
     @Override
     PravegaTablesKVTable newKeyValueTable(final String scope, final String name) {
         log.debug("Fetching KV Table from PravegaTables store {}/{}", scope, name);
