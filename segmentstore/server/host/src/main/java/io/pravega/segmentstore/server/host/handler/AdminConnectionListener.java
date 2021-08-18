@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
@@ -40,7 +41,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE
 @Slf4j
 public class AdminConnectionListener extends AbstractConnectionListener {
     //region Members
-
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
@@ -62,7 +62,30 @@ public class AdminConnectionListener extends AbstractConnectionListener {
     public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                    DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion );
+        this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, tokenVerifier, certFile, keyFile,
+                tlsProtocolVersion, null);
+    }
+
+    /**
+     * Creates a new instance of the PravegaConnectionListener class with HealthServiceManager.
+     *
+     * @param enableTls          Whether to enable SSL/TLS.
+     * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
+     * @param host               The name of the host to listen to.
+     * @param port               The port to listen on.
+     * @param streamSegmentStore The SegmentStore to delegate all requests to.
+     * @param tableStore         The TableStore to delegate all requests to.
+     * @param tokenVerifier      The object to verify delegation token.
+     * @param certFile           Path to the certificate file to be used for TLS.
+     * @param keyFile            Path to be key file to be used for TLS.
+     * @param tlsProtocolVersion the version of the TLS protocol
+     * @param healthServiceManager The healService to register new health contributors related to the listeners.
+     */
+    public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
+                                   StreamSegmentStore streamSegmentStore, TableStore tableStore,
+                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion,
+                                   HealthServiceManager healthServiceManager) {
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
