@@ -45,7 +45,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
@@ -438,22 +437,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link SegmentContainer#flushToStorage(Duration)} method.
+     * Tests the {@link SegmentContainer#flushToStorage} method.
      */
     @Test
     public void testForceFlush() throws Exception {
-        executeForceFlush(false);
-    }
-
-    /**
-     * Tests the {@link SegmentContainer#flushToStorage(int, Duration)} method.
-     */
-    @Test
-    public void testForceFlushWithContainerId() throws Exception {
-        executeForceFlush(true);
-    }
-
-    private void executeForceFlush(boolean withContainerId) throws Exception {
         final AttributeId attributeReplace = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final int entriesPerSegment = 10;
@@ -526,7 +513,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
-        val forceFlush = withContainerId ? container.flushToStorage(CONTAINER_ID, TIMEOUT) : container.flushToStorage(TIMEOUT);
+        val forceFlush = container.flushToStorage(TIMEOUT);
         forceFlush.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, container, context.storage);
 
@@ -2908,7 +2895,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
+    private CompletableFuture<Void> activateSegment(String segmentName, SegmentContainer container) {
         return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 

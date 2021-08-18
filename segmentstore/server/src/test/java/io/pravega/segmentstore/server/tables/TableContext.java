@@ -220,11 +220,6 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
         public Service startAsync() {
             throw new UnsupportedOperationException("Not Expected");
         }
