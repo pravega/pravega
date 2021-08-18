@@ -91,9 +91,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 log.trace("Found entry {} ", entry.getValue());
                 if (entry.getValue().isInit()) {
                     InitialUpdate<StateT> init = entry.getValue().getInit();
-                    if (isNewer(entry.getKey())) {
-                        updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
-                    }
+                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
@@ -120,9 +118,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
                 foundInit = true;
-                if (isNewer(currentRevision)) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
-                }
+                updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
             }
         }
         if (!foundInit) {
