@@ -47,6 +47,7 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.READ_INDEX_BLOCK_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "14");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_BUFFER.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "15");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_CACHE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "16");
+        props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "17");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -69,6 +70,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getIndexBlockSize(), 14);
         Assert.assertEquals(config.getMaxEntriesInTxnBuffer(), 15);
         Assert.assertEquals(config.getMaxEntriesInCache(), 16);
+        Assert.assertEquals(config.getGarbageCollectionTransactionBatchSize(), 17);
     }
 
     @Test
@@ -100,6 +102,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getIndexBlockSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getIndexBlockSize());
         Assert.assertEquals(config.getMaxEntriesInTxnBuffer(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxEntriesInTxnBuffer());
         Assert.assertEquals(config.getMaxEntriesInCache(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxEntriesInCache());
+        Assert.assertEquals(config.getGarbageCollectionTransactionBatchSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionTransactionBatchSize());
     }
 
     @Test
