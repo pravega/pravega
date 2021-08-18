@@ -32,7 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * * If an Extended Attribute is not loaded, use getAttributes() to load its latest value up.
  * * To delete an Attribute, set its value to Attributes.NULL_ATTRIBUTE_VALUE.
  */
-public interface SegmentAPI {
+public interface SegmentApi {
 
     /**
      * Appends a range of bytes at the end of a StreamSegment and atomically updates the given
