@@ -18,18 +18,36 @@ package io.pravega.controller.store.kvtable;
 import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.TestStreamStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.test.common.AssertExtensions;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
 
+import org.junit.Assert;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 import org.junit.ClassRule;
 
 import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -75,5 +93,26 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         AssertExtensions.assertFutureThrows("Should throw IllegalStateException",
                 store.getActiveSegments(scope, kvtable1, null, executor),
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
+    }
+
+    @Test
+    public void testPartiallyDeletedScope() throws Exception {
+        final String scopeName = "partialScope";
+
+        PravegaTablesStoreHelper storeHelperSpy = spy(new PravegaTablesStoreHelper(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(), executor));
+        WireCommandFailedException wcfe = new WireCommandFailedException(WireCommandType.READ_TABLE_KEYS, WireCommandFailedException.Reason.TableKeyDoesNotExist);
+        when(storeHelperSpy.getKeysPaginated(anyString(), any(), anyInt(), anyLong())).thenReturn(CompletableFuture.failedFuture(new CompletionException(StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, "kvTablesInScope not found."))));
+        StreamMetadataStore testStreamStore = TestStreamStoreFactory.createPravegaTablesStreamStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
+        KVTableMetadataStore testKVStore = TestStreamStoreFactory.createPravegaTablesKVStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
+
+        OperationContext context = testStreamStore.createScopeContext(scopeName, 0L);
+        CompletableFuture<Controller.CreateScopeStatus> createScopeFuture = testStreamStore.createScope(scopeName, context, executor);
+        Controller.CreateScopeStatus status = createScopeFuture.get();
+        Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+
+        String token = Controller.ContinuationToken.newBuilder().build().getToken();
+        Pair<List<String>, String> kvtList = testKVStore.listKeyValueTables(scopeName, token, 2, context, executor).get();
+        Assert.assertEquals(0, kvtList.getKey().size());
+        Assert.assertEquals(token, kvtList.getValue());
     }
 }

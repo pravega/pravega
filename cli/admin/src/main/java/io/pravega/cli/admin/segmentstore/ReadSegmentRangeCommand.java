@@ -111,10 +111,8 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         FileOutputStream fileOutputStream = new FileOutputStream(file, true);
         while (bytesToRead > 0) {
             long bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
-            // TODO: readSegment should take in longs as described here: https://github.com/pravega/pravega/issues/6183
-            // TODO: Remove casting to int once 6183 is resolved.
             CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                    (int) currentOffset, (int) bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                    currentOffset, (int) bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             int bytesRead = bufferRead.getData().readableBytes();
             // Write the buffer into the file.
