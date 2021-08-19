@@ -129,6 +129,8 @@ import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
+import static io.pravega.segmentstore.contracts.Attributes.SEG_MERGE_BATCH_ID;
+import static io.pravega.segmentstore.contracts.Attributes.SEG_MERGE_SEQ_NO_IN_BATCH;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
@@ -446,7 +448,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.None, 0L),
+                new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.None, 0L)
         );
 
        if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {

@@ -16,7 +16,6 @@
 package io.pravega.controller.server;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.Unpooled;
@@ -42,11 +41,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.util.Config;
 
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,7 +62,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
-import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static io.pravega.shared.NameUtils.getTransactionNameFromId;
 
 /**
@@ -276,26 +270,20 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, mergeSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, mergeSegmentId);
         final List<String> txnSegmentNames = txnIdList.stream().map(x -> getTxnSegmentName(scope, stream, mergeSegmentId, x)).collect(Collectors.toList());
-        final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.MergeSegmentsBatch request = new WireCommands.MergeSegmentsBatch(requestId,
-                qualifiedNameTarget, txnSegmentNames, delegationToken);
+        List<CompletableFuture<Reply>> segmentMergeFutures =
+                txnSegmentNames.stream().map(txnSegName -> sendRequest(connection, clientRequestId,
+                        new WireCommands.MergeSegments(requestId, qualifiedNameTarget, txnSegName, delegationToken))).collect(Collectors.toList());
 
-        return sendRequest(connection, clientRequestId, request)
-                .thenCompose(r -> {
+        return Futures.allOfWithResults(segmentMergeFutures)
+                .thenCompose(replyList -> CompletableFuture.completedFuture(replyList.stream().map(r -> {
                     handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
-                    if (r instanceof WireCommands.NoSuchSegment) {
-                        WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
-                        log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.",
-                                reply.getSegment());
-                        return CompletableFuture.completedFuture(txnSegmentNames.stream().map(x -> -1L).collect(Collectors.toList()));
-                    } else {
-                        return CompletableFuture.completedFuture(((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset());
-                    }
-                });
+                    return ((WireCommands.SegmentsMerged) r).getNewTargetWriteOffset();
+                    }).collect(Collectors.toList())));
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,

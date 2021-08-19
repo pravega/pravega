@@ -126,6 +126,19 @@ public class Attributes {
     public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 12);
 
     /**
+     * Defines an attribute that is used to store the BatchId for a batch of segments to be merged.
+     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
+     */
+    public static final AttributeId SEG_MERGE_BATCH_ID = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 13);
+
+    /**
+     * Defines an attribute that is used to store the Sequence number of the source segment in batch of segments
+     * to be merged into this target segment
+     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
+     */
+    public static final AttributeId SEG_MERGE_SEQ_NO_IN_BATCH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 13);
+
+    /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
      *
      * @param attributeId The Attribute Id to check.
