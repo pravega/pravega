@@ -482,23 +482,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         // Populate the AttributeUpdates for this mergeSegments operation, if any.
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
-        if (!mergeSegments.getBatchId().isEmpty()) {
-            if (mergeSegments.isLastSegment()) {
-                if (mergeSegments.getSeqNo().get() == 1) {
+        if (!mergeSegments.getBatch().isPresent()) {
+            if (mergeSegments.getBatch().get().isLastSegment()) {
+                if (mergeSegments.getBatch().get().getSeqNo() == 1) {
                     // There is only 1 segment in this batch
                     // so first segment == last segment
                     attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, 0L, 0L));
                 }
-                attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, 0L, (mergeSegments.getSeqNo().get() - 1)));
+                attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, 0L,
+                        (mergeSegments.getBatch().get().getSeqNo() - 1)));
             } else {
-                if (mergeSegments.getSeqNo().get().intValue() == 1) {
+                if (mergeSegments.getBatch().get().getSeqNo() == 1) {
                     // This is the first segment in the batch, but not the last segment
                     // so update BatchID on the SEG_MERGE_BATCH_ID attribute if its value is 0L
-                    attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, mergeSegments.getBatchId().get(), 0L));
+                    attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals,
+                            mergeSegments.getBatch().get().getBatchId(), 0L));
                 } else {
-                    attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, mergeSegments.getBatchId().get(), mergeSegments.getBatchId().get()));
+                    attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals,
+                            mergeSegments.getBatch().get().getBatchId(), mergeSegments.getBatch().get().getBatchId()));
                 }
-                attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, mergeSegments.getSeqNo().get(), (mergeSegments.getSeqNo().get() - 1)));
+                attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals,
+                        mergeSegments.getBatch().get().getSeqNo(), (mergeSegments.getBatch().get().getSeqNo() - 1)));
             }
         }
 
