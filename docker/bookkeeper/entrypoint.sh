@@ -32,17 +32,15 @@ BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
 ZK_URL=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/,/;/g')
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
+BK_setNewBookieID=${BK_setNewBookieID:-"false"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
-BK_ID_DIR="/bk/conf"
-BK_ID_FILE="${BK_ID_DIR}/id"
 BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 BK_HOME=/opt/bookkeeper
 BINDIR=${BK_HOME}/bin
 BOOKKEEPER=${BINDIR}/bookkeeper
 SCRIPTS_DIR=${BK_HOME}/scripts
-HOST=`hostname -s`
 
 export PATH=$PATH:/opt/bookkeeper/bin
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
@@ -79,19 +77,23 @@ create_bookie_dirs() {
 # Create a Bookie ID if this is a newly added bookkeeper pod
 # or read the Bookie ID if it already exists
 set_bookieid() {
+  IFS=',' read -ra directories <<< $1
+  BK_ID_DIR="${directories[0]}"
+  BK_ID_FILE="${BK_ID_DIR}/id"
   if [ `find ${BK_ID_FILE} | wc -l` -gt 0 ]; then
-    echo "Found Bookie ID"
+    echo "Found BookieID"
     BK_bookieId=`cat ${BK_ID_FILE}`
-    export BK_bookieId
   else
-    echo "Bookie ID not found"
-    TIMESTAMP="`date "+%Y%m%d-%H%M%S"`"
-    BK_bookieId="${HOST}-${TIMESTAMP}"
+    echo "BookieID not found"
     mkdir -p ${BK_ID_DIR}
-#    chown -R "${BK_USER}:${BK_USER}" ${BK_ID_DIR}
-    echo ${BK_bookieId} > ${BK_ID_FILE}
-    export BK_bookieId
+    if [[ $BK_setNewBookieID == "true" ]];then
+      BK_bookieId="`hostname -s`-`date "+%Y%m%d-%H%M%S"`"
+    else
+      HOST="$(echo -e `hostname -A` | sed -e 's/[[:space:]]*$//')"
+      BK_bookieId="${HOST}:${BOOKIE_PORT}"
+    fi
   fi
+  export BK_bookieId
 }
 
 wait_for_zookeeper() {
@@ -161,6 +163,8 @@ initialize_cluster() {
             fi
         fi
     fi
+    echo "Writing BookieID ${BK_bookieId} in the persistant file ${BK_ID_FILE}"
+    echo ${BK_bookieId} > ${BK_ID_FILE}
     set -e
 }
 
@@ -192,7 +196,7 @@ create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
 
 echo "Configuring the Bookie ID"
-set_bookieid
+set_bookieid "${BK_journalDirectories}"
 
 echo "Sourcing ${SCRIPTS_DIR}/common.sh"
 source ${SCRIPTS_DIR}/common.sh
