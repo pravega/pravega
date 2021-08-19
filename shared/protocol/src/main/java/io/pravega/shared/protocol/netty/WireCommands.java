@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import lombok.AccessLevel;
@@ -1312,16 +1313,7 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
-        final List<ConditionalAttributeUpdate> attributeUpdates;
-
-        // Constructor to keep compatibility with all the calls not requiring attributes to merge Segments.
-        public MergeSegments(long requestId, String target, String source, String delegationToken) {
-            this.requestId = requestId;
-            this.target = target;
-            this.source = source;
-            this.delegationToken = delegationToken;
-            this.attributeUpdates = Collections.emptyList();
-        }
+        final Optional<BatchInfo> batch;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1334,9 +1326,10 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeInt(attributeUpdates.size());
-            for (ConditionalAttributeUpdate entry : attributeUpdates) {
-                entry.writeFields(out);
+            if(!batch.isEmpty()) {
+                out.writeLong(batch.get().getBatchId());
+                out.writeInt(batch.get().getSeqNo());
+                out.writeBoolean(batch.get().isLastSegment);
             }
         }
 
@@ -1345,16 +1338,12 @@ public final class WireCommands {
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            List<ConditionalAttributeUpdate> attributeUpdates = new ArrayList<>();
             if (in.available() <= 0) {
                 // MergeSegment Commands prior v5 do not allow attributeUpdates, so we can return.
-                return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
+                return new MergeSegments(requestId, target, source, delegationToken, Optional.empty());
             }
-            int numberOfEntries = in.readInt();
-            for (int i = 0; i < numberOfEntries; i++) {
-                attributeUpdates.add(ConditionalAttributeUpdate.readFrom(in, length));
-            }
-            return new MergeSegments(requestId, target, source, delegationToken, attributeUpdates);
+            BatchInfo batch = BatchInfo.readFrom(in, length);
+            return new MergeSegments(requestId, target, source, delegationToken, Optional.of(batch));
         }
     }
 
@@ -2640,6 +2629,24 @@ public final class WireCommands {
          * against multiple invocations.
          */
         abstract void releaseInternal();
+    }
+
+    /**
+     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
+     * WireCommand.
+     */
+    @Data
+    public static final class BatchInfo {
+        private final long batchId;
+        private final int seqNo;
+        private final boolean isLastSegment;
+
+        public static BatchInfo readFrom(DataInput in, int length) throws IOException {
+            long batchId = in.readLong();
+            int seqNo = in.readInt();
+            boolean isLast = in.readBoolean();
+            return new BatchInfo(batchId, seqNo, isLast);
+        }
     }
 
     /**
