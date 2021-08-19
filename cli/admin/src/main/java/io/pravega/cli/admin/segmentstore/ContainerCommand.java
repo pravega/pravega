@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.protocol.netty;
+package io.pravega.cli.admin.segmentstore;
+
+import io.pravega.cli.admin.CommandArgs;
 
 /**
- * A class that handles each type of Admin-specific Request.
+ * Base class for all Segment Container related commands.
  */
-public interface AdminRequestProcessor extends RequestProcessor {
+public abstract class ContainerCommand extends SegmentStoreCommand {
+    static final String COMPONENT = "container";
 
-    void flushToStorage(WireCommands.FlushToStorage flushToStorage);
+    public ContainerCommand(CommandArgs args) {
+        super(args);
+    }
 }
