@@ -61,7 +61,7 @@ import java.util.concurrent.CompletionException;
  *          This identifier is used in config.properties file to identify implementation to use.</li>
  *          <li> The bindings are loaded using ServiceLoader (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)</li>
  *          <li> Add resource file named "io.pravega.segmentstore.storage.StorageFactoryCreator" to the implementation jar.
- *          File contains name of the class implementing {@link io.pravega.segmentstore.storage.StorageFactoryCreator}.</li>
+ *          That file contains name of the class implementing {@link io.pravega.segmentstore.storage.StorageFactoryCreator}.</li>
  *     </ul>
  *     </li>
  * </ol>
