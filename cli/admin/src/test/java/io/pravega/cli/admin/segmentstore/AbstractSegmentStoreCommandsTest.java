@@ -58,6 +58,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     // Setup utility.
     protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+    protected static final int CONTAINER_COUNT = 1;
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
@@ -73,7 +74,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
-        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(CONTAINER_COUNT));
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
 
         if (enableAuth) {
@@ -208,6 +209,22 @@ public abstract class AbstractSegmentStoreCommandsTest {
         AssertExtensions.assertThrows(WireCommandFailedException.class, () -> TestUtils.executeCommand("segmentstore update-segment-attribute not/exists/0 "
                 + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0) + " 0 0 localhost", STATE.get()));
         Assert.assertNotNull(UpdateSegmentAttributeCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandAllCase() throws Exception {
+        String commandResult = TestUtils.executeCommand("container flush-to-storage all localhost", STATE.get());
+        for (int id = 1; id < CONTAINER_COUNT; id++) {
+            Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
+        }
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("container flush-to-storage 0 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
     }
 
     @After
