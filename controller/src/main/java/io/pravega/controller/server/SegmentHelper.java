@@ -268,16 +268,14 @@ public class SegmentHelper implements AutoCloseable {
 
     public CompletableFuture<List<Long>> commitTransactions(final String scope,
                                                      final String stream,
-                                                     final long targetSegmentId,
-                                                     final long sourceSegmentId,
+                                                     final long mergeSegmentId,
+                                                     final long batchId,
                                                      final List<UUID> txnIdList,
                                                      final String delegationToken,
                                                      final long clientRequestId) {
-        Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId),
-                "Source and Target segment numbers do not match.");
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
-        final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
-        final List<String> txnSegmentNames = txnIdList.stream().map(x -> getTxnSegmentName(scope, stream, sourceSegmentId, x)).collect(Collectors.toList());
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, mergeSegmentId);
+        final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, mergeSegmentId);
+        final List<String> txnSegmentNames = txnIdList.stream().map(x -> getTxnSegmentName(scope, stream, mergeSegmentId, x)).collect(Collectors.toList());
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);

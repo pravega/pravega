@@ -124,7 +124,7 @@ public abstract class PersistentStreamBase implements Stream {
                                 scope, name, createStreamResponse.getConfiguration()), context))
                         .thenCompose((Void v) -> createEpochTransitionIfAbsent(EpochTransitionRecord.EMPTY, context))
                         .thenCompose((Void v) -> createTruncationDataIfAbsent(StreamTruncationRecord.EMPTY, context))
-                        .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.EMPTY, context))
+                        .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.INITIAL, context))
                         .thenCompose((Void v) -> createStateIfAbsent(StateRecord.builder().state(State.CREATING).build(), context))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createStreamResponse, context))
                         .thenCompose((Void v) -> createSubscribersRecordIfAbsent(context))
@@ -1935,7 +1935,8 @@ public abstract class PersistentStreamBase implements Stream {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getVersionedCommitTransactionsRecord(context)
                 .thenCompose(versioned -> {
-                    if (versioned.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
+                    //if (versioned.getObject().equals(CommittingTransactionsRecord.INITIAL)) {
+                    if (versioned.getObject().isEmpty()) {
                         return getOrderedCommittingTxnInLowestEpoch(limit, context)
                                 .thenCompose(list -> {
                                     if (list.isEmpty()) {
@@ -1950,7 +1951,8 @@ public abstract class PersistentStreamBase implements Stream {
                                                                    .collect(Collectors.toList());
                                         int epoch = RecordHelper.getTransactionEpoch(list.get(0).getId());
                                         CommittingTransactionsRecord record =
-                                                new CommittingTransactionsRecord(epoch, txIdList.build());
+                                                new CommittingTransactionsRecord(epoch, txIdList.build(),
+                                                        CommittingTransactionsRecord.newBatchId(versioned.getObject().getBatchId()));
                                         return updateCommittingTxnRecord(new VersionedMetadata<>(record, versioned.getVersion()),
                                                 context)
                                                 // now that we have included transactions from positions for commit, we
@@ -1999,7 +2001,7 @@ public abstract class PersistentStreamBase implements Stream {
         }
         return future
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(
-                        new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
+                        new VersionedMetadata<>(CommittingTransactionsRecord.newEmptyCommittingTransactionsRecord(record.getObject().getBatchId()),
                         record.getVersion()), context)));
     }
 

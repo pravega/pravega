@@ -176,7 +176,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     context, executor)
                             .thenComposeAsync(txnsTuple -> {
                                 VersionedMetadata<CommittingTransactionsRecord> committingTxnsRecord = txnsTuple.getKey();
-                                if (committingTxnsRecord.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
+                                if (committingTxnsRecord.getObject().isEmpty()) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from
                                     // a previous execution
@@ -230,11 +230,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                     // we can commit transactions immediately
                                                     return commitTransactions(scope, stream,
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
-                                                            context, txnIdToWriterId, writerMarks)
+                                                            context, txnIdToWriterId, writerMarks, committingTxnsRecord.getObject().getBatchId())
                                                             .thenApply(txnOffsets -> committingTxnsRecord);
                                                 } else {
                                                     return rollTransactions(scope, stream, txnEpochRecord, activeEpochRecord,
-                                                            committingTxnsRecord, context, txnIdToWriterId, writerMarks);
+                                                            committingTxnsRecord, context, txnIdToWriterId, writerMarks, committingTxnsRecord.getObject().getBatchId());
                                                 }
                                             }));
                                 }
@@ -255,7 +255,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
             VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context,
             Map<UUID, String> txnIdToWriterId,
-            Map<String, TxnWriterMark> writerMarks) {
+            Map<String, TxnWriterMark> writerMarks, long batchId) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(
@@ -267,7 +267,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             if (activeEpoch.getEpoch() > record.getObject().getCurrentEpoch()) {
                 return CompletableFuture.completedFuture(record);
             } else {
-                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context, txnIdToWriterId, writerMarks)
+                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context, txnIdToWriterId, writerMarks, batchId)
                         .thenApply(v -> record);
             }
         });
@@ -277,7 +277,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                   EpochRecord activeEpoch, 
                                                   VersionedMetadata<CommittingTransactionsRecord> existing,
                                                   OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                  Map<String, TxnWriterMark> writerMarks) {
+                                                  Map<String, TxnWriterMark> writerMarks, long batchId) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 
@@ -292,7 +292,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                             newActiveEpoch))
                                                      .collect(Collectors.toList());
         List<UUID> transactionsToCommit = existing.getObject().getTransactionsToCommit();
-        return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context, txnIdToWriterId, writerMarks)
+        return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context, txnIdToWriterId, writerMarks, batchId)
                 .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context,
                         delegationToken, context.getRequestId()))
                 .thenCompose(v -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, txnEpochDuplicate,
@@ -324,7 +324,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      */
     private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
                                                                       List<Long> segmentIds, OperationContext context, Map<UUID, String> txnIdToWriterId,
-                                                                                            Map<String, TxnWriterMark> writerMarks) {
+                                                                                            Map<String, TxnWriterMark> writerMarks, long batchId) {
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
@@ -342,7 +342,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             "Rolling transaction, successfully created duplicate txn epoch {} for stream {}/{}", 
                             segmentIds, scope, stream);
                     // now commit transactions into these newly created segments
-                    return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context, txnIdToWriterId, writerMarks);
+                    return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context, txnIdToWriterId, writerMarks, batchId);
                 })
                 .thenAccept(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken,
                         context.getRequestId()));
@@ -355,12 +355,12 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     private CompletableFuture<Void> commitTransactions(String scope, String stream, List<Long> segments,
                                                                              List<UUID> transactionsToCommit, OperationContext context,
                                                                              Map<UUID, String> txnIdToWriterId,
-                                                                             Map<String, TxnWriterMark> writerMarks) {
+                                                                             Map<String, TxnWriterMark> writerMarks, long batchId) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // is honoured and is based on the order in the list.
         boolean noteTime = writerMarks.size() > 0;
         Timer segMergeTimer = new Timer();
-        return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, context.getRequestId())
+        return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, batchId, context.getRequestId())
         .thenCompose(segmentOffsets -> {
             TransactionMetrics.getInstance().commitTransactionSegments(segMergeTimer.getElapsed());
             if (noteTime) {

@@ -42,7 +42,9 @@ import java.util.UUID;
 @Data
 public class CommittingTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
-    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
+    public static final CommittingTransactionsRecord INITIAL = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
+                                                                    .transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty())
+                                                                    .batchId(0L).build();
     /**
      * Epoch from which transactions are committed.
      */
@@ -58,19 +60,39 @@ public class CommittingTransactionsRecord {
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit) {
-        this(epoch, transactionsToCommit, Optional.empty());
+    /**
+     * Batch Identifier for the last successfully committed transaction batch.
+     */
+    private long batchId;
+
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, long batchId) {
+        this(epoch, transactionsToCommit, Optional.empty(), batchId);
     }
 
-    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, int activeEpoch) {
-        this(epoch, transactionsToCommit, Optional.of(activeEpoch));
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, int activeEpoch, long batchId) {
+        this(epoch, transactionsToCommit, Optional.of(activeEpoch), batchId);
+    }
+
+    public static CommittingTransactionsRecord newEmptyCommittingTransactionsRecord(long batchId) {
+        return new CommittingTransactionsRecord(Integer.MIN_VALUE, ImmutableList.of(), Optional.empty(), batchId);
+    }
+
+    public static long newBatchId(long currentBatchId) {
+        return currentBatchId < Long.MAX_VALUE ?  currentBatchId + 1 : 0L;
+    }
+
+    public boolean isEmpty() {
+        return (this.epoch == INITIAL.epoch &&
+                this.transactionsToCommit.equals(INITIAL.transactionsToCommit) &&
+                this.activeEpoch.equals(INITIAL.activeEpoch));
     }
 
     @Builder
-    private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
+    private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch, long batchId) {
         this.epoch = epoch;
         this.transactionsToCommit = transactionsToCommit;
         this.activeEpoch = activeEpoch;
+        this.batchId = batchId;
     }
 
     private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
@@ -120,7 +142,8 @@ public class CommittingTransactionsRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00)
+                    .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
@@ -143,6 +166,15 @@ public class CommittingTransactionsRecord {
             revisionDataOutput.writeInt(record.getEpoch());
             revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
             revisionDataOutput.writeInt(record.getActiveEpoch().orElse(Integer.MIN_VALUE));
+        }
+
+        private void read01(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
+                throws IOException {
+            builder.batchId(revisionDataInput.readLong());
+        }
+
+        private void write01(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(record.getBatchId());
         }
 
         @Override

@@ -1949,18 +1949,18 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Map<Long, List<Long>>> notifyTxnsCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final List<UUID> txnList, long requestId) {
+                                                   final List<Long> segments, final List<UUID> txnList, long batchId, long requestId) {
 
         return Futures.allOfWithResults(segments.stream()
-                .collect(Collectors.toMap(segNumber -> segNumber, segNumber -> notifyTxnsCommit(scope, stream, segNumber, txnList, requestId))));
+                .collect(Collectors.toMap(segNumber -> segNumber, segNumber -> notifyTxnsCommit(scope, stream, segNumber, txnList, batchId, requestId))));
     }
 
     private CompletableFuture<List<Long>> notifyTxnsCommit(final String scope, final String stream,
-                                                    final long segmentNumber, final List<UUID> txnList, long requestId) {
+                                                    final long segmentNumber, final List<UUID> txnList, long batchId, long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransactions(scope,
                 stream,
                 segmentNumber,
-                segmentNumber,
+                batchId,
                 txnList,
                 this.retrieveDelegationToken(), requestId), executor);
     }

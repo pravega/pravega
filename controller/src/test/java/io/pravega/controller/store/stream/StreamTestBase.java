@@ -177,7 +177,7 @@ public abstract class StreamTestBase {
         assertEquals(EpochTransitionRecord.EMPTY, etr.getObject());
 
         VersionedMetadata<CommittingTransactionsRecord> ctr = stream.getVersionedCommitTransactionsRecord(context).join();
-        assertEquals(CommittingTransactionsRecord.EMPTY, ctr.getObject());
+        assertEquals(CommittingTransactionsRecord.INITIAL, ctr.getObject());
 
         assertEquals(activeEpoch, stream.getEpochRecord(0, context).join());
 
