@@ -482,7 +482,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         // Populate the AttributeUpdates for this mergeSegments operation, if any.
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
-        if (!mergeSegments.getBatch().isPresent()) {
+        if (mergeSegments.getBatch().isPresent()) {
             if (mergeSegments.getBatch().get().isLastSegment()) {
                 if (mergeSegments.getBatch().get().getSeqNo() == 1) {
                     // There is only 1 segment in this batch
