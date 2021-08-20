@@ -90,4 +90,35 @@ public abstract class ScopeCommand extends Command {
                     .build();
         }
     }
+
+    public static class List extends StreamCommand {
+        public List(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        public void execute() {
+            ensureArgCount(0);
+            @Cleanup
+            val sm = StreamManager.create(getClientConfig());
+            val scopeIterator = sm.listScopes();
+            if (!scopeIterator.hasNext()) {
+                output("Scope does not exist in Pravega");
+            } else {
+                // TODO: sort the scope names
+
+
+                while (scopeIterator.hasNext())
+                {
+                    output("\t%s", scopeIterator.next());
+                }
+
+            }
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("list", "Lists all Scopes in Pravega.")
+                    .build();
+        }
+    }
 }
