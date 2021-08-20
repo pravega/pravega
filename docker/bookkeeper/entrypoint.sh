@@ -85,7 +85,6 @@ set_bookieid() {
     BK_bookieId=`cat ${BK_ID_FILE}`
   else
     echo "BookieID not found"
-    mkdir -p ${BK_ID_DIR}
     if [[ $BK_setNewBookieID == "true" ]];then
       BK_bookieId="`hostname -s`-`date "+%Y%m%d-%H%M%S"`"
     else
