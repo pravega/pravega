@@ -55,16 +55,8 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
+
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
@@ -597,7 +589,8 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
-                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
+                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), "",
+                Optional.of(new WireCommands.BatchInfo(1,1, true))), replyProcessor, result);
         return result;
     }
 
