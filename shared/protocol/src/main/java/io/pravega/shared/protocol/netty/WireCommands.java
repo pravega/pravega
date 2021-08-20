@@ -1315,6 +1315,15 @@ public final class WireCommands {
         final String delegationToken;
         final Optional<BatchInfo> batch;
 
+        // Constructor to keep compatibility with all the calls not requiring batch merge.
+        public MergeSegments(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+            this.batch = Optional.empty();
+        }
+        
         @Override
         public void process(RequestProcessor cp) {
             cp.mergeSegments(this);
