@@ -15,9 +15,6 @@ public class ECSChunkStorageConfig {
     public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
     public static final Property<String> BUCKET = Property.named("bucket", "chunk-obj");
     public static final Property<String> PREFIX = Property.named("prefix", "pravega-tier2");
-    public static final Property<String> ENDPOINT = Property.named("endpoint", "http://127.0.0.1:9939");
-    public static final Property<Integer> CHUNKSIZE = Property.named("chunksize", 16777216);
-    public static final Property<Integer> INDEXGRANULARITY = Property.named("indexGranularity",131072);
 
     private static final String COMPONENT_CODE = "ecschunk";
     private static final String PATH_SEPARATOR = "/";
@@ -55,6 +52,6 @@ public class ECSChunkStorageConfig {
      * @return A new Builder for this class.
      */
     public static ConfigBuilder<ECSChunkStorageConfig> builder() {
-        return new ConfigBuilder<>("COMPONENT_CODE", ECSChunkStorageConfig::new);
+        return new ConfigBuilder<>(COMPONENT_CODE, ECSChunkStorageConfig::new);
     }
 }

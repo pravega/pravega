@@ -35,7 +35,7 @@ RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
   && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
   && rm -rf /var/lib/apt/lists/*
 
-EXPOSE 9090 9091 10000 12345
+EXPOSE 9090 9092 10000 12345
 
 WORKDIR /opt/pravega
 

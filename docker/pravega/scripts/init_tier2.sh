@@ -77,5 +77,10 @@ init_tier2() {
     add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
     add_certs_into_truststore
     ;;
+    ECSCHUNK)
+    add_system_property "ecschunk.connect.config.uri" "${ECSCHUNK_CONFIGURI}"
+    add_system_property "ecschunk.bucket" "${ECSCHUNK_BUCKET}"
+    add_system_property "ecschunk.prefix" "${ECSCHUNK_PREFIX}"
+    ;;
     esac
 }
