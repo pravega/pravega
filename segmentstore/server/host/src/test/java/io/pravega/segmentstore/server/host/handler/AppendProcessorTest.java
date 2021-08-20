@@ -192,6 +192,37 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(connection);
     }
 
+    // Verifies that the AppendProcessor performs a clean-up call on each Transient Segment it is tracking.
+    @Test
+    public void testTransientSegmentCleanupOnClose() {
+
+        String parentSegmentName = "scope/stream/parentSegment";
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        @Cleanup
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(new TrackedConnection(connection, tracker))
+                .statsRecorder(mockedRecorder)
+                .build();
+        interceptCreateTransient(store, parentSegmentName);
+
+        int transientSegments = 10;
+        for (int i = 1; i <= transientSegments; i++) {
+            UUID writerId = new UUID(0, i);
+            CreateTransientSegment createTransientSegment = new CreateTransientSegment(i, writerId, parentSegmentName, "");
+            processor.createTransientSegment(createTransientSegment);
+        }
+        verify(connection, times(transientSegments)).send(any(WireCommands.TransientSegmentCreated.class));
+        processor.close();
+        // For each Transient Segment we created, make sure that the StreamSegmentStore calls deleteStreamSegment on them.
+        verify(store, times(transientSegments)).deleteStreamSegment(any(), any());
+        // Make sure the connection has also been properly closed.
+        verify(connection).close();
+    }
+
     @Test
     public void testSetupAppendClosesConnectionIfTokenHasExpired() {
         String streamSegmentName = "scope/stream/0.#epoch.0";

@@ -66,6 +66,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -119,7 +120,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
-        this.transientSegmentNames = Collections.emptySet();
+        this.transientSegmentNames = new HashSet<>();
     }
 
     /**
@@ -272,7 +273,10 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         );
         String transientSegmentName = NameUtils.getTransientNameFromId(createTransientSegment.getParentSegment(), createTransientSegment.getWriterId());
         store.createStreamSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT)
-                .thenAccept(v -> connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName)))
+                .thenAccept(v -> {
+                    transientSegmentNames.add(transientSegmentName);
+                    connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
+                })
                 .exceptionally(e -> handleException(createTransientSegment.getWriterId(),
                         createTransientSegment.getRequestId(),
                         transientSegmentName,
