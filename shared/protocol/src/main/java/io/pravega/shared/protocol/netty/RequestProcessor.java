@@ -55,8 +55,6 @@ public interface RequestProcessor {
 
     void mergeSegments(MergeSegments mergeSegments);
 
-    void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments);
-
     void sealSegment(SealSegment sealSegment);
 
     void truncateSegment(TruncateSegment truncateSegment);

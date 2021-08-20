@@ -528,43 +528,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
-        final String operation = "mergeSegmentsBatch";
-
-        List<String> sources = mergeSegments.getSources();
-        for (String s : sources) {
-            if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
-                return;
-            }
-        }
-
-        log.info(mergeSegments.getRequestId(), "Merging Segments batch {} ", mergeSegments);
-
-        Function<String, CompletableFuture<Long>> mergeFunction = source ->
-                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
-                        source, TIMEOUT), (r, e) -> {
-                    if (e != null) {
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
-                                    sources);
-                            return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                    .thenApply(SegmentProperties::getLength);
-                        } else {
-                            throw new CompletionException(e);
-                        }
-                    } else {
-                        recordStatForTransaction(r, mergeSegments.getTarget());
-                        return CompletableFuture.completedFuture(r.getTargetSegmentLength());
-                    }
-                });
-        CompletableFuture.completedFuture(sources.stream().map(x -> mergeFunction.apply(x).join()).collect(toList()))
-                .thenAccept(mergeResults -> connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
-                           mergeSegments.getTarget(),
-                           sources,
-                           mergeResults))).exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
-    }
-
-    @Override
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         final String operation = "sealSegment";

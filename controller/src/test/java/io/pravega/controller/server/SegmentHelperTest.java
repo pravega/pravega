@@ -286,7 +286,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         String txnSegName = SegmentHelper.getTxnSegmentName("", "", 0L, txnId);
-        factory.rp.process(new WireCommands.SegmentsMergedBatch(requestId, qualifiedStreamSegmentName, List.of(txnSegName), List.of(10L)));
+        factory.rp.process(new WireCommands.SegmentsMerged(requestId, qualifiedStreamSegmentName, txnSegName, 10L));
         result.join();
 
         result = helper.commitTransactions("", "", 0L, 0L, List.of(new UUID(0L, 0L)), "", System.nanoTime());

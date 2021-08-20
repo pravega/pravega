@@ -96,8 +96,6 @@ public class SegmentHelper implements AutoCloseable {
                     WireCommands.SegmentIsTruncated.class))
             .put(WireCommands.MergeSegments.class, ImmutableSet.of(WireCommands.SegmentsMerged.class,
                     WireCommands.NoSuchSegment.class))
-            .put(WireCommands.MergeSegmentsBatch.class, ImmutableSet.of(WireCommands.SegmentsMergedBatch.class,
-                            WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttribute.class))
             .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttributeUpdated.class))
@@ -289,7 +287,7 @@ public class SegmentHelper implements AutoCloseable {
 
         return Futures.allOfWithResults(segmentMergeFutures)
                 .thenCompose(replyList -> CompletableFuture.completedFuture(replyList.stream().map(r -> {
-                    handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
+                    handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegments.class, type);
                     return ((WireCommands.SegmentsMerged) r).getNewTargetWriteOffset();
                     }).collect(Collectors.toList())));
     }
