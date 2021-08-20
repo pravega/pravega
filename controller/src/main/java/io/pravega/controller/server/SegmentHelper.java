@@ -281,10 +281,10 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         List<CompletableFuture<Reply>> segmentMergeFutures = new ArrayList<>();
-        for (int seqNo=1; seqNo <= txnSegmentNames.size(); seqNo++) {
+        for (int seqNo = 1; seqNo <= txnSegmentNames.size(); seqNo++) {
             segmentMergeFutures.add(sendRequest(connection, clientRequestId,
                     new WireCommands.MergeSegments(requestId, qualifiedNameTarget, txnSegmentNames.get(seqNo-1), delegationToken,
-                            Optional.of(new WireCommands.BatchInfo(batchId, seqNo, (seqNo == txnSegmentNames.size()))))));
+                            Optional.of(new WireCommands.BatchInfo(batchId, seqNo, seqNo == txnSegmentNames.size())))));
         }
 
         return Futures.allOfWithResults(segmentMergeFutures)

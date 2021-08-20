@@ -46,7 +46,7 @@ public class ControllerMetadataRecordSerializerTest {
     public void commitTransactionsRecordTest() {
         List<UUID> list = Lists.newArrayList(UUID.randomUUID(), UUID.randomUUID());
         CommittingTransactionsRecord commitTransactionsRecord = 
-                new CommittingTransactionsRecord(0, ImmutableList.copyOf(list));
+                new CommittingTransactionsRecord(0, ImmutableList.copyOf(list), 1L);
         assertEquals(CommittingTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
         CommittingTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
         assertNotEquals(CommittingTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);

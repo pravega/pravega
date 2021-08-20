@@ -73,26 +73,26 @@ public class CommittingTransactionsRecord {
         this(epoch, transactionsToCommit, Optional.of(activeEpoch), batchId);
     }
 
-    public static CommittingTransactionsRecord newEmptyCommittingTransactionsRecord(long batchId) {
-        return new CommittingTransactionsRecord(Integer.MIN_VALUE, ImmutableList.of(), Optional.empty(), batchId);
-    }
-
-    public static long newBatchId(long currentBatchId) {
-        return currentBatchId < Long.MAX_VALUE ?  currentBatchId + 1 : 0L;
-    }
-
-    public boolean isEmpty() {
-        return (this.epoch == INITIAL.epoch &&
-                this.transactionsToCommit.equals(INITIAL.transactionsToCommit) &&
-                this.activeEpoch.equals(INITIAL.activeEpoch));
-    }
-
     @Builder
     private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch, long batchId) {
         this.epoch = epoch;
         this.transactionsToCommit = transactionsToCommit;
         this.activeEpoch = activeEpoch;
         this.batchId = batchId;
+    }
+
+    public boolean isEmpty() {
+        return this.epoch == INITIAL.epoch &&
+                this.transactionsToCommit.equals(INITIAL.transactionsToCommit) &&
+                this.activeEpoch.equals(INITIAL.activeEpoch);
+    }
+
+    public static CommittingTransactionsRecord newEmptyCommittingTransactionsRecord(long batchId) {
+        return new CommittingTransactionsRecord(Integer.MIN_VALUE, ImmutableList.of(), Optional.empty(), batchId);
+    }
+
+    public static long newBatchId(long currentBatchId) {
+        return currentBatchId < Long.MAX_VALUE ?  currentBatchId + 1 : 0L;
     }
 
     private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
