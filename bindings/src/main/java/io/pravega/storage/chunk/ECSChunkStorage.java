@@ -275,6 +275,11 @@ public class ECSChunkStorage extends BaseChunkStorage {
             }
         }
 
+        if (e instanceof S3Exception) {
+            S3Exception se = (S3Exception) e;
+            retValue = triageStatusCode(chunkName,  se.statusCode());
+        }
+
         if (retValue == null) {
             retValue = new ChunkStorageException(getObjectPath(chunkName), message, e);
         }
@@ -321,6 +326,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             default:
                 log.error("unknown error code {}", statusCode);
         }
+        log.error("S3 request failed for chunk {} with statusCode {}", chunkName, statusCode);
         return retValue;
     }
 
@@ -329,7 +335,9 @@ public class ECSChunkStorage extends BaseChunkStorage {
     }
 
     private String getObjectPath(String objectName) {
-        return NameUtils.extractECSChunkIdFromChunkName(objectName);
+        String chunkName = NameUtils.extractECSChunkIdFromChunkName(objectName);
+        log.info("chunk name {} for object {}", chunkName, objectName);
+        return chunkName;
     }
 
 }

@@ -9,22 +9,22 @@ public class ChunkObjectKeyGenerator {
         long containerId = ThreadLocalRandom.current().nextLong() & 0x0fffffff;
         long blobId = ThreadLocalRandom.current().nextLong();
         short simId = (short) ThreadLocalRandom.current().nextInt(Short.MAX_VALUE);
-        return String.format("%X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
+        return String.format("%07X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
     }
 
     public static String randomChunkObjectKey(int containerId) {
         long blobId = ThreadLocalRandom.current().nextLong();
         short simId = (short) ThreadLocalRandom.current().nextInt(Short.MAX_VALUE);
-        return String.format("%X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
+        return String.format("%07X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
     }
 
     public static String randomChunkObjectKey(int containerId, int simId) {
         long blobId = ThreadLocalRandom.current().nextLong();
-        return String.format("%X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
+        return String.format("%07X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
     }
 
     public static String randomChunkObjectKey(int containerId, int simId, long blobId) {
-        return String.format("%X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
+        return String.format("%07X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
     }
 
     public static String randomChunkObjectKey(short type, int containerId, int simId, long blobId) {

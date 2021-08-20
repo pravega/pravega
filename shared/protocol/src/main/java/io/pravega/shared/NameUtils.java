@@ -64,7 +64,7 @@ public final class NameUtils {
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
 
-    static final Pattern pattern = Pattern.compile("\\w{0,7}/\\w{4}/\\w{16}");
+    static final Pattern pattern = Pattern.compile("\\w{7}/\\w{4}/\\w{16}");
 
     /**
      * This is used for composing metric tags.
