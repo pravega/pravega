@@ -490,7 +490,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     attributeUpdates.add(new AttributeUpdate(SEG_MERGE_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, 0L, 0L));
                 }
                 attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, 0L,
-                        (mergeSegments.getBatch().get().getSeqNo() - 1)));
+                        mergeSegments.getBatch().get().getSeqNo() - 1));
             } else {
                 if (mergeSegments.getBatch().get().getSeqNo() == 1) {
                     // This is the first segment in the batch, but not the last segment
@@ -502,7 +502,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             mergeSegments.getBatch().get().getBatchId(), mergeSegments.getBatch().get().getBatchId()));
                 }
                 attributeUpdates.add(new AttributeUpdate(SEG_MERGE_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals,
-                        mergeSegments.getBatch().get().getSeqNo(), (mergeSegments.getBatch().get().getSeqNo() - 1)));
+                        mergeSegments.getBatch().get().getSeqNo(), mergeSegments.getBatch().get().getSeqNo() - 1));
             }
         }
 
@@ -516,18 +516,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                         mergeResult.getTargetSegmentLength()));
                     })
                     .exceptionally(e -> {
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
-                                    mergeSegments.getSource());
-                            segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                        .thenAccept(properties -> {
-                                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
-                                                                                            mergeSegments.getTarget(),
-                                                                                            mergeSegments.getSource(),
-                                                                                            properties.getLength()));
-                                        });
-                            return null;
-                        } else if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
+                        if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
                             log.debug(mergeSegments.getRequestId(), "Conditional merge failed (Source segment={}, " +
                                     "Target segment={}): {}", mergeSegments.getSource(), mergeSegments.getTarget(), e.toString());
                             connection.send(new SegmentAttributeUpdated(mergeSegments.getRequestId(), false));
