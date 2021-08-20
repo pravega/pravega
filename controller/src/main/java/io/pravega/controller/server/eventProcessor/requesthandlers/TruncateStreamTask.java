@@ -72,7 +72,8 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
-                        throw new StoreException.IllegalStreamStateException("ERROR: Attempting to truncate sealed stream " + stream, null);
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Cannot truncate sealed stream: " + stream);
                     }
                     return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                             .thenCompose(versionedMetadata -> {

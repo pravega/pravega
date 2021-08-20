@@ -81,7 +81,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
-                        throw new StoreException.IllegalStreamStateException("ERROR: Attempting to update sealed stream " + stream, null);
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Cannot update sealed stream: " + stream);
                     }
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                             .thenCompose(versionedMetadata -> {
