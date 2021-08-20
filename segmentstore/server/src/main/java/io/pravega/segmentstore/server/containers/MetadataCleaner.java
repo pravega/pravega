@@ -183,7 +183,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
         val deletionTasks = this.metadata.getEvictionCandidates(lastSeqNo, this.config.getMaxConcurrentSegmentEvictionCount())
                 .stream()
                 .filter(sm -> sm.getType().isTransientSegment())
-                .filter(sm -> !sm.isDeleted() || sm.getAttributes().get(Attributes.CREATION_EPOCH) < metadata.getContainerEpoch())
+                .filter(sm -> sm.getAttributes().get(Attributes.CREATION_EPOCH) < metadata.getContainerEpoch())
                 .map(sm -> metadataStore.deleteSegment(sm.getName(), this.config.getTransientSegmentDeleteTimeout()))
                 .collect(Collectors.toList());
 

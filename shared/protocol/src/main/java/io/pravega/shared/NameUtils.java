@@ -236,8 +236,8 @@ public final class NameUtils {
     }
 
     /**
-     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
-     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction/Transient StreamSegment. This method returns a
+     * valid value only if the Transaction/Transient StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
      *
      * @param segmentName The name of the Transaction StreamSegment or Transient Segment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.

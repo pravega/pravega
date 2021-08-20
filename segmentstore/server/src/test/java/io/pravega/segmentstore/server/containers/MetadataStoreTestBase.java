@@ -31,12 +31,14 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
+import io.pravega.segmentstore.server.Container;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -51,6 +53,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -107,6 +111,25 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
             val segmentAttributes = createAttributeUpdates(ATTRIBUTE_COUNT);
             context.getMetadataStore().createSegment(segmentName, segmentType, segmentAttributes, TIMEOUT).join();
             assertSegmentCreated(segmentName, segmentType, segmentAttributes, context);
+        }
+    }
+
+    /**
+     * Tests the ability of the MetadataStore to create a new Transient Segment.
+     */
+    @Test
+    public void testCreateTransientSegment() {
+        final int transientSegmentCount = 50;
+        @Cleanup
+        TestContext context = createTestContext();
+        // Create some Segments and verify they are properly created and registered.
+        for (int i = 0; i < transientSegmentCount; i++) {
+            String transientSegmentName = getTransientName(i);
+            Collection<AttributeUpdate> segmentAttributes = Set.of(
+                    new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.None, 0)
+            );
+            context.getMetadataStore().createSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, segmentAttributes, TIMEOUT);
+            assertTransientSegmentCreated(transientSegmentName, context);
         }
     }
 
@@ -749,13 +772,12 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         );
     }
 
-    @Test
-    public void testTransientSegmentCleanup() {
-
-    }
-
     private String getName(long segmentId) {
         return String.format("Segment_%d", segmentId);
+    }
+
+    private String getTransientName(long writerId) {
+        return NameUtils.getTransientNameFromId("segment", new UUID(0, writerId));
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates(int count) {
@@ -809,6 +831,13 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
 
         val attributes = getExpectedCoreAttributes(toAttributes(attributeUpdates), segmentType);
         AssertExtensions.assertMapEquals("Wrong attributes.", attributes, sp.getAttributes());
+    }
+
+    // Transient Segments are written directly to in-memory metadata without being persisted in Tier 1.
+    // Therefore we expect the container metadata to not report an id of NO_STREAM_SEGMENT_ID.
+    private void assertTransientSegmentCreated(String segmentName, TestContext context) {
+        long segmentId = context.getMetadata().getStreamSegmentId(segmentName, false);
+        Assert.assertNotEquals("Transient Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
     }
 
     protected void assertEquals(String message, SegmentProperties expected, SegmentProperties actual) {
