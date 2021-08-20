@@ -26,17 +26,14 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.server.DebugSegmentContainer;
+import io.pravega.segmentstore.server.*;
 import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.ContainerHandle;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.SegmentContainerRegistry.SegmentContainerRegistryHealthContributor;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -242,6 +239,27 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         Assert.assertEquals("Container2 was not shut down (normally).", Service.State.TERMINATED, container2.state());
         Assert.assertEquals("Container3 was not started properly.", Service.State.RUNNING, container3.state());
+    }
+
+    @Test
+    public void testHealth() {
+        final int containerCount = 1000;
+        TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
+
+        HashSet<Integer> expectedContainerIds = new HashSet<>();
+        List<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            handleFutures.add(registry.startContainer(containerId, TIMEOUT));
+            expectedContainerIds.add(containerId);
+        }
+
+        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(registry);
+        Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
+        Status status = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
+
     }
 
     //region TestContainerFactory

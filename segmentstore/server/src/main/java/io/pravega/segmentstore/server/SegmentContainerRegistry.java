@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 package io.pravega.segmentstore.server;
-
+import com.google.common.collect.ImmutableMap;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
+import lombok.NonNull;
+
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Defines a Registry for Segment Containers, allowing access to SegmentContainers, as well as operations on them.
@@ -28,6 +35,8 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @return The number of registered containers.
      */
     int getContainerCount();
+
+    AtomicBoolean closed = new AtomicBoolean(true);
 
     /**
      * Gets a reference to the SegmentContainer with given Id.
@@ -64,4 +73,34 @@ public interface SegmentContainerRegistry extends AutoCloseable {
 
     @Override
     void close();
+
+    default boolean isClosed() {
+        return closed.get();
+    }
+
+    /**
+     * A contributor to manage the health of segment container registry.
+     */
+    class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
+        private final SegmentContainerRegistry segmentContainerRegistry;
+
+        public SegmentContainerRegistryHealthContributor(@NonNull SegmentContainerRegistry segmentContainerRegistry) {
+            super("SegmentContainerRegistry");
+            this.segmentContainerRegistry = segmentContainerRegistry;
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = Status.DOWN;
+            boolean ready = !segmentContainerRegistry.closed.get();
+
+            if (ready) {
+                status = Status.UP;
+            }
+
+            builder.details(ImmutableMap.of("ContainerCount", Arrays.asList(segmentContainerRegistry.getContainerCount())));
+
+            return status;
+        }
+    }
 }

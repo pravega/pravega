@@ -23,6 +23,8 @@ import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
+import io.pravega.segmentstore.server.SegmentContainerRegistry.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -163,6 +165,8 @@ public final class ServiceStarter {
         log.info("StreamSegmentService started.");
 
         healthServiceManager.register(new ZKHealthContributor(zkClient));
+        healthServiceManager.register(new CacheManagerHealthContributor(serviceBuilder.getCacheManager()));
+        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getContainerRegistry().get()));
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");

@@ -82,6 +82,7 @@ public class ServiceBuilder implements AutoCloseable {
     private final ScheduledExecutorService storageExecutor;
     @Getter(AccessLevel.PUBLIC)
     private final ScheduledExecutorService lowPriorityExecutor;
+    @Getter(AccessLevel.PUBLIC)
     private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
@@ -89,6 +90,7 @@ public class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<DurableDataLogFactory> dataLogFactory;
     private final AtomicReference<StorageFactory> storageFactory;
     private final AtomicReference<SegmentContainerFactory> containerFactory;
+    @Getter(AccessLevel.PUBLIC)
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
     private final AtomicReference<WriterFactory> writerFactory;
