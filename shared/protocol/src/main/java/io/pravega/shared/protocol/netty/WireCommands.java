@@ -1323,7 +1323,7 @@ public final class WireCommands {
             this.delegationToken = delegationToken;
             this.batch = Optional.empty();
         }
-        
+
         @Override
         public void process(RequestProcessor cp) {
             cp.mergeSegments(this);
@@ -2655,42 +2655,6 @@ public final class WireCommands {
             int seqNo = in.readInt();
             boolean isLast = in.readBoolean();
             return new BatchInfo(batchId, seqNo, isLast);
-        }
-    }
-
-    /**
-     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
-     * WireCommand.
-     */
-    @Data
-    public static final class ConditionalAttributeUpdate {
-        public static final byte REPLACE = (byte) 1; // AttributeUpdate of type AttributeUpdateType.Replace.
-        public static final byte REPLACE_IF_EQUALS = (byte) 4; // AttributeUpdate of type AttributeUpdateType.ReplaceIfEquals.
-        public static final int LENGTH = 4 * Long.BYTES + 1; // UUID (2 longs) + oldValue + newValue + updateType (1 byte)
-
-        private final UUID attributeId;
-        private final byte attributeUpdateType;
-        private final long newValue;
-        private final long oldValue;
-
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(attributeId.getMostSignificantBits());
-            out.writeLong(attributeId.getLeastSignificantBits());
-            out.writeByte(attributeUpdateType);
-            out.writeLong(newValue);
-            out.writeLong(oldValue);
-        }
-
-        public static ConditionalAttributeUpdate readFrom(DataInput in, int length) throws IOException {
-            UUID attributeId = new UUID(in.readLong(), in.readLong());
-            byte attributeUpdateType = in.readByte();
-            long newValue = in.readLong();
-            long oldValue = in.readLong();
-            return new ConditionalAttributeUpdate(attributeId, attributeUpdateType, newValue, oldValue);
-        }
-
-        public int size() {
-            return LENGTH;
         }
     }
 }
