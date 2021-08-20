@@ -393,123 +393,6 @@ public class PravegaRequestProcessorTest {
         // so createSegmentStats may record 1 or 2 createSegment operation here.
     }
 
-    /*
-    @Test(timeout = 20000)
-    public void testTransaction() throws Exception {
-        String streamSegmentName = "scope/stream/testTxn";
-        UUID txnid = UUID.randomUUID();
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        ServerConnection connection = mock(ServerConnection.class);
-        InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
-                WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
-
-        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        order.verify(connection).send(Mockito.argThat(t -> {
-            return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
-        }));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 2));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
-
-        txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection).send(Mockito.argThat(t -> {
-            return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
-        }));
-        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
-
-        // Verify the case when the transaction segment is already sealed. This simulates the case when the process
-        // crashed after sealing, but before issuing the merge.
-        txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
-
-        // Seal the transaction in the SegmentStore.
-        String txnName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-        store.sealStreamSegment(txnName, Duration.ZERO).join();
-
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 4));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
-
-        order.verifyNoMoreInteractions();
-    }
-
-    @Test(timeout = 20000)
-    public void testMergedTransaction() throws Exception {
-        String streamSegmentName = "scope/stream/testMergedTxn";
-        UUID txnid = UUID.randomUUID();
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
-        ServerConnection connection = mock(ServerConnection.class);
-        InOrder order = inOrder(connection);
-        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).sealStreamSegment(
-                anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeStreamSegment(
-                anyString(), anyString(), any());
-
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
-                WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
-
-        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 0));
-
-        txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-
-        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
-                anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
-                anyString(), anyString(), any(), any());
-
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
-                                                                                                                       txnid), "", -1L));
-    }
-
-     */
-
     @Test(timeout = 20000)
     public void testMetricsOnSegmentMerge() throws Exception {
         String streamSegmentName = "scope/stream/txnSegment";
@@ -544,7 +427,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testConditionalSegmentMergeReplaceIfEquals() throws Exception {
+    public void testConditionalSegmentMerge() throws Exception {
         String streamSegmentName = "scope/stream/txnSegment";
         UUID txnId = UUID.randomUUID();
         @Cleanup
@@ -570,6 +453,11 @@ public class PravegaRequestProcessorTest {
         processor.mergeSegments(new WireCommands.MergeSegments(7L, streamSegmentName, transactionName, "", Optional.of(batch)));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(7L, false));
 
+        //try merging the txn segment to an invalid target stream segment, should return nosuchsegment exception
+        String nonExistingSourceSegment = "scope/stream/nonExistingSegment";
+        processor.mergeSegments(new WireCommands.MergeSegments(12L, nonExistingSourceSegment, transactionName, "", Optional.of(batch)));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(12L, nonExistingSourceSegment, "", -1));
+
         // Merge segments conditionally, now it should work.
         batch = new WireCommands.BatchInfo(2L, 1, false);
         processor.mergeSegments(new WireCommands.MergeSegments(8L, streamSegmentName, transactionName, "", Optional.of(batch)));
@@ -582,64 +470,11 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentAttribute(9L, 2L));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(10L, streamSegmentName, seqNoAttributeUUID, ""));
         order.verify(connection).send(new WireCommands.SegmentAttribute(10L, 1));
+
+        // retry merging the same txn segment again and it should throw no such segment exception
+        processor.mergeSegments(new WireCommands.MergeSegments(11L, streamSegmentName, transactionName, "", Optional.of(batch)));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(11L, transactionName, "", -1));
     }
-
-    /*
-    @Test(timeout = 20000)
-    public void testConditionalSegmentMergeReplace() throws Exception {
-        String streamSegmentName = "scope/stream/txnSegment";
-        UUID txnId = UUID.randomUUID();
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
-        ServerConnection connection = mock(ServerConnection.class);
-        InOrder order = inOrder(connection);
-        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
-                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
-
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
-        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
-        assertTrue(append(transactionName, 1, store));
-
-        // Update to perform.
-        UUID randomAttribute1 = UUID.randomUUID();
-        UUID randomAttribute2 = UUID.randomUUID();
-        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = asList(
-                new WireCommands.ConditionalAttributeUpdate(randomAttribute1, WireCommands.ConditionalAttributeUpdate.REPLACE, 1, 0),
-                new WireCommands.ConditionalAttributeUpdate(randomAttribute2, WireCommands.ConditionalAttributeUpdate.REPLACE, 2, 0)
-        );
-
-        // Set a attributes in the parent segment with a certain value.
-        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(2, streamSegmentName, randomAttribute1,
-                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, true));
-        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute2,
-                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
-
-        // Check the value of attributes post merge.
-        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(4, streamSegmentName, randomAttribute1, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttribute(4, streamSegmentName.hashCode()));
-        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(5, streamSegmentName, randomAttribute2, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttribute(5, streamSegmentName.hashCode()));
-
-        // Merge segments replacing attributes, now it should work.
-        processor.mergeSegments(new WireCommands.MergeSegments(6, streamSegmentName, transactionName, "", attributeUpdates));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(6, streamSegmentName, transactionName, 1));
-
-        // Check the value of attributes post merge.
-        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, randomAttribute1, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 1));
-        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(8, streamSegmentName, randomAttribute2, ""));
-        order.verify(connection).send(new WireCommands.SegmentAttribute(8, 2));
-    }
-
-     */
 
     @Test(timeout = 20000)
     public void testSegmentAttribute() throws Exception {

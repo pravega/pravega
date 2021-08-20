@@ -1033,7 +1033,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
                      segment, operation);
-            invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace, offset), failureHandler);
+            invokeSafely(connection::send, new NoSuchSegment(requestId, ((StreamSegmentNotExistsException) u).getStreamSegmentName(), clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof StreamSegmentSealedException) {
             log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
                      segment, operation);

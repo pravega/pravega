@@ -1335,7 +1335,7 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            if(batch.isPresent()) {
+            if (batch.isPresent()) {
                 out.writeLong(batch.get().getBatchId());
                 out.writeInt(batch.get().getSeqNo());
                 out.writeBoolean(batch.get().isLastSegment);
