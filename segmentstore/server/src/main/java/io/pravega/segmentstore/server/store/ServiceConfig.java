@@ -21,15 +21,15 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.server.CachePolicy;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
-import java.time.Duration;
-
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import lombok.Getter;
 import lombok.SneakyThrows;
+
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
+import java.time.Duration;
 
 /**
  * General Service Configuration.
@@ -124,7 +124,11 @@ public class ServiceConfig {
         /**
          * InMemory Storage. Contents will be lost when the process exits.
          */
-        INMEMORY
+        INMEMORY,
+        /**
+         * ECS chunk storage.
+         */
+        ECSCHUNK
     }
 
     //endregion

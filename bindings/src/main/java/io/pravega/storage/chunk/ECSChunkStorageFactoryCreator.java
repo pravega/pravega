@@ -1,10 +1,7 @@
 package io.pravega.storage.chunk;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.ConfigSetup;
-import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryCreator;
-import io.pravega.segmentstore.storage.StorageFactoryInfo;
+import io.pravega.segmentstore.storage.*;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,6 +20,11 @@ public class ECSChunkStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
     public StorageFactoryInfo[] getStorageFactories() {
-        return new StorageFactoryInfo[0];
+        return new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("ECSCHUNK")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build(),
+        };
     }
 }
