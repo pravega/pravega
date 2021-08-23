@@ -470,7 +470,7 @@ public class PravegaRequestProcessorTest {
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(10L, streamSegmentName, seqNoAttributeUUID, ""));
         order.verify(connection).send(new WireCommands.SegmentAttribute(10L, 1));
 
-        // retry merging the same txn segment again and it should throw no such segment exception
+        // retry merging the same txn segment again and it should now throw no such segment exception
         processor.mergeSegments(new WireCommands.MergeSegments(11L, streamSegmentName, transactionName, "", Optional.of(batch)));
         order.verify(connection).send(new WireCommands.NoSuchSegment(11L, transactionName, "", -1));
     }

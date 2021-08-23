@@ -35,6 +35,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
@@ -69,6 +70,7 @@ import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.NameUtils.getTransactionNameFromId;
+import static io.pravega.shared.NameUtils.getScopedStreamName;
 
 /**
  * Used by the Controller for interacting with Segment Store. Think of this class as a 'SegmentStoreHelper'. 
@@ -286,9 +288,29 @@ public class SegmentHelper implements AutoCloseable {
         }
 
         return Futures.allOfWithResults(segmentMergeFutures)
-                .thenCompose(replyList -> CompletableFuture.completedFuture(replyList.stream().map(r -> {
-                    handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegments.class, type);
-                    return ((WireCommands.SegmentsMerged) r).getNewTargetWriteOffset();
+                .thenCompose(replyList -> CompletableFuture.completedFuture(replyList.stream().map(reply -> {
+                    if (reply instanceof WireCommands.NoSuchSegment) {
+                        WireCommands.NoSuchSegment replyNoSuchSegment = (WireCommands.NoSuchSegment) reply;
+                        if (replyNoSuchSegment.getSegment().equals(qualifiedNameTarget)) {
+                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found for Stream {}/{}", replyNoSuchSegment.getSegment(), scope, stream);
+
+                            throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                    "Source Stream Segment not found when attempting to merge transaction segments for Stream:"
+                                            + getScopedStreamName(scope, stream));
+                        } else {
+                            // idempotent case when txn segment is already merged, we get the write offset for the parent segment.
+                            return getSegmentInfo(scope, stream, mergeSegmentId, delegationToken, clientRequestId)
+                                    .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset).join();
+                        }
+                    }
+                    if (reply instanceof WireCommands.SegmentAttributeUpdated) {
+                        log.warn(clientRequestId, "Attribute update failed when committing transactions for Stream {}/{}", scope, stream);
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Commit Transaction: Attribute update failed when committing transactions." +
+                                        getScopedStreamName(scope, stream));
+                    }
+                    handleReply(clientRequestId, reply, connection, qualifiedNameTarget, WireCommands.MergeSegments.class, type);
+                    return ((WireCommands.SegmentsMerged) reply).getNewTargetWriteOffset();
                     }).collect(Collectors.toList())));
     }
 
