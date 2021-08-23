@@ -48,6 +48,3 @@ public class SegmentContainerRegistryHealthContributor extends AbstractHealthCon
         return status;
     }
 }
-
-
-

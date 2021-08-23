@@ -45,7 +45,6 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      */
     Collection<?> getContainerList();
 
-
     /**
      * Starts processing the container with given Id.
      *
