@@ -54,7 +54,7 @@ services:
         - zookeeper
 
   controller:
-    image: asdrepo.isus.emc.com:8099/pravega:0.10.0-2931.408cf42-poc
+    image: asdrepo.isus.emc.com:8099/pravega:${TAG}
     ports:
       - "9090:9090"
       - "10080:10080"
@@ -75,7 +75,7 @@ services:
       - zookeeper
 
   segmentstore:
-    image: asdrepo.isus.emc.com:8099/pravega:0.10.0-2931.408cf42-poc
+    image: asdrepo.isus.emc.com:8099/pravega:${TAG}
     ports:
       - "12345:12345"
     command: segmentstore
@@ -94,8 +94,6 @@ services:
         -Dbookkeeper.ack.quorum.size=2
         -Dbookkeeper.write.quorum.size=2
         -Dpravegaservice.cache.size.max=2684354560
-        -Dpravegaservice.container.count=32
-        -Dcontroller.containerCount=32
         -Xmx2560m
         -XX:MaxDirectMemorySize=4g
         -XX:OnError="kill -9 p%"
