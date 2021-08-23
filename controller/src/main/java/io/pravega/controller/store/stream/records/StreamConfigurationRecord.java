@@ -307,10 +307,10 @@ public class StreamConfigurationRecord {
                 throws IOException {
             StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
             streamConfigurationBuilder.scalingPolicy(configurationRecordBuilder.streamConfiguration.getScalingPolicy())
-                    .retentionPolicy(configurationRecordBuilder.streamConfiguration.getRetentionPolicy())
-                    .timestampAggregationTimeout(revisionDataInput.readLong())
-                    .tags(configurationRecordBuilder.streamConfiguration.getTags())
-                    .rolloverSizeBytes(revisionDataInput.readLong());
+                                      .retentionPolicy(configurationRecordBuilder.streamConfiguration.getRetentionPolicy())
+                                      .timestampAggregationTimeout(configurationRecordBuilder.streamConfiguration.getTimestampAggregationTimeout())
+                                      .tags(configurationRecordBuilder.streamConfiguration.getTags())
+                                      .rolloverSizeBytes(revisionDataInput.readLong());
             configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
         }
 

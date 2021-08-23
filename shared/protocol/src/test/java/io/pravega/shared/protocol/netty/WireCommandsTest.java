@@ -601,7 +601,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, "", 0));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, "", 1024L));
     }
 
     @Test
@@ -616,7 +616,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, "", 0));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, "", 1024L));
     }
 
     @Test

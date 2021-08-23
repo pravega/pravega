@@ -85,7 +85,7 @@ public class KeyValueTableConfiguration implements Serializable {
             Preconditions.checkArgument(this.partitionCount > 0, "partitionCount must be a positive integer. Given %s.", this.partitionCount);
             Preconditions.checkArgument(this.primaryKeyLength > 0, "primaryKeyLength must be a positive integer. Given %s.", this.primaryKeyLength);
             Preconditions.checkArgument(this.secondaryKeyLength >= 0, "secondaryKeyLength must be a non-negative integer. Given %s.", this.secondaryKeyLength);
-            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, "rollover size must be non-negative. Given %s.", this.rolloverSizeBytes);
+            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
             return new KeyValueTableConfiguration(this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength, this.rolloverSizeBytes);
         }
     }
