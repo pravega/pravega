@@ -187,6 +187,8 @@ paths:
                 $ref: "#/definitions/RetentionConfig"
               streamTags:
                 $ref: "#/definitions/TagsList"
+              rolloverSizeBytes:
+                $ref: "#/definitions/RolloverSizeBytes"
       produces:
         - application/json
       responses:
@@ -594,6 +596,9 @@ paths:
         500:
           description: Internal server error while fetching the health status of a given health contributor.
 definitions:
+  RolloverSizeBytes:
+    type: long
+    minimum: 0
   TagsList:
     type: array
     items:

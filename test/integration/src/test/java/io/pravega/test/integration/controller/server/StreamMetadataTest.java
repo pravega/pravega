@@ -15,42 +15,25 @@
  */
 package io.pravega.test.integration.controller.server;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
@@ -60,14 +43,11 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamMetadataTest {
 
-    private static final String ENDPOINT = "localhost";
-
     @Test(timeout = 60000)
     public void testMetadataOperations() throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServerStarter().start();
 
-        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -84,13 +64,12 @@ public class StreamMetadataTest {
                 zkTestServer.getConnectString(),
                 false,
                 controllerPort,
-                ENDPOINT,
+                "localhost",
                 servicePort,
                 4);
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";
-        final String streamNameRollover = "streamRollover";
         final String streamName1 = "stream1";
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
@@ -103,35 +82,6 @@ public class StreamMetadataTest {
         final StreamConfiguration config1 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
                                                                .build();
-
-        // Create stream and check rollover size
-        // Create segment helper
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                .hostMonitorEnabled(false)
-                .hostMonitorMinRebalanceInterval(10)
-                .containerCount(4)
-                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(ENDPOINT, servicePort, 4))
-                .build();
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(hostMonitorConfig);
-        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "collector");
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        ConnectionPool connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        SegmentHelper segmentHelper = new SegmentHelper(connectionPool, hostStore, executor);
-        final StreamConfiguration configRollover = StreamConfiguration.builder()
-                                                                      .scalingPolicy(scalingPolicy)
-                                                                      .rolloverSizeBytes(1024 * 1024)
-                                                                      .build();
-        assertTrue(controller.createStream(scope1, streamNameRollover, configRollover).get());
-        StreamSegments ss = controller.getCurrentSegments(scope1, streamNameRollover).join();
-        for (Segment s : ss.getSegments()) {
-            WireCommands.SegmentAttribute attr = segmentHelper.getSegmentAttribute(
-                    s.toString(),
-                    new UUID(Long.MIN_VALUE, 4),
-                    new PravegaNodeUri(ENDPOINT, servicePort),
-                    "").join();
-            Assert.assertEquals(attr.getValue(), 1024 * 1024);
-        }
 
         // create stream and seal stream
 

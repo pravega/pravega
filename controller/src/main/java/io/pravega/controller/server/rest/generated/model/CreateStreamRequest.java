@@ -40,6 +40,9 @@ public class CreateStreamRequest   {
   @JsonProperty("streamTags")
   private TagsList streamTags = null;
 
+  @JsonProperty("rolloverSizeBytes")
+  private Long rolloverSizeBytes = null;
+
   public CreateStreamRequest streamName(String streamName) {
     this.streamName = streamName;
     return this;
@@ -116,6 +119,25 @@ public class CreateStreamRequest   {
     this.streamTags = streamTags;
   }
 
+  public CreateStreamRequest rolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+    return this;
+  }
+
+  /**
+   * Get rolloverSizeBytes
+   * @return rolloverSizeBytes
+   **/
+  @JsonProperty("rolloverSizeBytes")
+  @ApiModelProperty(value = "")
+  public Long getRolloverSizeBytes() {
+    return rolloverSizeBytes;
+  }
+
+  public void setRolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -129,12 +151,13 @@ public class CreateStreamRequest   {
     return Objects.equals(this.streamName, createStreamRequest.streamName) &&
         Objects.equals(this.scalingPolicy, createStreamRequest.scalingPolicy) &&
         Objects.equals(this.retentionPolicy, createStreamRequest.retentionPolicy) &&
-        Objects.equals(this.streamTags, createStreamRequest.streamTags);
+        Objects.equals(this.streamTags, createStreamRequest.streamTags) &&
+        Objects.equals(this.rolloverSizeBytes, createStreamRequest.rolloverSizeBytes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(streamName, scalingPolicy, retentionPolicy, streamTags);
+    return Objects.hash(streamName, scalingPolicy, retentionPolicy, streamTags, rolloverSizeBytes);
   }
 
 
@@ -147,6 +170,7 @@ public class CreateStreamRequest   {
     sb.append("    scalingPolicy: ").append(toIndentedString(scalingPolicy)).append("\n");
     sb.append("    retentionPolicy: ").append(toIndentedString(retentionPolicy)).append("\n");
     sb.append("    streamTags: ").append(toIndentedString(streamTags)).append("\n");
+    sb.append("    rolloverSizeBytes: ").append(toIndentedString(rolloverSizeBytes)).append("\n");
     sb.append("}");
     return sb.toString();
   }

@@ -48,6 +48,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -387,6 +388,23 @@ public class PravegaRequestProcessorTest {
         val si = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT).join();
         val segmentType = SegmentType.fromAttributes(si.getAttributes());
         Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+
+        // Verify the correct rollover size is passed down to the metadata store
+        // Verify default value
+        val attributes = si.getAttributes();
+        Assert.assertEquals((long) attributes.get(Attributes.ROLLOVER_SIZE), 0L);
+        // Verify custom value
+        String streamSegmentName1 = "scope/stream/testCreateSegmentRolloverSizePositive";
+        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName1, WireCommands.CreateSegment.NO_SCALE, 0, "", 1024 * 1024L));
+        val si1 = store.getStreamSegmentInfo(streamSegmentName1, PravegaRequestProcessor.TIMEOUT).join();
+        val attributes1 = si1.getAttributes();
+        Assert.assertEquals((long) attributes1.get(Attributes.ROLLOVER_SIZE), 1024 * 1024L);
+        // Verify invalid negative value
+        String streamSegmentName2 = "scope/stream/testCreateSegmentRolloverSizeNegative";
+        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName2, WireCommands.CreateSegment.NO_SCALE, 0, "", -1024L));
+        val si2 = store.getStreamSegmentInfo(streamSegmentName2, PravegaRequestProcessor.TIMEOUT).join();
+        val attributes2 = si2.getAttributes();
+        Assert.assertEquals((long) attributes2.get(Attributes.ROLLOVER_SIZE), 0L); // fall back to default value
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
@@ -803,6 +821,26 @@ public class PravegaRequestProcessorTest {
         // Verify segment info can be retrieved.
         processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.TableSegmentInfo(requestId, tableSegmentName, 0, 0, 0, keyLength));
+
+        // Verify table segment has correct rollover size
+        // Verify default value
+        val attributes = si.getAttributes();
+        val config = TableExtensionConfig.builder().build();
+        Assert.assertEquals((long) attributes.get(Attributes.ROLLOVER_SIZE), config.getDefaultRolloverSize());
+
+        // Verify custom value
+        val tableSegmentName1 = "testCreateTableSegmentRolloverSizePositive";
+        processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName1, false, keyLength, "", 1024 * 1024L));
+        val si1 = store.getStreamSegmentInfo(tableSegmentName1, PravegaRequestProcessor.TIMEOUT).join();
+        val attributes1 = si1.getAttributes();
+        Assert.assertEquals((long) attributes1.get(Attributes.ROLLOVER_SIZE), 1024 * 1024L);
+
+        // Verify invalid value
+        val tableSegmentName2 = "testCreateTableSegmentRolloverSizeNegative";
+        processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName2, false, keyLength, "", -1024L));
+        val si2 = store.getStreamSegmentInfo(tableSegmentName2, PravegaRequestProcessor.TIMEOUT).join();
+        val attributes2 = si2.getAttributes();
+        Assert.assertEquals((long) attributes2.get(Attributes.ROLLOVER_SIZE), config.getDefaultRolloverSize()); // fall back to default value
     }
 
     @Test(timeout = 20000)

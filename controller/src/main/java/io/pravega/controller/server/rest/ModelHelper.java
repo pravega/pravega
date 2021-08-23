@@ -104,11 +104,17 @@ public class ModelHelper {
         if (createStreamRequest.getStreamTags() != null) {
             tagsList = createStreamRequest.getStreamTags();
         }
-        return StreamConfiguration.builder()
-                .scalingPolicy(scalingPolicy)
-                .retentionPolicy(retentionPolicy)
-                .tags(tagsList)
-                .build();
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
+                                                                      .scalingPolicy(scalingPolicy)
+                                                                      .retentionPolicy(retentionPolicy)
+                                                                      .tags(tagsList);
+
+        if (createStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(createStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**

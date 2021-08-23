@@ -26,24 +26,14 @@ import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
-import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.client.tables.impl.KeyValueTableTestBase;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -53,9 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.test.TestingServer;
@@ -74,15 +61,12 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
-    private static final long ROLLOVER_SIZE_BYTES = 1024 * 1024;
     private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
             .partitionCount(5)
             .primaryKeyLength(Long.BYTES)
             .secondaryKeyLength(Integer.BYTES)
-            .rolloverSizeBytes(ROLLOVER_SIZE_BYTES)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final long DEFAULT_TABLE_ROLLOVER_SIZE_BYTES = (TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH) * 16;
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
     private PravegaConnectionListener serverListener = null;
@@ -91,12 +75,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
-    private SegmentHelper segmentHelper;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = ENDPOINT;
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
-    private ScheduledExecutorService executor;
 
     @Override
     @Before
@@ -126,30 +108,17 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionPool);
-
-        // 5. Create segment helper
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                .hostMonitorEnabled(false)
-                .hostMonitorMinRebalanceInterval(10)
-                .containerCount(containerCount)
-                .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(ENDPOINT, servicePort, containerCount))
-                .build();
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(hostMonitorConfig);
-        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "collector");
-        segmentHelper = new SegmentHelper(connectionPool, hostStore, executor);
     }
 
 
     @After
     public void tearDown() throws Exception {
-        ExecutorServiceHelpers.shutdown(executor);
         this.controller.close();
         this.connectionPool.close();
         this.controllerWrapper.close();
         this.serverListener.close();
         this.serviceBuilder.close();
         this.zkTestServer.close();
-        this.segmentHelper.close();
     }
 
     /**
@@ -157,48 +126,17 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateListKeyValueTable() {
-        // Verify default rolloverSizeBytes config.
-        val kvt0 = newKeyValueTableName();
-        val config = KeyValueTableConfiguration.builder()
-                    .partitionCount(5)
-                    .primaryKeyLength(Long.BYTES)
-                    .secondaryKeyLength(Integer.BYTES)
-                    .build();
-        boolean created = this.controller.createKeyValueTable(kvt0.getScope(), kvt0.getKeyValueTableName(), config).join();
-        Assert.assertTrue(created);
-
-        KeyValueTableSegments segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt0.getScope(), kvt0.getKeyValueTableName()).join();
-        Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
-
-        for (val s : segments.getSegments()) {
-            WireCommands.SegmentAttribute attr = segmentHelper.getSegmentAttribute(
-                    NameUtils.getQualifiedTableSegmentName(s.getScope(), s.getStreamName(), s.getSegmentId()),
-                    new UUID(Long.MIN_VALUE, 4),
-                    new PravegaNodeUri(ENDPOINT, servicePort),
-                    "").join();
-            Assert.assertEquals(attr.getValue(), DEFAULT_TABLE_ROLLOVER_SIZE_BYTES);
-        }
-
-        // Create a KVTable with config fully specified.
         val kvt1 = newKeyValueTableName();
-        created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
 
-        segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
+        val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
 
         for (val s : segments.getSegments()) {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
             this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT).join();
-
-            WireCommands.SegmentAttribute attr = segmentHelper.getSegmentAttribute(
-                    NameUtils.getQualifiedTableSegmentName(s.getScope(), s.getStreamName(), s.getSegmentId()),
-                    new UUID(Long.MIN_VALUE, 4),
-                    new PravegaNodeUri(ENDPOINT, servicePort),
-                    "").join();
-            Assert.assertEquals(attr.getValue(), ROLLOVER_SIZE_BYTES);
-
         }
 
         // Verify re-creation does not work.
@@ -233,8 +171,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
                 }
             }
         }
-        Assert.assertEquals(4, countMap.size());
-        Assert.assertEquals(1, countMap.get(kvt0.getKeyValueTableName()).intValue());
+        Assert.assertEquals(3, countMap.size());
         Assert.assertEquals(1, countMap.get(kvt1.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt2.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt3.getKeyValueTableName()).intValue());

@@ -29,7 +29,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import lombok.Getter;
 
 /**
@@ -142,16 +141,5 @@ public class TableExtensionConfig {
     public Map<AttributeId, Long> getDefaultCompactionAttributes() {
         return ImmutableMap.of(TableAttributes.MIN_UTILIZATION, getDefaultMinUtilization(),
                 Attributes.ROLLOVER_SIZE, getDefaultRolloverSize());
-    }
-
-    /**
-     * The Segment Attributes to set for every new Table Segment, default values will be used if not specified.
-     * These values will override the corresponding defaults from {@link TableAttributes#DEFAULT_VALUES}.
-     *
-     * @param config table segment config.
-     */
-    public Map<AttributeId, Long> getOrDefaultCompactionAttributes(TableSegmentConfig config) {
-        return ImmutableMap.of(TableAttributes.MIN_UTILIZATION, getDefaultMinUtilization(),
-                Attributes.ROLLOVER_SIZE, config.getRolloverSizeBytes() > 0 ? config.getRolloverSizeBytes() : getDefaultRolloverSize());
     }
 }

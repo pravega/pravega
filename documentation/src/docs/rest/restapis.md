@@ -835,7 +835,7 @@ Create a new stream
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
 |**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
-
+|**rolloverSizeBytes**  <br>*optional*|**Example** : `"long"`|long|
 
 #### Responses
 

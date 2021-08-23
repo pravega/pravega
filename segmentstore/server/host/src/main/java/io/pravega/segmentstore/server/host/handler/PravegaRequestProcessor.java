@@ -439,13 +439,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String operation = "createSegment";
 
-        Preconditions.checkArgument(createStreamSegment.getRolloverSizeBytes() >= 0,
-                "Segment rollover size bytes cannot be less than 0, actual is %s", createStreamSegment.getRolloverSizeBytes());
+        if (createStreamSegment.getRolloverSizeBytes() < 0) {
+            log.warn("Segment rollover size bytes cannot be less than 0, actual is {}, fall back to default value", createStreamSegment.getRolloverSizeBytes());
+        }
+        final long rolloverSizeBytes = createStreamSegment.getRolloverSizeBytes() < 0 ? 0 : createStreamSegment.getRolloverSizeBytes();
 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
-                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, createStreamSegment.getRolloverSizeBytes()),
+                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, rolloverSizeBytes),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
@@ -634,9 +636,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             typeBuilder.fixedKeyLengthTableSegment();
             configBuilder.keyLength(createTableSegment.getKeyLength());
         }
-        Preconditions.checkArgument(createTableSegment.getRolloverSizeBytes() >= 0,
-                "Segment rollover size bytes cannot be less than 0, actual is %s", createTableSegment.getRolloverSizeBytes());
-        configBuilder.rolloverSizeBytes(createTableSegment.getRolloverSizeBytes());
+
+        if (createTableSegment.getRolloverSizeBytes() < 0) {
+            log.warn("Table segment rollover size bytes cannot be less than 0, actual is {}, fall back to default value", createTableSegment.getRolloverSizeBytes());
+        }
+        final long rolloverSizeByes = createTableSegment.getRolloverSizeBytes() < 0 ? 0 : createTableSegment.getRolloverSizeBytes();
+        configBuilder.rolloverSizeBytes(rolloverSizeByes);
 
         tableStore.createSegment(createTableSegment.getSegment(), typeBuilder.build(), configBuilder.build(), TIMEOUT)
                 .thenAccept(v -> {

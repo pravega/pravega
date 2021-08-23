@@ -178,6 +178,7 @@ public class ControllerRestApiTest {
         createStreamRequest.setScalingPolicy(scalingConfig);
         createStreamRequest.setRetentionPolicy(retentionConfig);
         createStreamRequest.setStreamTags(tagsList);
+        createStreamRequest.setRolloverSizeBytes(1024L);
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
