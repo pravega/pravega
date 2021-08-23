@@ -48,6 +48,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                     .bucket(bucket)
                     .key(getObjectPath(chunkName))
                     .build());
+            log.info("head chunk {}", chunkName);
             if(!response.sdkHttpResponse().isSuccessful()){
                 throw triageStatusCode(getObjectPath(chunkName), response.sdkHttpResponse().statusCode());
             }
@@ -69,6 +70,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                             .key(getObjectPath(chunkName)).contentLength(0L)
                             .build(),
                     RequestBody.empty());
+            log.info("create chunk {}", chunkName);
             if (response.sdkHttpResponse().statusCode() == HttpStatusCode.OK) {
                 return ChunkHandle.writeHandle(chunkName);
             } else {
@@ -86,6 +88,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                     .bucket(bucket)
                     .key(getObjectPath(chunkName))
                     .build());
+            log.info("head chunk {}", chunkName);
             if(response.sdkHttpResponse().statusCode() == 404){
                 return false;
             } else {
@@ -112,6 +115,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
     @Override
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         try {
+            log.info("delete chunk {}", handle.getChunkName());
             var response = client.deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucket)
                     .key(getObjectPath(handle.getChunkName()))
@@ -147,6 +151,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             } else {
                 throw new ChunkNotFoundException(getObjectPath(handle.getChunkName()), "doRead");
             }
+            log.info("read chunk {} with bytesRead {}", handle.getChunkName(), bytesRead);
             responseIn.close();
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doRead", e);
@@ -167,6 +172,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                             .key(getObjectPath(handle.getChunkName())).contentLength((long) length)
                             .build(),
                     RequestBody.fromInputStream(data, length));
+            log.info("write chunk {} with length {}", handle.getChunkName(), length);
             if(!response.sdkHttpResponse().isSuccessful()){
                 throw triageStatusCode(getObjectPath(handle.getChunkName()), response.sdkHttpResponse().statusCode());
             }
@@ -188,6 +194,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                             .key(getObjectPath(chunkName)).contentLength((long) length)
                             .build(),
                     RequestBody.fromInputStream(data, length));
+            log.info("create chunk {} with length {}", chunkName, length);
             if(!response.sdkHttpResponse().isSuccessful()){
                 throw triageStatusCode(getObjectPath(chunkName), response.sdkHttpResponse().statusCode());
             }
