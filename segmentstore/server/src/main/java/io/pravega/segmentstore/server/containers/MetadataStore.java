@@ -31,6 +31,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -145,7 +146,7 @@ public abstract class MetadataStore implements AutoCloseable {
      */
     CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
         if (segmentType.isTransientSegment() && !NameUtils.isTransientSegment(segmentName)) {
-            return Futures.failedFuture(new IllegalArgumentException("Invalid name '" + segmentName + "' for SegmentType: Transient"));
+            return Futures.failedFuture(new IllegalArgumentException(String.format("Invalid name %s for SegmentType: %s", segmentName, segmentType)));
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createSegment", segmentName);
@@ -186,9 +187,9 @@ public abstract class MetadataStore implements AutoCloseable {
      * @return A CompletableFuture that, when completed normally, will indicate the TransientSegment has been created.
      */
     private CompletableFuture<Void> createTransientSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        Collection<AttributeUpdate> attrs = new ArrayList<>(attributes);
+        AttributeUpdateCollection attrs = AttributeUpdateCollection.from(attributes);
         attrs.add(new AttributeUpdate(Attributes.CREATION_EPOCH, AttributeUpdateType.None, this.connector.containerMetadata.getContainerEpoch()));
-        return Futures.toVoid(submitAssignment(newSegment(segmentName, SegmentType.TRANSIENT_SEGMENT, attrs), false, timeout));
+        return Futures.toVoid(submitAssignmentWithRetry(newSegment(segmentName, SegmentType.TRANSIENT_SEGMENT, attrs), timeout));
     }
 
     //endregion

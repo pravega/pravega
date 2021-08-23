@@ -187,10 +187,11 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 .map(sm -> metadataStore.deleteSegment(sm.getName(), this.config.getTransientSegmentDeleteTimeout()))
                 .collect(Collectors.toList());
 
-        return Futures.allOf(deletionTasks)
-                .thenRunAsync(() -> {
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "deleteUnusedTransientSegments", traceId);
-                }, this.executor);
+        val result = Futures.allOf(deletionTasks);
+        if (log.isTraceEnabled()) {
+            result.thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "deleteUnusedTransientSegments", traceId));
+        }
+        return result;
     }
 
     private CompletableFuture<Void> runOnceInternal() {

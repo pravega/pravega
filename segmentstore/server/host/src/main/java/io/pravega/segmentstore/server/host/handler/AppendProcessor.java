@@ -120,7 +120,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
-        this.transientSegmentNames = new HashSet<>();
+        this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
     }
 
     /**
@@ -448,6 +448,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Override
     public void close() {
         connection.close();
+        // The AppendProccessor marks the tracked Transient Segments for deletion -- but does not synchronously wait for
+        // the deletion to complete. The Transient Segemnts will be cleaned up at the SegmentStore's discretion.
         transientSegmentNames.forEach(name -> store.deleteStreamSegment(name, TIMEOUT));
     }
 

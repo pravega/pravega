@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 
 /**
  * Utility methods for StreamSegment Names.
@@ -227,6 +228,7 @@ public final class NameUtils {
      *
      * @return The start position of the delimiter contained within streamSegmentName.
      */
+    @NonNull
     private static int getDelimiterPosition(String streamSegmentName, String delimiter, int idLength) {
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(delimiter);
         if (endOfStreamNamePos < 0 || endOfStreamNamePos + delimiter.length() + idLength > streamSegmentName.length()) {

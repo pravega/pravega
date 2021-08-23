@@ -762,7 +762,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         // Make sure our Transient Segment name maps to a valid Segment ID.
         TestUtils.await(() -> {
             return context.getMetadata().getStreamSegmentId(validTransientSegment, false) != ContainerMetadata.NO_STREAM_SEGMENT_ID;
-        }, 100, 1000);
+        }, 1000, TIMEOUT.toMillis());
         // Attempt to create a Transient Segment with an ill-formatted name.
         AssertExtensions.assertThrows(
             "createSegment did not throw an exception given an invalid Transient Segment name.",
