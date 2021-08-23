@@ -24,7 +24,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
-import io.pravega.segmentstore.server.SegmentContainerRegistry.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -38,6 +37,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -70,9 +70,12 @@ public final class ServiceStarter {
     @Getter
     private HealthServiceManager healthServiceManager;
 
+    @VisibleForTesting
+    @Getter
+    private final ServiceBuilder serviceBuilder;
+
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
-    private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private AdminConnectionListener adminListener;

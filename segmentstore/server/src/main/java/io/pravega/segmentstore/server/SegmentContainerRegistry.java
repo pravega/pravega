@@ -14,17 +14,10 @@
  * limitations under the License.
  */
 package io.pravega.segmentstore.server;
-import com.google.common.collect.ImmutableMap;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
-import io.pravega.shared.health.Health;
-import io.pravega.shared.health.Status;
-import io.pravega.shared.health.impl.AbstractHealthContributor;
-import lombok.NonNull;
-
 import java.time.Duration;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Defines a Registry for Segment Containers, allowing access to SegmentContainers, as well as operations on them.
@@ -36,8 +29,6 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      */
     int getContainerCount();
 
-    AtomicBoolean closed = new AtomicBoolean(true);
-
     /**
      * Gets a reference to the SegmentContainer with given Id.
      *
@@ -46,6 +37,14 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @throws ContainerNotFoundException If no container with the given Id is registered.
      */
     SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
+
+    /**
+     * Gets a reference to the all the SegmentContainers.
+     *
+     * @return The requested SegmentContainer, or null if no such container is started.
+     */
+    Collection<?> getContainerList();
+
 
     /**
      * Starts processing the container with given Id.
@@ -58,6 +57,8 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @throws IllegalStateException If the container is already started.
      */
     CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout);
+
+    boolean isClosed();
 
     /**
      * Starts processing the container associated with the given handle.
@@ -73,34 +74,4 @@ public interface SegmentContainerRegistry extends AutoCloseable {
 
     @Override
     void close();
-
-    default boolean isClosed() {
-        return closed.get();
-    }
-
-    /**
-     * A contributor to manage the health of segment container registry.
-     */
-    class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
-        private final SegmentContainerRegistry segmentContainerRegistry;
-
-        public SegmentContainerRegistryHealthContributor(@NonNull SegmentContainerRegistry segmentContainerRegistry) {
-            super("SegmentContainerRegistry");
-            this.segmentContainerRegistry = segmentContainerRegistry;
-        }
-
-        @Override
-        public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
-            boolean ready = !segmentContainerRegistry.closed.get();
-
-            if (ready) {
-                status = Status.UP;
-            }
-
-            builder.details(ImmutableMap.of("ContainerCount", Arrays.asList(segmentContainerRegistry.getContainerCount())));
-
-            return status;
-        }
-    }
 }

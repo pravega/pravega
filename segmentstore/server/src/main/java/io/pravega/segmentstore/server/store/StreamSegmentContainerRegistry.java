@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.server.store;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Services;
@@ -28,18 +27,14 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import io.pravega.shared.health.Health;
-import io.pravega.shared.health.Status;
-import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -116,6 +111,10 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         }
 
         return result.container;
+    }
+
+    public Collection<ContainerWithHandle> getContainerList() {
+        return this.containers.values();
     }
 
     @Override

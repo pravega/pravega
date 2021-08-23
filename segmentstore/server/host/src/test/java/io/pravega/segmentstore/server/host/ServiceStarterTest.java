@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -78,6 +79,14 @@ public class ServiceStarterTest {
         zkClient.close();
         zkStatus = zkHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, zkStatus);
+    }
+
+    @Test
+    public void testSegmentContainerRegistryHealth() {
+        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(serviceStarter.getServiceBuilder().getContainerRegistry().get());
+        Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
+        Status status = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
     }
 
     /**

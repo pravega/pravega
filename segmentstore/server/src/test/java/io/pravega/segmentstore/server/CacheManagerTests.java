@@ -24,7 +24,6 @@ import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -48,11 +47,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import com.google.common.util.concurrent.Service.State;
-
-import static io.pravega.common.concurrent.Futures.await;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertThat;
 
 /**
  * Unit tests for the CacheManager class.
@@ -613,11 +607,8 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testCacheHealth() throws InterruptedException {
-//        final int clientCount = 10;
-//        final int cycleCount = 12345;
+    public void testCacheHealth() {
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
-//        Random random = RandomFactory.create();
 
         @Cleanup
         val cache = new TestCache(policy.getMaxSize());
@@ -625,15 +616,10 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
 
-//        HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));
         CacheManagerHealthContributor cacheManagerHealthContributor = new CacheManagerHealthContributor(cm);
-
-
         Health.HealthBuilder builder = Health.builder().name(cacheManagerHealthContributor.getName());
-
         Status status = cacheManagerHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'NEW' Status.", Status.NEW, status);
-
         cm.close();
         status = cacheManagerHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, status);
