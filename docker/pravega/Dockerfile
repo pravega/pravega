@@ -22,7 +22,9 @@ RUN apt-get update && apt-get install -y -q \
     jq \
     curl \
     net-tools \
-    iproute2
+    iproute2 \
+    vim \
+    procps \
 
 # Adding Java system truststore 'cacerts', as it is missing from the Java
 # distribution installed by the base image and one of the storage bindings(ECS)
