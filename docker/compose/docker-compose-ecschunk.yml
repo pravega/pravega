@@ -21,7 +21,7 @@ services:
       - "2181:2181"
 
   bookie1:
-    image: pravega/bookkeeper
+    image: asdrepo.isus.emc.com:8099/bookkeeper:0.9.1-2791.8e90eaf57
     ports:
       - "3181:3181"
     restart: always
@@ -32,7 +32,7 @@ services:
       - zookeeper
 
   bookie2:
-      image: pravega/bookkeeper
+      image: asdrepo.isus.emc.com:8099/bookkeeper:0.9.1-2791.8e90eaf57
       ports:
         - "3182:3182"
       restart: always
@@ -43,7 +43,7 @@ services:
         - zookeeper
 
   bookie3:
-      image: pravega/bookkeeper
+      image: asdrepo.isus.emc.com:8099/bookkeeper:0.9.1-2791.8e90eaf57
       ports:
         - "3183:3183"
       restart: always
@@ -54,7 +54,7 @@ services:
         - zookeeper
 
   controller:
-    image: pravega/pravega
+    image: asdrepo.isus.emc.com:8099/pravega:0.10.0-2931.408cf42-poc
     ports:
       - "9090:9090"
       - "10080:10080"
@@ -65,7 +65,7 @@ services:
       REST_SERVER_PORT: 10080
       JAVA_OPTS: |
         -Dcontroller.service.rpc.listener.port=9090
-        -Xmx512m
+        -Xmx1024m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
         -XX:+CrashOnOutOfMemoryError
@@ -75,7 +75,7 @@ services:
       - zookeeper
 
   segmentstore:
-    image: pravega/pravega
+    image: asdrepo.isus.emc.com:8099/pravega:0.10.0-2931.408cf42-poc
     ports:
       - "12345:12345"
     command: segmentstore
@@ -93,7 +93,11 @@ services:
         -Dbookkeeper.ensemble.size=2
         -Dbookkeeper.ack.quorum.size=2
         -Dbookkeeper.write.quorum.size=2
-        -Xmx900m
+        -Dpravegaservice.cache.size.max=2684354560
+        -Dpravegaservice.container.count=32
+        -Dcontroller.containerCount=32
+        -Xmx2560m
+        -XX:MaxDirectMemorySize=4g
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
         -XX:+CrashOnOutOfMemoryError
