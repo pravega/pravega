@@ -22,6 +22,8 @@ import io.pravega.client.admin.StreamManager;
 import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
@@ -105,14 +107,17 @@ public abstract class ScopeCommand extends Command {
             if (!scopeIterator.hasNext()) {
                 output("Scope does not exist in Pravega");
             } else {
-                // TODO: sort the scope names
-
-
+                ArrayList<String> scopeList = new ArrayList<>();
                 while (scopeIterator.hasNext())
                 {
-                    output("\t%s", scopeIterator.next());
+                    scopeList.add(scopeIterator.next());
                 }
 
+                Collections.sort(scopeList);
+
+                for (String scope : scopeList) {
+                    output("\t%s", scope);
+                }
             }
         }
 
