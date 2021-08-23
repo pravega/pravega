@@ -39,9 +39,13 @@ public final class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
-    public static final short JOURNAL_FILE_PREFIX = 1;
+    private static final short SEGMENT_FILE_PREFIX = 0;
 
-    public static final short JOURNAL_SNAPSHOT_PREFIX = 2;
+    private static final short JOURNAL_FILE_PREFIX = 1;
+
+    private static final short JOURNAL_SNAPSHOT_PREFIX = 2;
+
+    private static final short RANDOM_FILE_PREFIX = 3;
 
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
@@ -65,6 +69,8 @@ public final class NameUtils {
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
 
     static final Pattern pattern = Pattern.compile("\\w{7}/\\w{4}/\\w{16}");
+
+    static final int MAX_HEX_SIZE = 26;
 
     /**
      * This is used for composing metric tags.
@@ -322,7 +328,7 @@ public final class NameUtils {
      * @return formatted chunk name.
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
-        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, ChunkObjectKeyGenerator.randomChunkObjectKey());
+        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, ChunkObjectKeyGenerator.randomChunkObjectKey(SEGMENT_FILE_PREFIX));
     }
 
 
@@ -331,21 +337,24 @@ public final class NameUtils {
         if(matcher.find()){
             return matcher.group();
         } else {
-            if (chunkName.length() > 13) {
-                log.warn("chunk name length is larger than 13 {}", chunkName);
+            log.warn("met irregular chunk name {}", chunkName);
+            if (chunkName.length() > MAX_HEX_SIZE / 2) {
+                log.warn("chunk name length is larger than MAX_HEX_SIZE / 2 : {}", chunkName);
                 chunkName = chunkName.substring(chunkName.length() - 13);
             }
             StringBuilder builder = new StringBuilder();
             char[] ch = chunkName.toCharArray();
 
-            for(int i = 0; i < 27 - chunkName.length() * 2; i++){
+            for(int i = 0; i < MAX_HEX_SIZE - chunkName.length() * 2; i++){
                 builder.append("0");
             }
             for (char c : ch) {
                 String hexCode=String.format("%H", c);
                 builder.append(hexCode);
             }
-            return ChunkObjectKeyGenerator.randomChunkObjectKey(builder.toString());
+            String newChunk = builder.toString();
+            log.warn("convert to chunk name {}", newChunk);
+            return ChunkObjectKeyGenerator.randomChunkObjectKey(RANDOM_FILE_PREFIX, newChunk);
         }
     }
 
