@@ -74,7 +74,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableRestServer(enableRestServer)
                     .enableAuth(enableAuth)
                     .enableTls(enableTls)
-                    //.tlsProtocolVersion(tlsProtocolVersion)
+                    .tlsProtocolVersion(tlsProtocolVersion)
                     .certFile(certFile)
                     .keyFile(keyFile)
                     .enableTlsReload(enableTlsReload)
