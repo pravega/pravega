@@ -114,7 +114,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         storage.initialize(CONTAINER_EPOCH);
-        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
+        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
 
         outputInfo("Starting recovery...");
         // create back up of metadata segments
