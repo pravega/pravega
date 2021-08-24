@@ -25,7 +25,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
-import io.pravega.shared.ChunkObjectKeyGenerator;
+import io.pravega.shared.StaticChunkObjectKeyGenerator;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -943,7 +943,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
-        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
+        String uuid = StaticChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
@@ -1024,7 +1024,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
-        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
+        String uuid = StaticChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk"  + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
@@ -1108,7 +1108,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         String lastChunk = null;
         long totalBytesWritten = 0;
-        String uuid = ChunkObjectKeyGenerator.randomChunkObjectKey();
+        String uuid = StaticChunkObjectKeyGenerator.randomChunkObjectKey();
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + uuid + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();

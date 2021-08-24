@@ -4,15 +4,13 @@ import com.google.common.base.Preconditions;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-public class ChunkObjectKeyGenerator {
+public class StaticChunkObjectKeyGenerator {
     public static String randomChunkObjectKey() {
         long containerId = ThreadLocalRandom.current().nextLong() & 0x0fffffff;
         long blobId = ThreadLocalRandom.current().nextLong();
         short simId = (short) ThreadLocalRandom.current().nextInt(Short.MAX_VALUE);
         return String.format("%07X", containerId) + String.format("/%1$04X", simId) + String.format("/%1$016X", blobId);
     }
-
-
 
     public static String randomChunkObjectKey(short type) {
         Preconditions.checkArgument(type <= 0xf, "type should not larger than 0xf");

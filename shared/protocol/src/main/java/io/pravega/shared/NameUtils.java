@@ -328,7 +328,7 @@ public final class NameUtils {
      * @return formatted chunk name.
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
-        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, ChunkObjectKeyGenerator.randomChunkObjectKey(SEGMENT_FILE_PREFIX));
+        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, StaticChunkObjectKeyGenerator.randomChunkObjectKey(SEGMENT_FILE_PREFIX));
     }
 
 
@@ -354,7 +354,7 @@ public final class NameUtils {
             }
             String newChunk = builder.toString();
             log.warn("convert to chunk name {}", newChunk);
-            return ChunkObjectKeyGenerator.randomChunkObjectKey(RANDOM_FILE_PREFIX, newChunk);
+            return StaticChunkObjectKeyGenerator.randomChunkObjectKey(RANDOM_FILE_PREFIX, newChunk);
         }
     }
 
@@ -422,7 +422,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
-        return ChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_FILE_PREFIX, containerId, (int)epoch, currentFileIndex);
+        return StaticChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_FILE_PREFIX, containerId, (int)epoch, currentFileIndex);
     }
 
 
@@ -434,7 +434,7 @@ public final class NameUtils {
      * @return File name of SystemJournal for given container instance
      */
     public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
-        return ChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_SNAPSHOT_PREFIX, containerId, (int)epoch, currentSnapshotIndex);
+        return StaticChunkObjectKeyGenerator.randomChunkObjectKey(JOURNAL_SNAPSHOT_PREFIX, containerId, (int)epoch, currentSnapshotIndex);
     }
 
     /**

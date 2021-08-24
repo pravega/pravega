@@ -49,7 +49,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+        return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
     }
 
     /**
@@ -72,7 +72,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
     }
 
@@ -100,7 +100,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
 
         /**
@@ -139,7 +139,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
     }
 
@@ -163,7 +163,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            val ret = new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
             return ret;
         }
     }
@@ -190,7 +190,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ECSChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            val ret = new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
             return ret;
         }
     }

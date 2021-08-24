@@ -21,6 +21,11 @@ import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
+
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Test context Extended S3 tests.
@@ -28,7 +33,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class ECSChunkTestContext {
     private static final String BUCKET_NAME_PREFIX = "pravegatest-";
     final ECSChunkStorageConfig adapterConfig;
-    public final S3Client client;
+    public final List<S3Client> clients;
     public final int port;
     private final String configUri;
 
@@ -36,31 +41,40 @@ public class ECSChunkTestContext {
     public ECSChunkTestContext() {
         try {
             this.port = 9939;
-            this.configUri = "http://10.245.128.121:" + port;
+            this.configUri = "http://10.245.128.121:" + port + ";" + "http://10.245.128.122:" + port;
             String bucketName = "pravega-bucket-ut";
             this.adapterConfig = ECSChunkStorageConfig.builder()
                     .with(ECSChunkStorageConfig.CONFIGURI, configUri)
                     .with(ECSChunkStorageConfig.BUCKET, bucketName)
                     .with(ECSChunkStorageConfig.PREFIX, "samplePrefix")
                     .build();
-            client = S3Client.builder()
-                    .region(Region.EU_WEST_2)
-                    .endpointOverride(adapterConfig.getEndpoint())
-                    .credentialsProvider(AnonymousCredentialsProvider.create())
-                    .overrideConfiguration(ClientOverrideConfiguration.builder()
-                            .retryPolicy(RetryPolicy.builder()
-                                    .numRetries(0)
-                                    .build())
-                            .build()).build();
+
+            clients = createS3Clients();
         } catch (Exception e) {
             close();
             throw e;
         }
     }
 
+    private List<S3Client> createS3Clients() {
+        List<S3Client> clients = new ArrayList<>();
+        for (URI endpoint : adapterConfig.getEndpoints()) {
+            clients.add(S3Client.builder()
+                    .region(Region.EU_WEST_2)
+                    .endpointOverride(endpoint)
+                    .credentialsProvider(AnonymousCredentialsProvider.create())
+                    .overrideConfiguration(ClientOverrideConfiguration.builder()
+                            .retryPolicy(RetryPolicy.builder()
+                                    .numRetries(0)
+                                    .build())
+                            .build()).build());
+        }
+        return clients;
+    }
+
     public void close() {
-        if (client != null) {
-            client.close();
+        if (clients != null) {
+            clients.forEach(SdkAutoCloseable::close);
         }
     }
 }

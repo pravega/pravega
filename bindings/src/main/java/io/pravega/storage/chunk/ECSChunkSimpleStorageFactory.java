@@ -13,6 +13,9 @@ import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -30,7 +33,7 @@ public class ECSChunkSimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new ECSChunkStorage(createS3Client(), this.config, this.executor),
+                new ECSChunkStorage(createS3Clients(), this.config, this.executor),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
@@ -52,15 +55,19 @@ public class ECSChunkSimpleStorageFactory implements SimpleStorageFactory {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 
-    private S3Client createS3Client() {
-       return S3Client.builder()
-               .region(Region.EU_WEST_2)
-               .endpointOverride(config.getEndpoint())
-               .credentialsProvider(AnonymousCredentialsProvider.create())
-               .overrideConfiguration(ClientOverrideConfiguration.builder()
-                       .retryPolicy(RetryPolicy.builder()
-                               .numRetries(0)
-                               .build())
-                       .build()).build();
+    private List<S3Client> createS3Clients() {
+        List<S3Client> clients = new ArrayList<>();
+        for (URI endpoint : config.getEndpoints()) {
+            clients.add(S3Client.builder()
+                    .region(Region.EU_WEST_2)
+                    .endpointOverride(endpoint)
+                    .credentialsProvider(AnonymousCredentialsProvider.create())
+                    .overrideConfiguration(ClientOverrideConfiguration.builder()
+                            .retryPolicy(RetryPolicy.builder()
+                                    .numRetries(0)
+                                    .build())
+                            .build()).build());
+        }
+       return clients;
     }
 }

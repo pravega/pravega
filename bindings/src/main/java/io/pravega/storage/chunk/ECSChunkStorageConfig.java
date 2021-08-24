@@ -8,6 +8,8 @@ import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ECSChunkStorageConfig {
 
@@ -18,11 +20,12 @@ public class ECSChunkStorageConfig {
 
     private static final String COMPONENT_CODE = "ecschunk";
     private static final String PATH_SEPARATOR = "/";
+    private static final String URI_SEPARATOR = ";";
     @Getter
     private final String bucket;
 
     @Getter
-    private final URI endpoint;
+    private final List<URI> endpoints;
 
     @Getter
     private final String prefix;
@@ -40,7 +43,11 @@ public class ECSChunkStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ECSChunkStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.endpoint = Preconditions.checkNotNull(URI.create(properties.get(CONFIGURI)), "configUri");
+        String[] configUris = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri").split(URI_SEPARATOR);
+        this.endpoints = new ArrayList<>();
+        for (String uri : configUris) {
+            endpoints.add(URI.create(uri));
+        }
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
