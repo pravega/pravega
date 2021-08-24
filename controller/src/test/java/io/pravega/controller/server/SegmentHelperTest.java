@@ -32,6 +32,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -268,10 +269,13 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        String scopeName = "testScope"; String streamName = "testStream"; String delegationToken = "";
+        long segmentId = 1L; long batchId = 1L;
+        UUID txnId = new UUID(0, 0L);
+        List<UUID> txnIdList = List.of(txnId);
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<List<Long>> retVal = helper.commitTransactions("", "", 0L,
-                0L, List.of(new UUID(0, 0L)), "", System.nanoTime());
+        CompletableFuture<List<Long>> retVal = helper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -279,23 +283,21 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
-        UUID txnId = new UUID(0, 0L);
-        CompletableFuture<List<Long>> result = helper.commitTransactions("", "", 0L, 0L, List.of(txnId),
-                "", System.nanoTime());
-        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName("", "", 0L);
+        CompletableFuture<List<Long>> result = helper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, segmentId);
 
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        String txnSegName = SegmentHelper.getTxnSegmentName("", "", 0L, txnId);
+        String txnSegName = SegmentHelper.getTxnSegmentName(scopeName, streamName, segmentId, txnId);
         factory.rp.process(new WireCommands.SegmentsMerged(requestId, qualifiedStreamSegmentName, txnSegName, 10L));
         result.join();
 
-        result = helper.commitTransactions("", "", 0L, 0L, List.of(new UUID(0L, 0L)), "", System.nanoTime());
+        result = helper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.NoSuchSegment(requestId, qualifiedStreamSegmentName, "", 0L));
-        result.join();
+        AssertExtensions.assertThrows(StoreException.IllegalStateException.class, result::join);
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransactions("", "", 0L,
-                0L, List.of(new UUID(0, 0L)), "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransactions(scopeName, streamName, segmentId,
+                batchId, txnIdList, delegationToken, System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
