@@ -245,7 +245,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         }
         return future
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(
-                        CommittingTransactionsRecord.newEmptyCommittingTransactionsRecord(record.getObject().getBatchId()),
+                        CommittingTransactionsRecord.nextEmptyRecord(record.getObject().getBatchId()),
                         record.getVersion()), context)));
     }
 

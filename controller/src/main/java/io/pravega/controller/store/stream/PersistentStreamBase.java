@@ -2000,7 +2000,7 @@ public abstract class PersistentStreamBase implements Stream {
         }
         return future
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(
-                        new VersionedMetadata<>(CommittingTransactionsRecord.newEmptyCommittingTransactionsRecord(record.getObject().getBatchId()),
+                        new VersionedMetadata<>(CommittingTransactionsRecord.nextEmptyRecord(record.getObject().getBatchId()),
                         record.getVersion()), context)));
     }
 

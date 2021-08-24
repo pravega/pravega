@@ -87,7 +87,7 @@ public class CommittingTransactionsRecord {
                 this.activeEpoch.equals(INITIAL.activeEpoch);
     }
 
-    public static CommittingTransactionsRecord newEmptyCommittingTransactionsRecord(long batchId) {
+    public static CommittingTransactionsRecord nextEmptyRecord(long batchId) {
         return new CommittingTransactionsRecord(Integer.MIN_VALUE, ImmutableList.of(), Optional.empty(), batchId);
     }
 
@@ -111,7 +111,7 @@ public class CommittingTransactionsRecord {
 
     public CommittingTransactionsRecord createRollingTxnRecord(int activeEpoch) {
         Preconditions.checkState(!this.activeEpoch.isPresent());
-        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
+        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch, this.batchId);
     }
 
     public boolean isRollingTxnRecord() {

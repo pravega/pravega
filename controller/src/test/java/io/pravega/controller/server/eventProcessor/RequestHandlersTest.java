@@ -263,7 +263,7 @@ public abstract class RequestHandlersTest {
                 .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
 
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
-        CommittingTransactionsRecord expectedRecord = CommittingTransactionsRecord.newEmptyCommittingTransactionsRecord(1L);
+        CommittingTransactionsRecord expectedRecord = CommittingTransactionsRecord.nextEmptyRecord(1L);
         assertEquals(expectedRecord, versioned.getObject());
         assertEquals(expectedVersion, getVersionNumber(versioned.getVersion()));
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
@@ -377,7 +377,8 @@ public abstract class RequestHandlersTest {
         }
         // validate rolling txn done and first job has updated the CTR with new txn record
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
-        assertEquals(CommittingTransactionsRecord.INITIAL, versioned.getObject());
+        CommittingTransactionsRecord expectedRecord = CommittingTransactionsRecord.nextEmptyRecord(1L);
+        assertEquals(expectedRecord, versioned.getObject());
         assertEquals(expectedVersion, getVersionNumber(versioned.getVersion()));
         assertEquals(3, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
