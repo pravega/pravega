@@ -249,7 +249,7 @@ public final class ServiceStarter {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
             return loader.load(setup,
-                    this.serviceConfig.getStorageImplementation().toString(),
+                    this.serviceConfig.getStorageImplementation(),
                     this.serviceConfig.getStorageLayout(),
                     setup.getStorageExecutor());
         });
