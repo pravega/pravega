@@ -105,8 +105,7 @@ public abstract class ScopeCommand extends Command {
             if (!scopeIterator.hasNext()) {
                 output("Scope does not exist in Pravega");
             } else {
-                while (scopeIterator.hasNext())
-                {
+                while (scopeIterator.hasNext()) {
                     output("\t%s", scopeIterator.next());
                 }
             }
