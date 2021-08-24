@@ -130,6 +130,7 @@ public class ControllerService {
         Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
         Preconditions.checkArgument(kvtConfig.getPrimaryKeyLength() > 0);
         Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() >= 0);
+        Preconditions.checkArgument(kvtConfig.getRolloverSizeBytes() >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
@@ -224,6 +225,7 @@ public class ControllerService {
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(rgConfig, "ReaderGroup config is null");
         Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(rgConfig.getRolloverSizeBytes() >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateReaderGroupName(rgName);
@@ -347,6 +349,8 @@ public class ControllerService {
             final long createTimestamp, long requestId) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0);
+
         Timer timer = new Timer();
         try {
             NameUtils.validateStreamName(stream);

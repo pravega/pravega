@@ -101,6 +101,7 @@ public class ReaderGroupConfig implements Serializable {
                 .maxOutstandingCheckpointRequest(configToClone.getMaxOutstandingCheckpointRequest())
                 .startingStreamCuts(configToClone.getStartingStreamCuts())
                 .endingStreamCuts(configToClone.getEndingStreamCuts())
+                .rolloverSizeBytes(configToClone.getRolloverSizeBytes())
                 .build();
     }
 
@@ -292,6 +293,9 @@ public class ReaderGroupConfig implements Serializable {
            Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
                    "Outstanding checkpoint request should be greater than zero");
 
+           //rollover size should be >= 0
+           Preconditions.checkArgument(rolloverSizeBytes >= 0,
+                   String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
                    startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType,
                    generation, readerGroupId, rolloverSizeBytes);
@@ -361,6 +365,7 @@ public class ReaderGroupConfig implements Serializable {
             version(0).revision(0, this::write00, this::read00);
             version(0).revision(1, this::write01, this::read01);
             version(0).revision(2, this::write02, this::read02);
+            version(0).revision(3, this::write03, this::read03);
         }
 
         private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
@@ -412,6 +417,14 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeCompactInt(object.retentionType.ordinal());
             revisionDataOutput.writeLong(object.getGeneration());
             revisionDataOutput.writeUUID(object.getReaderGroupId());
+        }
+
+        private void read03(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
+            builder.rolloverSizeBytes(revisionDataInput.readLong());
+        }
+
+        private void write03(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getRolloverSizeBytes());
         }
     }
 

@@ -132,6 +132,8 @@ public final class ModelHelper {
                                   .scalingPolicy(encode(config.getScalingPolicy()))
                                   .retentionPolicy(encode(config.getRetentionPolicy()))
                                   .tags(config.getTags().getTagList())
+                                  .timestampAggregationTimeout(config.getTimestampAggregationTimeout())
+                                  .rolloverSizeBytes(config.getRolloverSizeBytes())
                                   .build();
     }
 
@@ -152,6 +154,7 @@ public final class ModelHelper {
                 .partitionCount(config.getPartitionCount())
                 .primaryKeyLength(config.getPrimaryKeyLength())
                 .secondaryKeyLength(config.getSecondaryKeyLength())
+                .rolloverSizeBytes(config.getRolloverSizeBytes())
                 .build();
     }
 
@@ -287,6 +290,7 @@ public final class ModelHelper {
                 .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
+                .rolloverSizeBytes(rgConfig.getRolloverSizeBytes())
                 .build();
         return ReaderGroupConfig.cloneConfig(cfg, UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration());
     }
@@ -380,6 +384,8 @@ public final class ModelHelper {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
         builder.setTags(Controller.Tags.newBuilder().addAllTag(configModel.getTags()).build());
+        builder.setTimestampAggregationTimeout(configModel.getTimestampAggregationTimeout());
+        builder.setRolloverSizeBytes(configModel.getRolloverSizeBytes());
         return builder.build();
     }
 
@@ -441,11 +447,14 @@ public final class ModelHelper {
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
         Preconditions.checkArgument(config.getPrimaryKeyLength() > 0, "Length of primary key should be > 0.");
         Preconditions.checkArgument(config.getSecondaryKeyLength() >= 0, "Length of secondary key should be >= 0.");
+        Preconditions.checkArgument(config.getRolloverSizeBytes() >= 0, "Rollover size should be >= 0.");
         return KeyValueTableConfig.newBuilder().setScope(scopeName)
                 .setKvtName(kvtName)
                 .setPartitionCount(config.getPartitionCount())
                 .setPrimaryKeyLength(config.getPrimaryKeyLength())
-                .setSecondaryKeyLength(config.getSecondaryKeyLength()).build();
+                .setSecondaryKeyLength(config.getSecondaryKeyLength())
+                .setRolloverSizeBytes(config.getRolloverSizeBytes())
+                .build();
     }
 
     /**
@@ -511,6 +520,7 @@ public final class ModelHelper {
                 .setRetentionType(config.getRetentionType().ordinal())
                 .setGeneration(config.getGeneration())
                 .setReaderGroupId(readerGroupId.toString())
+                .setRolloverSizeBytes(config.getRolloverSizeBytes())
                 .addAllStartingStreamCuts(startStreamCuts)
                 .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();
