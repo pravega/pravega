@@ -22,8 +22,6 @@ import io.pravega.client.admin.StreamManager;
 import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
-import java.util.ArrayList;
-import java.util.Collections;
 
 public abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
