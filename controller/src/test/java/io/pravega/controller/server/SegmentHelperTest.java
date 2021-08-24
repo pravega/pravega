@@ -269,10 +269,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        String scopeName = "testScope"; String streamName = "testStream"; String delegationToken = "";
-        long segmentId = 1L; long batchId = 1L;
+        String scopeName = "testScope";
+        String streamName = "testStream";
+        String delegationToken = "";
+        long segmentId = 1L;
+        long batchId = 1L;
         UUID txnId = new UUID(0, 0L);
         List<UUID> txnIdList = List.of(txnId);
+
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<List<Long>> retVal = helper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
