@@ -961,7 +961,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testEvictionFromBufferInParallel() throws Exception {
+    public void testEvictionFromBufferInParallel() {
         if (metadataStore instanceof InMemoryMetadataStore) {
             metadataStore.setMaxEntriesInCache(10);
             metadataStore.setMaxEntriesInTxnBuffer(10);
@@ -969,6 +969,21 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             for (int i = 0; i < 10000; i++) {
                 final int k = i;
                 futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k)));
+            }
+            Futures.allOf(futures);
+        }
+    }
+
+    @Test
+    public void testEvictAllInParallel() {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+            metadataStore.setMaxEntriesInCache(10);
+            metadataStore.setMaxEntriesInTxnBuffer(10);
+            val futures = new ArrayList<CompletableFuture<Void>>();
+            for (int i = 0; i < 10000; i++) {
+                final int k = i;
+                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k)));
+                futures.add(CompletableFuture.runAsync(() -> metadataStore.evictAllEligibleEntriesFromBuffer()));
             }
             Futures.allOf(futures);
         }
