@@ -56,6 +56,7 @@ public class SegmentStoreConnectionManagerTest {
         connectionCounter = new AtomicInteger();
     }
 
+    @SuppressWarnings("resource")
     @Test(timeout = 30000)
     public void connectionTest() {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
@@ -237,6 +238,11 @@ public class SegmentStoreConnectionManagerTest {
 
             @Override
             public void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended) {
+
+            }
+
+            @Override
+            public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
 
             }
 

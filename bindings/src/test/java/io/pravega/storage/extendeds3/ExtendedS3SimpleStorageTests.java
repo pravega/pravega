@@ -177,12 +177,14 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
     public static class NoAppendExtendedS3ChunkStorageSystemJournalTests extends SystemJournalTests {
         private ExtendedS3TestContext testContext = null;
 
+        @Override
         @Before
         public void before() throws Exception {
             this.testContext = new ExtendedS3TestContext();
             super.before();
         }
 
+        @Override
         @After
         public void after() throws Exception {
             if (this.testContext != null) {

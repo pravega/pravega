@@ -48,6 +48,7 @@ public class StreamSegmentRecord implements SegmentRecord {
 
     }
 
+    @Override
     public long segmentId() {
         return NameUtils.computeSegmentId(segmentNumber, creationEpoch);
     }

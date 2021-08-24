@@ -36,6 +36,7 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.Storage;
@@ -113,7 +114,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         storage.initialize(CONTAINER_EPOCH);
-        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
+        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
 
         outputInfo("Starting recovery...");
         // create back up of metadata segments
@@ -217,7 +218,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         }
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(c, this.cacheManager, e);
+            return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
         }
 
         @Override

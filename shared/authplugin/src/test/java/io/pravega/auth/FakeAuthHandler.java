@@ -15,8 +15,6 @@
  */
 package io.pravega.auth;
 
-import io.pravega.shared.security.auth.UserPrincipal;
-
 import java.security.Principal;
 
 public class FakeAuthHandler implements AuthHandler {
@@ -31,7 +29,7 @@ public class FakeAuthHandler implements AuthHandler {
 
     @Override
     public Principal authenticate(String token) {
-        return new UserPrincipal(token);
+        return new MockPrincipal(token);
     }
 
     @Override

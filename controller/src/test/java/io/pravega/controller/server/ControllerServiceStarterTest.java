@@ -52,7 +52,7 @@ import org.junit.rules.Timeout;
 @Slf4j
 public abstract class ControllerServiceStarterTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
     protected final int grpcPort;
@@ -126,6 +126,7 @@ public abstract class ControllerServiceStarterTest {
                                                                   .port(grpcPort)
                                                                   .authorizationEnabled(enableAuth)
                                                                   .tlsEnabled(enableAuth)
+                                                                  .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                                                   .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
                                                                   .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                                                                   .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)

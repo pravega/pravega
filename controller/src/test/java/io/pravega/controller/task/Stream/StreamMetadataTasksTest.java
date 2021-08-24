@@ -120,6 +120,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
@@ -146,7 +147,7 @@ public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
@@ -279,6 +280,7 @@ public abstract class StreamMetadataTasksTest {
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", 
                 ((AbstractStreamMetadataStore) streamMetadataStore).getHostTaskIndex());
 
+        @Cleanup
         StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore, bucketStore,
                 taskMetadataStore, segmentHelperMock, executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), helper);
@@ -2467,7 +2469,8 @@ public abstract class StreamMetadataTasksTest {
         List<AbortEvent> abortListBefore = abortWriter.getEventList();
         
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, 0L);
-        processEvent(requestEventWriter).join();
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
+                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
 
         reset(streamStorePartialMock);
@@ -2475,7 +2478,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that the txn status is set to aborting
         VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
-        assertEquals(0, requestEventWriter.getEventQueue().size());
+        assertEquals(requestEventWriter.getEventQueue().size(), 1);
 
         // verify that events are posted for the abort txn.
         List<AbortEvent> abortListAfter = abortWriter.getEventList();
@@ -2494,6 +2497,9 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
+                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
         reset(streamStorePartialMock);
 
         // Now complete all existing transactions and verify that seal completes
@@ -2503,6 +2509,7 @@ public abstract class StreamMetadataTasksTest {
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         // endregion
     }
 
@@ -2883,9 +2890,10 @@ public abstract class StreamMetadataTasksTest {
     }
     
     @Test(timeout = 30000)
-    public void concurrentCreateStreamTest() {
+    public void concurrentCreateStreamTest() throws Exception {
         TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
 
+        @Cleanup
         StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));

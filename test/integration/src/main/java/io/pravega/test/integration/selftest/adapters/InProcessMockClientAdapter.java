@@ -54,6 +54,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.NoOpScheduledExecutor;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -110,7 +111,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get());
+                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
@@ -276,12 +277,24 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+            throw new UnsupportedOperationException("flushToStorage");
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             throw new UnsupportedOperationException("read");
         }
 
         @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source, Duration timeout) {
+            throw new UnsupportedOperationException("mergeStreamSegment");
+        }
+
+        @Override
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source,
+                                                                              AttributeUpdateCollection attributeUpdates,
+                                                                              Duration timeout) {
             throw new UnsupportedOperationException("mergeStreamSegment");
         }
 

@@ -1021,7 +1021,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
             // Add the operation to the log.
             StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
-            mapOp.setStreamSegmentId((long) i);
+            mapOp.setStreamSegmentId(i);
             context.dataSource.add(mapOp);
         }
 

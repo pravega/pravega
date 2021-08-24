@@ -69,6 +69,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
@@ -143,6 +144,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
+    @Getter(AccessLevel.PROTECTED)
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
@@ -218,7 +220,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                          wrapCancellationException(ex)));
     }
 
-    private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
+    protected boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
         boolean isTokenValid = false;
         try {
             tokenVerifier.verifyToken(segment, delegationToken, READ);
@@ -469,7 +471,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
-        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
+
+        // Populate the AttributeUpdates for this mergeSegments operation, if any.
+        AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
+        if (mergeSegments.getAttributeUpdates() != null) {
+            for (WireCommands.ConditionalAttributeUpdate update : mergeSegments.getAttributeUpdates()) {
+                attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(update.getAttributeId()),
+                    AttributeUpdateType.get(update.getAttributeUpdateType()), update.getNewValue(), update.getOldValue()));
+            }
+        }
+
+        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
@@ -488,6 +500,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                                             mergeSegments.getSource(),
                                                                                             properties.getLength()));
                                         });
+                            return null;
+                        } else if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
+                            log.debug(mergeSegments.getRequestId(), "Conditional merge failed (Source segment={}, " +
+                                    "Target segment={}): {}", mergeSegments.getSource(), mergeSegments.getTarget(), e.toString());
+                            connection.send(new SegmentAttributeUpdated(mergeSegments.getRequestId(), false));
                             return null;
                         } else {
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
@@ -926,7 +943,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private Void handleException(long requestId, String segment, String operation, Throwable u) {
+    Void handleException(long requestId, String segment, String operation, Throwable u) {
         // use offset as -1L to handle exceptions when offset data is not available.
         return handleException(requestId, segment, -1L, operation, u);
     }
@@ -1011,7 +1028,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean errorCodeExists(Throwable e) {
-        val errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
+        ErrorCode errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
         return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
     }
 
