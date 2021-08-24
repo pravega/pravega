@@ -57,6 +57,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     public static final class LocalPravegaEmulatorBuilder {
+        String[] tlsProtocolVersion = new String[]{"TLSv1.2", "TLSv1.3"};
         public LocalPravegaEmulator build() {
             this.inProcPravegaCluster = InProcPravegaCluster
                     .builder()
