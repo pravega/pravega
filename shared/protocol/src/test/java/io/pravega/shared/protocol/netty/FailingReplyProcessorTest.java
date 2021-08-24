@@ -25,6 +25,7 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttribute;
+import io.pravega.shared.protocol.netty.WireCommands.StorageFlushed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
@@ -96,6 +97,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
         assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
+        assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new StorageFlushed(0)));
     }
 
 }

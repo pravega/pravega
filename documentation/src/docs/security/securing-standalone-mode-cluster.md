@@ -29,6 +29,8 @@ For standalone mode servers, you may enable SSL/TLS, and/ `auth` (short for Auth
 
 The configuration parameter `singlenode.security.tls.enable` determines whether SSL/TLS is enabled in a standalone mode server. Its default value is `false`, and therefore, SSL/TLS is disabled by default.
 
+The configuration parameter `singlenode.security.tls.protocolVersion` configures the TLS Protocol Version. Its default value is `TLSv1.2,TLSv1.3` which is a mixed mode supporting both `TLSv1.2` and `TLSv1.3`. Pravega also supports strict `TLSv1.2` and strict `TLSv1.3` modes.
+
 Similarly, the configuration parameter `singlenode.security.auth.enable` determines whether `auth` is enabled. It is disabled by default as well.
 
 The following steps explain how to enable and configure SSL/TLS and/ `auth`:
@@ -51,6 +53,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
 
    ```java
    singlenode.security.tls.enable=true
+   singlenode.security.tls.protocolVersion=TLSv1.2,TLSv1.3
    singlenode.security.tls.privateKey.location=../config/server-key.key
    singlenode.security.tls.certificate.location=../config/server-cert.crt
    singlenode.security.tls.keyStore.location=../config/server.keystore.jks
