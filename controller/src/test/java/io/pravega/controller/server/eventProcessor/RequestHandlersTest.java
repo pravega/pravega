@@ -263,7 +263,8 @@ public abstract class RequestHandlersTest {
                 .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
 
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
-        assertEquals(CommittingTransactionsRecord.INITIAL, versioned.getObject());
+        CommittingTransactionsRecord expectedRecord = CommittingTransactionsRecord.newEmptyCommittingTransactionsRecord(1L);
+        assertEquals(expectedRecord, versioned.getObject());
         assertEquals(expectedVersion, getVersionNumber(versioned.getVersion()));
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();

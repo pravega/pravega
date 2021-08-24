@@ -1935,7 +1935,6 @@ public abstract class PersistentStreamBase implements Stream {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getVersionedCommitTransactionsRecord(context)
                 .thenCompose(versioned -> {
-                    //if (versioned.getObject().equals(CommittingTransactionsRecord.INITIAL)) {
                     if (versioned.getObject().isEmpty()) {
                         return getOrderedCommittingTxnInLowestEpoch(limit, context)
                                 .thenCompose(list -> {
