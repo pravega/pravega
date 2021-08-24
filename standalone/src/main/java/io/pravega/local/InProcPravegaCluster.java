@@ -314,8 +314,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 ServiceConfig.DataLogType.BOOKKEEPER)
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM)
+                                ServiceConfig.StorageType.INMEMORY.name() :
+                                ServiceConfig.StorageType.FILESYSTEM.name())
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
                         .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
                         .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)
