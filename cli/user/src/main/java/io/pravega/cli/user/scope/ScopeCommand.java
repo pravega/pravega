@@ -107,16 +107,9 @@ public abstract class ScopeCommand extends Command {
             if (!scopeIterator.hasNext()) {
                 output("Scope does not exist in Pravega");
             } else {
-                ArrayList<String> scopeList = new ArrayList<>();
                 while (scopeIterator.hasNext())
                 {
-                    scopeList.add(scopeIterator.next());
-                }
-
-                Collections.sort(scopeList);
-
-                for (String scope : scopeList) {
-                    output("\t%s", scope);
+                    output("\t%s", scopeIterator.next());
                 }
             }
         }
