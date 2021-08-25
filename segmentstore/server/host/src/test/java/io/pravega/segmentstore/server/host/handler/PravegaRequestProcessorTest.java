@@ -463,8 +463,8 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentsMerged(8L, streamSegmentName, transactionName, 1));
 
         // Check the value of attributes post merge.
-        UUID batchIdAttributeUUID = ((AttributeId.UUID) Attributes.SEG_MERGE_BATCH_ID).toUUID();
-        UUID seqNoAttributeUUID = ((AttributeId.UUID) Attributes.SEG_MERGE_SEQ_NO_IN_BATCH).toUUID();
+        UUID batchIdAttributeUUID = ((AttributeId.UUID) Attributes.MERGE_TXN_BATCH_ID).toUUID();
+        UUID seqNoAttributeUUID = ((AttributeId.UUID) Attributes.MERGE_TXN_SEQ_NO_IN_BATCH).toUUID();
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(9L, streamSegmentName, batchIdAttributeUUID, ""));
         order.verify(connection).send(new WireCommands.SegmentAttribute(9L, 2L));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(10L, streamSegmentName, seqNoAttributeUUID, ""));

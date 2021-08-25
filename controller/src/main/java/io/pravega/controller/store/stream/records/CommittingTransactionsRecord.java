@@ -143,7 +143,7 @@ public class CommittingTransactionsRecord {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                    .revision(1, this::write01, this::read01);
+                      .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
