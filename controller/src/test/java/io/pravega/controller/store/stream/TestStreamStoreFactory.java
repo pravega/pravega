@@ -11,6 +11,8 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.PravegaTablesKVTMetadataStore;
 import io.pravega.controller.util.Config;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -19,8 +21,15 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class TestStreamStoreFactory {
     @VisibleForTesting
-    public static StreamMetadataStore createPravegaTablesStore(final CuratorFramework client,
-                                                               final ScheduledExecutorService executor, PravegaTablesStoreHelper helper) {
+    public static StreamMetadataStore createPravegaTablesStreamStore(final CuratorFramework client,
+                                                                     final ScheduledExecutorService executor, PravegaTablesStoreHelper helper) {
         return new PravegaTablesStreamMetadataStore(client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), helper);
     }
+
+    @VisibleForTesting
+    public static KVTableMetadataStore createPravegaTablesKVStore(final CuratorFramework client,
+                                                                  final ScheduledExecutorService executor, PravegaTablesStoreHelper helper) {
+        return new PravegaTablesKVTMetadataStore(client, executor, helper);
+    }
+
 }

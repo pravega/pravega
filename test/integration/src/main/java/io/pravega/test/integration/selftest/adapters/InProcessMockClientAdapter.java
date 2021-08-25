@@ -277,6 +277,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+            throw new UnsupportedOperationException("flushToStorage");
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             throw new UnsupportedOperationException("read");
         }
