@@ -102,9 +102,12 @@ public abstract class ScopeCommand extends Command {
             @Cleanup
             val sm = StreamManager.create(getClientConfig());
             val scopeIterator = sm.listScopes();
-
-            while (scopeIterator.hasNext()) {
-                output("\t%s", scopeIterator.next());
+            if (!scopeIterator.hasNext()) {
+                output("Scope does not exist in Pravega");
+            } else {
+                while (scopeIterator.hasNext()) {
+                    output("\t%s", scopeIterator.next());
+                }
             }
         }
 
