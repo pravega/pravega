@@ -110,6 +110,10 @@ public class ModelHelper {
                                                                       .retentionPolicy(retentionPolicy)
                                                                       .tags(tagsList);
 
+        if (createStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(createStreamRequest.getTimestampAggregationTimeout());
+        }
+
         if (createStreamRequest.getRolloverSizeBytes() != null) {
             builder.rolloverSizeBytes(createStreamRequest.getRolloverSizeBytes());
         }
