@@ -15,16 +15,25 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import io.pravega.common.util.BufferView;
+
 import java.time.Duration;
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines the StreamSegmentStore which is responsible for delegating the various
- * operations possible on a StreamSegment to their respective Container.
+ * Defines all operations that are supported on a StreamSegment.
+ *
+ * Notes about all AttributeUpdates parameters in this interface's methods:
+ * * Only the Attributes contained in this collection will be touched; all other attributes will be left intact.
+ * * This can update both Core or Extended Attributes. If an Extended Attribute is updated, its latest value will be kept
+ * in memory for a while (based on Segment Metadata eviction or other rules), which allow for efficient pipelining.
+ * * If an Extended Attribute is not loaded, use getAttributes() to load its latest value up.
+ * * To delete an Attribute, set its value to Attributes.NULL_ATTRIBUTE_VALUE.
  */
-<<<<<<< HEAD
-public interface StreamSegmentStore {
-    
+public interface SegmentApi {
+
     /**
      * Appends a range of bytes at the end of a StreamSegment and atomically updates the given
      * attributes. The byte range will be appended as a contiguous block, however there is no
@@ -46,7 +55,7 @@ public interface StreamSegmentStore {
      * this update is rejected.
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
-     *                                  check if the StreamSegment does not exist - that exception 
+     *                                  check if the StreamSegment does not exist - that exception
      *                                  will be set in the returned CompletableFuture).
      */
     CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout);
@@ -174,7 +183,7 @@ public interface StreamSegmentStore {
      * @param targetSegmentName The name of the StreamSegment to merge into.
      * @param sourceSegmentName The name of the StreamSegment to merge.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain a MergeStreamSegmentResult instance with information about the 
+     * @return A CompletableFuture that, when completed normally, will contain a MergeStreamSegmentResult instance with information about the
      * source and target Segments. If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -217,17 +226,17 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
-=======
-public interface StreamSegmentStore extends SegmentApi {
->>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
     /**
-     * Applies all outstanding operations in a particular SegmentContainer from the DurableLog into the underlying Storage.
+     * Truncates a StreamSegment at a given offset.
      *
-     * @param containerId The Id of the container that needs to persisted to storage.
-     * @param timeout     Timeout for the operation.
-     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
-     * If the operation fails, it will be completed with the appropriate exception.
+     * @param streamSegmentName The name of the StreamSegment to truncate.
+     * @param offset            The offset at which to truncate. This must be at least equal to the existing truncation
+     *                          offset and no larger than the StreamSegment's length. After the operation is complete,
+     *                          no offsets below this one will be accessible anymore.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception.
      */
-    CompletableFuture<Void> flushToStorage(int containerId, Duration timeout);
+    CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
 }

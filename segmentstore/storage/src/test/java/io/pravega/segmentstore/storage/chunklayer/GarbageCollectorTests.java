@@ -259,6 +259,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
         Assert.assertTrue(chunkStorage.exists("activeChunk").get());
         Assert.assertNotNull(getChunkMetadata(metadataStore, "activeChunk"));
+        Assert.assertTrue(chunkStorage.exists("activeChunk").join());
     }
 
     /**
@@ -350,6 +351,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        Assert.assertFalse(chunkStorage.exists("deletedChunk").join());
 
         // Add some garbage
         garbageCollector.addChunksToGarbage(TXN_ID, Collections.singleton("deletedChunk")).join();
@@ -402,6 +404,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        Assert.assertFalse(chunkStorage.exists("nonExistingChunk").join());
 
         // Add some garbage
         garbageCollector.addChunksToGarbage(TXN_ID, Collections.singleton("nonExistingChunk")).join();
@@ -639,6 +642,10 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         // Validate state after
         assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, new String[]{"deletedChunk"});
+<<<<<<< HEAD
+=======
+        Assert.assertTrue(chunkStorage.exists("deletedChunk").get());
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
     }
 
     /**
@@ -654,6 +661,10 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         int dataSize = 1;
         insertChunkMetadata(metadataStore, "missingChunk", dataSize, 0);
+<<<<<<< HEAD
+=======
+        Assert.assertFalse(chunkStorage.exists("missingChunk").get());
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
@@ -746,6 +757,11 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         // Validate state after
         assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, new String[]{"deletedChunk"});
+<<<<<<< HEAD
+=======
+        // The chunk is deleted, but we have failure while deleting metadata.
+        Assert.assertFalse(chunkStorage.exists("deletedChunk").get());
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
     }
 
     /**
@@ -777,6 +793,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         // Now actually start run
         garbageCollector.initialize(testTaskQueue).join();
+<<<<<<< HEAD
 
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
@@ -816,8 +833,169 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         int containerId = CONTAINER_ID;
 
         int dataSize = 1;
+=======
+
+        Assert.assertNotNull(garbageCollector.getTaskQueue());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+
+        insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
+                new long[] {1, 2, 3, 4},  false, 0);
+        val chunkNames = TestUtils.getChunkNameList(metadataStore, "testSegment");
+
+        // Add some garbage
+        garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
+
+        // Validate state before
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+        Assert.assertEquals(1, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals("testSegment", testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).peek().getName());
+
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1)).join();
+
+        // Validate state after
+        Assert.assertEquals(4, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(4, garbageCollector.getQueueSize().get());
+
+        Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 10)).join();
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        chunkNames.stream().forEach( chunkName -> Assert.assertFalse(chunkName + " should not exist", chunkStorage.exists(chunkName).join()));
+    }
+
+    /**
+     * Test for segment that has lots of metadata.
+     */
+    @Test
+    public void testLargeSegment() throws Exception {
+        int numChunks = 1000;
+        int chunkSize = 10000;
+        int maxBatchSize = 100;
+        int indexBlockSize = 100;
+        testSegmentDelete(numChunks, chunkSize, maxBatchSize, indexBlockSize);
+    }
+
+    //
+    // Very useful test, but takes couple seconds.
+    //@Test(timeout = 180000)
+    public void testHugeSegment() throws Exception {
+        int numChunks = 1000;
+        int chunkSize = 10000;
+        int maxBatchSize = 4;
+        int indexBlockSize = 2;
+        testSegmentDelete(numChunks, chunkSize, maxBatchSize, indexBlockSize);
+    }
+
+    private void testSegmentDelete(int numChunks, int chunkSize, int maxBatchSize, int indexBlockSize) throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = CONTAINER_ID;
+
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
+
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ofMillis(1))
+                .garbageCollectionSleep(Duration.ofMillis(1))
+<<<<<<< HEAD
+=======
+                .indexBlockSize(indexBlockSize)  // Create huge number of block index entries
+                .garbageCollectionTransactionBatchSize(maxBatchSize) // Keep batch size very low.
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+                .build();
+        @Cleanup
+        GarbageCollector garbageCollector = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStore,
+                config,
+                executorService(),
+                System::currentTimeMillis,
+                noDelay);
+
+        // Now actually start run
+        garbageCollector.initialize(testTaskQueue).join();
+
+        Assert.assertNotNull(garbageCollector.getTaskQueue());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+<<<<<<< HEAD
+
+        insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
+                new long[] {1, 2, 3, 4},  false, 1);
+
+=======
+        // Large number of chunks with large number of index entries
+        long[] chunks = new long[numChunks];
+        Arrays.fill(chunks, chunkSize);
+        insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
+                chunks,  false, 0);
+        val chunkNames = TestUtils.getChunkNameList(metadataStore, "testSegment");
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+        // Add some garbage
+        garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
+
+        // Validate state before
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+<<<<<<< HEAD
+        Assert.assertEquals("testSegment", testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).peek().getName());
+
+        val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1);
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+
+        garbageCollector.processBatch(list).join();
+
+        // Validate state after
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+
+        Assert.assertNotNull(getSegmentMetadata(metadataStore, "testSegment"));
+    }
+
+=======
+        Assert.assertEquals(1, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals("testSegment", testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).peek().getName());
+
+        chunkNames.stream().forEach( chunkName -> Assert.assertTrue(chunkStorage.exists(chunkName).join()));
+
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1)).join();
+
+        // Validate state after
+        Assert.assertEquals(numChunks, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(numChunks, garbageCollector.getQueueSize().get());
+
+        Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
+        assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, chunkNames.toArray(new String[numChunks]));
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), numChunks)).join();
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        chunkNames.stream().forEach( chunkName -> Assert.assertFalse(chunkName + " should not exist", chunkStorage.exists(chunkName).join()));
+    }
+
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+    /**
+     * Test for segment that is marked active and added as garbage.
+     */
+    @Test
+<<<<<<< HEAD
+    public void testMetadataExceptionWithSegment() throws Exception {
+=======
+    public void testActiveSegment() throws Exception {
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = spy(getMetadataStore());
+        int containerId = CONTAINER_ID;
+
+        int dataSize = 1;
+        Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
+        val testTaskQueue = new InMemoryTaskQueueManager();
+<<<<<<< HEAD
+
+=======
 
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
@@ -840,7 +1018,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
                 new long[] {1, 2, 3, 4},  false, 1);
-
+        val chunkNames = TestUtils.getChunkNameList(metadataStore, "testSegment");
         // Add some garbage
         garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
 
@@ -859,6 +1037,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
 
         Assert.assertNotNull(getSegmentMetadata(metadataStore, "testSegment"));
+        chunkNames.stream().forEach( chunkName -> Assert.assertTrue(chunkStorage.exists(chunkName).join()));
     }
 
     /**
@@ -876,6 +1055,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
 
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ofMillis(1))
                 .garbageCollectionSleep(Duration.ofMillis(1))
@@ -897,6 +1077,10 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
                 new long[] {1, 2, 3, 4},  false, 0);
+<<<<<<< HEAD
+=======
+        val chunkNames = TestUtils.getChunkNameList(metadataStore, "testSegment");
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
         // Add some garbage
         garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
@@ -916,6 +1100,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         garbageCollector.processBatch(list).join();
 
         // Validate state after
+<<<<<<< HEAD
         Assert.assertEquals(5, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
         Assert.assertEquals(5, garbageCollector.getQueueSize().get());
 
@@ -931,6 +1116,24 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
+=======
+        Assert.assertEquals(1, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+
+        Assert.assertNotNull(getSegmentMetadata(metadataStore, "testSegment"));
+        chunkNames.stream().forEach( chunkName -> Assert.assertTrue(chunkStorage.exists(chunkName).join()));
+    }
+
+    /**
+     * Test for segment that for which metadata is partially updated already in previous attempt.
+     */
+    @Test
+    public void testMetadataExceptionForSegmentPartialMetadataUpdate() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = spy(getMetadataStore());
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         int containerId = CONTAINER_ID;
 
         int dataSize = 1;
@@ -956,7 +1159,142 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
 
+<<<<<<< HEAD
         // Add some garbage
+        Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
+=======
+        insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
+                new long[] {1, 2, 3, 4},  false, 0);
+        val chunkNames = TestUtils.getChunkNameList(metadataStore, "testSegment");
+
+        // Simulate partial update of metadata.
+        @Cleanup
+        val txn = metadataStore.beginTransaction(false, "testSegment");
+        val metadata = (ChunkMetadata) txn.get(chunkNames.stream().findFirst().get()).join();
+        metadata.setActive(false);
+        txn.update(metadata);
+        txn.commit().join();
+
+        // Add some garbage
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+        garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
+
+        // Validate state before
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+        Assert.assertEquals("testSegment", testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).peek().getName());
+
+        val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1);
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+<<<<<<< HEAD
+
+        garbageCollector.processBatch(list).join();
+
+        // Validate state after
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
+    }
+
+    /**
+     * Test for Max Attempts.
+     */
+    @Test
+    public void testMaxAttempts() throws Exception {
+=======
+        garbageCollector.processBatch(list).join();
+
+        // Validate state after
+        Assert.assertEquals(4, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(4, garbageCollector.getQueueSize().get());
+
+        garbageCollector.processBatch(testTaskQueue.drain(garbageCollector.getTaskQueueName(), 4)).join();
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        chunkNames.stream().forEach( chunkName -> Assert.assertFalse(chunkName + " should not exist", chunkStorage.exists(chunkName).join()));
+    }
+
+    /**
+     * Test for segment that does not exist and added as garbage.
+     */
+    @Test
+    public void testNonExistentSegment() throws Exception {
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = CONTAINER_ID;
+
+        int dataSize = 1;
+<<<<<<< HEAD
+        insertChunk(chunkStorage, "deletedChunk", dataSize);
+        insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
+
+        Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
+        val testTaskQueue = new InMemoryTaskQueueManager();
+
+        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+=======
+        Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
+        val testTaskQueue = new InMemoryTaskQueueManager();
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ofMillis(1))
+                .garbageCollectionSleep(Duration.ofMillis(1))
+                .build();
+        @Cleanup
+        GarbageCollector garbageCollector = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStore,
+<<<<<<< HEAD
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .garbageCollectionDelay(Duration.ofMillis(1))
+                        .garbageCollectionSleep(Duration.ofMillis(1))
+                        .garbageCollectionMaxAttempts(3)
+                        .build(),
+=======
+                config,
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
+                executorService(),
+                System::currentTimeMillis,
+                noDelay);
+
+        // Now actually start run
+        garbageCollector.initialize(testTaskQueue).join();
+
+        Assert.assertNotNull(garbageCollector.getTaskQueue());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+
+        // Add some garbage
+<<<<<<< HEAD
+        garbageCollector.addChunksToGarbage(TXN_ID, Arrays.asList("deletedChunk")).join();
+
+        // Validate state before
+        assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, new String[]{"deletedChunk"});
+
+        for (int i = 0; i < 3; i++) {
+            val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1);
+            Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+            Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+
+            garbageCollector.processBatch(list).join();
+            // Validate state after
+            assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, new String[]{"deletedChunk"});
+        }
+
+        val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1);
+        Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
+        Assert.assertEquals(1, garbageCollector.getQueueSize().get());
+
+        garbageCollector.processBatch(list).join();
+
+        // Validate state after
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+        Assert.assertEquals(1, testTaskQueue.getTaskQueueMap().get(garbageCollector.getFailedQueueName()).size());
+        Assert.assertEquals("deletedChunk", testTaskQueue.getTaskQueueMap().get(garbageCollector.getFailedQueueName()).peek().getName());
+=======
         Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
         garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
 
@@ -974,20 +1312,29 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
         Assert.assertNull(getSegmentMetadata(metadataStore, "testSegment"));
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
     }
 
     /**
      * Test for Max Attempts.
      */
     @Test
+<<<<<<< HEAD
+    public void testMaxAttemptsWithSegment() throws Exception {
+=======
     public void testMaxAttempts() throws Exception {
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
-        ChunkMetadataStore metadataStore = getMetadataStore();
+        ChunkMetadataStore metadataStore = spy(getMetadataStore());
         int containerId = CONTAINER_ID;
 
         int dataSize = 1;
+<<<<<<< HEAD
+        Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
+        val testTaskQueue = new InMemoryTaskQueueManager();
+=======
         insertChunk(chunkStorage, "deletedChunk", dataSize);
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
 
@@ -995,16 +1342,25 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         val testTaskQueue = new InMemoryTaskQueueManager();
 
         chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ofMillis(1))
+                .garbageCollectionSleep(Duration.ofMillis(1))
+                .build();
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
                 metadataStore,
+<<<<<<< HEAD
+                config,
+=======
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                         .garbageCollectionDelay(Duration.ofMillis(1))
                         .garbageCollectionSleep(Duration.ofMillis(1))
                         .garbageCollectionMaxAttempts(3)
                         .build(),
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
                 executorService(),
                 System::currentTimeMillis,
                 noDelay);
@@ -1015,7 +1371,13 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertNotNull(garbageCollector.getTaskQueue());
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
 
+        insertSegment(metadataStore, chunkStorage, config, "testSegment", 10, 1,
+                new long[] {},  false, 0);
+
         // Add some garbage
+<<<<<<< HEAD
+        garbageCollector.addSegmentToGarbage(TXN_ID, "testSegment").join();
+=======
         garbageCollector.addChunksToGarbage(TXN_ID, Arrays.asList("deletedChunk")).join();
 
         // Validate state before
@@ -1030,6 +1392,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
             // Validate state after
             assertQueueEquals(garbageCollector.getTaskQueueName(), testTaskQueue, new String[]{"deletedChunk"});
         }
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
         val list = testTaskQueue.drain(garbageCollector.getTaskQueueName(), 1);
         Assert.assertEquals(0, testTaskQueue.getTaskQueueMap().get(garbageCollector.getTaskQueueName()).size());
@@ -1118,6 +1481,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, garbageCollector.getQueueSize().get());
 
         Assert.assertNotNull(getSegmentMetadata(metadataStore, "testSegment"));
+<<<<<<< HEAD
     }
 
     @Test
@@ -1139,6 +1503,29 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     @Test
+=======
+    }
+
+    @Test
+    public void testSerialization() throws Exception {
+        val serializer = new GarbageCollector.TaskInfo.Serializer();
+        GarbageCollector.TaskInfo obj1 = GarbageCollector.TaskInfo.builder()
+                .transactionId(1)
+                .taskType(2)
+                .attempts(3)
+                .name("name")
+                .build();
+        val bytes = serializer.serialize(obj1);
+        val obj2 = serializer.deserialize(bytes);
+
+        Assert.assertEquals(1, obj2.getTransactionId());
+        Assert.assertEquals(2, obj2.getTaskType());
+        Assert.assertEquals(3, obj2.getAttempts());
+        Assert.assertEquals("name", obj2.getName());
+    }
+
+    @Test
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
     public void testSerializationWithBaseClass() throws Exception {
         val serializer = new GarbageCollector.AbstractTaskInfo.AbstractTaskInfoSerializer();
         GarbageCollector.TaskInfo obj1 = GarbageCollector.TaskInfo.builder()
@@ -1156,9 +1543,15 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertEquals("name", obj2.getName());
     }
 
+<<<<<<< HEAD
     private void assertQueueEquals(String queueName, InMemoryTaskQueueManager garbageCollector, String[] expected) {
         HashSet<String> visited = new HashSet<>();
         val queue = garbageCollector.getTaskQueueMap().get(queueName).stream().peek(info -> visited.add(info.getName())).collect(Collectors.counting());
+=======
+    private void assertQueueEquals(String queueName, InMemoryTaskQueueManager queueManager, String[] expected) {
+        HashSet<String> visited = new HashSet<>();
+        val queue = queueManager.getTaskQueueMap().get(queueName).stream().peek(info -> visited.add(info.getName())).collect(Collectors.counting());
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         Assert.assertEquals(expected.length, visited.size());
         for (String chunk : expected) {
             Assert.assertTrue(visited.contains(chunk));
@@ -1230,6 +1623,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                 firstChunk = testSegmentName + "_chunk_0";
                 lastChunk = testSegmentName + "_chunk_" + Integer.toString(chunkLengths.length - 1);
                 startOfLast = length - chunkLengths[chunkLengths.length - 1];
+<<<<<<< HEAD
             }
 
             // Finally save
@@ -1259,6 +1653,37 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                 }
             }
 
+=======
+            }
+
+            // Finally save
+            SegmentMetadata segmentMetadata = SegmentMetadata.builder()
+                    .maxRollinglength(maxRollingLength)
+                    .name(testSegmentName)
+                    .ownerEpoch(ownerEpoch)
+                    .firstChunk(firstChunk)
+                    .lastChunk(lastChunk)
+                    .length(length)
+                    .lastChunkStartOffset(startOfLast)
+                    .build();
+            segmentMetadata.setStatus(status);
+            segmentMetadata.setChunkCount(chunkCount);
+            segmentMetadata.checkInvariants();
+            txn.create(segmentMetadata);
+
+            if (addIndexMetadata) {
+                for (long blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset += config.getIndexBlockSize()) {
+                    val floor = index.floorEntry(blockStartOffset);
+                    txn.create(ReadIndexBlockMetadata.builder()
+                            .name(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), blockStartOffset))
+                            .startOffset(floor.getKey())
+                            .chunkName(floor.getValue())
+                            .status(StatusFlags.ACTIVE)
+                            .build());
+                }
+            }
+
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
             txn.commit().join();
             return segmentMetadata;
         }

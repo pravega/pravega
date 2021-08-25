@@ -229,7 +229,10 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Create a Health Service Manager instance.
             healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
+<<<<<<< HEAD
             HealthContributor rootContrib = healthServiceManager.getRoot();
+=======
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -239,7 +242,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 log.info("Starting segment container monitor");
                 monitor.startAsync();
                 SegmentContainerMonitorHealthContributor segmentContainerMonitorHC = new SegmentContainerMonitorHealthContributor("segmentContainerMonitor", monitor );
+<<<<<<< HEAD
                 rootContrib.register(segmentContainerMonitorHC);
+=======
+                healthServiceManager.register(segmentContainerMonitorHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
             }
 
             // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
@@ -282,7 +289,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             retentionService.startAsync();
             retentionService.awaitRunning();
             RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
+<<<<<<< HEAD
             rootContrib.register(retentionServiceHC);
+=======
+            healthServiceManager.register(retentionServiceHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
@@ -294,7 +305,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
+<<<<<<< HEAD
             rootContrib.register(watermarkingServiceHC);
+=======
+            healthServiceManager.register(watermarkingServiceHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -340,7 +355,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
                 EventProcessorHealthContributor eventProcessorHC = new EventProcessorHealthContributor("eventProcessor", controllerEventProcessors);
+<<<<<<< HEAD
                 rootContrib.register(eventProcessorHC);
+=======
+                healthServiceManager.register(eventProcessorHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
             }
 
             // Setup and start controller cluster listener after all sweepers have been initialized.
@@ -359,7 +378,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
                 ClusterListenerHealthContributor clusterListenerHC = new ClusterListenerHealthContributor("clusterListener", controllerClusterListener);
+<<<<<<< HEAD
                 rootContrib.register(clusterListenerHC);
+=======
+                healthServiceManager.register(clusterListenerHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
             }
 
             // Start the Health Service.
@@ -373,7 +396,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();
                 GRPCServerHealthContributor grpcServerHC = new GRPCServerHealthContributor("GRPCServer", grpcServer);
+<<<<<<< HEAD
                 rootContrib.register(grpcServerHC);
+=======
+                healthServiceManager.register(grpcServerHC);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
             }
 
             // Start REST server.

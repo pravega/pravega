@@ -29,7 +29,10 @@ import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.shared.NameUtils;
 import lombok.Builder;
+<<<<<<< HEAD
 import lombok.Cleanup;
+=======
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -43,7 +46,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+<<<<<<< HEAD
 import java.util.List;
+=======
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -266,6 +276,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                     SLTS_GC_CHUNK_NEW.inc();
                 }, this.storageExecutor);
     }
+<<<<<<< HEAD
 
     /**
      * Add the task to failed queue.
@@ -331,6 +342,120 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                 }, storageExecutor);
                     }
                 }, storageExecutor);
+=======
+
+    /**
+     * Add the task to failed queue.
+     */
+    private CompletableFuture<Void> failTask(TaskInfo infoToRetire) {
+        Preconditions.checkState(null != taskQueue, "taskQueue must not be null.");
+        return taskQueue.addTask(failedQueueName, infoToRetire);
+    }
+
+    /**
+     * Perform delete segment related tasks.
+     */
+    private CompletableFuture<Void> deleteSegment(TaskInfo taskInfo) {
+        val streamSegmentName = taskInfo.getName();
+        val txn = metadataStore.beginTransaction(true, streamSegmentName);
+        return txn.get(streamSegmentName)
+                .thenComposeAsync(storageMetadata -> {
+                    val segmentMetadata = (SegmentMetadata) storageMetadata;
+                    if (null == segmentMetadata) {
+                        log.debug("{}: deleteGarbage - Segment metadata does not exist. segment={}.", traceObjectId, streamSegmentName);
+                        return CompletableFuture.completedFuture(null);
+                    } else if (segmentMetadata.isActive()) {
+                        log.debug("{}: deleteGarbage - Segment is not marked as deleted. segment={}.", traceObjectId, streamSegmentName);
+                        return CompletableFuture.completedFuture(null);
+                    } else {
+                        val chunksToDelete = Collections.synchronizedSet(new HashSet<String>());
+                        val currentBatch = Collections.synchronizedSet(new HashSet<ChunkMetadata>());
+                        val currentChunkName = new AtomicReference<String>(segmentMetadata.getFirstChunk());
+
+                        return Futures.loop(
+                                () -> null != currentChunkName.get(),
+                                () -> txn.get(currentChunkName.get())
+                                        .thenComposeAsync(metadata -> {
+                                            val chunkMetadata = (ChunkMetadata) metadata;
+                                            CompletableFuture<Void> retFuture = CompletableFuture.completedFuture(null);
+
+                                            // Skip if metadata is possibly deleted in last attempt, we are done.
+                                            if (null == chunkMetadata) {
+                                                currentChunkName.set(null);
+                                                return retFuture;
+                                            }
+
+                                            // Add to list of chunks to delete
+                                            chunksToDelete.add(chunkMetadata.getName());
+
+                                            // Add to batch and commit batch if required.
+                                            currentBatch.add(chunkMetadata);
+                                            if (chunkMetadata.isActive()) {
+                                                if (currentBatch.size() > config.getGarbageCollectionTransactionBatchSize()) {
+                                                    // Commit batch
+                                                    retFuture = addTransactionForUpdateBatch(currentBatch, streamSegmentName);
+                                                    // Clear batch
+                                                    currentBatch.clear();
+                                                }
+                                            }
+                                            // Move next
+                                            currentChunkName.set(chunkMetadata.getNextChunk());
+                                            return retFuture;
+                                        }, storageExecutor),
+                                storageExecutor)
+                                .thenComposeAsync( v -> {
+                                    if (currentBatch.size() > 0) {
+                                        return addTransactionForUpdateBatch(currentBatch, streamSegmentName);
+                                    }
+                                    return CompletableFuture.completedFuture(null);
+                                }, storageExecutor)
+                                .thenComposeAsync(v -> this.addChunksToGarbage(txn.getVersion(), chunksToDelete), storageExecutor)
+                                .thenComposeAsync(v -> deleteBlockIndexEntriesForSegment(streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()))
+                                .thenComposeAsync(v -> {
+                                    val innerTxn = metadataStore.beginTransaction(false, segmentMetadata.getName());
+                                    innerTxn.delete(segmentMetadata.getName());
+                                    return innerTxn.commit()
+                                            .whenCompleteAsync((vv, ex) -> innerTxn.close(), storageExecutor);
+                                }, storageExecutor)
+                                .handleAsync((v, e) -> {
+                                    txn.close();
+                                    if (null != e) {
+                                        log.error(String.format("%s deleteGarbage - Could not delete metadata for garbage segment=%s.",
+                                                traceObjectId, streamSegmentName), e);
+                                        return true;
+                                    }
+                                    return false;
+                                }, storageExecutor)
+                                .thenComposeAsync(failed -> {
+                                    if (failed) {
+                                        if (taskInfo.getAttempts() < config.getGarbageCollectionMaxAttempts()) {
+                                            val attempts = taskInfo.attempts + 1;
+                                            SLTS_GC_SEGMENT_RETRY.inc();
+                                            return addSegmentToGarbage(taskInfo.toBuilder().attempts(attempts).build());
+                                        } else {
+                                            SLTS_GC_SEGMENT_FAILED.inc();
+                                            log.info("{}: deleteGarbage - could not delete after max attempts segment={}.", traceObjectId, taskInfo.getName());
+                                            return failTask(taskInfo);
+                                        }
+                                    } else {
+                                        SLTS_GC_SEGMENT_PROCESSED.inc();
+                                        return CompletableFuture.completedFuture(null);
+                                    }
+                                }, storageExecutor);
+                    }
+                }, storageExecutor);
+    }
+
+    private CompletableFuture<Void> addTransactionForUpdateBatch(Set<ChunkMetadata> batch, String name) {
+        // create a sub transaction for a batch.
+        val innerTxn = metadataStore.beginTransaction(false, name);
+        for (val chunkMetadata : batch) {
+            chunkMetadata.setActive(false);
+            innerTxn.update(chunkMetadata);
+        }
+        return innerTxn.commit()
+                .whenCompleteAsync((vv, ex) -> innerTxn.close(), storageExecutor);
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
     }
 
     /**
@@ -341,6 +466,80 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
         for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
             txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
         }
+    }
+
+    /**
+<<<<<<< HEAD
+     * Process a batch of tasks.
+     *
+     * @param batch List of {@link TaskInfo} to process.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     * If the operation failed, it will contain the cause of the failure.
+     */
+    public CompletableFuture<Void> processBatch(List<TaskInfo> batch) {
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (val infoToDelete : batch) {
+            if (metadataStore.isTransactionActive(infoToDelete.transactionId)) {
+                log.debug("{}: deleteGarbage - transaction is still active - re-queuing {}.", traceObjectId, infoToDelete.transactionId);
+                taskQueue.addTask(taskQueueName, infoToDelete);
+            } else {
+                val f = executeSerialized(() -> processTask(infoToDelete), infoToDelete.name);
+                val now = currentTimeSupplier.get();
+                if (infoToDelete.scheduledTime > currentTimeSupplier.get()) {
+                    futures.add(delaySupplier.apply(Duration.ofMillis(infoToDelete.scheduledTime - now))
+                            .thenComposeAsync(v -> f, storageExecutor));
+                } else {
+                    futures.add(f);
+                }
+            }
+        }
+        return Futures.allOf(futures)
+                .thenRunAsync(() -> {
+                    queueSize.addAndGet(-batch.size());
+                    SLTS_GC_TASK_PROCESSED.add(batch.size());
+                }, storageExecutor);
+    }
+
+    /**
+=======
+     * Delete block index entries for given segment.
+     */
+    CompletableFuture<Void> deleteBlockIndexEntriesForSegment(String segmentName, long startOffset, long endOffset) {
+        val firstBlock = startOffset / config.getIndexBlockSize();
+        AtomicBoolean isDone = new AtomicBoolean(false);
+        AtomicLong offset = new AtomicLong(firstBlock * config.getIndexBlockSize());
+
+        return Futures.loop(
+                () -> !isDone.get(),
+                () -> {
+                    val currentBatch = new HashSet<String>();
+                    while (offset.get() < endOffset) {
+                        val name = NameUtils.getSegmentReadIndexBlockName(segmentName, offset.get());
+                        if (currentBatch.size() >= config.getGarbageCollectionTransactionBatchSize()) {
+                            return addTransactionForDeleteBatch(currentBatch, segmentName);
+                        }
+                        currentBatch.add(name);
+                        offset.addAndGet(config.getIndexBlockSize());
+                    }
+                    // We are done
+                    isDone.set(true);
+                    if (currentBatch.size() > 0) {
+                        return addTransactionForDeleteBatch(currentBatch, segmentName);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                },
+                storageExecutor);
+    }
+
+    private CompletableFuture<Void> addTransactionForDeleteBatch(Set<String> batch, String segmentName) {
+        // create a sub transaction for a batch.
+        val innerTxn = metadataStore.beginTransaction(false, segmentName);
+        for (val entryName : batch) {
+            innerTxn.delete(entryName);
+        }
+        return innerTxn.commit()
+                .whenCompleteAsync((vv, ex) -> innerTxn.close(), storageExecutor);
     }
 
     /**
@@ -375,6 +574,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
     }
 
     /**
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
      * Executes the given Callable asynchronously and returns a CompletableFuture that will be completed with the result.
      * The operations are serialized on the segmentNames provided.
      *
@@ -428,7 +628,10 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
     private CompletableFuture<Void> deleteChunk(TaskInfo infoToDelete) {
         val chunkToDelete = infoToDelete.name;
         val failed = new AtomicReference<Throwable>();
+<<<<<<< HEAD
         @Cleanup
+=======
+>>>>>>> 9672a5cac7502b72eaade93e3ff94446a2e44b64
         val txn = metadataStore.beginTransaction(false, chunkToDelete);
         return txn.get(infoToDelete.name)
                 .thenComposeAsync(metadata -> {

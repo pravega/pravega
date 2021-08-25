@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.health.impl.HealthEndpointImpl;
 import io.pravega.shared.health.impl.HealthServiceUpdaterImpl;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -32,7 +31,6 @@ public class HealthServiceManager implements AutoCloseable {
      * The root {@link HealthContributor} of the service. All {@link HealthContributor} objects are reachable from this
      * contributor.
      */
-    @Getter
     @VisibleForTesting
     private final HealthContributor root;
 
@@ -78,6 +76,17 @@ public class HealthServiceManager implements AutoCloseable {
         this.updater.awaitRunning();
     }
 
+    /**
+     * Register health contributors to the health manager.
+     *
+     * @param children The health contributor used to register.
+     */
+    public void register(HealthContributor... children) {
+        for (HealthContributor child : children) {
+            this.root.register(child);
+        }
+    }
+
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
@@ -86,6 +95,24 @@ public class HealthServiceManager implements AutoCloseable {
             this.updater.awaitTerminated();
             this.root.close();
         }
+    }
+
+    /**
+     * Get name of the health indicatior.
+     *
+     * @return The name of the health indicatior
+     */
+    public String getName() {
+        return this.root.getName();
+    }
+
+    /**
+     * Get health information summary.
+     *
+     * @return the health information summary.
+     */
+    public Health getHealthSnapshot() {
+        return this.root.getHealthSnapshot();
     }
 
     private static class RootHealthContributor extends AbstractHealthContributor {
