@@ -116,7 +116,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
         // Get the storage using the config.
         storage.initialize(CONTAINER_EPOCH);
-        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
+        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
         // Gets total number of segments listed.
         int segmentsCount = 0;
