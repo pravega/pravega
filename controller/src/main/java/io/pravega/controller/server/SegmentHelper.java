@@ -635,7 +635,7 @@ public class SegmentHelper implements AutoCloseable {
                 });
     }
 
-    public CompletableFuture<WireCommands.SegmentRead> readSegment(String qualifiedName, long offset, int length,
+    public CompletableFuture<WireCommands.SegmentRead> readSegment(String qualifiedName, int offset, int length,
                                                                         PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         RawClient connection = new RawClient(uri, connectionPool);
