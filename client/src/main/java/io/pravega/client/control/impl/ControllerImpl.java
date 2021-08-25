@@ -405,8 +405,8 @@ public class ControllerImpl implements Controller {
                                                                   .newBuilder().setContinuationToken(token).build(), callback);
                         return callback.getFuture()
                                        .thenApplyAsync(x -> {
-                                               List<String> result = x.getScopesList();
-                                               return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                           List<String> result = x.getScopesList().stream().sorted().collect(Collectors.toList());
+                                           return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
                                        }, this.executor);
                     }, this.executor);
             return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
