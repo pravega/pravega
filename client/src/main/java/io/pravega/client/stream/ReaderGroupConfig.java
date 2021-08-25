@@ -50,7 +50,7 @@ public class ReaderGroupConfig implements Serializable {
 
     public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
     public static final long DEFAULT_GENERATION = -1;
-
+    public static final long DEFAULT_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024L; // 4MB
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
     private final long groupRefreshTimeMillis;
@@ -296,6 +296,7 @@ public class ReaderGroupConfig implements Serializable {
            //rollover size should be >= 0
            Preconditions.checkArgument(rolloverSizeBytes >= 0,
                    String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
+           rolloverSizeBytes = rolloverSizeBytes == 0 ? DEFAULT_SEGMENT_ROLLOVER_SIZE_BYTES : rolloverSizeBytes;
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
                    startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType,
                    generation, readerGroupId, rolloverSizeBytes);

@@ -97,6 +97,7 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(cfg.getRolloverSizeBytes(), ReaderGroupConfig.DEFAULT_SEGMENT_ROLLOVER_SIZE_BYTES);
     }
 
     @Test
@@ -105,12 +106,14 @@ public class ReaderGroupConfigTest {
                                                  .disableAutomaticCheckpoints()
                                                  .stream("scope/s1")
                                                  .stream("scope/s2", getStreamCut("s2"))
+                                                 .rolloverSizeBytes(1024L)
                                                  .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(cfg.getRolloverSizeBytes(), 1024L);
     }
 
     @Test(expected = IllegalArgumentException.class)
