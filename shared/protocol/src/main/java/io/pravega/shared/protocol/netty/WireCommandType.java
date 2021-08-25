@@ -32,6 +32,9 @@ public enum WireCommandType {
 
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),
 
+    FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
+    FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlushed::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),

@@ -17,8 +17,8 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.segmentstore.contracts.SegmentApi;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
@@ -29,7 +29,7 @@ import javax.annotation.Nullable;
 /**
  * Defines a Container for StreamSegments.
  */
-public interface SegmentContainer extends StreamSegmentStore, Container {
+public interface SegmentContainer extends SegmentApi, Container {
     /**
      * Gets a collection of SegmentProperties for all active Segments (Active Segment = a segment that is currently allocated
      * in the internal Container's Metadata (usually a segment with recent activity)).

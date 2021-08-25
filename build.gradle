@@ -912,7 +912,7 @@ project('standalone') {
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/standalone-logback.xml",
                                  "-Dsinglenode.configurationFile=PRAVEGA_APP_HOME/conf/standalone-config.properties",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",

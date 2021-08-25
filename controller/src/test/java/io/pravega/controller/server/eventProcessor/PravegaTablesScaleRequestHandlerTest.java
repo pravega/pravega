@@ -60,7 +60,7 @@ public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTes
     @Override
     StreamMetadataStore getStore() {
         storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), executor));
-        return TestStreamStoreFactory.createPravegaTablesStore(zkClient, executor, storeHelper);
+        return TestStreamStoreFactory.createPravegaTablesStreamStore(zkClient, executor, storeHelper);
 
     }
 
