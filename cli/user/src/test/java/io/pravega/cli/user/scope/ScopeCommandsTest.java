@@ -59,6 +59,8 @@ public class ScopeCommandsTest {
         String commandResult = TestUtils.executeCommand("scope create " + scope, cliConfig());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
+
+        String cleanUp = TestUtils.executeCommand("scope delete " + scope, cliConfig());
     }
 
     @Test(timeout = 5000)
