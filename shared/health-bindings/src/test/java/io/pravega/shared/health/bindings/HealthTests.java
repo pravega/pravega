@@ -108,7 +108,7 @@ public class HealthTests {
     @Test
     public void testHealth() throws Exception {
         // Register the HealthIndicator.
-        healthServiceManager.register(new StaticHealthyContributor());
+        healthServiceManager.getRoot().register(new StaticHealthyContributor());
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
                 .scheme(getURLScheme()).build();
@@ -134,7 +134,7 @@ public class HealthTests {
     public void testContributorHealth() throws Exception {
         // Register the HealthIndicator.
         StaticHealthyContributor contributor = new StaticHealthyContributor();
-        healthServiceManager.register(contributor);
+        healthServiceManager.getRoot().register(contributor);
 
         // Wait for contributor initialization.
         URI statusURI = UriBuilder.fromUri(getURI(String.format("/v1/health/status/%s", contributor.getName())))
@@ -164,7 +164,7 @@ public class HealthTests {
 
         // Start with a HealthyIndicator.
         StaticHealthyContributor healthyIndicator = new StaticHealthyContributor();
-        healthServiceManager.register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
        streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
@@ -172,14 +172,14 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the Status.
         StaticFailingContributor failingIndicator = new StaticFailingContributor();
-        healthServiceManager.register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
 
         // Make sure that even though we have a majority of healthy reports, we still are considered failing.
-        healthServiceManager.register(new StaticHealthyContributor("sample-healthy-indicator-two"));
+        healthServiceManager.getRoot().register(new StaticHealthyContributor("sample-healthy-indicator-two"));
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
@@ -189,7 +189,7 @@ public class HealthTests {
     public void testReadiness() throws Exception {
         // Start with a HealthyContributor.
         StaticHealthyContributor healthyIndicator = new StaticHealthyContributor();
-        healthServiceManager.register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -197,7 +197,7 @@ public class HealthTests {
 
         // Adding an unhealthy contributor should change the readiness status.
         StaticFailingContributor failingContributor = new StaticFailingContributor();
-        healthServiceManager.register(failingContributor);
+        healthServiceManager.getRoot().register(failingContributor);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -208,7 +208,7 @@ public class HealthTests {
     public void testLiveness() throws Exception {
         // Start with a HealthyContributor.
         StaticHealthyContributor healthyIndicator = new StaticHealthyContributor();
-        healthServiceManager.register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -216,7 +216,7 @@ public class HealthTests {
 
         // Adding an unhealthy contributor should change the readiness.
         StaticFailingContributor failingIndicator = new StaticFailingContributor();
-        healthServiceManager.register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -226,7 +226,7 @@ public class HealthTests {
     @Test
     public void testDetails()  {
         // Register the HealthIndicator.
-        healthServiceManager.register(new StaticHealthyContributor());
+        healthServiceManager.getRoot().register(new StaticHealthyContributor());
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/details"))
                 .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
@@ -238,7 +238,7 @@ public class HealthTests {
     public void testContributorDetails() throws Exception {
         // Register the HealthIndicator.
         StaticHealthyContributor healthyIndicator = new StaticHealthyContributor();
-        healthServiceManager.register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI statusURI = UriBuilder.fromUri(getURI("/v1/health/status/" + StaticHealthyContributor.NAME))
                 .scheme(getURLScheme()).build();
