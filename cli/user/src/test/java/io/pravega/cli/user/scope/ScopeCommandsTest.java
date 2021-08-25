@@ -59,6 +59,8 @@ public class ScopeCommandsTest {
         String commandResult = TestUtils.executeCommand("scope create " + scope, cliConfig());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
+
+        String cleanUp = TestUtils.executeCommand("scope delete " + scope, cliConfig());
     }
 
     @Test(timeout = 5000)
@@ -73,7 +75,7 @@ public class ScopeCommandsTest {
         Assert.assertNotNull(ScopeCommand.Delete.descriptor());
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     @SneakyThrows
     public void testListScope() {
         final String scope1 = "b";
@@ -88,7 +90,6 @@ public class ScopeCommandsTest {
         TestUtils.executeCommand("scope create " + scope5, cliConfig());
 
         String commandResult = TestUtils.executeCommand("scope list", cliConfig());
-
         Assert.assertTrue(commandResult.equals(
                 "\t_system\n" +
                 "\ta\n" +
