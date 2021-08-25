@@ -45,6 +45,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
@@ -2895,7 +2896,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private CompletableFuture<Void> activateSegment(String segmentName, SegmentContainer container) {
+    private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
         return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 

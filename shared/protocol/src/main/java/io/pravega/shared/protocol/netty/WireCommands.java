@@ -787,55 +787,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class FlushToStorage implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
-        final int containerId;
-        @ToString.Exclude
-        final String delegationToken;
-        final long requestId;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            ((AdminRequestProcessor) cp).flushToStorage(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(containerId);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeLong(requestId);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            int containerId = in.readInt();
-            String delegationToken = in.readUTF();
-            long requestId = in.readLong();
-            return new FlushToStorage(containerId, delegationToken, requestId);
-        }
-    }
-
-    @Data
-    public static final class StorageFlushed implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
-        final long requestId;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.storageFlushed(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            return new StorageFlushed(requestId);
-        }
-    }
-
-    @Data
     public static final class ReadSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;

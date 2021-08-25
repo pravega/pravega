@@ -19,6 +19,5 @@ package io.pravega.shared.protocol.netty;
  * A class that handles each type of Admin-specific Request.
  */
 public interface AdminRequestProcessor extends RequestProcessor {
-
-    void flushToStorage(WireCommands.FlushToStorage flushToStorage);
+    // Placeholder for new admin-specific requests to be added in the future.
 }

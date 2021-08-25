@@ -44,12 +44,10 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
-import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
-import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -289,7 +287,6 @@ public abstract class AdminCommand {
                         .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
                         .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
-                        .put(FlushToStorageCommand::descriptor, FlushToStorageCommand::new)
                         .build());
 
         /**
@@ -387,28 +384,13 @@ public abstract class AdminCommand {
 
     @VisibleForTesting
     public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
-        HostControllerStore hostStore = createHostControllerStore(zkClient);
-        ConnectionPool pool = createConnectionPool();
-        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
-    }
-
-    @VisibleForTesting
-    public AdminSegmentHelper instantiateAdminSegmentHelper(CuratorFramework zkClient) {
-        HostControllerStore hostStore = createHostControllerStore(zkClient);
-        ConnectionPool pool = createConnectionPool();
-        return new AdminSegmentHelper(pool, hostStore, pool.getInternalExecutor());
-    }
-
-    private HostControllerStore createHostControllerStore(CuratorFramework zkClient) {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .containerCount(getServiceConfig().getContainerCount())
                 .build();
-        return HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
-    }
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
 
-    private ConnectionPool createConnectionPool() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
                 .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()));
 
@@ -423,7 +405,8 @@ public abstract class AdminCommand {
 
         ClientConfig clientConfig = clientConfigBuilder.build();
 
-        return new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
     //endregion
