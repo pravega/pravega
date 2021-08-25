@@ -627,6 +627,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testMergeSegments() throws IOException {
         testCommand(new WireCommands.MergeSegments(l, testString1, testString2, ""));
+        testCommand(new WireCommands.MergeSegments(l, testString1, testString2, "", 5L, 1, false));
     }
 
     @Test
@@ -898,9 +899,8 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testMergeSegmentsBatch() throws IOException {
-        WireCommands.BatchInfo batchInfo = new WireCommands.BatchInfo(1L, 1, false);
         WireCommands.MergeSegments conditionalMergeSegments = new WireCommands.MergeSegments(l, testString1, testString2,
-                "", Optional.of(batchInfo));
+                "", 1L, 1, false);
         testCommand(conditionalMergeSegments);
     }
 

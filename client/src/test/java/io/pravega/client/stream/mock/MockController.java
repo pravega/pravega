@@ -598,8 +598,7 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
-                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), "",
-                Optional.of(new WireCommands.BatchInfo(1, 1, true))), replyProcessor, result);
+                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), "", 1, 1, true), replyProcessor, result);
         return result;
     }
 

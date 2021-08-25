@@ -448,18 +448,16 @@ public class PravegaRequestProcessorTest {
         // Try to merge the transaction conditionally, when the attributes on the parent segment do not match.
         // The first attempt should fail as the attribute update is not going to work.
         assertTrue(append(transactionName, 1, store));
-        WireCommands.BatchInfo batch = new WireCommands.BatchInfo(2L, 5, false);
-        processor.mergeSegments(new WireCommands.MergeSegments(7L, streamSegmentName, transactionName, "", Optional.of(batch)));
+        processor.mergeSegments(new WireCommands.MergeSegments(7L, streamSegmentName, transactionName, "", 2L, 5, false));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(7L, false));
 
         //try merging the txn segment to an invalid target stream segment, should return nosuchsegment exception
         String nonExistingSourceSegment = "scope/stream/nonExistingSegment";
-        processor.mergeSegments(new WireCommands.MergeSegments(12L, nonExistingSourceSegment, transactionName, "", Optional.of(batch)));
+        processor.mergeSegments(new WireCommands.MergeSegments(12L, nonExistingSourceSegment, transactionName, "", 2L, 5, false));
         order.verify(connection).send(new WireCommands.NoSuchSegment(12L, nonExistingSourceSegment, "", -1));
 
         // Merge segments conditionally, now it should work.
-        batch = new WireCommands.BatchInfo(2L, 1, false);
-        processor.mergeSegments(new WireCommands.MergeSegments(8L, streamSegmentName, transactionName, "", Optional.of(batch)));
+        processor.mergeSegments(new WireCommands.MergeSegments(8L, streamSegmentName, transactionName, "", 2L, 1, false));
         order.verify(connection).send(new WireCommands.SegmentsMerged(8L, streamSegmentName, transactionName, 1));
 
         // Check the value of attributes post merge.
@@ -471,7 +469,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentAttribute(10L, 1));
 
         // retry merging the same txn segment again and it should now throw no such segment exception
-        processor.mergeSegments(new WireCommands.MergeSegments(11L, streamSegmentName, transactionName, "", Optional.of(batch)));
+        processor.mergeSegments(new WireCommands.MergeSegments(11L, streamSegmentName, transactionName, "", 2L, 1, false));
         order.verify(connection).send(new WireCommands.NoSuchSegment(11L, transactionName, "", -1));
     }
 
