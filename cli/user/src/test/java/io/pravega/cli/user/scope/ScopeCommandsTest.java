@@ -73,6 +73,32 @@ public class ScopeCommandsTest {
         Assert.assertNotNull(ScopeCommand.Delete.descriptor());
     }
 
+    @Test(timeout = 10000)
+    @SneakyThrows
+    public void testListScope() {
+        final String scope1 = "b";
+        final String scope2 = "z";
+        final String scope3 = "c";
+        final String scope4 = "a";
+        final String scope5 = "aaa";
+
+        TestUtils.executeCommand("scope create " + scope1, cliConfig());
+        TestUtils.executeCommand("scope create " + scope2, cliConfig());
+        TestUtils.executeCommand("scope create " + scope3, cliConfig());
+        TestUtils.executeCommand("scope create " + scope4, cliConfig());
+        TestUtils.executeCommand("scope create " + scope5, cliConfig());
+
+        String commandResult = TestUtils.executeCommand("scope list", cliConfig());
+        Assert.assertTrue(commandResult.equals(
+                "\t_system\n" +
+                        "\ta\n" +
+                        "\taaa\n" +
+                        "\tb\n" +
+                        "\tc\n" +
+                        "\tz\n"));
+        Assert.assertNotNull(ScopeCommand.List.descriptor());
+    }
+
     public static class SecureScopeCommandsTest extends ScopeCommandsTest {
         private static final ClusterWrapper CLUSTER = createPravegaCluster(true, true);
         private static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, true);
