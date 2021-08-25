@@ -83,15 +83,11 @@ public class ScopeCommandsTest {
         final String scope3 = "c";
         final String scope4 = "a";
         final String scope5 = "aaa";
-        final String scope6 = "sensor-1";
-        final String scope7 = "sensor-2";
         TestUtils.executeCommand("scope create " + scope1, cliConfig());
         TestUtils.executeCommand("scope create " + scope2, cliConfig());
         TestUtils.executeCommand("scope create " + scope3, cliConfig());
         TestUtils.executeCommand("scope create " + scope4, cliConfig());
         TestUtils.executeCommand("scope create " + scope5, cliConfig());
-        TestUtils.executeCommand("scope create " + scope6, cliConfig());
-        TestUtils.executeCommand("scope create " + scope7, cliConfig());
 
         String commandResult = TestUtils.executeCommand("scope list", cliConfig());
         Assert.assertTrue(commandResult.equals(
@@ -100,8 +96,6 @@ public class ScopeCommandsTest {
                 "\taaa\n" +
                 "\tb\n" +
                 "\tc\n" +
-                "\tsensor-1\n" +
-                "\tsensor-2\n" +
                 "\tz\n"));
         Assert.assertNotNull(ScopeCommand.List.descriptor());
     }
