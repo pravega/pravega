@@ -476,9 +476,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         // Populate the AttributeUpdates for this mergeSegments operation, if any.
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
-        if (mergeSegments.getBatch().isPresent()) {
-            // If this segment is being merged as part of a batch
-            generateAttributeUpdates(mergeSegments.getBatch().get(), attributeUpdates);
+        // batchId == 0L indicates this segment is not part of a batch
+        if (mergeSegments.getBatchId() != 0L) {
+            generateAttributeUpdates(mergeSegments.getBatchId(), mergeSegments.getSeqNo(), mergeSegments.isLastSegment(), attributeUpdates);
         }
 
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
@@ -501,35 +501,37 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     });
     }
 
-    private void generateAttributeUpdates(final WireCommands.BatchInfo batch, AttributeUpdateCollection attributeUpdates) {
-        if (batch.isLastSegment()) {
-            updatesForLastSegmentInBatch(batch, attributeUpdates);
+
+
+    private void generateAttributeUpdates(long batchId, int seqNo, boolean isLastSegmentInBatch, AttributeUpdateCollection attributeUpdates) {
+        if (isLastSegmentInBatch) {
+            updatesForLastSegmentInBatch(batchId, seqNo, isLastSegmentInBatch, attributeUpdates);
         } else {
-            updatesForOtherSegmentsInBatch(batch, attributeUpdates);
+            updatesForOtherSegmentsInBatch(batchId, seqNo, isLastSegmentInBatch, attributeUpdates);
         }
     }
 
-    private void updatesForOtherSegmentsInBatch(final WireCommands.BatchInfo batch, AttributeUpdateCollection attributeUpdates) {
-        if (batch.getSeqNo() == 1) {
+    private void updatesForOtherSegmentsInBatch(long batchId, int seqNo, boolean isLastSegmentInBatch, AttributeUpdateCollection attributeUpdates) {
+        if (seqNo == 1) {
             // This is the first segment in the batch, but not the last segment
             // so update the new BatchID on the TXN_MERGE_BATCH_ID attribute, if its current value is 0L
-            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, batch.getBatchId(), 0L));
+            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, batchId, 0L));
         } else {
-            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, batch.getBatchId(), batch.getBatchId()));
+            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, batchId, batchId));
         }
-        attributeUpdates.add(new AttributeUpdate(MERGE_TXN_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, batch.getSeqNo(), batch.getSeqNo() - 1));
+        attributeUpdates.add(new AttributeUpdate(MERGE_TXN_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, seqNo, seqNo - 1));
     }
 
-    private void updatesForLastSegmentInBatch(final WireCommands.BatchInfo batch, AttributeUpdateCollection attributeUpdates) {
+    private void updatesForLastSegmentInBatch(long batchId, int seqNo, boolean isLastSegmentInBatch, AttributeUpdateCollection attributeUpdates) {
         // On Merging the last segment in the batch we reset the BatchId and SeqNo Attributes to 0L.
         // This indicates there are no more pending segments to be merged in this batch.
-        if (batch.getSeqNo() == 1) {
+        if (seqNo == 1) {
             // This batch has only 1 segment, so first segment == last segment
             attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, 0L, 0L));
         } else {
-            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, 0L, batch.getBatchId()));
+            attributeUpdates.add(new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.ReplaceIfEquals, 0L, batchId));
         }
-        attributeUpdates.add(new AttributeUpdate(MERGE_TXN_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, 0L, batch.getSeqNo() - 1));
+        attributeUpdates.add(new AttributeUpdate(MERGE_TXN_SEQ_NO_IN_BATCH, AttributeUpdateType.ReplaceIfEquals, 0L, seqNo - 1));
     }
 
     @Override

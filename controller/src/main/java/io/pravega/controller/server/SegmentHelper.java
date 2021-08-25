@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.ArrayList;
-import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -284,7 +283,7 @@ public class SegmentHelper implements AutoCloseable {
         for (int seqNo = 1; seqNo <= txnSegmentNames.size(); seqNo++) {
             segmentMergeFutures.add(sendRequest(connection, clientRequestId,
                     new WireCommands.MergeSegments(requestId, qualifiedNameTarget, txnSegmentNames.get(seqNo - 1), delegationToken,
-                            Optional.of(new WireCommands.BatchInfo(batchId, seqNo, seqNo == txnSegmentNames.size())))));
+                            batchId, seqNo, seqNo == txnSegmentNames.size())));
         }
 
         return Futures.allOfWithResults(segmentMergeFutures)

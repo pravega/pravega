@@ -1313,7 +1313,9 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
-        final Optional<BatchInfo> batch;
+        final long batchId;
+        final int seqNo;
+        final boolean isLastSegment;
 
         // Constructor to keep compatibility with all the calls not requiring batch merge.
         public MergeSegments(long requestId, String target, String source, String delegationToken) {
@@ -1321,7 +1323,9 @@ public final class WireCommands {
             this.target = target;
             this.source = source;
             this.delegationToken = delegationToken;
-            this.batch = Optional.empty();
+            this.batchId = 0L;
+            this.seqNo = 0;
+            this.isLastSegment = false;
         }
 
         @Override
@@ -1335,11 +1339,9 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            if (batch.isPresent()) {
-                out.writeLong(batch.get().getBatchId());
-                out.writeInt(batch.get().getSeqNo());
-                out.writeBoolean(batch.get().isLastSegment);
-            }
+            out.writeLong(batchId);
+            out.writeInt(seqNo);
+            out.writeBoolean(isLastSegment);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1348,11 +1350,13 @@ public final class WireCommands {
             String source = in.readUTF();
             String delegationToken = in.readUTF();
             if (in.available() <= 0) {
-                // MergeSegment Commands prior v5 do not allow attributeUpdates, so we can return.
-                return new MergeSegments(requestId, target, source, delegationToken, Optional.empty());
+                // MergeSegment Commands prior v5 do not have batch related fields, so we can return.
+                return new MergeSegments(requestId, target, source, delegationToken);
             }
-            BatchInfo batch = BatchInfo.readFrom(in, length);
-            return new MergeSegments(requestId, target, source, delegationToken, Optional.of(batch));
+            long batchId = in.readLong();
+            int seqNo = in.readInt();
+            boolean isLast = in.readBoolean();
+            return new MergeSegments(requestId, target, source, delegationToken, batchId, seqNo, isLast);
         }
     }
 
@@ -2561,23 +2565,5 @@ public final class WireCommands {
          * against multiple invocations.
          */
         abstract void releaseInternal();
-    }
-
-    /**
-     * Convenience class to encapsulate the contents of an attribute update when several should be serialized in the same
-     * WireCommand.
-     */
-    @Data
-    public static final class BatchInfo {
-        private final long batchId;
-        private final int seqNo;
-        private final boolean isLastSegment;
-
-        public static BatchInfo readFrom(DataInput in, int length) throws IOException {
-            long batchId = in.readLong();
-            int seqNo = in.readInt();
-            boolean isLast = in.readBoolean();
-            return new BatchInfo(batchId, seqNo, isLast);
-        }
     }
 }
