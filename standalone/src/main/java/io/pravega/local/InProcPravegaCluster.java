@@ -300,8 +300,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
                         .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).collect(Collectors.joining(",")))
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
-                        .with(ServiceConfig.REST_KEYSTORE_FILE, this.jksKeyFile)
-                        .with(ServiceConfig.REST_KEYSTORE_PASSWORD_FILE, this.keyPasswordFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
                         .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)

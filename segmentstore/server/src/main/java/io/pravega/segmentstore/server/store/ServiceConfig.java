@@ -58,8 +58,6 @@ public class ServiceConfig {
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
     public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
     public static final Property<Boolean> REST_LISTENING_ENABLE = Property.named("rest.listener.enable", true);
-    public static final Property<String> REST_KEYSTORE_FILE = Property.named("security.tls.server.keyStore.location", "");
-    public static final Property<String> REST_KEYSTORE_PASSWORD_FILE = Property.named("security.tls.server.keyStore.pwd.location", "");
     public static final Property<Integer> HEALTH_CHECK_INTERVAL_SECONDS = Property.named("health.interval.seconds", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
@@ -419,8 +417,8 @@ public class ServiceConfig {
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
                 .tlsProtocolVersion(TLSProtocolVersion.parse(properties.get(TLS_PROTOCOL_VERSION)))
-                .keyFilePath(properties.get(REST_KEYSTORE_FILE))
-                .keyFilePasswordPath(properties.get(REST_KEYSTORE_PASSWORD_FILE))
+                .keyFilePath(properties.get(KEY_FILE))
+                .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
                 .build();
         this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
