@@ -271,7 +271,6 @@ public abstract class RequestHandlersTest {
         streamStore2.close();
     }
 
-
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
     public void testConcurrentIdempotentRollingTxnRequest() {
