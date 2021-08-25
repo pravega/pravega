@@ -16,9 +16,11 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -29,15 +31,17 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -88,11 +92,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
     private final DelegationTokenProvider tokenProvider;
+    private final SegmentOutputStreamFactory outputStreamFactory;
     
     EventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
                           ScheduledExecutorService internalExecutor) {
         this.writerId = writerId;
+        this.outputStreamFactory = outputStreamFactory;
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
@@ -128,9 +134,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            synchronized (writeSealLock) {
-                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
-                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+            if (data.remaining() > Serializer.MAX_EVENT_SIZE) {
+                writeLargeEvent(routingKey, Collections.singletonList(data), ackFuture);
+            } else {
+                synchronized (writeSealLock) {
+                    SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
+                    segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+                }
             }
         }
         return ackFuture;
@@ -144,12 +154,37 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            synchronized (writeSealLock) {
-                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
-                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+            if (data.stream().mapToInt(m -> m.remaining()).sum() > Serializer.MAX_EVENT_SIZE) {
+                writeLargeEvent(routingKey, data, ackFuture);
+            } else {
+                synchronized (writeSealLock) {
+                    SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
+                    segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+                }
             }
         }
         return ackFuture;
+    }
+    
+    @GuardedBy("writeFlushLock")
+    private void writeLargeEvent(String routingKey, List<ByteBuffer> events, CompletableFuture<Void> ackFuture) {
+        flush();
+        boolean success = false;
+        LargeEventWriter writer = new LargeEventWriter(UUID.randomUUID());
+        while (!success) {
+            Segment segment = selector.getSegmentForEvent(routingKey);
+            try {
+                writer.writeLargeEvent(segment, events, tokenProvider, config);
+                success = true;
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
+                log.warn("Write large event on segment {} failed due to {}, it will be retried.", segment, e.getMessage());
+                handleLogSealed(segment);
+                tryWaitForSuccessors();
+            } catch (AuthenticationException e) {
+                ackFuture.completeExceptionally(e);
+                break;
+            }
+        }
     }
 
     private SegmentOutputStream getSegmentWriter(String routingKey) {
