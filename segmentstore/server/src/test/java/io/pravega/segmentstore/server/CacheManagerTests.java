@@ -619,7 +619,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         CacheManagerHealthContributor cacheManagerHealthContributor = new CacheManagerHealthContributor(cm);
         Health.HealthBuilder builder = Health.builder().name(cacheManagerHealthContributor.getName());
         Status status = cacheManagerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'NEW' Status.", Status.NEW, status);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
         cm.close();
         status = cacheManagerHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, status);

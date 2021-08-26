@@ -627,11 +627,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             Status status = Status.DOWN;
             boolean running = !cacheManager.closed.get();
             if (running) {
-                status = Status.NEW;
-            }
-
-            boolean ready = cacheManager.running.get();
-            if (ready) {
                 status = Status.UP;
             }
 
