@@ -629,7 +629,7 @@ public class SynchronizerTest {
 
     @Test(timeout = 20000)
     @SuppressWarnings("unchecked")
-    public void testConcurrentFetchUpdatesAfterTruncation() throws Exception {
+    public void testConcurrentFetchUpdatesAfterTruncation() {
         String streamName = "streamName";
         String scope = "scope";
 
@@ -655,8 +655,6 @@ public class SynchronizerTest {
         // Latch to ensure both the threads invoke read attempt reading from same revision.
         // This will simulate the race condition where the in-memory state is newer than the state returned by RevisionedStreamClient.
         CountDownLatch raceLatch = new CountDownLatch(2);
-        // This is to verify both the concurrent fetch updates were invoked.
-        CountDownLatch completionLatch = new CountDownLatch(2);
 
         // Setup Mock
         when(revisionedStreamClient.getMark()).thenReturn(firstMark);
@@ -668,12 +666,11 @@ public class SynchronizerTest {
                     throw new TruncatedDataException();
                 })
                 .thenAnswer(invocation -> {
-                    truncationLatch.countDown();
                     throw new TruncatedDataException();
                 })
                 .thenAnswer(invocation -> {
-                    raceLatch.countDown();
-                    raceLatch.await(); // wait until the other thread attempts to fetch updates from SSS post truncation.
+                    truncationLatch.countDown();
+                    raceLatch.await(); // wait until the other thread attempts to fetch updates from SSS post truncation and updates internal state.
                     return iterator1;
                 }).thenAnswer(invocation -> {
                     raceLatch.countDown();
@@ -682,23 +679,23 @@ public class SynchronizerTest {
 
         // Return an iterator whose hasNext is false.
         when(revisionedStreamClient.readFrom(secondMark)).thenAnswer(invocation -> {
-            completionLatch.countDown();
-            return iterator1;
+            raceLatch.countDown(); // release the waiting thread which is fetching updates from SSS when the internal state is already updated.
+            return iterator2;
         });
 
-        // Simulate a Concurrent invocation of fetchUpdates API.
+        // Simulate concurrent invocations of fetchUpdates API.
         @Cleanup("shutdownNow")
         ScheduledExecutorService exec = ExecutorServiceHelpers.newScheduledThreadPool(2, "test-pool");
-        exec.submit(() -> {
+        CompletableFuture<Void> cf1 = CompletableFuture.supplyAsync(() -> {
             syncA.fetchUpdates();
             return null;
-        });
-        exec.submit(() -> {
+        }, exec);
+        CompletableFuture<Void> cf2 = CompletableFuture.supplyAsync(() -> {
             syncA.fetchUpdates();
             return null;
-        });
+        }, exec);
         // Wait until the completion of both the fetchUpdates() API.
-        completionLatch.await();
+        CompletableFuture.allOf(cf1, cf2).join();
         assertEquals("x", syncA.getState().getValue());
     }
 
