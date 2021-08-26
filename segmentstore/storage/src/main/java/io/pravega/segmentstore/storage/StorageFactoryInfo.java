@@ -26,6 +26,7 @@ import lombok.Data;
 public class StorageFactoryInfo {
     /**
      * Name of storage binding.
+     * This name is used in config file to uniquely identify storage binding to load.
      */
     private final String name;
 
