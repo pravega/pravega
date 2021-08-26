@@ -23,6 +23,9 @@ import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
 
+import java.util.ArrayList;
+import java.util.Collections;
+
 public abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
 
@@ -102,10 +105,18 @@ public abstract class ScopeCommand extends Command {
             @Cleanup
             val sm = StreamManager.create(getClientConfig());
             val scopeIterator = sm.listScopes();
+            ArrayList<String> scopeList = new ArrayList<>();
 
             while (scopeIterator.hasNext()) {
-                output("\t%s", scopeIterator.next());
+                scopeList.add(scopeIterator.next());
             }
+
+            Collections.sort(scopeList);
+
+            for (String scope : scopeList) {
+                output("\t%s", scope);
+            }
+
         }
 
         public static CommandDescriptor descriptor() {
