@@ -72,6 +72,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.pravega.shared.security.token.JsonWebToken;
 import lombok.Builder;
@@ -104,6 +105,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     //endregion
 
@@ -447,6 +449,17 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
     @Override
     public void close() {
+        if (closed.compareAndSet(false, true)) {
+            closeConnection();
+        }
+    }
+
+    @Override
+    public void connectionDropped() {
+        closeConnection();
+    }
+
+    private void closeConnection() {
         connection.close();
         // The AppendProcessor marks the tracked Transient Segments for deletion -- but does not synchronously wait for
         // the deletion to complete. The Transient Segemnts will be cleaned up at the SegmentStore's discretion.

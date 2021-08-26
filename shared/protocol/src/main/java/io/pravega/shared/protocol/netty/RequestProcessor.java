@@ -88,4 +88,6 @@ public interface RequestProcessor {
     void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta);
 
     void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment);
+
+    void connectionDropped();
 }

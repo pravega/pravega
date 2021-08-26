@@ -155,4 +155,9 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
         getNextRequestProcessor().createTransientSegment(createTransientSegment);
     }
+
+    @Override
+    public void connectionDropped() {
+        getNextRequestProcessor().connectionDropped();
+    }
 }
