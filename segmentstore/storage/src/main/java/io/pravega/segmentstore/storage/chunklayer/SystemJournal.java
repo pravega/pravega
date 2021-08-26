@@ -440,7 +440,9 @@ public class SystemJournal {
                                 if (attempt.get() >= config.getMaxJournalWriteAttempts()) {
                                     throw new CompletionException(ex);
                                 }
-                                log.warn("SystemJournal[{}] Error while writing journal {}.", containerId, getSystemJournalChunkName(containerId, epoch, currentFileIndex.get()));
+                                log.warn("SystemJournal[{}] Error while writing journal {}. Attempt#{}", containerId,
+                                        getSystemJournalChunkName(containerId, epoch, currentFileIndex.get()), attempt.get(), e);
+
                                 // In case of partial write during previous failure, this time we'll get InvalidOffsetException.
                                 // In that case we start a new journal file and retry.
                                 if (ex instanceof InvalidOffsetException) {
@@ -755,7 +757,7 @@ public class SystemJournal {
                             if (e != null) {
                                 // record the exception
                                 lastException.set(e);
-                                log.warn("SystemJournal[{}] Error while reading journal {}.Attempt#{} Exception:{}", containerId, chunkPath, attempt.get(), lastException);
+                                log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
                                 val ex = Exceptions.unwrap(e);
                                 if (!shouldRetry(ex)) {
                                     shouldBreak.set(true);
@@ -783,10 +785,7 @@ public class SystemJournal {
      */
     private boolean shouldRetry(Throwable ex) {
         // Skip retry if we know chunk does not exist.
-        if (ex instanceof ChunkNotFoundException) {
-            return false;
-        }
-        return true;
+        return !(ex instanceof ChunkNotFoundException);
     }
 
     /**
