@@ -145,6 +145,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
+    @Getter(AccessLevel.PROTECTED)
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
@@ -220,7 +221,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                          wrapCancellationException(ex)));
     }
 
-    private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
+    protected boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
         boolean isTokenValid = false;
         try {
             tokenVerifier.verifyToken(segment, delegationToken, READ);
@@ -955,7 +956,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private Void handleException(long requestId, String segment, String operation, Throwable u) {
+    Void handleException(long requestId, String segment, String operation, Throwable u) {
         // use offset as -1L to handle exceptions when offset data is not available.
         return handleException(requestId, segment, -1L, operation, u);
     }

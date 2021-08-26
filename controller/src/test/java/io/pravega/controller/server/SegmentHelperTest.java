@@ -455,7 +455,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -465,14 +465,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.AuthFailed)
         );
 
-        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentRead("", 0, true, true,
                 Unpooled.wrappedBuffer(new byte[10]), requestId));
         result.join();
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0, 10,
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
