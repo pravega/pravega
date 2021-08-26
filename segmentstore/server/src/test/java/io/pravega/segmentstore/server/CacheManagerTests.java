@@ -606,6 +606,9 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.getUtilizationProvider().registerCleanupListener(l2); // This should have no effect.
     }
 
+    /**
+     * Tests the health contributor made with cache manager
+     */
     @Test
     public void testCacheHealth() {
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
