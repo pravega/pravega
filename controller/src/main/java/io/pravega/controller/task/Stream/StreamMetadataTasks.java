@@ -422,7 +422,7 @@ public class StreamMetadataTasks extends TaskBase {
         return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
                 config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
                 config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                startStreamCuts, endStreamCuts, createTimestamp);
+                startStreamCuts, endStreamCuts, createTimestamp, config.getRolloverSizeBytes());
     }
 
     public CompletableFuture<CreateReaderGroupResponse.Status> createReaderGroupTasks(final String scope, final String readerGroup,

@@ -261,6 +261,18 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
+        /**
+         * Set the rollover size for the {@link ReaderGroup} internal stream segment.
+         * When this field is left unset, the default value will be used.
+         * Default value: 4 * 1024 * 1024L.
+         * @param rolloverSizeBytes rollover size for the internal stream segment.
+         * @return Reader group config builder.
+         */
+        public ReaderGroupConfigBuilder rolloverSizeBytes(final long rolloverSizeBytes) {
+            this.rolloverSizeBytes = rolloverSizeBytes;
+            return this;
+        }
+
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,

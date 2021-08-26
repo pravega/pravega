@@ -49,6 +49,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
     private final Map<String, RGStreamCutRecord> startingStreamCuts;
     private final Map<String, RGStreamCutRecord> endingStreamCuts;
     private final long createTimeStamp;
+    private final long rolloverSizeBytes;
 
     @Override
     public String getKey() {
@@ -78,6 +79,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(0).revision(1, this::write01, this::read01);
         }
 
         private void write00(CreateReaderGroupEvent e, RevisionDataOutput target) throws IOException {
@@ -112,7 +114,14 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             ImmutableMap.Builder<String, RGStreamCutRecord> endStreamCutBuilder = ImmutableMap.builder();
             source.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, endStreamCutBuilder);
             eb.endingStreamCuts(endStreamCutBuilder.build());
+        }
 
+        private void write01(CreateReaderGroupEvent e, RevisionDataOutput target) throws IOException {
+            target.writeLong(e.rolloverSizeBytes);
+        }
+
+        private void read01(RevisionDataInput source, CreateReaderGroupEventBuilder eb) throws IOException {
+            eb.rolloverSizeBytes(source.readLong());
         }
     }
     //endregion
