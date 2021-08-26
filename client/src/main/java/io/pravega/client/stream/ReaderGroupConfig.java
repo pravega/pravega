@@ -261,17 +261,6 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
-       /**
-        * Set the rollover size for the {@link ReaderGroup} internal stream segment.
-        *
-        * @param rolloverSizeBytes rollover size for the internal stream segment.
-        * @return Reader group config builder.
-        */
-       public ReaderGroupConfigBuilder rolloverSizeBytes(final long rolloverSizeBytes) {
-           this.rolloverSizeBytes = rolloverSizeBytes;
-           return this;
-       }
-
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
