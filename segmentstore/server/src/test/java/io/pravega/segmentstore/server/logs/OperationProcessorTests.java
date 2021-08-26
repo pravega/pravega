@@ -89,7 +89,9 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -620,6 +622,51 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 Service.State.FAILED, operationProcessor.state());
         Assert.assertTrue("OperationProcessor did not fail with the correct exception.",
                 operationProcessor.failureCause() instanceof ObjectClosedException);
+        Assert.assertFalse("OperationProcessor running when it should not.", operationProcessor.isRunning());
+    }
+
+    /**
+     * Tests the behavior of the OperationProcessor when handling failed futures with {@link ObjectClosedException}.
+     */
+    @Test
+    public void testStartWithFailedFuturesInDurableLog() throws Exception {
+        int streamSegmentCount = 100;
+        int appendsPerStreamSegment = 100;
+        int transactionsPerStreamSegment = 2;
+        boolean mergeTransactions = true;
+        boolean sealStreamSegments = true;
+
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = spy(TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        // Generate some test data.
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        AbstractMap<Long, Long> transactions = createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment,
+                METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
+
+        CompletableFuture<LogAddress> failedFuture = CompletableFuture.failedFuture(new ObjectClosedException("Intentional"));
+        doReturn(failedFuture).when(dataLog).append(any(CompositeArrayView.class), any(Duration.class));
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+
+        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
+        AssertExtensions.assertFutureThrows("No operations failed or failed with wrong exception.",
+                OperationWithCompletion.allOf(completionFutures),
+                ex -> ex instanceof ObjectClosedException);
+
+        // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
+        Assert.assertEquals("OperationProcessor is not in a failed state after ObjectClosedException detected.",
+                Service.State.FAILED, operationProcessor.state());
         Assert.assertFalse("OperationProcessor running when it should not.", operationProcessor.isRunning());
     }
 
