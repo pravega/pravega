@@ -1494,7 +1494,7 @@ public class PravegaRequestProcessorTest {
                 PravegaRequestProcessor.TIMEOUT));
     }
 
-    private static ServiceBuilderConfig getBuilderConfig() {
+    static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
@@ -1515,7 +1515,7 @@ public class PravegaRequestProcessorTest {
                 .build();
     }
 
-    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+    static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
