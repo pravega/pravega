@@ -55,6 +55,11 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int CONTAINER_ID = 42;
     private static final int[] PRIMES_1 = {2, 3, 5, 7};
+
+    // InMemoryChunkStorage internally saves each write as separate array.
+    // This means if read/write call fail too often then no journal read will ever be completed.
+    // So fail only every 5th, 7th or 11th etc. time. Not more often than that
+    private static final int[] PRIMES_2 = {5, 7, 11};
     private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
@@ -105,6 +110,17 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                         new TruncateAction(testSegmentName, 8),
                 }
         };
+    }
+
+    private TestAction[][] getMultipleRestartScenarioActions(TestContext testContext, String testSegmentName) {
+        TestAction[][] ret = new TestAction[4][4];
+        for (int i = 0; i < 4; i++) {
+            ret[i] = new TestAction[4];
+            for (int j = 0; j < 4; j++) {
+                ret[i][j] = new AddChunkAction(testSegmentName, 4);
+            }
+        }
+        return ret;
     }
     /// end region
 
@@ -452,56 +468,65 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     public void testSimpleScenarioWithMultipleCombinations() throws Exception {
         for (String method1 : new String[] {"doRead.before", "doRead.after"}) {
             for (String method2 : new String[] {"doWrite.before", "doWrite.after"}) {
-                testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
+                testWithFlakyChunkStorage(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
+            }
+        }
+    }
+
+    @Test
+    public void testMultipleRestartScenarioWithMultipleCombinations() throws Exception {
+        for (String method1 : new String[] {"doRead.before", "doRead.after"}) {
+            for (String method2 : new String[] {"doWrite.before", "doWrite.after"}) {
+                testWithFlakyChunkStorage(getTestConfig(100), this::testScenario, this::getMultipleRestartScenarioActions, method1, method2, PRIMES_2);
             }
         }
     }
 
     @Test
     public void testSimpleScenarioWithFlakyReadsBefore() throws Exception {
-        testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, "doRead.before", PRIMES_1);
+        testWithFlakyChunkStorage(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "doRead.before", PRIMES_1);
     }
 
     @Test
     public void testSimpleScenarioWithFlakyReadsAfter() throws Exception {
-        testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, "doRead.after", PRIMES_1);
+        testWithFlakyChunkStorage(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "doRead.after", PRIMES_1);
     }
 
     @Test
     public void testSimpleScenarioWithFlakyWriteBefore() throws Exception {
-        testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, "doWrite.before", PRIMES_1);
+        testWithFlakyChunkStorage(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "doWrite.before", PRIMES_1);
     }
 
     @Test
     public void testSimpleScenarioWithFlakyWriteAfter() throws Exception {
-        testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, "doWrite.after", PRIMES_1);
+        testWithFlakyChunkStorage(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "doWrite.after", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreReadsBefore() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.before", PRIMES_1);
+        testScenarioWithFlakySnapshotInfoStore(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.before", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreReadsAfter() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.after", PRIMES_1);
+        testScenarioWithFlakySnapshotInfoStore(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.after", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreWriteBefore() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.before", PRIMES_1);
+        testScenarioWithFlakySnapshotInfoStore(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.before", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreWriteAfter() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.after", PRIMES_1);
+        testScenarioWithFlakySnapshotInfoStore(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.after", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreMultiple() throws Exception {
         for (String method1 : new String[] {"getSnapshotId.before", "getSnapshotId.after"}) {
             for (String method2 : new String[] {"setSnapshotId.before", "setSnapshotId.after"}) {
-                testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
+                testScenarioWithFlakySnapshotInfoStore(getTestConfig(2), this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
             }
         }
     }
@@ -579,27 +604,21 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 });
     }
 
-    void testScenario(ChunkStorage chunkStorage, TestScenarioProvider scenarioProvider) throws Exception {
-        @Cleanup
-        val testContext = new TestContext(CONTAINER_ID, chunkStorage);
-        testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .maxJournalUpdatesPerSnapshot(2)
+    private ChunkedSegmentStorageConfig getTestConfig(int maxJournalUpdatesPerSnapshot) {
+        return ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxJournalUpdatesPerSnapshot(maxJournalUpdatesPerSnapshot)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
-                .build());
+                .build();
+    }
+
+    void testScenario(ChunkStorage chunkStorage, ChunkedSegmentStorageConfig config, TestScenarioProvider scenarioProvider) throws Exception {
+        @Cleanup
+        val testContext = new TestContext(CONTAINER_ID, chunkStorage);
+        testContext.setConfig(config);
         val testSegmentName = testContext.segmentNames[0];
         val scenario = scenarioProvider.getScenario(testContext, testSegmentName);
         testScenario(testContext, scenario);
-    }
-
-    /**
-     * Tests a scenario for given set of test actions.
-     * @throws Exception Exception if any.
-     */
-    int testScenario(TestContext testContext, String segmentName, TestScenarioProvider scenarioProvider) throws Exception {
-        val testSegmentName = testContext.segmentNames[0];
-        val scenario = scenarioProvider.getScenario(testContext, testSegmentName);
-        return testScenario(testContext, scenario);
     }
 
     /**
@@ -651,12 +670,12 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         return chunkId;
     }
 
-    void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
+    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
                 flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
-                        .method("doRead.before")
+                        .method(interceptMethod1)
                         .matchPredicate(n -> n % prime1 == 0)
                         .matchRegEx("_sysjournal")
                         .action(() -> {
@@ -664,19 +683,19 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                         })
                         .build());
                 flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
-                        .method("doWrite.before")
+                        .method(interceptMethod2)
                         .matchPredicate(n -> n % prime2 == 0)
                         .matchRegEx("_sysjournal")
                         .action(() -> {
                             throw new IOException("Intentional");
                         })
                         .build());
-                test.test(flakyChunkStorage, scenarioProvider);
+                test.test(flakyChunkStorage, config, scenarioProvider);
             }
         }
     }
 
-    void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
+    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
             flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
@@ -687,11 +706,11 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                         throw new IOException("Intentional");
                     })
                     .build());
-            test.test(flakyChunkStorage, scenarioProvider);
+            test.test(flakyChunkStorage, config, scenarioProvider);
         }
     }
 
-    void testScenarioWithFlakySnapshotInfoStore(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
+    void testScenarioWithFlakySnapshotInfoStore(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
             val flakySnaphotInfoStore = new FlakySnapshotInfoStore();
@@ -704,11 +723,11 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                             throw new IOException("Intentional");
                         })
                         .build());
-            test.test(flakyChunkStorage, scenarioProvider);
+            test.test(flakyChunkStorage, config, scenarioProvider);
         }
     }
 
-    void testScenarioWithFlakySnapshotInfoStore(TestMethod test, TestScenarioProvider scenarioProvider,
+    void testScenarioWithFlakySnapshotInfoStore(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider,
                                                 String method1, String method2,
                                                 int[] primes) throws Exception {
         for (val prime1 : primes) {
@@ -733,7 +752,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                                     throw new IOException("Intentional");
                                 })
                                 .build());
-                test.test(flakyChunkStorage, scenarioProvider);
+                test.test(flakyChunkStorage, config, scenarioProvider);
             }
         }
     }
@@ -965,7 +984,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      * Represents a test method.
      */
     interface TestMethod {
-        void test(ChunkStorage chunkStorage, TestScenarioProvider scenarioProvider) throws Exception;
+        void test(ChunkStorage chunkStorage, ChunkedSegmentStorageConfig config, TestScenarioProvider scenarioProvider) throws Exception;
     }
 
     /**
@@ -1451,6 +1470,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         @Override
         protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
+            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
             interceptor.intercept(handle.getChunkName(), "doWrite.before");
             val ret = super.doWrite(handle, offset, length, data);
             interceptor.intercept(handle.getChunkName(), "doWrite.after");
@@ -1458,7 +1478,34 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
+            interceptor.intercept(chunkName, "doWrite.before");
+            // Make sure you are calling methods on super class.
+            ChunkHandle handle = super.doCreate(chunkName);
+            int bytesWritten = super.doWrite(handle, 0, length, data);
+            if (bytesWritten < length) {
+                super.doDelete(ChunkHandle.writeHandle(chunkName));
+                throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
+            }
+            val ret = handle;
+            interceptor.intercept(chunkName, "doWrite.after");
+            return ret;
+        }
+
+        @Override
+        protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
+            interceptor.intercept(chunkName, "doWrite.before");
+            // Make sure you are calling methods on super class.
+            val ret = super.doCreate(chunkName);
+            interceptor.intercept(chunkName, "doWrite.after");
+            return ret;
+        }
+
+        @Override
         protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
+            // Apply any interceptors with identifier 'doRead.before' or 'doRead.after'
             interceptor.intercept(handle.getChunkName(), "doRead.before");
             val ret = super.doRead(handle, fromOffset, length, buffer, bufferOffset);
             interceptor.intercept(handle.getChunkName(), "doRead.after");
