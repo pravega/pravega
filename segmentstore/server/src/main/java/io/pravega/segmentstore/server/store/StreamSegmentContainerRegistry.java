@@ -117,7 +117,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     @Override
     public Collection<SegmentContainer> getContainers() {
         List<SegmentContainer> segmentContainers = new ArrayList<SegmentContainer>();
-        for(ContainerWithHandle containerHandle: containers.values()) {
+        for (ContainerWithHandle containerHandle: containers.values()) {
             segmentContainers.add(containerHandle.container);
         }
         return segmentContainers;
