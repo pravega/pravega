@@ -450,20 +450,16 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            closeConnection();
+            connection.close();
+            // The AppendProcessor marks the tracked Transient Segments for deletion -- but does not synchronously wait for
+            // the deletion to complete. The Transient Segments will be cleaned up at the SegmentStore's discretion.
+            transientSegmentNames.forEach(name -> store.deleteStreamSegment(name, TIMEOUT));
         }
     }
 
     @Override
     public void connectionDropped() {
-        closeConnection();
-    }
-
-    private void closeConnection() {
-        connection.close();
-        // The AppendProcessor marks the tracked Transient Segments for deletion -- but does not synchronously wait for
-        // the deletion to complete. The Transient Segemnts will be cleaned up at the SegmentStore's discretion.
-        transientSegmentNames.forEach(name -> store.deleteStreamSegment(name, TIMEOUT));
+        close();
     }
 
     //endregion
