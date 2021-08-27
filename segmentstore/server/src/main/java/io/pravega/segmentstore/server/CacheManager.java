@@ -630,9 +630,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 status = Status.UP;
             }
 
-            builder.details(ImmutableMap.of("cacheState", this.cacheManager.lastCacheState.get(),
-                    "numOfClients", this.cacheManager.clients.size(), "currentGeneration", this.cacheManager.currentGeneration,
-                    "oldGeneration", this.cacheManager.oldestGeneration, "essentialEntriesOnly", this.cacheManager.essentialEntriesOnly));
+            builder.details(ImmutableMap.of(
+                    "cacheState", this.cacheManager.lastCacheState.get(),
+                    "numOfClients", this.cacheManager.clients.size(),
+                    "currentGeneration", this.cacheManager.currentGeneration,
+                    "oldGeneration", this.cacheManager.oldestGeneration,
+                    "essentialEntriesOnly", this.cacheManager.essentialEntriesOnly
+            ));
 
             return status;
         }

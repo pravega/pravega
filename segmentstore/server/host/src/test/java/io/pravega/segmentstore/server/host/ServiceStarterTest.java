@@ -83,7 +83,7 @@ public class ServiceStarterTest {
 
     @Test
     public void testSegmentContainerRegistryHealth() {
-        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(serviceStarter.getServiceBuilder().getContainerRegistry().get());
+        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(serviceStarter.getServiceBuilder().getSegmentContainerRegistry());
         Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
         Status status = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);

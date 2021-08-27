@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -113,8 +114,13 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         return result.container;
     }
 
-    public Collection<ContainerWithHandle> getContainerList() {
-        return this.containers.values();
+    @Override
+    public Collection<SegmentContainer> getContainers() {
+        List<SegmentContainer> segmentContainers = new ArrayList<SegmentContainer>();
+        for(ContainerWithHandle containerHandle: containers.values()) {
+            segmentContainers.add(containerHandle.container);
+        }
+        return segmentContainers;
     }
 
     @Override

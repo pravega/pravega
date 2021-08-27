@@ -169,7 +169,7 @@ public final class ServiceStarter {
 
         healthServiceManager.register(new ZKHealthContributor(zkClient));
         healthServiceManager.register(new CacheManagerHealthContributor(serviceBuilder.getCacheManager()));
-        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getContainerRegistry().get()));
+        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getSegmentContainerRegistry()));
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");

@@ -90,7 +90,6 @@ public class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<DurableDataLogFactory> dataLogFactory;
     private final AtomicReference<StorageFactory> storageFactory;
     private final AtomicReference<SegmentContainerFactory> containerFactory;
-    @Getter(AccessLevel.PUBLIC)
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
     private final AtomicReference<WriterFactory> writerFactory;
@@ -250,10 +249,12 @@ public class ServiceBuilder implements AutoCloseable {
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
 
+
+
     /**
      * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
      */
-    private SegmentContainerRegistry getSegmentContainerRegistry() {
+    public SegmentContainerRegistry getSegmentContainerRegistry() {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry);
     }
 

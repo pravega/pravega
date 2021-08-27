@@ -22,7 +22,6 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.NonNull;
-import java.util.Arrays;
 
 /**
  * A contributor to manage the health of segment container registry.
@@ -44,7 +43,7 @@ public class SegmentContainerRegistryHealthContributor extends AbstractHealthCon
             status = Status.UP;
         }
 
-        builder.details(ImmutableMap.of("ContainerList", Arrays.toString(segmentContainerRegistry.getContainerList().toArray())));
+        builder.details(ImmutableMap.of("ContainerList", segmentContainerRegistry.getContainers()));
         return status;
     }
 }

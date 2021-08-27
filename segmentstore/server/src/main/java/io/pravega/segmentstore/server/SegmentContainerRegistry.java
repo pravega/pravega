@@ -41,9 +41,9 @@ public interface SegmentContainerRegistry extends AutoCloseable {
     /**
      * Gets a reference to the all the SegmentContainers.
      *
-     * @return The requested SegmentContainer, or null if no such container is started.
+     * @return collection of SegmentContainers within the registry.
      */
-    Collection<?> getContainerList();
+    Collection<SegmentContainer> getContainers();
 
     /**
      * Starts processing the container with given Id.
@@ -57,6 +57,11 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      */
     CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout);
 
+    /**
+     * Tells if registry is closed.
+     *
+     * @return if the registry is closed.
+     */
     boolean isClosed();
 
     /**
