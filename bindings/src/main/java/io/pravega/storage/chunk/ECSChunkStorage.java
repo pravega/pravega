@@ -133,6 +133,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
             if(!response.sdkHttpResponse().isSuccessful()){
                 throw triageStatusCode(getObjectPath(chunkName), response.sdkHttpResponse().statusCode());
             }
+            chunkClientMap.remove(chunkName);
         } catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
         }
