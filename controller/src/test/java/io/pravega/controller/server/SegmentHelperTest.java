@@ -312,8 +312,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
-
-
+        
         class MockCommitTxnConnection implements ClientConnection {
             private final AtomicBoolean toFail;
             @Getter
