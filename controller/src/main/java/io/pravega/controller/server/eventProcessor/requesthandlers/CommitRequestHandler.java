@@ -72,7 +72,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      *  A helper class that holds variables related to Transaction commit processing.
      * */
     @AllArgsConstructor
-    private class CommitTxnContext {
+    private static class CommitTxnContext {
         private final String scope;
         private final String stream;
         private final OperationContext context;
