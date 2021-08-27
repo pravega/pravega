@@ -39,6 +39,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
 import java.io.Serializable;
@@ -49,6 +50,8 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
@@ -621,6 +624,78 @@ public class SynchronizerTest {
         when(revisionedClient.readFrom(secondMark)).thenReturn(iterator);
 
         syncA.fetchUpdates(); // invoke fetchUpdates which will encounter TruncatedDataException from RevisionedStreamClient.
+        assertEquals("x", syncA.getState().getValue());
+    }
+
+    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    public void testConcurrentFetchUpdatesAfterTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        // Mock of the RevisionedStreamClient.
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedStreamClient = mock(RevisionedStreamClient.class);
+
+        final Segment segment = new Segment(scope, streamName, 0L);
+        @Cleanup
+        StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedStreamClient);
+
+        Revision firstMark = new RevisionImpl(segment, 10L, 1);
+        Revision secondMark = new RevisionImpl(segment, 20L, 2);
+        final AbstractMap.SimpleImmutableEntry<Revision, UpdateOrInit<RevisionedImpl>> entry =
+                new AbstractMap.SimpleImmutableEntry<>(secondMark, new UpdateOrInit<>(new RegularUpdate("x")));
+
+        // Mock iterators to simulate concurrent revisionedStreamClient.readFrom(firstMark) call.
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator1 =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator2 =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+        // Latch to ensure both the thread encounter truncation exception.
+        CountDownLatch truncationLatch = new CountDownLatch(2);
+        // Latch to ensure both the threads invoke read attempt reading from same revision.
+        // This will simulate the race condition where the in-memory state is newer than the state returned by RevisionedStreamClient.
+        CountDownLatch raceLatch = new CountDownLatch(2);
+
+        // Setup Mock
+        when(revisionedStreamClient.getMark()).thenReturn(firstMark);
+        when(revisionedStreamClient.readFrom(firstMark))
+                // simulate multiple TruncatedDataExceptions.
+                .thenAnswer(invocation -> {
+                    truncationLatch.countDown();
+                    truncationLatch.await(); // wait until the other thread encounters the TruncationDataException.
+                    throw new TruncatedDataException();
+                })
+                .thenAnswer(invocation -> {
+                    throw new TruncatedDataException();
+                })
+                .thenAnswer(invocation -> {
+                    truncationLatch.countDown();
+                    raceLatch.await(); // wait until the other thread attempts to fetch updates from SSS post truncation and updates internal state.
+                    return iterator1;
+                }).thenAnswer(invocation -> {
+                    raceLatch.countDown();
+                    return iterator2;
+                });
+
+        // Return an iterator whose hasNext is false.
+        when(revisionedStreamClient.readFrom(secondMark)).thenAnswer(invocation -> {
+            raceLatch.countDown(); // release the waiting thread which is fetching updates from SSS when the internal state is already updated.
+            return iterator2;
+        });
+
+        // Simulate concurrent invocations of fetchUpdates API.
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService exec = ExecutorServiceHelpers.newScheduledThreadPool(2, "test-pool");
+        CompletableFuture<Void> cf1 = CompletableFuture.supplyAsync(() -> {
+            syncA.fetchUpdates();
+            return null;
+        }, exec);
+        CompletableFuture<Void> cf2 = CompletableFuture.supplyAsync(() -> {
+            syncA.fetchUpdates();
+            return null;
+        }, exec);
+        // Wait until the completion of both the fetchUpdates() API.
+        CompletableFuture.allOf(cf1, cf2).join();
         assertEquals("x", syncA.getState().getValue());
     }
 
