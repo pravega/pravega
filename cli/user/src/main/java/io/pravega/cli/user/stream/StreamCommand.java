@@ -234,12 +234,12 @@ public abstract class StreamCommand extends Command {
             long maxListItems = getConfig().getMaxListItems();
             if (getCommandArgs().getArgs().size() == 3) {
                 group = getBooleanArg(1);
-                maxListItems = Long.parseLong(getArg(2)) * 1000;
+                maxListItems = Long.parseLong(getArg(2));
             } else if (getCommandArgs().getArgs().size() == 2) {
                 if (isBooleanArg(1)) {
                     group = getBooleanArg(1);
                 } else {
-                    maxListItems = getLongArg(1) * 1000;
+                    maxListItems = getLongArg(1);
                 }
             }
             final Aggregator aggregator = group ? new GroupedItems() : new SingleItem();
