@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y -q \
     net-tools \
     iproute2 \
     vim \
-    procps \
+    procps
 
 # Adding Java system truststore 'cacerts', as it is missing from the Java
 # distribution installed by the base image and one of the storage bindings(ECS)
