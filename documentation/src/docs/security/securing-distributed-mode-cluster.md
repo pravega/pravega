@@ -89,6 +89,7 @@ Controller services can be configured in two different ways:
 
    ```
    controller.security.tls.enable=true
+   controller.security.tls.protocolVersion=TLSv1.2,TLSv1.3
    controller.security.tls.server.certificate.location=/etc/secrets/server-cert.crt
    ```
 
@@ -116,24 +117,27 @@ For a detailed description of these parameters, refer to the
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `controller.security.tls.enable` | `true` |
+ | `controller.security.tls.protocolVersion` | `TLSv1.2,TLSv1.3` <sup>1</sup>|
  | `controller.security.tls.server.certificate.location` | `/etc/secrets/server-cert.crt` |
  | `controller.security.tls.server.privateKey.location` | `/etc/secrets/server-key.key` |
  | `controller.security.tls.trustStore.location` | `/etc/secrets/ca-cert.crt` |
  | `controller.security.tls.server.keyStore.location` | `/etc/secrets/server.keystore.jks` |
- | `controller.security.tls.server.keyStore.pwd.location` | `/etc/secrets/server.keystore.jks.password` <sup>1</sup> |
- | `controller.zk.connect.security.enable` | `false` <sup>2</sup> |
- | `controller.zk.connect.security.tls.trustStore.location` | Unspecified <sup>2</sup>|
- | `controller.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>2</sup>|
+ | `controller.security.tls.server.keyStore.pwd.location` | `/etc/secrets/server.keystore.jks.password` <sup>2</sup> |
+ | `controller.zk.connect.security.enable` | `false` <sup>3</sup> |
+ | `controller.zk.connect.security.tls.trustStore.location` | Unspecified <sup>3</sup>|
+ | `controller.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>3</sup>|
  | `controller.security.auth.enable` | `true` |
- | `controller.security.pwdAuthHandler.accountsDb.location` <sup>3</sup> | `/etc/secrets/password-auth-handler.database` |
+ | `controller.security.pwdAuthHandler.accountsDb.location` <sup>4</sup> | `/etc/secrets/password-auth-handler.database` |
  | `controller.security.auth.delegationToken.signingKey.basis` | `a-secret-value` |
 
- [1]: This and other `.password` files are text files containing the password for the corresponding store.
+ [1]: `TLSv1.2` and `TLSv1.3` strict modes are also allowed.
 
- [2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side 
+ [2]: This and other `.password` files are text files containing the password for the corresponding store.
+
+ [3]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side 
  TLS configuration properties via the `controller.zk.*` properties.
 
- [3]: This configuration property is required when using the default Password Auth Handler only.
+ [4]: This configuration property is required when using the default Password Auth Handler only.
 
 **Segment Store**
 
@@ -144,24 +148,27 @@ below lists its TLS and auth parameters and sample values. For a detailed discri
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `pravegaservice.security.tls.enable` | `true` |
+ | `pravegaservice.security.tls.protocolVersion` | `TLSv1.2,TLSv1.3` <sup>1</sup> |
  | `pravegaservice.security.tls.server.certificate.location` | `/etc/secrets/server-cert.crt` |
  | `pravegaservice.security.tls.certificate.autoReload.enable` | `false` |
  | `pravegaservice.security.tls.server.privateKey.location` | `/etc/secrets/server-key.key` |
- | `pravegaservice.zk.connect.security.enable` | `false` <sup>1</sup> |
- | `pravegaservice.zk.connect.security.tls.trustStore.location` | Unspecified <sup>1</sup>|
- | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>1</sup>|
+ | `pravegaservice.zk.connect.security.enable` | `false` <sup>2</sup> |
+ | `pravegaservice.zk.connect.security.tls.trustStore.location` | Unspecified <sup>2</sup>|
+ | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>2</sup>|
  | `autoScale.controller.connect.security.tls.enable` | `true` |
  | `autoScale.controller.connect.security.tls.truststore.location` | `/etc/secrets/ca-cert.crt` |
  | `autoScale.controller.connect.security.auth.enable` | `true` |
- | `autoScale.security.auth.token.signingKey.basis` | `a-secret-value` <sup>2</sup>|
+ | `autoScale.security.auth.token.signingKey.basis` | `a-secret-value` <sup>3</sup>|
  | `autoScale.controller.connect.security.tls.validateHostName.enable` | `true` |
  | `pravega.client.auth.loadDynamic` | `false` |
  | `pravega.client.auth.method` | `Basic` |
  | `pravega.client.auth.token` | Base64-encoded value of 'username:password' string | 
 
-[1]: The secret value you use here must match the same value used for other Controller and Segment Store services.
+[1]: `TLSv1.2` and `TLSv1.3` strict modes are also allowed.
 
-[2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS
+[2]: The secret value you use here must match the same value used for other Controller and Segment Store services.
+
+[3]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS
 configuration properties via these properties.
 
 ### Configuring TLS and Credentials on Client Side

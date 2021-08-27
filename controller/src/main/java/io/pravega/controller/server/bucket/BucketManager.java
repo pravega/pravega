@@ -83,6 +83,8 @@ public abstract class BucketManager extends AbstractService {
 
     protected abstract int getBucketCount();
 
+    public abstract boolean isHealthy();
+
     CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return takeBucketOwnership(bucket, processId, executor)
                          .thenCompose(isOwner -> {
