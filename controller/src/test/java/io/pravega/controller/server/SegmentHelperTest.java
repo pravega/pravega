@@ -65,7 +65,6 @@ import lombok.val;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
@@ -351,6 +350,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
             public void close() {
             }
         }
+
         class MockCommitTxnConnectFactory implements ConnectionFactory, ConnectionPool {
             private final AtomicBoolean failConnection = new AtomicBoolean(false);
             @Getter
