@@ -313,7 +313,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
         testConnectionFailure(factory, futureSupplier);
 
-        //txn segment is already merged.
+
         class MockCommitTxnConnection implements ClientConnection {
             private final AtomicBoolean toFail;
             @Getter
@@ -402,9 +402,10 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
             }
         }
 
-        @Cleanup
         MockCommitTxnConnectFactory mockFactory = new MockCommitTxnConnectFactory();
+        @Cleanup
         SegmentHelper segmentHelper = new SegmentHelper(mockFactory, new MockHostControllerStore(), executorService());
+        //Test for the case where txn segment is already merged.
         result = segmentHelper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
         requestId = ((MockCommitTxnConnection) (mockFactory.connection)).getRequestId();
         mockFactory.rp.process(new WireCommands.NoSuchSegment(requestId, txnSegName, "", 0L));

@@ -256,6 +256,7 @@ public class EndToEndTransactionOrderTest {
                         int i1 = counter.incrementAndGet();
                         transaction.writeEvent("0", i1);
                         transaction.commit();
+                        log.info("Issued commit for txn: {}", transaction.getTxnId());
                         list.add(transaction.getTxnId());
                         eventToTxnMap.put(i1, transaction.getTxnId());
                         txnToWriter.put(transaction.getTxnId(), writerId);
