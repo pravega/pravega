@@ -13,40 +13,49 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.pravega.segmentstore.server.host.health;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Service;
 import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.NonNull;
 
-/**
- * A contributor to manage the health of segment container registry.
- */
-public class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
-    private final SegmentContainerRegistry segmentContainerRegistry;
 
-    public SegmentContainerRegistryHealthContributor(@NonNull SegmentContainerRegistry segmentContainerRegistry) {
-        super("SegmentContainerRegistry");
-        this.segmentContainerRegistry = segmentContainerRegistry;
+/**
+ *  A contributor to manage health of segment container.
+ */
+public class SegmentContainerHealthContributor extends AbstractHealthContributor {
+    private final SegmentContainer segmentContainer;
+
+    public SegmentContainerHealthContributor(@NonNull SegmentContainer segmentContainer) {
+        super("SegmentContainer");
+        this.segmentContainer = segmentContainer;
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
-        for(SegmentContainer container: segmentContainerRegistry.getContainers()) {
-            this.register(new SegmentContainerHealthContributor(container));
+        Status status = Status.DOWN;
+
+        boolean newState = segmentContainer.state() == Service.State.NEW;
+        if (newState) {
+            status = Status.NEW;
         }
 
-        Status status = Status.DOWN;
-        boolean ready = !segmentContainerRegistry.isClosed();
+        boolean starting = segmentContainer.state() == Service.State.STARTING;
+        if(starting) {
+            status = Status.STARTING;
+        }
 
-        if (ready) {
+        boolean running = segmentContainer.state() == Service.State.RUNNING;
+        if(running) {
             status = Status.UP;
         }
 
+
+        builder.details(ImmutableMap.of("Id", segmentContainer.getId(), "ActiveSegments", segmentContainer.getActiveSegments()));
         return status;
     }
 }
