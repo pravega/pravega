@@ -98,7 +98,7 @@ All available commands:
 	stream create scoped-stream-names: Creates one or more Streams.
 	stream delete scoped-stream-names: Deletes one or more Streams.
 	stream list scope-name: Lists all Streams in a Scope.
-	stream read scoped-stream-name [group-similar] [timeout-in-seconds]: Reads all Events from a Stream and then tails the Stream.
+	stream read scoped-stream-name [group-similar] [max-list-items]: Reads all Events from a Stream and then tails the Stream until reach max-list-items.
 ```
 
 You can try out commands such as:

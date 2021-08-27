@@ -231,15 +231,15 @@ public abstract class StreamCommand extends Command {
             ensureArgCount(1, 2, 3);
             val scopedStream = getScopedNameArg(0);
             boolean group = false;
-            long timeoutInMillis = Long.MAX_VALUE;
+            long maxListItems = getConfig().getMaxListItems();
             if (getCommandArgs().getArgs().size() == 3) {
                 group = getBooleanArg(1);
-                timeoutInMillis = Long.parseLong(getArg(2)) * 1000;
+                maxListItems = Long.parseLong(getArg(2)) * 1000;
             } else if (getCommandArgs().getArgs().size() == 2) {
                 if (isBooleanArg(1)) {
                     group = getBooleanArg(1);
                 } else {
-                    timeoutInMillis = getLongArg(1) * 1000;
+                    maxListItems = getLongArg(1) * 1000;
                 }
             }
             final Aggregator aggregator = group ? new GroupedItems() : new SingleItem();
@@ -263,17 +263,18 @@ public abstract class StreamCommand extends Command {
                 EventRead<String> event;
                 int displayCount = 0;
                 Timer timer = new Timer();
-                while (!listener.isTriggered() && timer.getElapsedMillis() < timeoutInMillis && (event = reader.readNextEvent(2000)) != null) {
+                while (!listener.isTriggered() && timer.getElapsedMillis() < getConfig().getTimeoutMillis() && (event = reader.readNextEvent(2000)) != null) {
                     if (event.getEvent() == null) {
                         // Nothing read yet.
                         aggregator.flush();
                         continue;
                     }
                     boolean accepted = aggregator.accept(event);
-                    if (accepted && ++displayCount > getConfig().getMaxListItems()) {
+                    if (accepted && ++displayCount > maxListItems) {
                         aggregator.flush();
-                        output("Reached maximum number of events %s. Change this using '%s' config value.",
-                                getConfig().getMaxListItems(), InteractiveConfig.MAX_LIST_ITEMS);
+                        output("Reached maximum number of events %s. Change this using '%s' config value. " +
+                                        "Or via command line argument",
+                                maxListItems, InteractiveConfig.MAX_LIST_ITEMS);
                         break;
                     }
                 }
