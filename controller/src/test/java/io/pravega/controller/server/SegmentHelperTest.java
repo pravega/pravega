@@ -62,7 +62,10 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
+
+import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
@@ -300,11 +303,112 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         factory.rp.process(new WireCommands.NoSuchSegment(requestId, qualifiedStreamSegmentName, "", 0L));
         AssertExtensions.assertThrows(StoreException.IllegalStateException.class, result::join);
 
+        result = helper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentAttributeUpdated(requestId, false));
+        AssertExtensions.assertThrows(StoreException.IllegalStateException.class, result::join);
+
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransactions(scopeName, streamName, segmentId,
                 batchId, txnIdList, delegationToken, System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
+
+        //txn segment is already merged.
+        class MockCommitTxnConnection implements ClientConnection {
+            private final AtomicBoolean toFail;
+            @Getter
+            private final ReplyProcessor rp;
+            @Getter
+            private long requestId;
+
+            public MockCommitTxnConnection(ReplyProcessor rp, AtomicBoolean toFail) {
+                this.rp = rp;
+                this.toFail = toFail;
+            }
+
+            @Override
+            public void send(WireCommand cmd) throws ConnectionFailedException {
+                this.requestId = ((Request) cmd).getRequestId();
+                if (toFail.get()) {
+                    throw new ConnectionFailedException();
+                }
+                if (cmd instanceof WireCommands.GetStreamSegmentInfo) {
+                    rp.process(new WireCommands.StreamSegmentInfo(requestId, "testStream", true, true, true,
+                            0L, 100L, 10L));
+                }
+            }
+
+            @Override
+            public void send(Append append) throws ConnectionFailedException {
+            }
+
+            @Override
+            public void sendAsync(List<Append> appends, CompletedCallback callback) {
+            }
+
+            @Override
+            public void close() {
+            }
+        }
+        class MockCommitTxnConnectFactory implements ConnectionFactory, ConnectionPool {
+            private final AtomicBoolean failConnection = new AtomicBoolean(false);
+            @Getter
+            private ReplyProcessor rp;
+            private ClientConnection connection;
+
+            @Override
+            public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
+                if (failConnection.get()) {
+                    return Futures.failedFuture(new RuntimeException());
+                } else {
+                    this.rp = rp;
+                    this.connection = new MockCommitTxnConnection(rp, failConnection);
+                    return CompletableFuture.completedFuture(connection);
+                }
+            }
+
+            @Override
+            public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp) {
+                this.rp = rp;
+                this.connection = new MockCommitTxnConnection(rp, failConnection);
+                return CompletableFuture.completedFuture(connection);
+            }
+
+            @Override
+            public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
+                this.rp = rp;
+                this.connection = new MockCommitTxnConnection(rp, failConnection);
+                return CompletableFuture.completedFuture(connection);
+            }
+
+            @Override
+            public void getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+                this.rp = rp;
+                this.connection = new MockCommitTxnConnection(rp, failConnection);
+                connection.complete(this.connection);
+            }
+
+            @Override
+            public ScheduledExecutorService getInternalExecutor() {
+                return null;
+            }
+
+            @Override
+            public void close() {
+                if (connection != null) {
+                    connection.close();
+                }
+            }
+        }
+
+        @Cleanup
+        MockCommitTxnConnectFactory mockFactory = new MockCommitTxnConnectFactory();
+        SegmentHelper segmentHelper = new SegmentHelper(mockFactory, new MockHostControllerStore(), executorService());
+        result = segmentHelper.commitTransactions(scopeName, streamName, segmentId, batchId, txnIdList, delegationToken, System.nanoTime());
+        requestId = ((MockCommitTxnConnection) (mockFactory.connection)).getRequestId();
+        mockFactory.rp.process(new WireCommands.NoSuchSegment(requestId, txnSegName, "", 0L));
+        Assert.assertEquals(List.of(100L), result.join());
     }
 
     @Test

@@ -305,7 +305,7 @@ public class SegmentHelper implements AutoCloseable {
                     if (reply instanceof WireCommands.SegmentAttributeUpdated) {
                         log.warn(clientRequestId, "Attribute update failed when committing transactions for Stream {}/{}", scope, stream);
                         throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
-                                "Commit Transaction: Attribute update failed when committing transactions." +
+                                "Attribute update failed when committing transactions for Stream: " +
                                         getScopedStreamName(scope, stream));
                     }
                     handleReply(clientRequestId, reply, connection, qualifiedNameTarget, WireCommands.MergeSegments.class, type);
