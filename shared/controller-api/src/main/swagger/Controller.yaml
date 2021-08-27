@@ -653,6 +653,10 @@ definitions:
         $ref: "#/definitions/RetentionConfig"
       tags:
         $ref: "#/definitions/TagsList"
+      timestampAggregationTimeout:
+        $ref: "#/definitions/TimestampAggregationTimeout"
+      rolloverSizeBytes:
+        $ref: "#/definitions/RolloverSizeBytes"
   ScalingConfig:
     type: object
     properties:

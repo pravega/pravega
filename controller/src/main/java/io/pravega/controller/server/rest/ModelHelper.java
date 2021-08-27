@@ -160,10 +160,26 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
-        return StreamConfiguration.builder()
+
+        TagsList tagsList = new TagsList();
+        if (updateStreamRequest.getStreamTags() != null) {
+            tagsList = updateStreamRequest.getStreamTags();
+        }
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
-                .build();
+                .tags(tagsList);
+
+        if (updateStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(updateStreamRequest.getTimestampAggregationTimeout());
+        }
+
+        if (updateStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(updateStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**
@@ -229,6 +245,8 @@ public class ModelHelper {
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         streamProperty.setTags(tagList);
+        streamProperty.setTimestampAggregationTimeout(streamConfiguration.getTimestampAggregationTimeout());
+        streamProperty.setRolloverSizeBytes(streamConfiguration.getRolloverSizeBytes());
         return streamProperty;
     }
 
@@ -264,7 +282,8 @@ public class ModelHelper {
                 .setGeneration(rgConfig.getGeneration())
                 .setReaderGroupId(rgId.toString())
                 .addAllStartingStreamCuts(startStreamCuts)
-                .addAllEndingStreamCuts(endStreamCuts);
+                .addAllEndingStreamCuts(endStreamCuts)
+                .setRolloverSizeBytes(rgConfig.getRolloverSizeBytes());
         return builder.build();
 
     }
