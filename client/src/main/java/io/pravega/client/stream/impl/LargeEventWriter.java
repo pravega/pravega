@@ -60,14 +60,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.common.concurrent.Futures.getThrowingException;
+
 @RequiredArgsConstructor
 @Slf4j
 public class LargeEventWriter {
 
     private static final int WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
     private final UUID writerId;
-    private Controller controller;
-    private ConnectionPool connectionPool;
+    private final Controller controller;
+    private final ConnectionPool connectionPool;
 
     public void writeLargeEvent(Segment segment, List<ByteBuffer> events, DelegationTokenProvider tokenProvider,
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
@@ -103,7 +105,7 @@ public class LargeEventWriter {
             ByteBuffer wrapped = ByteBuffer.wrap(header);
             wrapped.putInt(WireCommandType.EVENT.getCode());
             wrapped.putInt(event.remaining());
-            wrapped.reset();
+            wrapped.flip();
             toWrite[2 * i] = wrapped;
             toWrite[2 * i + 1] = event;
         }
@@ -123,19 +125,19 @@ public class LargeEventWriter {
         long requestId = client.getFlow().getNextSequenceNumber();
         log.debug("Writing large event to segment {} with writer id {}", parentSegment, writerId);
 
-        String token = tokenProvider.retrieveToken().join();
+        String token = getThrowingException(tokenProvider.retrieveToken());
 
         CreateTransientSegment createSegment = new CreateTransientSegment(requestId,
                 writerId,
                 parentSegment.getScopedName(),
                 token);
 
-        SegmentCreated created = transformSegmentCreated(client.sendRequest(0, createSegment).join(),
+        SegmentCreated created = transformSegmentCreated(getThrowingException(client.sendRequest(requestId, createSegment)),
                                                          parentSegment.getScopedName());
-
+        requestId = client.getFlow().getNextSequenceNumber();
         SetupAppend setup = new SetupAppend(requestId, writerId, created.getSegment(), token);
 
-        AppendSetup appendSetup = transformAppendSetup(client.sendRequest(requestId, setup).join(),
+        AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
                                                        created.getSegment());
 
         if (appendSetup.getLastEventNumber() != 0) {
@@ -159,13 +161,13 @@ public class LargeEventWriter {
             futures.add(reply);
         }
         for (int i = 0; i < futures.size(); i++) {
-            transformDataAppended(futures.get(i).join(), created.getSegment());
+            transformDataAppended(getThrowingException(futures.get(i)), created.getSegment());
         }
         requestId = client.getFlow().getNextSequenceNumber();
 
         MergeSegments merge = new MergeSegments(requestId, created.getSegment(), parentSegment.getScopedName(), token);
 
-        transformSegmentMerged(client.sendRequest(requestId, merge).join(), created.getSegment());
+        transformSegmentMerged(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment());
     }
 
     // Trick to fail fast if any of the futures have completed.
@@ -176,7 +178,7 @@ public class LargeEventWriter {
             if (!future.isDone()) {
                 break;
             } else {
-                transformDataAppended(future.join(), segmentId);
+                transformDataAppended(getThrowingException(future), segmentId);
             }
         }
     }

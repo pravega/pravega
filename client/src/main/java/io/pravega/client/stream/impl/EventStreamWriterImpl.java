@@ -17,6 +17,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -92,13 +93,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
     private final DelegationTokenProvider tokenProvider;
-    private final SegmentOutputStreamFactory outputStreamFactory;
+    private final ConnectionPool connectionPool;
     
     EventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
-                          ScheduledExecutorService internalExecutor) {
+                          ScheduledExecutorService internalExecutor, ConnectionPool connectionPool) {
         this.writerId = writerId;
-        this.outputStreamFactory = outputStreamFactory;
+        this.connectionPool = Preconditions.checkNotNull(connectionPool);;
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
@@ -170,7 +171,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void writeLargeEvent(String routingKey, List<ByteBuffer> events, CompletableFuture<Void> ackFuture) {
         flush();
         boolean success = false;
-        LargeEventWriter writer = new LargeEventWriter(UUID.randomUUID());
+        LargeEventWriter writer = new LargeEventWriter(UUID.randomUUID(), controller, connectionPool);
         while (!success) {
             Segment segment = selector.getSegmentForEvent(routingKey);
             try {
