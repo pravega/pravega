@@ -45,15 +45,14 @@ public class SegmentContainerHealthContributor extends AbstractHealthContributor
         }
 
         boolean starting = segmentContainer.state() == Service.State.STARTING;
-        if(starting) {
+        if (starting) {
             status = Status.STARTING;
         }
 
         boolean running = segmentContainer.state() == Service.State.RUNNING;
-        if(running) {
+        if (running) {
             status = Status.UP;
         }
-
 
         builder.details(ImmutableMap.of("Id", segmentContainer.getId(), "ActiveSegments", segmentContainer.getActiveSegments()));
         return status;

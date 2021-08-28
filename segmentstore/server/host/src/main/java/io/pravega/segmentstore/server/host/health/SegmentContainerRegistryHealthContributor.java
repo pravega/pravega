@@ -36,7 +36,7 @@ public class SegmentContainerRegistryHealthContributor extends AbstractHealthCon
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
-        for(SegmentContainer container: segmentContainerRegistry.getContainers()) {
+        for (SegmentContainer container: segmentContainerRegistry.getContainers()) {
             this.register(new SegmentContainerHealthContributor(container));
         }
 
