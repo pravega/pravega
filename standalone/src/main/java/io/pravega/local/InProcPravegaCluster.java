@@ -319,7 +319,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
                         .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
                         .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)
-                        .with(ServiceConfig.REST_LISTENING_PORT, this.restServerPort + segmentStoreId + 1)
+                        .with(ServiceConfig.REST_LISTENING_PORT, ServiceConfig.REST_LISTENING_PORT.getDefaultValue() + segmentStoreId)
                         .with(ServiceConfig.REST_LISTENING_ENABLE, this.enableRestServer))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
