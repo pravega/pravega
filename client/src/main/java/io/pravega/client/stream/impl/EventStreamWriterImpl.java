@@ -99,7 +99,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
                           ScheduledExecutorService internalExecutor, ConnectionPool connectionPool) {
         this.writerId = writerId;
-        this.connectionPool = Preconditions.checkNotNull(connectionPool);;
+        this.connectionPool = connectionPool;
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
