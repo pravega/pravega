@@ -302,7 +302,7 @@ public class LargeEventWriterTest {
         assertTrue(succeeded.getAndSet(false));
     }
 
-    @Test(timeout = 5000)
+    @Test//(timeout = 5000)
     public void testPipelining() throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -312,9 +312,9 @@ public class LargeEventWriterTest {
         connectionFactory.provideConnection(location, connection);
         
         ArrayList<ByteBuffer> buffers = new ArrayList<>();
-        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE));
-        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE));
-        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE));
+        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
+        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
+        buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
         
         ArrayList<ConditionalBlockEnd> written = new ArrayList<>();
 
@@ -338,11 +338,11 @@ public class LargeEventWriterTest {
                 if (written.size() == buffers.size()) {
                     for (ConditionalBlockEnd append : written) {
                         connectionFactory.getProcessor(location)
-                            .dataAppended(new DataAppended(append.getRequestId(),
-                                    writerId,
-                                    append.getEventNumber(),
-                                    append.getEventNumber() - 1,
-                                    append.getExpectedOffset() + append.getData().readableBytes()));
+                            .process(new DataAppended(append.getRequestId(),
+                                     writerId,
+                                     append.getEventNumber(),
+                                     append.getEventNumber() - 1,
+                                     append.getExpectedOffset() + append.getData().readableBytes()));
                     }
                 }
                 return null;
