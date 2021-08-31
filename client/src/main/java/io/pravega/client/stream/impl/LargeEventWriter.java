@@ -230,10 +230,6 @@ public class LargeEventWriter {
             throw new SegmentSealedException(reply.toString());
         } else if (reply instanceof WrongHost) {
             throw new ConnectionFailedException(reply.toString());
-        } else if (reply instanceof InvalidEventNumber) {
-            InvalidEventNumber ien = (InvalidEventNumber) reply;
-            throw new ConnectionFailedException(ien.getWriterId() + " Got stale data from setupAppend on segment "
-                    + segmentId + " for ConditionalOutputStream. Event number was " + ien.getEventNumber());
         } else if (reply instanceof AuthTokenCheckFailed) {
             AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckFailed.isTokenExpired()) {

@@ -29,8 +29,10 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalBlockEnd;
+import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
@@ -198,7 +200,6 @@ public class LargeEventWriterTest {
         });
     }
     
-
     @Test(timeout = 5000)
     public void testRetriedErrors() throws ConnectionFailedException, NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
@@ -302,7 +303,111 @@ public class LargeEventWriterTest {
         assertTrue(succeeded.getAndSet(false));
     }
 
-    @Test//(timeout = 5000)
+    @Test(timeout = 5000)
+    public void testUnexpectedErrors() throws ConnectionFailedException, NoSuchSegmentException, AuthenticationException, SegmentSealedException {
+        Segment segment = Segment.fromScopedName("foo/bar/1");
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory, false);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, connection);
+        EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
+        EventWriterConfig config = EventWriterConfig.builder().initialBackoffMillis(0).build();
+        ArrayList<ByteBuffer> events = new ArrayList<>();
+        events.add(ByteBuffer.allocate(1));
+        
+        AtomicBoolean failed = new AtomicBoolean(false);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        
+        
+        answerRequest(connectionFactory,
+                      connection,
+                      location,
+                      CreateTransientSegment.class,
+                      r -> new SegmentCreated(r.getRequestId(), "transient-segment"));
+        answerRequest(connectionFactory,
+                      connection,
+                      location,
+                      SetupAppend.class,
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+        
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
+                failed.set(true);
+                connectionFactory.getProcessor(location).process(new InvalidEventNumber(argument.getWriterId(), argument.getEventNumber(), "stacktrace"));
+                return null;
+            }
+        }).doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
+                ByteBuf data = argument.getData();
+                succeeded.set(true);
+                connectionFactory.getProcessor(location).process(new DataAppended(argument.getRequestId(),
+                                                                                  argument.getWriterId(),
+                                                                                  argument.getEventNumber(),
+                                                                                  argument.getEventNumber() - 1,
+                                                                                  argument.getExpectedOffset() + data.readableBytes()));
+                return null;
+            }
+        }).when(connection).send(any(ConditionalBlockEnd.class));
+        answerRequest(connectionFactory, connection, location, MergeSegments.class, r -> {
+            return new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1);
+        });
+
+        
+        LargeEventWriter writer = new LargeEventWriter(writerId, controller, connectionFactory);
+        writer.writeLargeEvent(segment, events, tokenProvider, EventWriterConfig.builder().build());
+        assertTrue(failed.getAndSet(false));
+        assertTrue(succeeded.getAndSet(false));
+        
+        answerRequest(connectionFactory,
+                      connection,
+                      location,
+                      CreateTransientSegment.class,
+                      r -> new SegmentCreated(r.getRequestId(), "transient-segment"));
+        answerRequest(connectionFactory,
+                      connection,
+                      location,
+                      SetupAppend.class,
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+        
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
+                failed.set(true);
+                connectionFactory.getProcessor(location).process(new ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), argument.getRequestId()));
+                return null;
+            }
+        }).doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
+                ByteBuf data = argument.getData();
+                succeeded.set(true);
+                connectionFactory.getProcessor(location).process(new DataAppended(argument.getRequestId(),
+                                                                                  argument.getWriterId(),
+                                                                                  argument.getEventNumber(),
+                                                                                  argument.getEventNumber() - 1,
+                                                                                  argument.getExpectedOffset() + data.readableBytes()));
+                return null;
+            }
+        }).when(connection).send(any(ConditionalBlockEnd.class));
+        answerRequest(connectionFactory, connection, location, MergeSegments.class, r -> {
+            return new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1);
+        });
+
+        
+        writer = new LargeEventWriter(writerId, controller, connectionFactory);
+        writer.writeLargeEvent(segment, events, tokenProvider, EventWriterConfig.builder().build());
+        assertTrue(failed.getAndSet(false));
+        assertTrue(succeeded.getAndSet(false));
+    }
+    
+    @Test(timeout = 5000)
     public void testPipelining() throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
