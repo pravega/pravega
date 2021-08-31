@@ -1448,7 +1448,7 @@ task preparePravegaImage(type: Copy) {
     from "docker/pravega"
     from (installDist) {
         into "pravega"
-        exclude "**/*.bat"
+        exclude "**/*.bat", "**/log4j*.jar"
     }
 }
 
