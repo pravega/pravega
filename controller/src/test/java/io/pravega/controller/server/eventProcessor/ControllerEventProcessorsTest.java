@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -71,7 +72,7 @@ import static org.mockito.Mockito.doReturn;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     public int getThreadPoolSize() {
@@ -117,6 +118,9 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 kvtStore, kvtTasks, system, executorService());
         //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        Assert.assertFalse(processors.isReady());
+        Assert.assertFalse(processors.isBootstrapCompleted());
+        Assert.assertFalse(processors.isMetadataServiceConnected());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -189,7 +193,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
-        
+
         // wait on create scope being called.
         createScopeSignalsList.get(0).join();
         

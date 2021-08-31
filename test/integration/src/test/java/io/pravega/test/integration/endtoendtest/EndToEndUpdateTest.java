@@ -22,12 +22,10 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.PravegaResource;
+import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
 
@@ -43,8 +41,7 @@ public class EndToEndUpdateTest extends ThreadPooledTestSuite {
     }
     
     @Test(timeout = 30000)
-    public void testUpdateStream() throws InterruptedException, ExecutionException, TimeoutException,
-                                        TruncatedDataException, ReinitializationRequiredException {
+    public void testUpdateStream() throws InterruptedException, ExecutionException, TruncatedDataException, ReinitializationRequiredException {
         String scope = "scope";
         String streamName = "updateStream";
 

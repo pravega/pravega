@@ -97,7 +97,7 @@ public class PravegaTablesStoreHelper {
     private final int numOfRetries;
 
     @lombok.Data
-    private static class TableCacheKey<T> implements Cache.CacheKey {
+    private static class TableCacheKey implements Cache.CacheKey {
         private final String table;
         private final String key;
     }
@@ -124,7 +124,7 @@ public class PravegaTablesStoreHelper {
      * @param <T> Type of object to deserialize the response into.
      */
     private  <T> void putInCache(String table, String key, VersionedMetadata<T> value, long time) {
-        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
+        TableCacheKey cacheKey = new TableCacheKey(table, key);
         cache.put(cacheKey, value, time);
     }
 
@@ -138,7 +138,7 @@ public class PravegaTablesStoreHelper {
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
     private <T> VersionedMetadata<T> getCachedData(String table, String key, long time, long requestId) {
-        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
+        TableCacheKey cacheKey = new TableCacheKey(table, key);
         VersionedMetadata<?> cachedData = cache.getCachedData(cacheKey, time);
         if (cachedData == null) {
             return null;
@@ -153,7 +153,7 @@ public class PravegaTablesStoreHelper {
      * @param key key to invalidate
      */
     public void invalidateCache(String table, String key) {
-        cache.invalidateCache(new TableCacheKey<>(table, key));
+        cache.invalidateCache(new TableCacheKey(table, key));
     }
 
     @SuppressWarnings("unchecked")
@@ -284,6 +284,7 @@ public class PravegaTablesStoreHelper {
                                                   return segmentHelper.updateTableEntries(tableName, Collections.singletonList(updatedEntry), authToken.get(), requestId)
                                                                       .thenCompose(keyVersions -> {
                                                                           if (shouldAttemptCleanup) {
+                                                                              log.debug(requestId, "Delete of table key {} on table {}", tableKey, tableName);
                                                                               // attempt a conditional delete of the entry since there are zero entries.
                                                                               return conditionalDeleteOfKey(tableName, requestId, tableKey, keyVersions.get(0));
                                                                           } else {

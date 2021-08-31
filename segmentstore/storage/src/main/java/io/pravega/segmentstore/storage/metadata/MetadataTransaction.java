@@ -260,10 +260,12 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link AutoCloseable#close()} implementation.
      *
      */
+    @Override
     public void close() {
         if (!isCommitted || isAborted) {
             store.abort(this);
         }
+        store.closeTransaction(this);
     }
 }
 

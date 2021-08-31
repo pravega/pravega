@@ -37,7 +37,7 @@ import java.util.function.Predicate;
 
 public class ZkCheckpointStoreConnectivityTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private CuratorFramework cli;
     private CheckpointStore checkpointStore;

@@ -50,6 +50,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE = Property.named("garbage.collection.txn.batch.size.max", 5000);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
@@ -79,6 +80,7 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionMaxQueueSize(16 * 1024)
             .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
+            .garbageCollectionTransactionBatchSize(5000)
             .indexBlockSize(1024 * 1024)
             .maxEntriesInCache(5000)
             .maxEntriesInTxnBuffer(1024)
@@ -198,6 +200,12 @@ public class ChunkedSegmentStorageConfig {
     final private int garbageCollectionMaxAttempts;
 
     /**
+     * Max number of metadata entries to update in a single transaction during garbage collection.
+     */
+    @Getter
+    final private int garbageCollectionTransactionBatchSize;
+
+    /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
      */
     @Getter
@@ -262,6 +270,7 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.garbageCollectionTransactionBatchSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE);
         this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
         this.maxJournalUpdatesPerSnapshot =  properties.getInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
         this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);

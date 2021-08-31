@@ -43,6 +43,7 @@ public class TestHealthContributors {
             super(name, StatusAggregator.UNANIMOUS);
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
             Map<String, Object> details = new HashMap<>();
@@ -64,6 +65,7 @@ public class TestHealthContributors {
             this("failing");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.DOWN;
             builder.status(status);
@@ -80,6 +82,7 @@ public class TestHealthContributors {
             super("thrower");
         }
 
+        @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UNKNOWN;
             throw new RuntimeException();

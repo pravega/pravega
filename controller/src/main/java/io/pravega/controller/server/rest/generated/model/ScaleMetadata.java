@@ -1,6 +1,6 @@
 /*
  * Pravega Controller APIs
- * List of admin REST APIs for the pravega controller service.
+ * List of admin REST APIs for the Pravega controller service.
  *
  * OpenAPI spec version: 0.0.1
  * 

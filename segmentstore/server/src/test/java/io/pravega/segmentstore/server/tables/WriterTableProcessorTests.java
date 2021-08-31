@@ -23,7 +23,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -31,7 +30,6 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
-import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -74,6 +72,8 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private static final int UPDATE_BATCH_SIZE = 689;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int MAX_COMPACT_LENGTH = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * UPDATE_BATCH_SIZE;
+    private static final int DEFAULT_MAX_FLUSH_SIZE = 128 * 1024 * 1024; // Default from TableWriterConnector.
+    private static final int MAX_FLUSH_ATTEMPTS = 100; // To make sure we don't get stuck in an infinite flush loop.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -148,13 +148,21 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link WriterTableProcessor#flush} method using a non-collision-prone KeyHasher.
+     */
+    @Test
+    public void testFlushSmallBatches() throws Exception {
+        int maxBatchSize = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * 7;
+        testFlushWithHasher(KeyHashers.DEFAULT_HASHER, 0, maxBatchSize);
+    }
+
+    /**
      * Tests the {@link WriterTableProcessor#flush} method using a collision-prone KeyHasher.
      */
     @Test
     public void testFlushCollisions() throws Exception {
         testFlushWithHasher(KeyHashers.COLLISION_HASHER);
     }
-
 
     /**
      * Tests the {@link WriterTableProcessor#flush} method using a non-collision-prone KeyHasher and forcing compactions.
@@ -234,16 +242,85 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         Assert.assertFalse("Unexpected result from mustFlush() after full reconciliation.", context.processor.mustFlush());
     }
 
+    /**
+     * Tests {@link WriterTableProcessor.OperationAggregator}
+     */
+    @Test
+    public void testOperationAggregator() {
+        @Cleanup
+        val context = new TestContext();
+        val a = new WriterTableProcessor.OperationAggregator(123L);
+
+        // Empty (nothing in it).
+        Assert.assertEquals(123L, a.getLastIndexedOffset());
+        Assert.assertEquals(-1L, a.getFirstOffset());
+        Assert.assertEquals(-1L, a.getLastOffset());
+        Assert.assertEquals(Operation.NO_SEQUENCE_NUMBER, a.getFirstSequenceNumber());
+        Assert.assertTrue(a.isEmpty());
+        Assert.assertEquals(0, a.size());
+        Assert.assertEquals(-1L, a.getLastIndexToProcessAtOnce(12345));
+
+        a.setLastIndexedOffset(124L);
+        Assert.assertEquals(124L, a.getLastIndexedOffset());
+
+        // Add one operation.
+        val op1 = generateSimulatedAppend(123L, 1000, context);
+        a.add(op1);
+        Assert.assertEquals(124L, a.getLastIndexedOffset());
+        Assert.assertEquals(op1.getStreamSegmentOffset(), a.getFirstOffset());
+        Assert.assertEquals(op1.getLastStreamSegmentOffset(), a.getLastOffset());
+        Assert.assertEquals(op1.getSequenceNumber(), a.getFirstSequenceNumber());
+        Assert.assertFalse(a.isEmpty());
+        Assert.assertEquals(1, a.size());
+        Assert.assertEquals(op1.getLastStreamSegmentOffset(), a.getLastIndexToProcessAtOnce(12));
+        Assert.assertEquals(op1.getLastStreamSegmentOffset(), a.getLastIndexToProcessAtOnce(123456));
+
+        // Add a second operation.
+        val op2 = generateSimulatedAppend(op1.getLastStreamSegmentOffset() + 1, 1000, context);
+        a.add(op2);
+        Assert.assertEquals(124L, a.getLastIndexedOffset());
+        Assert.assertEquals(op1.getStreamSegmentOffset(), a.getFirstOffset());
+        Assert.assertEquals(op2.getLastStreamSegmentOffset(), a.getLastOffset());
+        Assert.assertEquals(op1.getSequenceNumber(), a.getFirstSequenceNumber());
+        Assert.assertFalse(a.isEmpty());
+        Assert.assertEquals(2, a.size());
+        Assert.assertEquals(op1.getLastStreamSegmentOffset(), a.getLastIndexToProcessAtOnce(12));
+        Assert.assertEquals(op1.getLastStreamSegmentOffset(), a.getLastIndexToProcessAtOnce((int) op1.getLength() + 1));
+        Assert.assertEquals(op2.getLastStreamSegmentOffset(), a.getLastIndexToProcessAtOnce(123456));
+
+        // Test setLastIndexedOffset.
+        boolean r = a.setLastIndexedOffset(op1.getStreamSegmentOffset() + 1);
+        Assert.assertFalse(r);
+        Assert.assertEquals(124L, a.getLastIndexedOffset());
+        Assert.assertEquals(2, a.size());
+
+        r = a.setLastIndexedOffset(op2.getStreamSegmentOffset());
+        Assert.assertTrue(r);
+        Assert.assertEquals(op2.getStreamSegmentOffset(), a.getLastIndexedOffset());
+        Assert.assertEquals(1, a.size());
+
+        r = a.setLastIndexedOffset(op2.getLastStreamSegmentOffset() + 1);
+        Assert.assertTrue(r);
+        Assert.assertEquals(op2.getLastStreamSegmentOffset() + 1, a.getLastIndexedOffset());
+        Assert.assertEquals(0, a.size());
+    }
+
     private void testFlushWithHasher(KeyHasher hasher) throws Exception {
         testFlushWithHasher(hasher, 0);
     }
 
     private void testFlushWithHasher(KeyHasher hasher, int minSegmentUtilization) throws Exception {
+        testFlushWithHasher(hasher, minSegmentUtilization, DEFAULT_MAX_FLUSH_SIZE);
+    }
+
+    private void testFlushWithHasher(KeyHasher hasher, int minSegmentUtilization, int maxFlushSize) throws Exception {
         // Generate a set of operations, each containing one or more entries. Each entry is an update or a remove.
         // Towards the beginning we have more updates than removes, then removes will prevail.
         @Cleanup
         val context = new TestContext(hasher);
         context.setMinUtilization(minSegmentUtilization);
+        context.setMaxFlushSize(maxFlushSize);
+
         val batches = generateAndPopulateEntries(context);
         val allKeys = new HashMap<BufferView, UUID>(); // All keys, whether added or removed.
 
@@ -258,12 +335,16 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected LUSN before call to flush().",
                     batch.operations.get(0).getSequenceNumber(), context.processor.getLowestUncommittedSequenceNumber());
 
-            // Flush.
-            val initialNotifyCount = context.connector.notifyCount.get();
-            val f1 = context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            AssertExtensions.assertGreaterThan("No calls to notifyIndexOffsetChanged().",
-                    initialNotifyCount, context.connector.notifyCount.get());
-            Assert.assertTrue(f1.isAnythingFlushed());
+            // Flush at least once. If maxFlushSize is not the default, then we're in a test that wants to verify repeated
+            // flushes; in that case we should flush until there's nothing more to flush.
+            int remainingFlushes = MAX_FLUSH_ATTEMPTS;
+            do {
+                val initialNotifyCount = context.connector.notifyCount.get();
+                val f1 = context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                AssertExtensions.assertGreaterThan("No calls to notifyIndexOffsetChanged().",
+                        initialNotifyCount, context.connector.notifyCount.get());
+                Assert.assertTrue(f1.isAnythingFlushed());
+            } while (maxFlushSize < DEFAULT_MAX_FLUSH_SIZE && --remainingFlushes > 0 && context.processor.mustFlush());
 
             // Post-flush validation.
             Assert.assertFalse("Unexpected value from mustFlush() after call to flush().", context.processor.mustFlush());
@@ -498,7 +579,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     @RequiredArgsConstructor
-    private class TestBatchData {
+    private static class TestBatchData {
         final HashMap<BufferView, TableEntry> expectedEntries;
         final List<CachedStreamSegmentAppendOperation> operations = new ArrayList<>();
     }
@@ -513,9 +594,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         final TableWriterConnectorImpl connector;
         final WriterTableProcessor processor;
         final IndexReader indexReader;
-        final TableStoreMock tableStoreMock;
         final Random random;
         final AtomicLong sequenceNumber;
+        final AtomicInteger maxFlushSize = new AtomicInteger(128 * 1024 * 1024);
 
         TestContext() {
             this(KeyHashers.DEFAULT_HASHER);
@@ -526,7 +607,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.serializer = new EntrySerializer();
             this.keyHasher = hasher;
             this.segmentMock = new SegmentMock(this.metadata, executorService());
-            this.tableStoreMock = new TableStoreMock(executorService());
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
@@ -543,6 +623,10 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         long nextSequenceNumber() {
             return this.sequenceNumber.incrementAndGet();
+        }
+
+        void setMaxFlushSize(int value) {
+            this.maxFlushSize.set(value);
         }
 
         void setMinUtilization(int value) {
@@ -562,9 +646,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)),
                     TIMEOUT).join();
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
-
-            // Create the Table Segment Mock.
-            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {
@@ -615,6 +696,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             @Override
             public int getMaxCompactionSize() {
                 return MAX_COMPACT_LENGTH;
+            }
+
+            @Override
+            public int getMaxFlushSize() {
+                return maxFlushSize.get();
             }
 
             @Override

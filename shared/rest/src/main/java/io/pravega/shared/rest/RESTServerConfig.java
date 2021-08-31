@@ -42,6 +42,12 @@ public interface RESTServerConfig extends ServerConfig {
     boolean isTlsEnabled();
 
     /**
+     * Version for the TLS protocol.
+     * @return TLS protocol Version is specified.
+     */
+    String[] tlsProtocolVersion();
+
+    /**
      * Path to a file which contains the key file for the TLS connection.
      * @return File which contains the key file for the TLS connection.
      */

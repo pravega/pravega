@@ -68,6 +68,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle, offset, sourceSegment);
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         checkPreconditions();
         log.debug("{} concat - started op={}, target={}, source={}, offset={}.",
@@ -106,11 +107,14 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
             }
             return f.thenComposeAsync(v2 -> {
                 targetSegmentMetadata.checkInvariants();
-
-                // Finally commit transaction.
-                return txn.commit()
-                        .exceptionally(this::handleException)
-                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                // Collect garbage.
+                return chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete)
+                        .thenComposeAsync(v4 -> {
+                            // Finally commit transaction.
+                            return txn.commit()
+                                    .exceptionally(this::handleException)
+                                    .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                        }, chunkedSegmentStorage.getExecutor());
             }, chunkedSegmentStorage.getExecutor());
         }, chunkedSegmentStorage.getExecutor());
     }
@@ -126,8 +130,6 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void postCommit() {
-            // Collect garbage.
-            chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
             // Update the read index.
             chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
             chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);

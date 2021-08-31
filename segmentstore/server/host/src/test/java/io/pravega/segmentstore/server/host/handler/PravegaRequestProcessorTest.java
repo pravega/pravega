@@ -29,7 +29,6 @@ import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -85,7 +84,6 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
@@ -498,7 +496,7 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
-                anyString(), anyString(), any());
+                anyString(), anyString(), any(), any());
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
@@ -522,7 +520,7 @@ public class PravegaRequestProcessorTest {
 
         //test txn segment merge
         CompletableFuture<MergeStreamSegmentResult> txnFuture = CompletableFuture.completedFuture(createMergeStreamSegmentResult(streamSegmentName, txnId));
-        doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
+        doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any(), any());
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
                 recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
@@ -531,7 +529,7 @@ public class PravegaRequestProcessorTest {
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());
+        verify(recorderMock).merge(streamSegmentName, 100L, 10, streamSegmentName.hashCode());
     }
 
     private MergeStreamSegmentResult createMergeStreamSegmentResult(String streamSegmentName, UUID txnId) {
@@ -541,21 +539,110 @@ public class PravegaRequestProcessorTest {
         return new MergeStreamSegmentResult(100, 100, attributes);
     }
 
-    private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
+    @Test(timeout = 20000)
+    public void testConditionalSegmentMergeReplaceIfEquals() throws Exception {
+        String streamSegmentName = "scope/stream/txnSegment";
+        UUID txnId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
-        Map<AttributeId, Long> attributes = new HashMap<>();
-        attributes.put(Attributes.EVENT_COUNT, 10L);
-        attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
 
-        return StreamSegmentInformation.builder()
-                .name(txnId == null ? streamSegmentName + "#." : streamSegmentName + "#transaction." + txnId)
-                .sealed(true)
-                .deleted(false)
-                .lastModified(null)
-                .startOffset(0)
-                .length(100)
-                .attributes(attributes)
-                .build();
+        // Try to merge the transaction conditionally, when the attributes on the parent segment do not match.
+        UUID randomAttribute1 = UUID.randomUUID();
+        UUID randomAttribute2 = UUID.randomUUID();
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = asList(
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute1, WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 1, streamSegmentName.hashCode()),
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute2, WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 2, streamSegmentName.hashCode())
+        );
+
+        // The first attempt should fail as the attribute update is not going to work.
+        assertTrue(append(transactionName, 1, store));
+        processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, false));
+
+        // Now, set the right attributes in the parent segment.
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute1,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(4, streamSegmentName, randomAttribute2,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(4, true));
+
+        // Merge segments conditionally, now it should work.
+        processor.mergeSegments(new WireCommands.MergeSegments(5, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(5, streamSegmentName, transactionName, 1));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(6, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(6, 1));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 2));
+    }
+
+    @Test(timeout = 20000)
+    public void testConditionalSegmentMergeReplace() throws Exception {
+        String streamSegmentName = "scope/stream/txnSegment";
+        UUID txnId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
+        assertTrue(append(transactionName, 1, store));
+
+        // Update to perform.
+        UUID randomAttribute1 = UUID.randomUUID();
+        UUID randomAttribute2 = UUID.randomUUID();
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = asList(
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute1, WireCommands.ConditionalAttributeUpdate.REPLACE, 1, 0),
+                new WireCommands.ConditionalAttributeUpdate(randomAttribute2, WireCommands.ConditionalAttributeUpdate.REPLACE, 2, 0)
+        );
+
+        // Set a attributes in the parent segment with a certain value.
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(2, streamSegmentName, randomAttribute1,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, true));
+        processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(3, streamSegmentName, randomAttribute2,
+                streamSegmentName.hashCode(), WireCommands.NULL_ATTRIBUTE_VALUE, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(3, true));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(4, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(4, streamSegmentName.hashCode()));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(5, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(5, streamSegmentName.hashCode()));
+
+        // Merge segments replacing attributes, now it should work.
+        processor.mergeSegments(new WireCommands.MergeSegments(6, streamSegmentName, transactionName, "", attributeUpdates));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(6, streamSegmentName, transactionName, 1));
+
+        // Check the value of attributes post merge.
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, randomAttribute1, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(7, 1));
+        processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(8, streamSegmentName, randomAttribute2, ""));
+        order.verify(connection).send(new WireCommands.SegmentAttribute(8, 2));
     }
 
     @Test(timeout = 20000)
@@ -690,11 +777,17 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
                 SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false);
 
+        int requestId = 0;
+
+        // GetInfo with non-existent Table Segment.
+        processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, tableSegmentName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, tableSegmentName, "", -1));
+
         // Execute and Verify createTableSegment calling stack is executed as design.
-        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, keyLength, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
-        processor.createTableSegment(new WireCommands.CreateTableSegment(2, tableSegmentName, false, keyLength, ""));
-        order.verify(connection).send(new WireCommands.SegmentAlreadyExists(2, tableSegmentName, ""));
+        processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName, false, keyLength, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, tableSegmentName));
+        processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName, false, keyLength, ""));
+        order.verify(connection).send(new WireCommands.SegmentAlreadyExists(requestId, tableSegmentName, ""));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
         verifyNoMoreInteractions(recorderMock);
 
@@ -706,30 +799,10 @@ public class PravegaRequestProcessorTest {
         Assert.assertEquals(keyLength > 0, segmentType.isFixedKeyLengthTableSegment());
         val kl = si.getAttributes().getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, 0L);
         Assert.assertEquals(keyLength, (long) kl);
-    }
 
-    /**
-     * Verifies that the methods that are not yet implemented are not implemented by accident without unit tests.
-     * This test should be removed once every method tested in it is implemented.
-     */
-    @Test(timeout = 20000)
-    public void testUnimplementedMethods() throws Exception {
-        // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "scope/stream/test";
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-        ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
-
-        assertThrows("seal() is implemented.",
-                     () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
-        assertThrows("merge() is implemented.",
-                     () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
+        // Verify segment info can be retrieved.
+        processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, tableSegmentName, ""));
+        order.verify(connection).send(new WireCommands.TableSegmentInfo(requestId, tableSegmentName, 0, 0, 0, keyLength));
     }
 
     @Test(timeout = 20000)
@@ -1383,7 +1456,7 @@ public class PravegaRequestProcessorTest {
                 PravegaRequestProcessor.TIMEOUT));
     }
 
-    private static ServiceBuilderConfig getBuilderConfig() {
+    static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
@@ -1404,7 +1477,7 @@ public class PravegaRequestProcessorTest {
                 .build();
     }
 
-    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+    static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));

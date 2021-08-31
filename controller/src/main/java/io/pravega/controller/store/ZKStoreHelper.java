@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -47,11 +48,21 @@ public class ZKStoreHelper {
     @VisibleForTesting
     @Getter(AccessLevel.PUBLIC)
     private final Cache cache;
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
 
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
         this.cache = new Cache();
+        //Listen for any zookeeper connectivity error and relinquish leadership.
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    this.isZKConnected.set(newState.isConnected());
+                });
+    }
+
+    public boolean isZKConnected() {
+        return isZKConnected.get();
     }
 
     /**
@@ -442,7 +453,7 @@ public class ZKStoreHelper {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
         // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
         // based on the type in caller's supplied Deserialization function. 
@@ -479,6 +490,7 @@ public class ZKStoreHelper {
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public boolean equals(Object obj) {
             return obj instanceof ZkCacheKey 
                     && path.equals(((ZkCacheKey) obj).path)

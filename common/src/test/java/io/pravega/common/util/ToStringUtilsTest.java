@@ -16,15 +16,12 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
-
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
 import org.junit.Test;
 
 import static io.pravega.common.util.ToStringUtils.compressToBase64;
@@ -73,7 +70,7 @@ public class ToStringUtilsTest {
     }
 
     @Test
-    public void testCompressBase64() throws IOException {
+    public void testCompressBase64() {
         //generate a random string.
         byte[] array = new byte[10];
         new Random().nextBytes(array);

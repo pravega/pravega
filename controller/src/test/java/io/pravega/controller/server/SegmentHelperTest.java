@@ -84,6 +84,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
         helper.getSegmentUri("", "", 0);
@@ -92,6 +93,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
@@ -132,6 +134,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
@@ -166,6 +169,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.deleteSegment("", "", 0L, "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -195,6 +199,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
@@ -228,6 +233,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
@@ -262,6 +268,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Long> retVal = helper.commitTransaction("", "", 0L, 
                 0L, new UUID(0, 0L), "", System.nanoTime());
@@ -295,6 +302,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, 
                 new UUID(0, 0L), "", System.nanoTime());
@@ -330,6 +338,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
                 "", System.nanoTime());
@@ -357,6 +366,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 "", System.nanoTime());
@@ -445,7 +455,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -455,14 +465,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.AuthFailed)
         );
 
-        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentRead("", 0, true, true,
                 Unpooled.wrappedBuffer(new byte[10]), requestId));
         result.join();
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0, 10,
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
@@ -471,6 +481,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testCreateTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = Long.MIN_VALUE;
 
@@ -500,6 +511,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = System.nanoTime();
 
@@ -536,6 +548,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testUpdateTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentEntry> entries = Arrays.asList(TableSegmentEntry.notExists("k".getBytes(), "v".getBytes()),
                 TableSegmentEntry.unversioned("k1".getBytes(), "v".getBytes()),
@@ -581,6 +594,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testRemoveTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentKey> keys = Arrays.asList(TableSegmentKey.notExists("k".getBytes()),
                 TableSegmentKey.notExists("k1".getBytes()));
@@ -621,6 +635,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
                 TableSegmentKey.unversioned(key1));
@@ -655,6 +670,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
         final List<TableSegmentKey> keys1 = Arrays.asList(
@@ -713,6 +729,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentEntry> entries1 = Arrays.asList(
                 TableSegmentEntry.versioned(key0, value, 10L),
@@ -768,6 +785,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testTimeout() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         helper.setTimeout(Duration.ofMillis(100));
         List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
@@ -785,6 +803,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     public void testProcessAndRethrowExceptions() {
         // The wire-command itself we use for this test is immaterial, so we are using the simplest one here.
         WireCommands.Hello dummyRequest = new WireCommands.Hello(0, 0);
+        @SuppressWarnings("resource")
         SegmentHelper objectUnderTest = new SegmentHelper(null, null, null);
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
