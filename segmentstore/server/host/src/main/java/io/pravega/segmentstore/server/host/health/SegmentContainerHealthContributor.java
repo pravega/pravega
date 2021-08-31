@@ -25,7 +25,7 @@ import lombok.NonNull;
 
 
 /**
- *  A contributor to manage health of segment container.
+ *  A contributor to manage health of Segment Container.
  */
 public class SegmentContainerHealthContributor extends AbstractHealthContributor {
     private final SegmentContainer segmentContainer;
@@ -39,18 +39,15 @@ public class SegmentContainerHealthContributor extends AbstractHealthContributor
     public Status doHealthCheck(Health.HealthBuilder builder) {
         Status status = Status.DOWN;
 
-        boolean newState = segmentContainer.state() == Service.State.NEW;
-        if (newState) {
+        if (segmentContainer.state() == Service.State.NEW) {
             status = Status.NEW;
         }
 
-        boolean starting = segmentContainer.state() == Service.State.STARTING;
-        if (starting) {
+        if (segmentContainer.state() == Service.State.STARTING) {
             status = Status.STARTING;
         }
 
-        boolean running = segmentContainer.state() == Service.State.RUNNING;
-        if (running) {
+        if (segmentContainer.state() == Service.State.RUNNING) {
             status = Status.UP;
         }
 
