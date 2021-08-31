@@ -173,8 +173,7 @@ public class LargeEventWriter {
     // Trick to fail fast if any of the futures have completed.
     private void failFast(ArrayList<CompletableFuture<Reply>> futures, String segmentId) throws TokenExpiredException,
             NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        for (int i = 0; i < futures.size(); i++) {
-            CompletableFuture<Reply> future = futures.get(i);
+        for (CompletableFuture<Reply> future : futures) {
             if (!future.isDone()) {
                 break;
             } else {
@@ -239,7 +238,7 @@ public class LargeEventWriter {
             }
         } else if (reply instanceof OperationUnsupported) {
             throw new UnsupportedOperationException("Attempted to write a large append on segment " + segmentId
-                    + " to a server version which only supports appends < 8mb.");
+                    + " to a server version which only supports appends < 8 MB.");
         } else if (reply instanceof ConditionalCheckFailed | reply instanceof InvalidEventNumber
                 | reply instanceof SegmentIsTruncated | reply instanceof SegmentAlreadyExists) {
             log.error("Failure: " + reply + " while appending to transient segment: " + segmentId

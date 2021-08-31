@@ -1,10 +1,17 @@
 /**
- * Copyright Pravega Authors. Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may obtain a copy of the License
- * at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in
- * writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
- * language governing permissions and limitations under the License.
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -319,7 +326,6 @@ public class LargeEventWriterTest {
         AtomicBoolean failed = new AtomicBoolean(false);
         AtomicBoolean succeeded = new AtomicBoolean(false);
         
-        
         answerRequest(connectionFactory,
                       connection,
                       location,
@@ -357,7 +363,6 @@ public class LargeEventWriterTest {
             return new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1);
         });
 
-        
         LargeEventWriter writer = new LargeEventWriter(writerId, controller, connectionFactory);
         writer.writeLargeEvent(segment, events, tokenProvider, EventWriterConfig.builder().build());
         assertTrue(failed.getAndSet(false));
@@ -399,7 +404,6 @@ public class LargeEventWriterTest {
         answerRequest(connectionFactory, connection, location, MergeSegments.class, r -> {
             return new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1);
         });
-
         
         writer = new LargeEventWriter(writerId, controller, connectionFactory);
         writer.writeLargeEvent(segment, events, tokenProvider, EventWriterConfig.builder().build());
