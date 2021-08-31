@@ -434,6 +434,9 @@ public class SystemJournal {
                                 if (attempt.get() >= config.getMaxJournalWriteAttempts()) {
                                     throw new CompletionException(ex);
                                 }
+                                log.warn("SystemJournal[{}] Error while writing journal {}. Attempt#{}", containerId,
+                                        getSystemJournalChunkName(containerId, epoch, currentFileIndex.get()), attempt.get(), e);
+
                                 // In case of partial write during previous failure, this time we'll get InvalidOffsetException.
                                 // In that case we start a new journal file and retry.
                                 if (ex instanceof InvalidOffsetException) {
@@ -735,19 +738,24 @@ public class SystemJournal {
      */
     private CompletableFuture<byte[]> getContents(String chunkPath) {
         val isReadDone = new AtomicBoolean();
+        val shouldBreak = new AtomicBoolean();
         val attempt = new AtomicInteger();
         val lastException = new AtomicReference<Throwable>();
         val retValue = new AtomicReference<byte[]>();
         // Try config.getMaxJournalReadAttempts() times.
         return Futures.loop(
-                () -> attempt.get() < config.getMaxJournalReadAttempts() && !isReadDone.get(),
+                () -> attempt.get() < config.getMaxJournalReadAttempts() && !isReadDone.get() && !shouldBreak.get(),
                 () -> readFully(chunkPath, retValue)
                         .handleAsync((v, e) -> {
                             attempt.incrementAndGet();
                             if (e != null) {
                                 // record the exception
                                 lastException.set(e);
-                                log.warn("SystemJournal[{}] Error while reading journal {}.", containerId, chunkPath, lastException);
+                                log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
+                                val ex = Exceptions.unwrap(e);
+                                if (!shouldRetry(ex)) {
+                                    shouldBreak.set(true);
+                                }
                                 return null;
                             } else {
                                 // no exception, we are done reading. Return the value.
@@ -758,12 +766,20 @@ public class SystemJournal {
                 executor)
                 .handleAsync((v, e) -> {
                     // If read is not done and we have exception then throw.
-                    if (!isReadDone.get() && lastException.get() != null) {
+                    if (shouldBreak.get() || (!isReadDone.get() && lastException.get() != null)) {
                         throw new CompletionException(lastException.get());
                     }
                     return v;
                 }, executor)
                 .thenApplyAsync(v -> retValue.get(), executor);
+    }
+
+    /**
+     * Returns whether operation should be retried after given exception.
+     */
+    private boolean shouldRetry(Throwable ex) {
+        // Skip retry if we know chunk does not exist.
+        return !(ex instanceof ChunkNotFoundException);
     }
 
     /**
@@ -823,32 +839,47 @@ public class SystemJournal {
                         fileIndexToRecover.set(1);
                     }
 
-                    // Process one file at a time.
+                    // Process one journal at a time.
+                    val scanAhead = new AtomicInteger();
                     val isScanDone = new AtomicBoolean();
                     return Futures.loop(
                             () -> !isScanDone.get(),
                             () -> {
                                 val systemLogName = getSystemJournalChunkName(containerId, epochToRecover.get(), fileIndexToRecover.get());
-                                return chunkStorage.exists(systemLogName)
-                                        .thenComposeAsync(exists -> {
-                                            if (!exists) {
-                                                // File does not exist. We have reached end of our scanning.
-                                                isScanDone.set(true);
-                                                log.debug("SystemJournal[{}] Done applying journal operations for epoch={}. Last journal index={}",
-                                                        containerId, epochToRecover.get(), fileIndexToRecover.get());
-                                                return CompletableFuture.completedFuture(null);
-                                            } else {
-                                                journalsProcessed.add(systemLogName);
-                                                // Read contents.
-                                                return getContents(systemLogName)
-                                                        // Apply record batches from the file.
-                                                        .thenComposeAsync(contents ->  processJournalContents(txn, state, systemLogName, new ByteArrayInputStream(contents)), executor)
-                                                        // Move to next file.
-                                                        .thenAcceptAsync(v -> {
-                                                            fileIndexToRecover.incrementAndGet();
-                                                            state.filesProcessedCount.incrementAndGet();
-                                                        }, executor);
+                                return getContents(systemLogName)
+                                        .thenApplyAsync(contents -> {
+                                            // We successfully read the contents.
+                                            journalsProcessed.add(systemLogName);
+                                            // Reset scan ahead counter.
+                                            scanAhead.set(0);
+                                            return contents;
+                                        }, executor)
+                                        // Apply record batches from the file.
+                                        .thenComposeAsync(contents ->  processJournalContents(txn, state, systemLogName, new ByteArrayInputStream(contents)), executor)
+                                        .handleAsync((v, e) -> {
+                                            if (null != e) {
+                                                val ex = Exceptions.unwrap(e);
+                                                if (ex instanceof ChunkNotFoundException) {
+                                                    // Journal chunk does not exist.
+                                                    log.debug("SystemJournal[{}] Journal does not exist for epoch={}. Last journal index={}",
+                                                            containerId, epochToRecover.get(), fileIndexToRecover.get());
+
+                                                    // Check whether we have reached end of our scanning (including scan ahead).
+                                                    if (scanAhead.incrementAndGet() > config.getMaxJournalWriteAttempts()) {
+                                                        isScanDone.set(true);
+                                                        log.debug("SystemJournal[{}] Done applying journal operations for epoch={}. Last journal index={}",
+                                                                containerId, epochToRecover.get(), fileIndexToRecover.get());
+                                                        return null;
+                                                    }
+                                                } else {
+                                                    throw new CompletionException(e);
+                                                }
                                             }
+
+                                            // Move to next journal.
+                                            fileIndexToRecover.incrementAndGet();
+                                            state.filesProcessedCount.incrementAndGet();
+                                            return v;
                                         }, executor);
                             },
                             executor);
