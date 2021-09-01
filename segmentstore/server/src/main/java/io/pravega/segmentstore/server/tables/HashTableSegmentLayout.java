@@ -28,6 +28,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -48,6 +49,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -104,7 +106,12 @@ class HashTableSegmentLayout extends TableSegmentLayout {
     @Override
     Map<AttributeId, Long> getNewSegmentAttributes(@NonNull TableSegmentConfig config) {
         Preconditions.checkArgument(config.getKeyLength() == 0, "Segment KeyLength must be 0 for HashTableSegments; actual %s.", config.getKeyLength());
-        return this.config.getDefaultCompactionAttributes();
+        val result = new HashMap<AttributeId, Long>();
+        result.putAll(this.config.getDefaultCompactionAttributes());
+        if (config.getRolloverSizeBytes() > 0) {
+            result.put(Attributes.ROLLOVER_SIZE, config.getRolloverSizeBytes());
+        }
+        return result;
     }
 
     @Override

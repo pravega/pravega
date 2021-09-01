@@ -309,8 +309,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         CompletableFuture<Void> createSegmentsFuture = Futures.allOf(segmentIds.stream().map(segment -> {
             // Use fixed scaling policy for these segments as they are created, merged into and sealed and are not
             // supposed to auto scale.
-            return streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken, 
-                    context.getRequestId());
+            return streamMetadataStore.getConfiguration(scope, stream, context, executor).thenCompose(config ->
+                    streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken,
+                    context.getRequestId(), config.getRolloverSizeBytes()));
         }).collect(Collectors.toList()));
 
         return createSegmentsFuture
