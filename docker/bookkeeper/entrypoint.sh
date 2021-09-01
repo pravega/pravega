@@ -32,7 +32,6 @@ BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
 ZK_URL=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/,/;/g')
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
-BK_setNewBookieID=${BK_setNewBookieID:-"false"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
@@ -84,15 +83,16 @@ set_bookieid() {
     echo "Found BookieID"
     BK_bookieId=`cat ${BK_ID_FILE}`
   else
-    echo "BookieID not found"
-    if [[ $BK_setNewBookieID == "true" ]];then
-      BK_bookieId="`hostname -s`-`date "+%Y%m%d-%H%M%S"`"
-    else
+    if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       HOST="$(echo -e `hostname -A` | sed -e 's/[[:space:]]*$//')"
       BK_bookieId="${HOST}:${BOOKIE_PORT}"
+    else
+      HOST="`hostname -s`"
+      BK_bookieId="${HOST}:${RANDOM}"
     fi
   fi
-  export BK_bookieId
+  echo "BookieID = $BK_bookieId"
+  sed -i "s|.*bookieId=.*\$|bookieId=${BK_bookieId}|" ${BK_HOME}/conf/bk_server.conf
 }
 
 wait_for_zookeeper() {
@@ -162,9 +162,9 @@ initialize_cluster() {
             fi
         fi
     fi
+    set -e
     echo "Writing BookieID ${BK_bookieId} in the persistant file ${BK_ID_FILE}"
     echo ${BK_bookieId} > ${BK_ID_FILE}
-    set -e
 }
 
 format_bookie_data_and_metadata() {

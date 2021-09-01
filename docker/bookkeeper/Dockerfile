@@ -47,6 +47,7 @@ RUN set -x \
 WORKDIR /opt/bookkeeper
 
 COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
+COPY bookkeeperTeardown.sh /opt/bookkeeper/scripts/bookkeeperTeardown.sh
 
 # For backwards compatibility with older operator versions
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
