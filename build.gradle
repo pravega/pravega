@@ -120,7 +120,7 @@ allprojects {
             force "io.netty:netty-handler-proxy:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
-            force "junit:junit:4.12:" + junitVersion
+            force "junit:junit:" + junitVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
