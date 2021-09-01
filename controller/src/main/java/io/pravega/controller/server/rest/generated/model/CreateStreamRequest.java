@@ -40,6 +40,12 @@ public class CreateStreamRequest   {
   @JsonProperty("streamTags")
   private TagsList streamTags = null;
 
+  @JsonProperty("timestampAggregationTimeout")
+  private Long timestampAggregationTimeout = null;
+
+  @JsonProperty("rolloverSizeBytes")
+  private Long rolloverSizeBytes = null;
+
   public CreateStreamRequest streamName(String streamName) {
     this.streamName = streamName;
     return this;
@@ -116,6 +122,44 @@ public class CreateStreamRequest   {
     this.streamTags = streamTags;
   }
 
+  public CreateStreamRequest timestampAggregationTimeout(Long timestampAggregationTimeout) {
+    this.timestampAggregationTimeout = timestampAggregationTimeout;
+    return this;
+  }
+
+  /**
+   * Get timestampAggregationTimeout
+   * @return timestampAggregationTimeout
+   **/
+  @JsonProperty("timestampAggregationTimeout")
+  @ApiModelProperty(value = "")
+  public Long getTimestampAggregationTimeout() {
+    return timestampAggregationTimeout;
+  }
+
+  public void setTimestampAggregationTimeout(Long timestampAggregationTimeout) {
+    this.timestampAggregationTimeout = timestampAggregationTimeout;
+  }
+
+  public CreateStreamRequest rolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+    return this;
+  }
+
+  /**
+   * Get rolloverSizeBytes
+   * @return rolloverSizeBytes
+   **/
+  @JsonProperty("rolloverSizeBytes")
+  @ApiModelProperty(value = "")
+  public Long getRolloverSizeBytes() {
+    return rolloverSizeBytes;
+  }
+
+  public void setRolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -129,12 +173,14 @@ public class CreateStreamRequest   {
     return Objects.equals(this.streamName, createStreamRequest.streamName) &&
         Objects.equals(this.scalingPolicy, createStreamRequest.scalingPolicy) &&
         Objects.equals(this.retentionPolicy, createStreamRequest.retentionPolicy) &&
-        Objects.equals(this.streamTags, createStreamRequest.streamTags);
+        Objects.equals(this.streamTags, createStreamRequest.streamTags) &&
+        Objects.equals(this.timestampAggregationTimeout, createStreamRequest.timestampAggregationTimeout) &&
+        Objects.equals(this.rolloverSizeBytes, createStreamRequest.rolloverSizeBytes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(streamName, scalingPolicy, retentionPolicy, streamTags);
+    return Objects.hash(streamName, scalingPolicy, retentionPolicy, streamTags, timestampAggregationTimeout, rolloverSizeBytes);
   }
 
 
@@ -147,6 +193,8 @@ public class CreateStreamRequest   {
     sb.append("    scalingPolicy: ").append(toIndentedString(scalingPolicy)).append("\n");
     sb.append("    retentionPolicy: ").append(toIndentedString(retentionPolicy)).append("\n");
     sb.append("    streamTags: ").append(toIndentedString(streamTags)).append("\n");
+    sb.append("    timestampAggregationTimeout: ").append(toIndentedString(timestampAggregationTimeout)).append("\n");
+    sb.append("    rolloverSizeBytes: ").append(toIndentedString(rolloverSizeBytes)).append("\n");
     sb.append("}");
     return sb.toString();
   }

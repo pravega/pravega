@@ -165,6 +165,8 @@ public class ModelHelperTest {
         StreamConfig config = decode("scope", "test", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
+                .timestampAggregationTimeout(1000L)
+                .rolloverSizeBytes(1024L)
                 .build());
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getScalingPolicy();
@@ -176,6 +178,8 @@ public class ModelHelperTest {
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
         assertEquals(Collections.emptyList(), config.getTags().getTagList());
+        assertEquals(1000L, config.getTimestampAggregationTimeout());
+        assertEquals(1024L, config.getRolloverSizeBytes());
     }
 
     @Test
@@ -207,6 +211,8 @@ public class ModelHelperTest {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode("scope", "test", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
                 .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
+                .timestampAggregationTimeout(1000L)
+                .rolloverSizeBytes(1024L)
                 .build()));
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
@@ -217,6 +223,8 @@ public class ModelHelperTest {
         assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
         assertEquals(1000L, retentionPolicy.getRetentionParam());
         assertEquals(Collections.emptySet(), config.getTags());
+        assertEquals(1000L, config.getTimestampAggregationTimeout());
+        assertEquals(1024L, config.getRolloverSizeBytes());
     }
 
     @Test
@@ -324,21 +332,32 @@ public class ModelHelperTest {
     @Test
     public void encodeKeyValueTableConfig() {
         Controller.KeyValueTableConfig config = Controller.KeyValueTableConfig.newBuilder()
-                .setScope("scope").setKvtName("kvtable").setPartitionCount(2)
-                .setPrimaryKeyLength(Integer.BYTES).setSecondaryKeyLength(Long.BYTES).build();
+                .setScope("scope").setKvtName("kvtable")
+                .setPartitionCount(2)
+                .setPrimaryKeyLength(Integer.BYTES)
+                .setSecondaryKeyLength(Long.BYTES)
+                .setRolloverSizeBytes(1024L)
+                .build();
         KeyValueTableConfiguration configuration = ModelHelper.encode(config);
         assertEquals(config.getPartitionCount(), configuration.getPartitionCount());
         assertEquals(config.getPrimaryKeyLength(), configuration.getPrimaryKeyLength());
         assertEquals(config.getSecondaryKeyLength(), configuration.getSecondaryKeyLength());
+        assertEquals(config.getRolloverSizeBytes(), configuration.getRolloverSizeBytes());
     }
 
     @Test
     public void decodeKeyValueTableConfig() {
         Controller.KeyValueTableConfig config = ModelHelper.decode("scope", "kvtable",
-                KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(Integer.BYTES).secondaryKeyLength(Long.BYTES).build());
+                KeyValueTableConfiguration.builder()
+                        .partitionCount(2)
+                        .primaryKeyLength(Integer.BYTES)
+                        .secondaryKeyLength(Long.BYTES)
+                        .rolloverSizeBytes(1024L)
+                        .build());
         assertEquals(2, config.getPartitionCount());
         assertEquals(Integer.BYTES, config.getPrimaryKeyLength());
         assertEquals(Long.BYTES, config.getSecondaryKeyLength());
+        assertEquals(1024L, config.getRolloverSizeBytes());
     }
 
     @Test
@@ -366,7 +385,8 @@ public class ModelHelperTest {
         ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(scope, stream, 0), 90L).build();
         StreamCut sc = new StreamCutImpl(Stream.of(scope, stream), positions);
         ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(getScopedStreamName(scope, stream), StreamCut.UNBOUNDED, sc).build();
+                .stream(getScopedStreamName(scope, stream), StreamCut.UNBOUNDED, sc)
+                .build();
         Controller.ReaderGroupConfiguration decodedConfig = decode(scope, "group", config);
         assertEquals(config, ModelHelper.encode(decodedConfig));
     }

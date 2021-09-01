@@ -936,7 +936,7 @@ public abstract class RequestHandlersTest {
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis(), 0L).join();
 
-        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L).join().getKey().getId();
+        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L, 1024 * 1024L).join().getKey().getId();
         streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, 
                 null, executor).join();
         
