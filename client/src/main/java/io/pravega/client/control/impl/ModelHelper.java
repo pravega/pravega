@@ -290,7 +290,6 @@ public final class ModelHelper {
                 .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
-                .rolloverSizeBytes(rgConfig.getRolloverSizeBytes())
                 .build();
         return ReaderGroupConfig.cloneConfig(cfg, UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration());
     }
@@ -520,7 +519,6 @@ public final class ModelHelper {
                 .setRetentionType(config.getRetentionType().ordinal())
                 .setGeneration(config.getGeneration())
                 .setReaderGroupId(readerGroupId.toString())
-                .setRolloverSizeBytes(config.getRolloverSizeBytes())
                 .addAllStartingStreamCuts(startStreamCuts)
                 .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();

@@ -382,7 +382,6 @@ public abstract class ControllerServiceWithStreamTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC)
-                .rolloverSizeBytes(1024L)
                 .build();
         Controller.CreateReaderGroupResponse rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
                                                         rgConfig, System.currentTimeMillis(), 0L).get();

@@ -51,7 +51,6 @@ public class ReaderGroupConfigRecord {
     private final Map<String, RGStreamCutRecord> startingStreamCuts;
     private final Map<String, RGStreamCutRecord> endingStreamCuts;
     private final boolean updating;
-    private final long rolloverSizeBytes;
 
     public static class ReaderGroupConfigRecordBuilder implements ObjectBuilder<ReaderGroupConfigRecord> {
 
@@ -73,7 +72,6 @@ public class ReaderGroupConfigRecord {
                 .startingStreamCuts(startStreamCuts)
                 .endingStreamCuts(endStreamCuts)
                 .updating(isUpdating)
-                .rolloverSizeBytes(rgConfig.getRolloverSizeBytes())
                 .build();
     }
 
@@ -87,7 +85,6 @@ public class ReaderGroupConfigRecord {
                 .startingStreamCuts(rgConfigRecord.getStartingStreamCuts())
                 .endingStreamCuts(rgConfigRecord.getEndingStreamCuts())
                 .updating(false)
-                .rolloverSizeBytes(rgConfigRecord.getRolloverSizeBytes())
                 .build();
     }
 
@@ -111,7 +108,6 @@ public class ReaderGroupConfigRecord {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
-            version(0).revision(1, this::write01, this::read01);
         }
 
         @Override
@@ -153,17 +149,6 @@ public class ReaderGroupConfigRecord {
             revisionDataOutput.writeMap(rgConfigurationRecord.endingStreamCuts, DataOutput::writeUTF,
                     RGStreamCutRecord.SERIALIZER::serialize);
             revisionDataOutput.writeBoolean(rgConfigurationRecord.isUpdating());
-        }
-
-        private void read01(RevisionDataInput revisionDataInput,
-                            ReaderGroupConfigRecordBuilder configurationRecordBuilder)
-                throws IOException {
-            configurationRecordBuilder.rolloverSizeBytes(revisionDataInput.readLong());
-        }
-
-        private void write01(ReaderGroupConfigRecord rgConfigurationRecord, RevisionDataOutput revisionDataOutput)
-                throws IOException {
-            revisionDataOutput.writeLong(rgConfigurationRecord.getRolloverSizeBytes());
         }
 
         @Override

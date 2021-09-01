@@ -50,7 +50,6 @@ public class ReaderGroupConfig implements Serializable {
 
     public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
     public static final long DEFAULT_GENERATION = -1;
-    public static final long DEFAULT_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024L; // 4MB
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
     private final long groupRefreshTimeMillis;
@@ -68,9 +67,6 @@ public class ReaderGroupConfig implements Serializable {
     private final long generation;
     @EqualsAndHashCode.Exclude
     private final UUID readerGroupId;
-
-    private final long rolloverSizeBytes;
-
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
@@ -101,7 +97,6 @@ public class ReaderGroupConfig implements Serializable {
                 .maxOutstandingCheckpointRequest(configToClone.getMaxOutstandingCheckpointRequest())
                 .startingStreamCuts(configToClone.getStartingStreamCuts())
                 .endingStreamCuts(configToClone.getEndingStreamCuts())
-                .rolloverSizeBytes(configToClone.getRolloverSizeBytes())
                 .build();
     }
 
@@ -261,18 +256,6 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
-        /**
-         * Set the rollover size for the {@link ReaderGroup} internal stream segment.
-         * When this field is left unset, the default value will be used.
-         * Default value: 4 * 1024 * 1024L.
-         * @param rolloverSizeBytes rollover size for the internal stream segment.
-         * @return Reader group config builder.
-         */
-        public ReaderGroupConfigBuilder rolloverSizeBytes(final long rolloverSizeBytes) {
-            this.rolloverSizeBytes = rolloverSizeBytes;
-            return this;
-        }
-
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
@@ -294,13 +277,9 @@ public class ReaderGroupConfig implements Serializable {
            Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
                    "Outstanding checkpoint request should be greater than zero");
 
-           //rollover size should be >= 0
-           Preconditions.checkArgument(rolloverSizeBytes >= 0,
-                   String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
-           rolloverSizeBytes = rolloverSizeBytes == 0 ? DEFAULT_SEGMENT_ROLLOVER_SIZE_BYTES : rolloverSizeBytes;
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
                    startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType,
-                   generation, readerGroupId, rolloverSizeBytes);
+                   generation, readerGroupId);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -367,7 +346,6 @@ public class ReaderGroupConfig implements Serializable {
             version(0).revision(0, this::write00, this::read00);
             version(0).revision(1, this::write01, this::read01);
             version(0).revision(2, this::write02, this::read02);
-            version(0).revision(3, this::write03, this::read03);
         }
 
         private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
@@ -419,14 +397,6 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeCompactInt(object.retentionType.ordinal());
             revisionDataOutput.writeLong(object.getGeneration());
             revisionDataOutput.writeUUID(object.getReaderGroupId());
-        }
-
-        private void read03(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            builder.rolloverSizeBytes(revisionDataInput.readLong());
-        }
-
-        private void write03(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(object.getRolloverSizeBytes());
         }
     }
 

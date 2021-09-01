@@ -98,7 +98,7 @@ public class ControllerEventSerializerTests {
         testClass(() ->
                 new CreateReaderGroupEvent(111L, SCOPE, READER_GROUP,
                         123L, 456L, 10,
-                        1, 0L, UUID.randomUUID(), testMap, testMap, System.currentTimeMillis(), 1024L));
+                        1, 0L, UUID.randomUUID(), testMap, testMap, System.currentTimeMillis()));
     }
 
     @Test

@@ -386,7 +386,6 @@ public class ModelHelperTest {
         StreamCut sc = new StreamCutImpl(Stream.of(scope, stream), positions);
         ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(getScopedStreamName(scope, stream), StreamCut.UNBOUNDED, sc)
-                .rolloverSizeBytes(1024L)
                 .build();
         Controller.ReaderGroupConfiguration decodedConfig = decode(scope, "group", config);
         assertEquals(config, ModelHelper.encode(decodedConfig));

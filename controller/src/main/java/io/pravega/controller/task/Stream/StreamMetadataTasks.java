@@ -138,6 +138,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+    private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -422,7 +423,7 @@ public class StreamMetadataTasks extends TaskBase {
         return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
                 config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
                 config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                startStreamCuts, endStreamCuts, createTimestamp, config.getRolloverSizeBytes());
+                startStreamCuts, endStreamCuts, createTimestamp);
     }
 
     public CompletableFuture<CreateReaderGroupResponse.Status> createReaderGroupTasks(final String scope, final String readerGroup,
@@ -454,7 +455,8 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).thenCompose(x -> createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).rolloverSizeBytes(config.getRolloverSizeBytes()).build(),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                        .rolloverSizeBytes(READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES).build(),
                 System.currentTimeMillis(), 10, getRequestId(context))
                 .thenCompose(createStatus -> {
                     if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)

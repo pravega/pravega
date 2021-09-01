@@ -282,8 +282,7 @@ public class ModelHelper {
                 .setGeneration(rgConfig.getGeneration())
                 .setReaderGroupId(rgId.toString())
                 .addAllStartingStreamCuts(startStreamCuts)
-                .addAllEndingStreamCuts(endStreamCuts)
-                .setRolloverSizeBytes(rgConfig.getRolloverSizeBytes());
+                .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();
 
     }
