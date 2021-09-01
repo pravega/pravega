@@ -43,6 +43,7 @@ public class CreateTableEvent implements ControllerEvent {
     private final long timestamp;
     private final long requestId;
     private final UUID tableId;
+    private final long rolloverSizeBytes;
 
     @Override
     public String getKey() {
@@ -72,6 +73,7 @@ public class CreateTableEvent implements ControllerEvent {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(0).revision(1, this::write01, this::read01);
         }
 
         private void write00(CreateTableEvent e, RevisionDataOutput target) throws IOException {
@@ -94,6 +96,14 @@ public class CreateTableEvent implements ControllerEvent {
             eb.tableId(source.readUUID());
             eb.primaryKeyLength(source.readInt());
             eb.secondaryKeyLength(source.readInt());
+        }
+
+        private void write01(CreateTableEvent e, RevisionDataOutput target) throws IOException {
+            target.writeLong(e.rolloverSizeBytes);
+        }
+
+        private void read01(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
+            eb.rolloverSizeBytes(source.readLong());
         }
     }
     //endregion

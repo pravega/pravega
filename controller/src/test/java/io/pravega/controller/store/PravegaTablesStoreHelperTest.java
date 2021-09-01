@@ -199,19 +199,19 @@ public class PravegaTablesStoreHelperTest {
 
         CompletableFuture<Void> connectionDropped = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionDropped));
-        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
         AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> connectionFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
         AssertExtensions.assertFutureThrows("ConnectionFailed", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> authFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.AuthFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
         AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
     }

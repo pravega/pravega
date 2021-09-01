@@ -126,6 +126,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         val result = new HashMap<AttributeId, Long>();
         result.put(Attributes.ATTRIBUTE_ID_LENGTH, (long) config.getKeyLength());
         result.putAll(this.config.getDefaultCompactionAttributes());
+        if (config.getRolloverSizeBytes() > 0) {
+            result.put(Attributes.ROLLOVER_SIZE, config.getRolloverSizeBytes());
+        }
         return result;
     }
 

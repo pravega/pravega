@@ -37,6 +37,7 @@ public class StreamConfigurationTest {
         StreamConfiguration streamConfig = StreamConfiguration.builder().build();
         assertEquals(ScalingPolicy.fixed(1), streamConfig.getScalingPolicy() );
         assertEquals(0, streamConfig.getTags().size());
+        assertEquals(0L, streamConfig.getRolloverSizeBytes());
     }
 
     @Test
@@ -49,9 +50,10 @@ public class StreamConfigurationTest {
         assertEquals(2, streamConfig.getTags().size());
         assertEquals(tagList, streamConfig.getTags());
 
-        streamConfig = StreamConfiguration.builder().tags(tagList).build();
+        streamConfig = StreamConfiguration.builder().tags(tagList).rolloverSizeBytes(1024).build();
         assertEquals(2, streamConfig.getTags().size());
         assertEquals(tagList, streamConfig.getTags());
+        assertEquals(1024L, streamConfig.getRolloverSizeBytes());
     }
 
     @Test
@@ -65,6 +67,8 @@ public class StreamConfigurationTest {
         // Exceed the permissible number of tags for String.
         List<String> tags = IntStream.range(0, 130).mapToObj(String::valueOf).collect(Collectors.toList());
         assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().tags(tags).build());
+        // Invalid rollover size
+        assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().rolloverSizeBytes(-1024).build());
     }
 
     @Test
