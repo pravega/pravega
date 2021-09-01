@@ -251,6 +251,13 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
+    protected Map<String, Object> getBookkeeperImageSpec(String imageName) {
+        return ImmutableMap.<String, Object>builder().put("imageSpec", ImmutableMap.builder()
+                .put("repository", imageName)
+                .put("pullPolicy", IMAGE_PULL_POLICY)
+                .build()).build();
+    }
+
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
         return ImmutableMap.<String, Object>builder()
                 .put("limits", ImmutableMap.builder()
@@ -334,7 +341,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, BOOKKEEPER_VERSION))
+        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
                 .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
