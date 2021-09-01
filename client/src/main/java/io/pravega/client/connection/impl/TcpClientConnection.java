@@ -218,7 +218,7 @@ public class TcpClientConnection implements ClientConnection {
                 reader.start();
                 // We use the flow id on both CommandEncoder and ConnectionReader to locate AppendBatchSizeTrackers.
                 CommandEncoder encoder = new CommandEncoder(requestId ->
-                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(requestId)), null, socket.getOutputStream());
+                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(requestId)), null, socket.getOutputStream(), callback, location);
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
                 closeQuietly(socket, log, "Failed to close socket while failing.");
