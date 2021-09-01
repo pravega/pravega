@@ -163,7 +163,7 @@ initialize_cluster() {
         fi
     fi
     set -e
-    echo "Writing BookieID ${BK_bookieId} in the persistant file ${BK_ID_FILE}"
+    echo "Writing BookieID ${BK_bookieId} in the persistent file ${BK_ID_FILE}"
     echo ${BK_bookieId} > ${BK_ID_FILE}
 }
 
