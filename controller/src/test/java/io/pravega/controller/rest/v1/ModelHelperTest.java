@@ -54,11 +54,24 @@ public class ModelHelperTest {
         createStreamRequest.setStreamName("stream");
         createStreamRequest.setScalingPolicy(scalingConfig);
 
-        // Stream with Fixed Scaling Policy and no Retention Policy
+        // Stream with Fixed Scaling Policy and no Retention Policy and default rolloverSize
         StreamConfiguration streamConfig = getCreateStreamConfig(createStreamRequest);
         Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 0);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 0);
+
+        // Stream with Fixed Scaling Policy and no Retention Policy and positive rolloverSize
+        createStreamRequest = new CreateStreamRequest();
+        createStreamRequest.setStreamName("stream");
+        createStreamRequest.setScalingPolicy(scalingConfig);
+        createStreamRequest.setTimestampAggregationTimeout(1000L);
+        createStreamRequest.setRolloverSizeBytes(1024L);
+
+        streamConfig = getCreateStreamConfig(createStreamRequest);
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 1024L);
 
         // Stream with Fixed Scaling Policy & Size based Retention Policy with min & max limits
         RetentionConfig retentionConfig = new RetentionConfig();
@@ -196,11 +209,15 @@ public class ModelHelperTest {
         scalingConfig.setMinSegments(2);
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         updateStreamRequest.setScalingPolicy(scalingConfig);
+        updateStreamRequest.setTimestampAggregationTimeout(1000L);
+        updateStreamRequest.setRolloverSizeBytes(1024L);
 
         StreamConfiguration streamConfig = getUpdateStreamConfig(updateStreamRequest);
         Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 1024L);
 
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingConfig.setTargetRate(123);
@@ -254,10 +271,14 @@ public class ModelHelperTest {
         Assert.assertEquals(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS, streamProperty.getScalingPolicy().getType());
         Assert.assertEquals((Integer) 1, streamProperty.getScalingPolicy().getMinSegments());
         Assert.assertNull(streamProperty.getRetentionPolicy());
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 0L);
+        Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 0L);
 
         streamConfig = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byDataRate(100, 200, 1))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
+                .timestampAggregationTimeout(1000L)
+                .rolloverSizeBytes(1024L)
                 .build();
         streamProperty = encodeStreamResponse("scope", "stream", streamConfig);
         Assert.assertEquals(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC,
@@ -268,6 +289,8 @@ public class ModelHelperTest {
         Assert.assertEquals(RetentionConfig.TypeEnum.LIMITED_DAYS,
                 streamProperty.getRetentionPolicy().getType());
         Assert.assertEquals((Long) 100L, streamProperty.getRetentionPolicy().getValue());
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 1024L);
 
         streamConfig = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 200, 1))

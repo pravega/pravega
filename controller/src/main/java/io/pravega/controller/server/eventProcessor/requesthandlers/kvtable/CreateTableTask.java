@@ -67,11 +67,13 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         int secondaryKeyLength = request.getSecondaryKeyLength();
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
+        long rolloverSize = request.getRolloverSizeBytes();
         String kvTableId = request.getTableId().toString();
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
                                             .partitionCount(partitionCount)
                                             .primaryKeyLength(primaryKeyLength)
                                             .secondaryKeyLength(secondaryKeyLength)
+                                            .rolloverSizeBytes(rolloverSize)
                                             .build();
 
         final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);
@@ -95,7 +97,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         .boxed()
                                         .map(x -> NameUtils.computeSegmentId(x, 0))
                                         .collect(Collectors.toList());
-                                kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, keyLength, requestId)
+                                kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, keyLength, requestId, config.getRolloverSizeBytes())
                                         .thenCompose(y -> {
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
