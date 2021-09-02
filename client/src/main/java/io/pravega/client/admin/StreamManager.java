@@ -188,6 +188,17 @@ public interface StreamManager extends AutoCloseable {
     boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException;
 
     /**
+     * Deletes scope by listing and deleting all streams in scope. This method is atomic and new streams can not be added if this
+     * method is called. Deleting scope is idempotent and failure to
+     * delete scope is retry-able.
+     *
+     * @param scopeName  The name of the scope to delete.
+     * @return True if scope is deleted, false otherwise.
+     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
+     */
+    boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException;
+
+    /**
      * Get information about a given Stream, {@link StreamInfo}.
      * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current
      * {@link StreamConfiguration}

@@ -28,13 +28,7 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -147,6 +141,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         }
         return Futures.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
+    }
+
+    @Override
+    public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
+        return false;
     }
 
     @Override

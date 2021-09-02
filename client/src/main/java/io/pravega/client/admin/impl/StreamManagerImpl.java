@@ -192,6 +192,13 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope: {}", scopeName);
+        return Futures.getThrowingException(controller.deleteScopeRecursive(scopeName));
+    }
+
+    @Override
     public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
@@ -209,7 +216,7 @@ public class StreamManagerImpl implements StreamManager {
                             e -> {
                                 Throwable unwrap = Exceptions.unwrap(e);
                                 // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
-                                // ignore failures if the stream doesnt exist or we are unable to seal it. 
+                                // ignore failures if the stream doesn't exist or we are unable to seal it.
                                 return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
                             }, false).thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())));
                 } catch (Exception e) {

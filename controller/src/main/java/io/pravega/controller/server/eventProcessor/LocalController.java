@@ -180,6 +180,25 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        return this.controller.deleteScope(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete scope: " + scopeName);
+                case SCOPE_NOT_EMPTY:
+                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
+                case SCOPE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {

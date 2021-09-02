@@ -546,6 +546,14 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE, scopeName, requestId);
+        return null;
+    }
+
+    @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotClosed(closed.get(), this);
