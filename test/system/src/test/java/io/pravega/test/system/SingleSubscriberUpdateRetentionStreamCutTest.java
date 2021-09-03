@@ -121,6 +121,7 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
     public void tearDown() {
         streamManager.close();
         ExecutorServiceHelpers.shutdown(executor);
+        ExecutorServiceHelpers.shutdown(streamCutExecutor);
     }
 
     @Test
