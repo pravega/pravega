@@ -78,7 +78,7 @@ public class PravegaRequestProcessorAuthFailedTest {
 
     @Test
     public void createSegment() {
-        processor.createSegment(new WireCommands.CreateSegment(100L, "segment", (byte) 0, 0, "token"));
+        processor.createSegment(new WireCommands.CreateSegment(100L, "segment", (byte) 0, 0, "token", 0));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, "", TOKEN_CHECK_FAILED));
     }
 

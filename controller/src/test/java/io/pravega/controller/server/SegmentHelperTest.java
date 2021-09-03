@@ -96,7 +96,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE, 1024L);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -106,18 +106,18 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
-        CompletableFuture<Void> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, -1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         ret.join();
 
         // handleUnexpectedReply
-        CompletableFuture<Void> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        CompletableFuture<Void> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         AssertExtensions.assertThrows("",
@@ -126,7 +126,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE, 0L);
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
     }
@@ -237,7 +237,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
-                "", System.nanoTime());
+                "", System.nanoTime(), 1024 * 1024L);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -248,18 +248,18 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         );
 
         CompletableFuture<Void> result = helper.createTransaction("", "", 0L, 
-                new UUID(0L, 0L), "", System.nanoTime());
+                new UUID(0L, 0L), "", System.nanoTime(), 1024 * 1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
         
-        result = helper.createTransaction("", "", 0L, new UUID(0L, 0L), "", System.nanoTime());
+        result = helper.createTransaction("", "", 0L, new UUID(0L, 0L), "", System.nanoTime(), 1024 * 1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTransaction("", "", 0L, txId,
-                "", System.nanoTime());
+                "", System.nanoTime(), 1024 * 1024L);
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
@@ -455,7 +455,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -465,14 +465,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.AuthFailed)
         );
 
-        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0, 10,
+        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentRead("", 0, true, true,
                 Unpooled.wrappedBuffer(new byte[10]), requestId));
         result.join();
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0, 10,
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0L, 10,
                 new PravegaNodeUri("localhost", 12345), "");
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
@@ -486,20 +486,20 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false, 0);
+        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false, 0, 0L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", requestId, false, 0);
+        result = helper.createTableSegment("", "", requestId, false, 0, -1024L);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, false, 0);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, false, 0, 1024L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);

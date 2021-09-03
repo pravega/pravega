@@ -235,6 +235,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public void truncateToRevision(Revision newStart) {
         Futures.getThrowingException(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()));
+        log.info("Truncate segment {} to revision {}", newStart.asImpl().getSegment(), newStart);
     }
 
     @Override

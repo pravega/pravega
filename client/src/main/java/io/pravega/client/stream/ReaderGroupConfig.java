@@ -50,7 +50,6 @@ public class ReaderGroupConfig implements Serializable {
 
     public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
     public static final long DEFAULT_GENERATION = -1;
-
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
     private final long groupRefreshTimeMillis;
@@ -68,7 +67,6 @@ public class ReaderGroupConfig implements Serializable {
     private final long generation;
     @EqualsAndHashCode.Exclude
     private final UUID readerGroupId;
-
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
@@ -280,7 +278,8 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType, generation, readerGroupId);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType,
+                   generation, readerGroupId);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
