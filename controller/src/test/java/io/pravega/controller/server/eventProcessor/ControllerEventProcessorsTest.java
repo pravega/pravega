@@ -110,17 +110,19 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
 
         when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
-
+        when(checkpointStore.isHealthy()).thenReturn(false).thenReturn(true);
         @Cleanup
-        ControllerEventProcessors processors = new ControllerEventProcessors("host1",
+        ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
-                kvtStore, kvtTasks, system, executorService());
-        //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
+                kvtStore, kvtTasks, system, executorService()));
+        //check for a case where init is not initialized so that kvtRequestProcessors don't get initialized and will be null
+        doReturn(true).when(processors).isBootstrapCompleted();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         Assert.assertFalse(processors.isReady());
-        Assert.assertFalse(processors.isBootstrapCompleted());
-        Assert.assertFalse(processors.isMetadataServiceConnected());
+        Assert.assertTrue(processors.isReady());
+        Assert.assertTrue(processors.isBootstrapCompleted());
+        Assert.assertTrue(processors.isMetadataServiceConnected());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));

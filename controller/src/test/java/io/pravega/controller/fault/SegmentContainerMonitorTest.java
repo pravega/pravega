@@ -140,7 +140,7 @@ public class SegmentContainerMonitorTest {
 
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
                 new UniformContainerBalancer(), 2);
-        Assert.assertFalse(monitor.isZKConnected());
+        Assert.assertTrue(monitor.isZKConnected());
         monitor.startAsync().awaitRunning();
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 
