@@ -17,6 +17,7 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.security.ZKTLSUtils;
@@ -146,6 +147,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         private int containerCount = 4;
         private boolean enableRestServer = true;
         private boolean replyWithStackTraceOnError = true;
+        private String[] tlsProtocolVersion = new TLSProtocolVersion(SingleNodeConfig.TLS_PROTOCOL_VERSION.getDefaultValue()).getProtocols();
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
