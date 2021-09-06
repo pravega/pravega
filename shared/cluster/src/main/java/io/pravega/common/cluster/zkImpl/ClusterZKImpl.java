@@ -77,6 +77,7 @@ public class ClusterZKImpl implements Cluster {
             client.start();
         }
         this.isZKConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> this.isZKConnected.set(newState.isConnected()));
     }
