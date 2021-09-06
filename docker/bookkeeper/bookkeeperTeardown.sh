@@ -36,5 +36,7 @@ CLUSTERSIZE=`zk-shell --run-once "get ${BK_CLUSTER_ROOT_PATH}/conf" ${BK_zkServe
 
 if [[ -n "$CLUSTERSIZE" && "$CLUSTERSIZE" -le "$ORD" ]]; then
   # If ClusterSize < Ordinal number, this instance is being permanantly removed
+  # Therefore formatting any pre-existent data and deleting all cookies
+  # created by this bookie instance to avoid potential conflicts
   /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
 fi
