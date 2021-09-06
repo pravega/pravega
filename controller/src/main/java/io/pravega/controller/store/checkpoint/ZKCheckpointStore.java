@@ -65,6 +65,7 @@ public class ZKCheckpointStore implements CheckpointStore {
             }
         };
         this.groupDataSerializer = new JavaSerializer<>();
+        this.isZKConnected.set(client.getZookeeperClient().isConnected());
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {

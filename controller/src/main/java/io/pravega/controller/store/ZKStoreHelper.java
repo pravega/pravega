@@ -55,6 +55,7 @@ public class ZKStoreHelper {
         this.executor = executor;
         this.cache = new Cache();
         //Listen for any zookeeper connectivity error and relinquish leadership.
+        this.isZKConnected.set(client.getZookeeperClient().isConnected());
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
                     this.isZKConnected.set(newState.isConnected());
