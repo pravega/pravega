@@ -125,7 +125,7 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
     }
 
     @Test
-    public void basicCBRTest() throws Exception {
+    public void singleSubscriberCBRTest() throws Exception {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
 
         @Cleanup
