@@ -177,9 +177,9 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // Check to make sure truncation happened after the first event.
         // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
         // and a little longer in order to confirm that the retention has taken place.
-        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 30.", true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
-                5 * 60 * 1000L);
+                60 * 1000, 5 * 60 * 1000L);
 
         // Read next event.
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
@@ -203,8 +203,8 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // Check to make sure truncation happened after the second event.
         // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
         // and a little longer in order to confirm that the retention has taken place.
-        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60", true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
-                5 * 60 * 1000L);
+                60 * 1000, 5 * 60 * 1000L);
     }
 }
