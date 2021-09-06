@@ -67,7 +67,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
-    private static final Duration COMMIT_PROCESSOR_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration COMMIT_PROCESSOR_TIMEOUT = Duration.ofSeconds(10);
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -149,7 +149,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
+                .loop(() -> isRunning() || this.commitQueue.size() > 0,
                         () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
                                 .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
@@ -205,15 +205,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         closeQueue(ex);
-        if (!isShutdownException(ex)) {
-            // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
-            // record the failure and then stop the OperationProcessor.
-            super.errorHandler(ex);
-
-            // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
-            // will prevent anything new from being added while also cancelling in-flight requests.
-            this.executor.execute(this::stopAsync);
-        }
+        super.errorHandler(ex);
+        // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
+        // will prevent anything new from being added while also cancelling in-flight requests.
+        this.executor.execute(this::stopAsync);
     }
 
     @SneakyThrows
