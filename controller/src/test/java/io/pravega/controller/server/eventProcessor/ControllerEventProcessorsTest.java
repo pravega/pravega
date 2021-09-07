@@ -112,17 +112,18 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
         when(checkpointStore.isHealthy()).thenReturn(false).thenReturn(true);
         @Cleanup
-        ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
+        ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
-                kvtStore, kvtTasks, system, executorService()));
+                kvtStore, kvtTasks, system, executorService());
+        ControllerEventProcessors spyProcessors = spy(processors);
         //check for a case where init is not initialized so that kvtRequestProcessors don't get initialized and will be null
-        doReturn(true).when(processors).isBootstrapCompleted();
-        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
-        Assert.assertFalse(processors.isReady());
-        Assert.assertTrue(processors.isReady());
-        Assert.assertTrue(processors.isBootstrapCompleted());
-        Assert.assertTrue(processors.isMetadataServiceConnected());
+        doReturn(true).when(spyProcessors).isBootstrapCompleted();
+        assertTrue(Futures.await(spyProcessors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        Assert.assertFalse(spyProcessors.isReady());
+        Assert.assertTrue(spyProcessors.isReady());
+        Assert.assertTrue(spyProcessors.isBootstrapCompleted());
+        Assert.assertTrue(spyProcessors.isMetadataServiceConnected());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
