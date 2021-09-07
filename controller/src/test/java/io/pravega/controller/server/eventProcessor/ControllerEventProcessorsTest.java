@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.apache.curator.CuratorZookeeperClient;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -96,7 +97,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
-        HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
@@ -106,6 +106,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = getProcessor();
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
+        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
 
@@ -124,6 +125,11 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         Assert.assertTrue(spyProcessors.isReady());
         Assert.assertTrue(spyProcessors.isBootstrapCompleted());
         Assert.assertTrue(spyProcessors.isMetadataServiceConnected());
+        doReturn(false).when(spyProcessors).isBootstrapCompleted();
+        doReturn(true).when(curatorZKClientMock).isConnected();
+        Assert.assertFalse(spyProcessors.isReady());
+        doReturn(true).when(spyProcessors).isBootstrapCompleted();
+        Assert.assertTrue(spyProcessors.isReady());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
