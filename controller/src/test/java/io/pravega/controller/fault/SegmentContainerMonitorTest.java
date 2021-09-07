@@ -27,7 +27,6 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
-import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
