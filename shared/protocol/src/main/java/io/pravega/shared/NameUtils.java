@@ -39,7 +39,7 @@ public final class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
-    private static final short SEGMENT_FILE_PREFIX = 0;
+    public static final short SEGMENT_FILE_PREFIX = 0;
 
     private static final short JOURNAL_FILE_PREFIX = 1;
 

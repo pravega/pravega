@@ -33,6 +33,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
 
     private final AtomicInteger counter = new AtomicInteger(0);
 
+    private final ChunkObjectPrefetcher prefetcher;
     @NonNull
     private final String bucket;
 
@@ -47,12 +48,14 @@ public class ECSChunkStorage extends BaseChunkStorage {
         this.config = Preconditions.checkNotNull(config, "config");
         this.clientList = Preconditions.checkNotNull(clientList, "client");
         this.bucket = config.getBucket();
+        this.prefetcher = new ChunkObjectPrefetcher(this, 10);
+        this.prefetcher.init();
     }
 
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
-            var response = getClient(chunkName).headObject(HeadObjectRequest.builder()
+            var response = getClient(chunkName, false).headObject(HeadObjectRequest.builder()
                     .bucket(bucket)
                     .key(getObjectPath(chunkName))
                     .build());
@@ -75,7 +78,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                             .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
 
-            var response = getClient(chunkName).putObject(requestBuilder.bucket(bucket)
+            var response = getClient(chunkName, true).putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(chunkName)).contentLength(0L)
                             .build(),
                     RequestBody.empty());
@@ -90,10 +93,33 @@ public class ECSChunkStorage extends BaseChunkStorage {
         }
     }
 
+    protected ChunkHandle preCreate(String chunkName, S3Client client) throws ChunkStorageException {
+        try {
+            var requestBuilder = PutObjectRequest
+                    .builder()
+                    .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
+                            .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
+                            .build());
+
+            var response = client.putObject(requestBuilder.bucket(bucket)
+                            .key(getObjectPath(chunkName)).contentLength(0L)
+                            .build(),
+                    RequestBody.empty());
+            log.info("pre-create chunk {}", chunkName);
+            if (response.sdkHttpResponse().statusCode() == HttpStatusCode.OK) {
+                return ChunkHandle.writeHandle(chunkName);
+            } else {
+                return ChunkHandle.writeHandle(chunkName); // TODO triage error code
+            }
+        } catch (Exception e) {
+            throw convertException(chunkName, "preCreate", e);
+        }
+    }
+
     @Override
     protected boolean checkExists(String chunkName) throws ChunkStorageException {
         try {
-            var response = getClient(chunkName).headObject(HeadObjectRequest.builder()
+            var response = getClient(chunkName, false).headObject(HeadObjectRequest.builder()
                     .bucket(bucket)
                     .key(getObjectPath(chunkName))
                     .build());
@@ -126,7 +152,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
         String chunkName = handle.getChunkName();
         try {
             log.info("delete chunk {}", chunkName);
-            var response = getClient(chunkName).deleteObject(DeleteObjectRequest.builder()
+            var response = getClient(chunkName, false).deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucket)
                     .key(getObjectPath(chunkName))
                     .build());
@@ -154,7 +180,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
         String chunkName = handle.getChunkName();
         int bytesRead = 0;
         try {
-            var responseIn = getClient(chunkName).getObject(GetObjectRequest.builder()
+            var responseIn = getClient(chunkName, false).getObject(GetObjectRequest.builder()
                     .bucket(bucket)
                     .key(getObjectPath(chunkName)).range(makeRange(fromOffset, fromOffset + length))
                     .build());
@@ -181,7 +207,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                     .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
                             .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
-            var response = getClient(chunkName).putObject(requestBuilder.bucket(bucket)
+            var response = getClient(chunkName, true).putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(chunkName)).contentLength((long) length)
                             .build(),
                     RequestBody.fromInputStream(data, length));
@@ -203,7 +229,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                     .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
                             .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                             .build());
-            var response = getClient(chunkName).putObject(requestBuilder.bucket(bucket)
+            var response = getClient(chunkName, true).putObject(requestBuilder.bucket(bucket)
                             .key(getObjectPath(chunkName)).contentLength((long) length)
                             .build(),
                     RequestBody.fromInputStream(data, length));
@@ -236,7 +262,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
                             .overrideConfiguration(AwsRequestOverrideConfiguration.builder()
                                     .putHeader(config.HeaderEMCExtensionIndexGranularity, String.valueOf(config.indexGranularity))
                                     .build());
-                    S3Client s3Client =  getClient(chunkName);
+                    S3Client s3Client =  getClient(chunkName, false);
                     var headRes = s3Client.headObject(HeadObjectRequest.builder()
                             .bucket(bucket)
                             .key(getObjectPath(chunkName))
@@ -362,17 +388,21 @@ public class ECSChunkStorage extends BaseChunkStorage {
         return chunkName;
     }
 
-    private S3Client getClient(String chunk){
+    private S3Client getClient(String chunk, boolean cache){
         S3Client s3Client = chunkClientMap.get(chunk);
         if(s3Client == null){
             S3Client newClient = getNextClient();
-            s3Client = chunkClientMap.putIfAbsent(chunk, newClient);
-            return Objects.requireNonNullElse(s3Client, newClient);
+            if (cache) {
+                s3Client = chunkClientMap.putIfAbsent(chunk, newClient);
+                return Objects.requireNonNullElse(s3Client, newClient);
+            } else {
+                return newClient;
+            }
         }
         return s3Client;
     }
 
-    private S3Client getNextClient() {
+     S3Client getNextClient() {
         return clientList.get(MathHelpers.abs(counter.incrementAndGet()) % clientList.size());
     }
 
