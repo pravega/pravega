@@ -719,7 +719,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
                 .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
                 .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
-
                 .build();
         @Cleanup
         TestContext context = new TestContext(config);
@@ -745,6 +744,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         val ff2 = context.writer.forceFlush(context.metadata.getOperationSequenceNumber(), TIMEOUT);
         val result2 = ff2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertFalse("Not expected anything to be flushed the second time.", result2);
+    }
+
+    /**
+     * Verifies that the StorageWriter does not create an Attribute Aggregator for Transient Segments.
+     */
+    @Test
+    public void testNoAttributeAggregatorTransientSegments() {
+
     }
 
     /**
