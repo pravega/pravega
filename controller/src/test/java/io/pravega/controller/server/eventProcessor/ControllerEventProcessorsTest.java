@@ -29,7 +29,6 @@ import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
