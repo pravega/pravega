@@ -154,7 +154,7 @@ public class ControllerClusterListenerTest {
         clusterListener.stopAsync();
 
         clusterListener.awaitTerminated();
-        Assert.assertTrue(clusterListener.isReady());
+        Assert.assertFalse(clusterListener.isRunning());
         validateRemovedNode(host.getHostId());
     }
 
