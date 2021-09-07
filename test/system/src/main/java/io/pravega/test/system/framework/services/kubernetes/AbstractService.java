@@ -251,7 +251,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    protected Map<String, Object> getBookkeeperImageSpec(String imageName) {
+    private Map<String, Object> getBookkeeperImageSpec(String imageName) {
         return ImmutableMap.<String, Object>builder().put("imageSpec", ImmutableMap.builder()
                 .put("repository", imageName)
                 .put("pullPolicy", IMAGE_PULL_POLICY)
