@@ -28,7 +28,7 @@ BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
 if [[ $HOST =~ (.*)-([0-9]+)$ ]]; then
   ORD=${BASH_REMATCH[2]}
 else
-  echo Failed to parse name and ordinal of Pod
+  echo "Failed to parse ordinal value of the pod"
   exit 1
 fi
 
