@@ -15,6 +15,7 @@
  */
 package io.pravega.test.system;
 
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +46,11 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -56,6 +60,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
     private static final int NUM_STREAMS = 5;
     private static final int NUM_EVENTS = 100;
     private static final int TEST_ITERATIONS = 3;
+    private static final int TEST_MAX_STREAMS = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(20 * 60);
 
@@ -134,7 +139,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
 
     private void testStreamScopeManagementIteration() {
         for (int i = 0; i < NUM_SCOPES; i++) {
-            final String scope = "testStreamsAndScopesManagement" + String.valueOf(i);
+            final String scope = "testStreamsAndScopesManagement" + i;
             testCreateScope(scope);
             testCreateSealAndDeleteStreams(scope);
             testDeleteScope(scope);
@@ -209,6 +214,66 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
             assertFalse(streamManager.deleteStream(scope, stream));
         }
     }
+
+    @Test
+    public void testStreamTags() {
+        // Perform management tests with Streams and Scopes.
+        for (int i = 0; i < TEST_MAX_STREAMS; i++) {
+            log.info("Stream tag test in iteration {}.", i);
+            final String scope = "testStreamsTags" + i;
+            testCreateScope(scope);
+            testCreateUpdateDeleteStreamTag(scope);
+            testDeleteScope(scope);
+        }
+    }
+
+    private void testCreateUpdateDeleteStreamTag(String scope) {
+        final ImmutableSet<String> tagSet1 = ImmutableSet.of("t1", "t2", "t3");
+        final ImmutableSet<String> tagSet2 = ImmutableSet.of("t3", "t4", "t5");
+        // Create and Update Streams
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
+            final String stream = "stream" + j;
+            log.info("creating a new stream in scope {}/{}", stream, scope);
+            streamManager.createStream(scope, stream, config);
+            log.info("updating the stream in scope {}/{}", stream, scope);
+            streamManager.updateStream(scope, stream, config.toBuilder().tags(tagSet1).build());
+            assertEquals(tagSet1, streamManager.getStreamTags(scope, stream));
+        }
+        // Check the size of streams with tagName t1
+        assertEquals(TEST_MAX_STREAMS, newArrayList(streamManager.listStreams(scope, "t1")).size());
+        // Check if the lists of tag t3 and t1 are equal
+        assertEquals(newArrayList(streamManager.listStreams(scope, "t3")), newArrayList(streamManager.listStreams(scope, "t1")));
+
+        // Update the streams with new tagSet
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
+            final String stream = "stream" + j;
+            log.info("updating the stream tag scope {}/{}", stream, scope);
+            futures.add(CompletableFuture.runAsync(() -> streamManager.updateStream(scope, stream, config.toBuilder().clearTags().tags(tagSet2).build())));
+        }
+        assertEquals(TEST_MAX_STREAMS, futures.size());
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        // Check if the update was successfully done
+        assertTrue(newArrayList(streamManager.listStreams(scope, "t1")).isEmpty());
+        assertEquals(TEST_MAX_STREAMS, newArrayList(streamManager.listStreams(scope, "t4")).size());
+        final int tagT3Size = newArrayList(streamManager.listStreams(scope, "t3")).size();
+        final int tagT4Size = newArrayList(streamManager.listStreams(scope, "t4")).size();
+        log.info("list size of t3 tags and t4 are {}/{}", tagT3Size, tagT4Size);
+        assertEquals(tagT3Size, tagT4Size);
+
+        // seal and delete stream
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            final String stream = "stream" + j;
+            streamManager.sealStream(scope, stream);
+            log.info("deleting the stream in scope {}/{}", stream, scope);
+            streamManager.deleteStream(scope, stream);
+        }
+        // Check if list streams is updated.
+        assertTrue(newArrayList(streamManager.listStreams(scope)).isEmpty());
+    }
+
 
     private long timeDiffInMs(long iniTime) {
         return (System.nanoTime() - iniTime) / 1000000;

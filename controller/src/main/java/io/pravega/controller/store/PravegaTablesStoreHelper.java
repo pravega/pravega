@@ -304,6 +304,7 @@ public class PravegaTablesStoreHelper {
                                                   return segmentHelper.updateTableEntries(tableName, Collections.singletonList(updatedEntry), authToken.get(), requestId)
                                                                       .thenCompose(keyVersions -> {
                                                                           if (shouldAttemptCleanup) {
+                                                                              log.debug(requestId, "Delete of table key {} on table {}", tableKey, tableName);
                                                                               // attempt a conditional delete of the entry since there are zero entries.
                                                                               return conditionalDeleteOfKey(tableName, requestId, tableKey, keyVersions.get(0));
                                                                           } else {

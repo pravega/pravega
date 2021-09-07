@@ -181,7 +181,7 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Close the write queue and cancel the pending writes.
-            this.writes.close().forEach(w -> w.fail(new ObjectClosedException("BookKeeperLog has been closed."), true));
+            this.writes.close().forEach(w -> w.fail(new ObjectClosedException(this), true));
 
             if (writeLedger != null) {
                 try {

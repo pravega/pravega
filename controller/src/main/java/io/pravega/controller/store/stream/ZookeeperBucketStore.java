@@ -47,6 +47,10 @@ public class ZookeeperBucketStore implements BucketStore {
         storeHelper = new ZKStoreHelper(client, executor);
     }
 
+    public boolean isZKConnected() {
+        return storeHelper.isZKConnected();
+    }
+    
     @Override
     public StoreType getStoreType() {
         return StoreType.Zookeeper;
