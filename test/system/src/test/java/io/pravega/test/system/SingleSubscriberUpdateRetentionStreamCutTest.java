@@ -179,7 +179,7 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // and a little longer in order to confirm that the retention has taken place.
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 30.", true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
-                60 * 1000, 5 * 60 * 1000L);
+                1000, 5 * 60 * 1000L);
 
         // Read next event.
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
@@ -205,6 +205,6 @@ public class SingleSubscriberUpdateRetentionStreamCutTest extends AbstractReadWr
         // and a little longer in order to confirm that the retention has taken place.
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60", true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
-                60 * 1000, 5 * 60 * 1000L);
+                1000, 5 * 60 * 1000L);
     }
 }
