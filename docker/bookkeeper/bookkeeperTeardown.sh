@@ -32,6 +32,7 @@ else
   exit 1
 fi
 
+# ClusterSize is set by the bookkeeper operator
 CLUSTERSIZE=`zk-shell --run-once "get ${BK_CLUSTER_ROOT_PATH}/conf" ${BK_zkServers} | cut -d'=' -f 2`
 
 if [[ -n "$CLUSTERSIZE" && "$CLUSTERSIZE" -le "$ORD" ]]; then
