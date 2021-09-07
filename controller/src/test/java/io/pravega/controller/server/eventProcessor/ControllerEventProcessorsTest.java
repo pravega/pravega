@@ -90,7 +90,8 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
     }
-    @Test
+
+    @Test(timeout = 10000)
     public void testisReady() {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
