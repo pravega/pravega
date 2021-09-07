@@ -36,7 +36,7 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
     }
 
     @Override
-    public void execute() throws Exception {
+    public void execute() {
         ensureArgCount(2);
 
         final String fullyQualifiedTableSegmentName = getArg(0);
@@ -47,7 +47,7 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         CompletableFuture<WireCommands.TableSegmentInfo> reply = adminSegmentHelper.getTableSegmentInfo(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
-        // TODO: Serializer logic here.
+        output("GetTableSegmentInfo: %s", reply.join().toString());
     }
 
     public static CommandDescriptor descriptor() {
