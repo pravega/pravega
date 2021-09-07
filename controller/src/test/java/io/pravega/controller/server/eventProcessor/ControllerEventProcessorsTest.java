@@ -58,6 +58,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.apache.curator.CuratorZookeeperClient;
+import org.apache.curator.framework.CuratorFramework;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -89,6 +90,50 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
     }
+    @Test
+    public void testisReady() {
+        Controller localController = mock(Controller.class);
+        CheckpointStore checkpointStore = mock(CheckpointStore.class);
+        StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
+        BucketStore bucketStore = mock(BucketStore.class);
+        ConnectionPool connectionPool = mock(ConnectionPool.class);
+        StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
+        ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
+        EventProcessorSystem system = mock(EventProcessorSystem.class);
+        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
+        CuratorFramework client  = mock(CuratorFramework.class);
+        when(checkpointStore.isHealthy()).thenReturn(true);
+        @Cleanup
+        ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
+                config, localController, checkpointStore, streamStore, bucketStore,
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
+                kvtStore, kvtTasks, system, executorService()));
+        Assert.assertFalse(processors.isReady());
+        doReturn(true).when(processors).isBootstrapCompleted();
+        Assert.assertTrue(processors.isBootstrapCompleted());
+        doReturn(curatorZKClientMock).when(client).getZookeeperClient();
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        // Check isReady() method with four possible cases
+        // 1. BootStrap = false and MetadataService = false
+        doReturn(false).when(processors).isBootstrapCompleted();
+        doReturn(false).when(processors).isMetadataServiceConnected();
+        Assert.assertFalse(processors.isReady());
+        // 2. BootStrap = false and MetadataService = true
+        doReturn(false).when(processors).isBootstrapCompleted();
+        doReturn(true).when(processors).isMetadataServiceConnected();
+        Assert.assertFalse(processors.isReady());
+        // 3. BootStrap = true and MetadataService = false
+        doReturn(true).when(processors).isBootstrapCompleted();
+        doReturn(false).when(processors).isMetadataServiceConnected();
+        Assert.assertFalse(processors.isReady());
+        // 4. BootStrap = true and MetadataService = true
+        doReturn(true).when(processors).isBootstrapCompleted();
+        doReturn(true).when(processors).isMetadataServiceConnected();
+        Assert.assertTrue(processors.isReady());
+    }
 
     @Test(timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
@@ -105,30 +150,20 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = getProcessor();
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
-        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
-
         when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
-        when(checkpointStore.isHealthy()).thenReturn(false).thenReturn(true);
+
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
-        ControllerEventProcessors spyProcessors = spy(processors);
         //check for a case where init is not initialized so that kvtRequestProcessors don't get initialized and will be null
-        doReturn(true).when(spyProcessors).isBootstrapCompleted();
-        assertTrue(Futures.await(spyProcessors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
-        Assert.assertFalse(spyProcessors.isReady());
-        Assert.assertTrue(spyProcessors.isReady());
-        Assert.assertTrue(spyProcessors.isBootstrapCompleted());
-        Assert.assertTrue(spyProcessors.isMetadataServiceConnected());
-        doReturn(false).when(spyProcessors).isBootstrapCompleted();
-        doReturn(true).when(curatorZKClientMock).isConnected();
-        Assert.assertFalse(spyProcessors.isReady());
-        doReturn(true).when(spyProcessors).isBootstrapCompleted();
-        Assert.assertTrue(spyProcessors.isReady());
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        Assert.assertFalse(processors.isReady());
+        Assert.assertFalse(processors.isBootstrapCompleted());
+        Assert.assertFalse(processors.isMetadataServiceConnected());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
