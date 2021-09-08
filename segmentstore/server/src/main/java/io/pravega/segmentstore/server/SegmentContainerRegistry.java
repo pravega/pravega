@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 package io.pravega.segmentstore.server;
-
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -39,6 +39,13 @@ public interface SegmentContainerRegistry extends AutoCloseable {
     SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
 
     /**
+     * Gets a reference to the all the SegmentContainers.
+     *
+     * @return collection of SegmentContainers within the registry.
+     */
+    Collection<SegmentContainer> getContainers();
+
+    /**
      * Starts processing the container with given Id.
      *
      * @param containerId The Id of the container to start processing.
@@ -49,6 +56,13 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @throws IllegalStateException If the container is already started.
      */
     CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout);
+
+    /**
+     * Tells if registry is closed.
+     *
+     * @return if the registry is closed.
+     */
+    boolean isClosed();
 
     /**
      * Starts processing the container associated with the given handle.
