@@ -393,7 +393,7 @@ public class MockController implements Controller {
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "", 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -405,7 +405,7 @@ public class MockController implements Controller {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
 
-        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, false, 0, "");
+        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, false, 0, "", 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -704,7 +704,7 @@ public class MockController implements Controller {
         };
         String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
-                0, ""), replyProcessor, result);
+                0, "", 0), replyProcessor, result);
         return result;
     }
 

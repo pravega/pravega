@@ -2431,13 +2431,13 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
-        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
 
-        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
 
-        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
         
         // set transaction to committing
