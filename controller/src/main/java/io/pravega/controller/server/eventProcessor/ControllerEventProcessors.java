@@ -209,7 +209,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
      * @return true if zookeeper is connected and bootstrap is completed.
      */
     public boolean isReady() {
-        log.info("inside isReady method, values of isMetadataServiceConnected is {} and isBootstrapCompleted is {}",
+        log.info("inside CEP isReady method, values of isMetadataServiceConnected is {} and isBootstrapCompleted is {}",
                 isMetadataServiceConnected(), isBootstrapCompleted());
         return isMetadataServiceConnected() && isBootstrapCompleted();
     }
