@@ -306,7 +306,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.REST_KEYSTORE_PASSWORD_FILE, this.keyPasswordFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
-                        .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)
+                        .with(ServiceConfig.LISTENING_IP_ADDRESS, "0.0.0.0")
                         .with(ServiceConfig.PUBLISHED_IP_ADDRESS, LOCALHOST)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
