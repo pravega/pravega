@@ -149,7 +149,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> isRunning() || this.commitQueue.size() > 0,
+                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
                         () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
                                 .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
