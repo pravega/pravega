@@ -113,10 +113,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 kvtStore, kvtTasks, system, executorService()));
         Assert.assertFalse(processors.isReady());
-        doReturn(true).when(processors).isBootstrapCompleted();
-        Assert.assertTrue(processors.isBootstrapCompleted());
         doReturn(curatorZKClientMock).when(client).getZookeeperClient();
-        Assert.assertTrue(processors.isMetadataServiceConnected());
         // Check isReady() method with four possible cases
         // 1. BootStrap = false and MetadataService = false
         doReturn(false).when(processors).isBootstrapCompleted();
