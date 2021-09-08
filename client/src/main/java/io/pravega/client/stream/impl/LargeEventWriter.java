@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nonnull;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -62,13 +63,24 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 
+/**
+ * Used by {@link EventStreamWriterImpl} to write events larger than {@link Serializer#MAX_EVENT_SIZE}.
+ * It works by creating a Transient segment and then writing the data to the transient segment in multiple commands,
+ * then merging the transient segment into the parent segment.
+ * 
+ * Ordinary connection failures and other transient errors are handled internally. However if the parent segment is sealed
+ * this this class will throw {@link SegmentSealedException} and the caller will have to handle it.
+ */
 @RequiredArgsConstructor
 @Slf4j
 public class LargeEventWriter {
 
     private static final int WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
+    @Nonnull
     private final UUID writerId;
+    @Nonnull
     private final Controller controller;
+    @Nonnull
     private final ConnectionPool connectionPool;
 
     public void writeLargeEvent(Segment segment, List<ByteBuffer> events, DelegationTokenProvider tokenProvider,
@@ -140,7 +152,7 @@ public class LargeEventWriter {
         AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
                                                        created.getSegment());
 
-        if (appendSetup.getLastEventNumber() != 0) {
+        if (appendSetup.getLastEventNumber() != WireCommands.NULL_ATTRIBUTE_VALUE) {
             throw new IllegalStateException(
                     "Server indicates that transient segment was already written to: " + created.getSegment());
         }

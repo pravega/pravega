@@ -177,6 +177,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             try {
                 writer.writeLargeEvent(segment, events, tokenProvider, config);
                 success = true;
+                ackFuture.complete(null);
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 log.warn("Write large event on segment {} failed due to {}, it will be retried.", segment, e.getMessage());
                 handleLogSealed(segment);
