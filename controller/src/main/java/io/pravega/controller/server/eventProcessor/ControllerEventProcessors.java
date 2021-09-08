@@ -195,10 +195,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
      }
 
     /**
+     * Get bootstrap completed status
      *
      * @return true if bootstrapCompleted is set to true.
      */
-    public boolean isBootstrapCompleted(){
+    public boolean isBootstrapCompleted() {
         return this.bootstrapCompleted.get();
     }
 
