@@ -195,7 +195,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
      }
 
     /**
-     * Get bootstrap completed status
+     * Get bootstrap completed status.
      *
      * @return true if bootstrapCompleted is set to true.
      */
