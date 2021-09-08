@@ -80,6 +80,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -123,7 +124,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
     @Getter
-    private boolean bootstrapCompleted = false;
+    private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -194,11 +195,21 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
      }
 
     /**
+     *
+     * @return true if bootstrapCompleted is set to true.
+     */
+    public boolean isBootstrapCompleted(){
+        return this.bootstrapCompleted.get();
+    }
+
+    /**
      * Get the health status.
      *
      * @return true if zookeeper is connected and bootstrap is completed.
      */
     public boolean isReady() {
+        log.info("inside isReady method, values of isMetadataServiceConnected is {} and isBootstrapCompleted is {}",
+                isMetadataServiceConnected(), isBootstrapCompleted());
         return isMetadataServiceConnected() && isBootstrapCompleted();
     }
 
@@ -359,7 +370,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
                     () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
                     delay, executor), executor);
-            this.bootstrapCompleted = true;
+            this.bootstrapCompleted.set(true);
+            log.info("Bootstrapping controller completed.");
         }, executor);
     }
 
