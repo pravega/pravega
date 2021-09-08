@@ -76,14 +76,16 @@ create_bookie_dirs() {
 # Create a Bookie ID if this is a newly added bookkeeper pod
 # or read the Bookie ID if it already exists
 set_bookieid() {
-  IFS=',' read -ra directories <<< $1
-  BK_ID_DIR="${directories[0]}"
+  IFS=',' read -ra journal_directories <<< $BK_journalDirectories
+  IFS=',' read -ra ledger_directories <<< $BK_ledgerDirectories
+  IFS=" " eval 'directory_names="${journal_directories[*]} ${ledger_directories[*]}"'
+  BK_ID_DIR="${journal_directories[0]}"
   BK_ID_FILE="${BK_ID_DIR}/id"
   if [ `find ${BK_ID_FILE} | wc -l` -gt 0 ]; then
     echo "Found BookieID"
     BK_bookieId=`cat ${BK_ID_FILE}`
   else
-    if [ `find $BK_journalDirectories $BK_ledgerDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+    if [ `find $directory_names -type f 2> /dev/null | wc -l` -gt 0 ]; then
       HOST="$(echo -e `hostname -A` | sed -e 's/[[:space:]]*$//')"
       BK_bookieId="${HOST}:${BOOKIE_PORT}"
     else
@@ -168,7 +170,10 @@ initialize_cluster() {
 }
 
 format_bookie_data_and_metadata() {
-    if [ `find $BK_journalDirectories $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+    IFS=',' read -ra journal_directories <<< $BK_journalDirectories
+    IFS=',' read -ra ledger_directories <<< $BK_ledgerDirectories
+    IFS=" " eval 'directory_names="${journal_directories[*]} ${ledger_directories[*]}"'
+    if [ `find $directory_names $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       # The container already contains data in BK directories. Examples of when this can happen include:
       #    - A container was restarted, say, in a non-Kubernetes deployment.
       #    - A container running on Kubernetes was updated/evacuated, and
@@ -195,7 +200,7 @@ create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
 
 echo "Configuring the Bookie ID"
-set_bookieid "${BK_journalDirectories}"
+set_bookieid
 
 echo "Sourcing ${SCRIPTS_DIR}/common.sh"
 source ${SCRIPTS_DIR}/common.sh
