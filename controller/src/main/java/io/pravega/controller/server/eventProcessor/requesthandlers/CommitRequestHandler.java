@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * Request handler for processing commit events in commit-stream.
  */
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleTask.class));
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CommitRequestHandler.class));
 
     private static final int MAX_TRANSACTION_COMMIT_BATCH_SIZE = 100;
 
