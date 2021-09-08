@@ -83,7 +83,7 @@ set_bookieid() {
     echo "Found BookieID"
     BK_bookieId=`cat ${BK_ID_FILE}`
   else
-    if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+    if [ `find $BK_journalDirectories $BK_ledgerDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       HOST="$(echo -e `hostname -A` | sed -e 's/[[:space:]]*$//')"
       BK_bookieId="${HOST}:${BOOKIE_PORT}"
     else
@@ -168,7 +168,7 @@ initialize_cluster() {
 }
 
 format_bookie_data_and_metadata() {
-    if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+    if [ `find $BK_journalDirectories $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       # The container already contains data in BK directories. Examples of when this can happen include:
       #    - A container was restarted, say, in a non-Kubernetes deployment.
       #    - A container running on Kubernetes was updated/evacuated, and
