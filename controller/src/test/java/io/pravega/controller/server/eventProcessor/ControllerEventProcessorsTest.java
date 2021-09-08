@@ -92,7 +92,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testisReady() {
+    public void testIsReady() {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
