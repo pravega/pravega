@@ -97,7 +97,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         answerRequest(connectionFactory, connection, location, ConditionalBlockEnd.class, r -> {
             ByteBuf data = r.getData();
             written.add(data);
@@ -146,7 +146,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         answerRequest(connectionFactory, connection, location, ConditionalBlockEnd.class, r -> {
             count.getAndIncrement();
             return new WrongHost(r.getRequestId(), segment.getScopedName(), null, null);
@@ -236,7 +236,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         answerRequest(connectionFactory, connection, location, ConditionalBlockEnd.class, r -> {
             ByteBuf data = r.getData();
             return new DataAppended(r.getRequestId(),
@@ -344,7 +344,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -386,7 +386,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -450,7 +450,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         answerRequest(connectionFactory, connection, location, ConditionalBlockEnd.class, r -> {
             ByteBuf data = r.getData();
             return new DataAppended(r.getRequestId(),
@@ -524,7 +524,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         answerRequest(connectionFactory, connection, location, ConditionalBlockEnd.class, r -> {
             ByteBuf data = r.getData();
             return new DataAppended(r.getRequestId(),
@@ -579,7 +579,7 @@ public class LargeEventWriterTest {
                       connection,
                       location,
                       SetupAppend.class,
-                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), 0));
+                      r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         
         //If appends are not pipelined, the call to writeLargeEvents will stall waiting for the first reply.
         Mockito.doAnswer(new Answer<Void>() {
