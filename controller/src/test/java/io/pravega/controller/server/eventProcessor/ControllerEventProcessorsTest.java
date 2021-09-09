@@ -57,8 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
-import org.apache.curator.CuratorZookeeperClient;
-import org.apache.curator.framework.CuratorFramework;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
