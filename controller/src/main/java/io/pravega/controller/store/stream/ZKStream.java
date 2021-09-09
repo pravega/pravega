@@ -181,11 +181,11 @@ class ZKStream extends PersistentStreamBase {
     // region overrides
 
     @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions(OperationContext context) {
+    public CompletableFuture<Long> getNumberOfOngoingTransactions(OperationContext context) {
         return store.getChildren(activeTxRoot).thenCompose(list ->
                 Futures.allOfWithResults(list.stream().map(epoch ->
                         getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
-                    .thenApply(list -> list.stream().reduce(0, Integer::sum));
+                    .thenApply(list -> list.stream().reduce(0, Integer::sum).longValue());
     }
 
     private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
@@ -553,7 +553,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit, 
+    public CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(int limit,
                                                                                                           OperationContext context) {
         return super.getOrderedCommittingTxnInLowestEpochHelper(txnCommitOrderer, limit, executor, context);
     }
