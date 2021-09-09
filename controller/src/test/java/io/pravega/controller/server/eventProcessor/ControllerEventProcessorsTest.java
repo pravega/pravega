@@ -91,9 +91,9 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(commitEvent.getKey(), "test/test");
     }
 
-    @Test(timeout = 10000)
-    public void testIsReady() {
-        Controller localController = mock(Controller.class);
+    @Test(timeout = 30000L)
+    public void testIsReady() throws Exception {
+        Controller controller = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -104,31 +104,71 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
-        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
-        CuratorFramework client  = mock(CuratorFramework.class);
-        when(checkpointStore.isHealthy()).thenReturn(true);
+
+        doAnswer(x -> null).when(streamMetadataTasks).initializeStreamWriters(any(), any());
+        doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
+                any(ControllerEventProcessorConfig.class));
+        CompletableFuture<Boolean> createScopeResponseFuture = new CompletableFuture<>();
+        CompletableFuture<Void> createScopeSignalFuture = new CompletableFuture<>();
+        doAnswer(x -> {
+            createScopeSignalFuture.complete(null);
+            return createScopeResponseFuture;
+        }).when(controller).createScope(anyString());
+
+        LinkedBlockingQueue<CompletableFuture<Boolean>> createStreamResponses = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<CompletableFuture<Void>> createStreamSignals = new LinkedBlockingQueue<>();
+        List<CompletableFuture<Boolean>> createStreamResponsesList = new LinkedList<>();
+        List<CompletableFuture<Void>> createStreamSignalsList = new LinkedList<>();
+        for (int i = 0; i < 4; i++) {
+            CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
+            CompletableFuture<Void> signalFuture = new CompletableFuture<>();
+            createStreamResponsesList.add(responseFuture);
+            createStreamResponses.add(responseFuture);
+            createStreamSignalsList.add(signalFuture);
+            createStreamSignals.add(signalFuture);
+        }
+
+        // return a future from latches queue
+        doAnswer(x -> {
+            createStreamSignals.take().complete(null);
+            return createStreamResponses.take();
+        }).when(controller).createStream(anyString(), anyString(), any());
+
         @Cleanup
         ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
-                config, localController, checkpointStore, streamStore, bucketStore,
+                config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 kvtStore, kvtTasks, system, executorService()));
-        Assert.assertFalse(processors.isReady());
-        doReturn(curatorZKClientMock).when(client).getZookeeperClient();
-        // Check isReady() method with four possible cases
+
+        //Check isReady() method with four possible cases
         // 1. BootStrap = false and MetadataService = false
-        doReturn(false).when(processors).isBootstrapCompleted();
-        doReturn(false).when(processors).isMetadataServiceConnected();
+        Assert.assertFalse(processors.getBootstrapCompleted().get());
+        Assert.assertFalse(processors.isMetadataServiceConnected());
         Assert.assertFalse(processors.isReady());
         // 2. BootStrap = false and MetadataService = true
-        doReturn(false).when(processors).isBootstrapCompleted();
-        doReturn(true).when(processors).isMetadataServiceConnected();
+        when(checkpointStore.isHealthy()).thenReturn(true);
         Assert.assertFalse(processors.isReady());
+
+        // call bootstrap on ControllerEventProcessors
+        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
+        // wait on create scope being called.
+        createScopeSignalFuture.join();
+        createScopeResponseFuture.complete(true);
+        // call create streams now
+        createStreamSignalsList.get(0).join();
+        createStreamSignalsList.get(1).join();
+        createStreamSignalsList.get(2).join();
+        createStreamSignalsList.get(3).join();
+        // complete successfully
+        createStreamResponsesList.get(0).complete(true);
+        createStreamResponsesList.get(1).complete(true);
+        createStreamResponsesList.get(2).complete(true);
+        createStreamResponsesList.get(3).complete(true);
+        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
         // 3. BootStrap = true and MetadataService = false
-        doReturn(true).when(processors).isBootstrapCompleted();
         doReturn(false).when(processors).isMetadataServiceConnected();
         Assert.assertFalse(processors.isReady());
         // 4. BootStrap = true and MetadataService = true
-        doReturn(true).when(processors).isBootstrapCompleted();
         doReturn(true).when(processors).isMetadataServiceConnected();
         Assert.assertTrue(processors.isReady());
     }
@@ -171,7 +211,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
     
     @Test(timeout = 30000L)
-    public void testBootstrap() {
+    public void testBootstrap() throws Exception {
         Controller controller = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
@@ -282,6 +322,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamResponsesList.get(5).complete(true);
         createStreamResponsesList.get(6).complete(true);
         createStreamResponsesList.get(7).complete(true);
+        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
     }
     
     @Test(timeout = 10000L)
