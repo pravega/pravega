@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.demo;
 
@@ -22,6 +28,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
@@ -36,6 +43,7 @@ import org.apache.curator.test.TestingServer;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -116,6 +124,10 @@ public class ClusterWrapper implements AutoCloseable {
     @Builder.Default
     private boolean tlsEnabled = false;
 
+    @Getter
+    @Builder.Default
+    private String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
+
     @Builder.Default
     private boolean controllerRestEnabled = false;
 
@@ -134,6 +146,10 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     private String tlsServerKeystorePasswordPath;
+
+    @Getter
+    @Builder.Default
+    private Duration accessTokenTtl = Duration.ofSeconds(300);
 
     private ClusterWrapper() {}
 
@@ -161,7 +177,7 @@ public class ClusterWrapper implements AutoCloseable {
             segmentStoreServer.close();
             serviceBuilder.close();
             zookeeperServer.close();
-            if (passwordInputFile.exists()) {
+            if (passwordInputFile != null && passwordInputFile.exists()) {
                 passwordInputFile.delete();
             }
         } catch (Exception e) {
@@ -211,7 +227,7 @@ public class ClusterWrapper implements AutoCloseable {
         segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
 
         segmentStoreServer.startListening();
     }
@@ -250,6 +266,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)

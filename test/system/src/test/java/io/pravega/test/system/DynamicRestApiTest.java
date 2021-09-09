@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -87,8 +93,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         URI controllerGRPCUri = controllerURIs.get(0);
         URI controllerRESTUri = controllerURIs.get(1);
         Invocation.Builder builder;
-        @Cleanup
-        Response response = null;
+
         String protocol = Utils.TLS_AND_AUTH_ENABLED ? "https://" : "http://";
         restServerURI = protocol + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
         log.info("REST Server URI: {}", restServerURI);
@@ -97,7 +102,8 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         resourceURl = new StringBuilder(restServerURI).append("/ping").toString();
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
-        response = builder.get();
+        @Cleanup
+        Response response = builder.get();
         assertEquals(String.format("Received unexpected status code: %s in response to 'ping' request.", response.getStatus()),
                 OK.getStatusCode(),
                 response.getStatus());

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.attributes;
 
@@ -23,7 +29,7 @@ public class AttributeIndexConfig {
     //region Config Names
 
     public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegment.rolling.size.bytes", 32 * 1024 * 1024, "attributeSegmentRollingSizeBytes");
-    private static final int MAX_INDEX_PAGE_SIZE_VALUE = (int) Short.MAX_VALUE; // Max allowed by BTreeIndex.
+    private static final int MAX_INDEX_PAGE_SIZE_VALUE = Short.MAX_VALUE; // Max allowed by BTreeIndex.
     public static final Property<Integer> MAX_INDEX_PAGE_SIZE = Property.named("indexPage.size.bytes.max", MAX_INDEX_PAGE_SIZE_VALUE, "maxIndexPageSizeBytes");
     private static final int MIN_INDEX_PAGE_SIZE_VALUE = 1024;
     private static final String COMPONENT_CODE = "attributeindex";

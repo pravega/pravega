@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -45,7 +51,7 @@ import org.apache.curator.framework.recipes.cache.NodeCacheListener;
  * is updated, all watchers receive the latest update.
  */
 @Slf4j
-class ZKGarbageCollector extends AbstractService implements AutoCloseable {
+class ZKGarbageCollector extends AbstractService {
     private static final String GC_ROOT = "/garbagecollection/%s";
     private static final String GUARD_PATH = GC_ROOT + "/guard";
 
@@ -106,7 +112,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     x.cancel(true);
                     x.whenComplete((r, e) -> {
                         if (e != null && !(Exceptions.unwrap(e) instanceof CancellationException)) {
-                            log.error("Exception while trying to stop GC {}", gcName, e);
+                            log.warn("Exception while trying to stop GC {}", gcName, e);
                             notifyFailed(e);
                         } else {
                             notifyStopped();
@@ -120,6 +126,19 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                 notifyStopped();
             }
         });
+        
+        watch.getAndUpdate(x -> {
+            if (x != null) {
+                try {
+                    x.close();
+                } catch (IOException e) {
+                    throw Exceptions.sneakyThrow(e);
+                }
+            }
+            return x;
+        });
+
+        gcExecutor.shutdownNow();
     }
 
     int getLatestBatch() {
@@ -154,7 +173,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     } else {
                         // if GC failed, it will be tried again in the next cycle. So log and ignore.
                         if (unwrap instanceof StoreException.StoreConnectionException) {
-                            log.info("StoreConnectionException thrown during Garbage Collection iteration for {}.", gcName);
+                            log.warn("StoreConnectionException thrown during Garbage Collection iteration for {}.", gcName);
                         } else {
                             log.warn("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, unwrap);
                         }
@@ -194,19 +213,4 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         return nodeCache;
     }
 
-    @Override
-    public void close() {
-        watch.getAndUpdate(x -> {
-            if (x != null) {
-                try {
-                    x.close();
-                } catch (IOException e) {
-                    throw Exceptions.sneakyThrow(e);
-                }
-            }
-            return x;
-        });
-
-        gcExecutor.shutdownNow();
-    }
 }

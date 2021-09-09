@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -38,6 +44,7 @@ import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
+import io.pravega.controller.server.rest.generated.model.TagsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.test.common.InlineExecutor;
@@ -140,6 +147,15 @@ public class ControllerRestApiTest {
         Assert.assertEquals("Create scope response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
         log.info("Create scope: {} successful ", scope1);
 
+        // Create another scope for empty stream test later.
+        final String scope2 = RandomStringUtils.randomAlphanumeric(10);
+        final CreateScopeRequest createScopeRequest1 = new CreateScopeRequest();
+        createScopeRequest1.setScopeName(scope2);
+        builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
+        response = builder.post(Entity.json(createScopeRequest1));
+        assertEquals("Create scope status", CREATED.getStatusCode(), response.getStatus());
+        Assert.assertEquals("Create scope response", scope2, response.readEntity(ScopeProperty.class).getScopeName());
+
         // TEST CreateStream POST  http://controllerURI:Port/v1/scopes/{scopeName}/streams
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams").toString();
         webTarget = client.target(resourceURl);
@@ -155,9 +171,15 @@ public class ControllerRestApiTest {
         retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
         retentionConfig.setValue(123L);
 
+        TagsList tagsList = new TagsList();
+        tagsList.add("testTag");
+
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingConfig);
         createStreamRequest.setRetentionPolicy(retentionConfig);
+        createStreamRequest.setStreamTags(tagsList);
+        createStreamRequest.setTimestampAggregationTimeout(1000L);
+        createStreamRequest.setRolloverSizeBytes(1024L);
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
@@ -166,6 +188,9 @@ public class ControllerRestApiTest {
         final StreamProperty streamPropertyResponse = response.readEntity(StreamProperty.class);
         assertEquals("Scope name in response", scope1, streamPropertyResponse.getScopeName());
         assertEquals("Stream name in response", stream1, streamPropertyResponse.getStreamName());
+        assertEquals("TimestampAggregationTimeout in response", 1000L, (long) streamPropertyResponse.getTimestampAggregationTimeout());
+        assertEquals("RolloverSizeBytes in response", 1024L, (long) streamPropertyResponse.getRolloverSizeBytes());
+
         log.info("Create stream: {} successful", stream1);
 
         // Test listScopes  GET http://controllerURI:Port/v1/scopes/{scopeName}/streams
@@ -184,6 +209,29 @@ public class ControllerRestApiTest {
         assertEquals("List streams", OK.getStatusCode(), response.getStatus());
         Assert.assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
         log.info("List streams successful");
+
+        // Test listStream GET /v1/scopes/scope1/streams for tags
+        response = client.target(resourceURl).queryParam("filter_type", "tag").
+                queryParam("filter_value", "testTag").request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        Assert.assertEquals("List streams size", 1, response.readEntity(StreamsList.class).getStreams().size());
+
+        response = client.target(resourceURl).queryParam("filter_type", "tag").
+                queryParam("filter_value", "randomTag").request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        Assert.assertEquals("List streams size", 0, response.readEntity(StreamsList.class).getStreams().size());
+        log.info("List streams with tag successful");
+
+        response = client.target(resourceURl).queryParam("filter_type", "showInternalStreams").request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        assertTrue(response.readEntity(StreamsList.class).getStreams().get(0).getStreamName().startsWith("_MARK"));
+        log.info("List streams with showInternalStreams successful");
+
+        // Test for the case when the scope is empty.
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope2 + "/streams").toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("List streams", OK.getStatusCode(), response.getStatus());
+        Assert.assertEquals("List streams size", 0, response.readEntity(StreamsList.class).getStreams().size());
 
         // Test getScope
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
@@ -204,6 +252,8 @@ public class ControllerRestApiTest {
         scalingConfig1.minSegments(4); // update existing minSegments from 2 to 4
         updateStreamRequest.setScalingPolicy(scalingConfig1);
         updateStreamRequest.setRetentionPolicy(retentionConfig);
+        updateStreamRequest.setTimestampAggregationTimeout(2000L);
+        updateStreamRequest.setRolloverSizeBytes(2048L);
 
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
                 .put(Entity.json(updateStreamRequest));
@@ -219,15 +269,19 @@ public class ControllerRestApiTest {
                 queryParam("to", System.currentTimeMillis()).request().get();
         List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
                 new GenericType<List<ScaleMetadata>>() { });
-        assertEquals(1, scaleMetadataListResponse.size());
+        assertEquals(2, scaleMetadataListResponse.size());
         assertEquals(2, scaleMetadataListResponse.get(0).getSegments().size());
+        assertEquals(4, scaleMetadataListResponse.get(1).getSegments().size());
 
         // Test getStream
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
                                                       .toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
-        assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
+        StreamProperty responseProperty = response.readEntity(StreamProperty.class);
+        assertEquals("Get stream stream1 response", stream1, responseProperty.getStreamName());
+        assertEquals("Get stream stream1 response TimestampAggregationTimeout", (long) responseProperty.getTimestampAggregationTimeout(), 2000L);
+        assertEquals("Get stream stream1 RolloverSizeBytes", (long) responseProperty.getRolloverSizeBytes(), 2048L);
         log.info("Get stream successful");
 
         // Test updateStreamState

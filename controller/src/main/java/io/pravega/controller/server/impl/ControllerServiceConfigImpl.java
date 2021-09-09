@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.impl;
 
@@ -13,12 +19,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.util.Config;
 import java.time.Duration;
 import java.util.Optional;
@@ -47,6 +53,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
     private final Optional<RESTServerConfig> restServerConfig;
 
+    private final Duration healthCheckFrequency;
+
     private final Duration retentionFrequency;
     @Getter
     private final Duration shutdownTimeout;
@@ -62,6 +70,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
                                 final Duration retentionFrequency,
+                                final Duration healthCheckFrequency,
                                 final Duration shutdownTimeout) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
@@ -74,6 +83,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                             storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
+
         if (eventProcessorConfig.isPresent()) {
             Preconditions.checkNotNull(eventProcessorConfig.get());
         }
@@ -95,6 +105,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.restServerConfig = restServerConfig;
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
+        this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(Config.HEALTH_CHECK_FREQUENCY) : healthCheckFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
     }
 }

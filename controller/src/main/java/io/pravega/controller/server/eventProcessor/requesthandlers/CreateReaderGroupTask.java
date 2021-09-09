@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
@@ -15,13 +21,15 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
@@ -32,8 +40,8 @@ import java.util.stream.Collectors;
 /**
  * Request handler for executing a create operation for a ReaderGroup.
  */
-@Slf4j
 public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CreateReaderGroupTask.class));
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -56,17 +64,20 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
         ReaderGroupConfig config = getConfigFromEvent(request);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
-                .thenCompose(rgId -> {
+        long requestId = request.getRequestId();
+        OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+                          .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {
-                        log.warn("Skipping processing of CreateReaderGroupEvent with stale UUID.");
+                        log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
                         return CompletableFuture.completedFuture(null);
                     }
-                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup)
+                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
                             .thenCompose(complete -> {
                                 if (!complete) {
                                     return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, request.getCreateTimeStamp()));
+                                            config, request.getCreateTimeStamp(), context));
                                 }
                                 return CompletableFuture.completedFuture(null);
                             });
@@ -80,10 +91,10 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())
                 .maxOutstandingCheckpointRequest(request.getMaxOutstandingCheckpointRequest())
-
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[request.getRetentionTypeOrdinal()])
                 .startingStreamCuts(startStreamCut)
-                .endingStreamCuts(endStreamCut).build();
+                .endingStreamCuts(endStreamCut)
+                .build();
         return ReaderGroupConfig.cloneConfig(conf, request.getReaderGroupId(), request.getGeneration());
     }
 

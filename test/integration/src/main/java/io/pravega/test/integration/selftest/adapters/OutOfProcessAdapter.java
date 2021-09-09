@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest.adapters;
 
@@ -199,6 +205,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE),
                         pathOfConfigItem(SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_ENABLED), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_CERT_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_TRUST_STORE), pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
                 .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_KEY_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
@@ -232,6 +239,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ENABLE_TLS), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.KEY_FILE),
                         pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.CERT_FILE),

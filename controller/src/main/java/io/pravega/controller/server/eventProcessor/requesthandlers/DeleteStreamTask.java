@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ * Copyright Pravega Authors.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
@@ -56,11 +62,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final DeleteStreamEvent request) {
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
-
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        log.debug(requestId, "Deleting {}/{} stream", scope, stream);
 
         return streamMetadataStore.getCreationTime(scope, stream, context, executor)
             .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
@@ -74,30 +80,36 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return deleteAssociatedStreams(scope, stream, requestId)
-                        .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
+                            .thenCompose(v -> removeTagsFromIndex(context, scope, stream, requestId))
+                            .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
                 }, executor)
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    log.error(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
-
+                    log.warn(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
                     throw new CompletionException(e);
                 });
     }
 
     private CompletableFuture<Void> deleteAssociatedStreams(String scope, String stream, long requestId) {
         String markStream = NameUtils.getMarkStreamForStream(stream);
-        OperationContext context = streamMetadataStore.createContext(scope, markStream);
+        OperationContext context = streamMetadataStore.createStreamContext(scope, markStream, requestId);
         return Futures.exceptionallyExpecting(notifyAndDelete(context, scope, markStream, requestId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
+    }
+
+    private CompletableFuture<Void> removeTagsFromIndex(OperationContext context, String scope, String stream, long requestId) {
+        return Futures.exceptionallyExpecting(streamMetadataStore.getConfiguration(scope, stream, context, executor)
+                                                                 .thenCompose(cfg -> streamMetadataStore.removeTagsFromIndex(scope, stream, cfg.getTags(), context, executor)), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
         log.info(requestId, "{}/{} deleting segments", scope, stream);
         return Futures.exceptionallyExpecting(streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
                 .thenComposeAsync(allSegments -> 
-                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)),
+                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, 
+                            streamMetadataTasks.retrieveDelegationToken(), requestId)),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                             .thenComposeAsync(x -> CompletableFuture.allOf(
                                     bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 

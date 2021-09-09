@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -57,7 +63,7 @@ public class AbstractBufferViewTests {
     @Test
     public void testEqualsHashCodeComposite() {
         val data = generate();
-        val b = data.get(data.size() - 1);
+        val b = data.get(data.size() - 1); // Get the last one.
         val s1 = b.slice(0, b.getLength() / 2);
         val s2 = b.slice(b.getLength() / 2, b.getLength() / 2);
         val cb = BufferView.wrap(Arrays.asList(s1, s2));
@@ -66,6 +72,11 @@ public class AbstractBufferViewTests {
         Assert.assertEquals(cb, b);
 
         val b2Data = b.getCopy();
+
+        // Verify the hashcode stays the same if we make a copy of the buffer.
+        Assert.assertEquals(b.hashCode(), AbstractBufferView.hashCode(b2Data));
+
+        // Verify the hashcode changes if we alter the data.
         b2Data[1] = (byte) (b2Data[1] + 1);
         val b2 = new ByteArraySegment(b2Data);
         Assert.assertNotEquals(b2.hashCode(), cb.hashCode());

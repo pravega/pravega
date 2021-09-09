@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.user.scope;
 
@@ -53,6 +59,8 @@ public class ScopeCommandsTest {
         String commandResult = TestUtils.executeCommand("scope create " + scope, cliConfig());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
+
+        String cleanUp = TestUtils.executeCommand("scope delete " + scope, cliConfig());
     }
 
     @Test(timeout = 5000)
@@ -65,6 +73,32 @@ public class ScopeCommandsTest {
         String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, cliConfig());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(ScopeCommand.Delete.descriptor());
+    }
+
+    @Test(timeout = 10000)
+    @SneakyThrows
+    public void testListScope() {
+        final String scope1 = "b";
+        final String scope2 = "z";
+        final String scope3 = "c";
+        final String scope4 = "a";
+        final String scope5 = "aaa";
+
+        TestUtils.executeCommand("scope create " + scope1, cliConfig());
+        TestUtils.executeCommand("scope create " + scope2, cliConfig());
+        TestUtils.executeCommand("scope create " + scope3, cliConfig());
+        TestUtils.executeCommand("scope create " + scope4, cliConfig());
+        TestUtils.executeCommand("scope create " + scope5, cliConfig());
+
+        String commandResult = TestUtils.executeCommand("scope list", cliConfig());
+        Assert.assertTrue(commandResult.equals(
+                "\t_system\n" +
+                        "\ta\n" +
+                        "\taaa\n" +
+                        "\tb\n" +
+                        "\tc\n" +
+                        "\tz\n"));
+        Assert.assertNotNull(ScopeCommand.List.descriptor());
     }
 
     public static class SecureScopeCommandsTest extends ScopeCommandsTest {

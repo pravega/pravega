@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
@@ -33,6 +40,7 @@ public class SingleNodeConfig {
 
     // TLS-related configurations
     public final static Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
+    public final static Property<String> TLS_PROTOCOL_VERSION = Property.named("security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
     public final static Property<String> KEY_FILE = Property.named("security.tls.privateKey.location", "", "keyFile");
     public final static Property<String> CERT_FILE = Property.named("security.tls.certificate.location", "", "certFile");
     public final static Property<String> KEYSTORE_JKS = Property.named("security.tls.keyStore.location", "", "keyStoreJKS");
@@ -43,6 +51,10 @@ public class SingleNodeConfig {
     public final static Property<Boolean> ENABLE_METRICS = Property.named("metrics.enable", false);
     public final static Property<Boolean> ENABLE_INFLUX_REPORTER = Property.named("metrics.influx.enable", false);
     public final static Property<Integer> METRICS_REPORT_INTERVAL = Property.named("metrics.reporting.interval", 60);
+
+    // Pravega Admin Gateway configuration
+    public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", true);
+    public static final Property<Integer> ADMIN_GATEWAY_PORT = Property.named("admin.gateway.port", 9999);
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
@@ -137,6 +149,12 @@ public class SingleNodeConfig {
     private boolean enableTls;
 
     /**
+     *
+     */
+    @Getter
+    private String[] tlsProtocolVersion;
+
+    /**
      * Flag to enable auth.
      */
     @Getter
@@ -161,6 +179,18 @@ public class SingleNodeConfig {
     @Getter
     private int metricsReportInterval;
 
+    /**
+     * Defines whether to enable the Pravega Admin Gateway.
+     */
+    @Getter
+    private final boolean enableAdminGateway;
+
+    /**
+     * Port to bing the Pravega Admin Gateway.
+     */
+    @Getter
+    private final int adminGatewayPort;
+
     //end region
 
     //region constructor
@@ -176,6 +206,7 @@ public class SingleNodeConfig {
         this.passwd = properties.get(PASSWD);
         this.enableRestServer = properties.getBoolean(ENABLE_REST_SERVER);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.tlsProtocolVersion = new TLSProtocolVersion(properties.get(TLS_PROTOCOL_VERSION)).getProtocols();
         this.enableAuth = properties.getBoolean(ENABLE_AUTH);
         this.keyStoreJKS = properties.get(KEYSTORE_JKS);
         this.keyStoreJKSPasswordFile = properties.get(KEYSTORE_JKS_PASSWORD_FILE);
@@ -184,6 +215,8 @@ public class SingleNodeConfig {
         this.enableMetrics = properties.getBoolean(ENABLE_METRICS);
         this.enableInfluxDB = properties.getBoolean(ENABLE_INFLUX_REPORTER);
         this.metricsReportInterval = properties.getInt(METRICS_REPORT_INTERVAL);
+        this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
+        this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
     }
 
     /**

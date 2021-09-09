@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.user.config;
 
@@ -27,6 +33,7 @@ public class InteractiveConfig {
     public static final String TIMEOUT_MILLIS = "timeout-millis";
     public static final String MAX_LIST_ITEMS = "max-list-items";
     public static final String PRETTY_PRINT = "pretty-print";
+    public static final String ROLLOVER_SIZE_BYTES = "rollover-size-bytes";
 
     public static final String AUTH_ENABLED = "auth-enabled";
     public static final String CONTROLLER_USER_NAME = "auth-username";
@@ -44,6 +51,7 @@ public class InteractiveConfig {
     private String password;
     private boolean tlsEnabled;
     private String truststore;
+    private long rolloverSizeBytes;
 
     public static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
@@ -57,6 +65,7 @@ public class InteractiveConfig {
                 .password("")
                 .tlsEnabled(false)
                 .truststore("")
+                .rolloverSizeBytes(0)
                 .build();
     }
 
@@ -92,6 +101,9 @@ public class InteractiveConfig {
             case TRUSTSTORE_JKS:
                 setTruststore(value);
                 break;
+            case ROLLOVER_SIZE_BYTES:
+                setRolloverSizeBytes(Long.parseLong(value));
+                break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
         }
@@ -110,6 +122,7 @@ public class InteractiveConfig {
                 .put(CONTROLLER_PASSWORD, getPassword())
                 .put(TLS_ENABLED, isTlsEnabled())
                 .put(TRUSTSTORE_JKS, getTruststore())
+                .put(ROLLOVER_SIZE_BYTES, getRolloverSizeBytes())
                 .build();
     }
 }

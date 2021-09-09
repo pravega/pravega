@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
@@ -140,6 +147,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         this.currentIndexOffset.set(currentIndexOffset);
     }
 
+    @Override
     public CompletableFuture<Void> call() {
         // The algorithm is actually very simple.
         // It tries to concat all small chunks using appends first.
@@ -147,6 +155,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         // To implement it using single loop we toggle between concat with append and concat modes. (Instead of two passes.)
         useAppend.set(true);
         targetChunkName = startChunkName;
+
+        val oldChunkCount = segmentMetadata.getChunkCount();
 
         // Iterate through chunk list
         // Make sure no invariants are broken.
@@ -199,6 +209,9 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
                 .thenComposeAsync(vvv -> {
+                    Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
+                            "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
+                            oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
                     segmentMetadata.checkInvariants();
                     return updateReadIndex();
                 }, chunkedSegmentStorage.getExecutor());
@@ -322,7 +335,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> updateReadIndex() {
-        return new ChunkIterator(chunkedSegmentStorage, txn, startChunkName, lastChunkName)
+        return new ChunkIterator(chunkedSegmentStorage.getExecutor(), txn, startChunkName, lastChunkName)
                 .forEach((metadata, name) -> {
                     newReadIndexEntries.add(ChunkNameOffsetPair.builder()
                             .chunkName(name)

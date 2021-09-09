@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -43,8 +49,22 @@ import java.util.concurrent.CompletionException;
  *
  * For concats, {@link ChunkStorage} supports both native and append, ChunkedSegmentStorage will invoke appropriate method depending
  * on size of target and source chunks. (Eg. ECS)
- *
- * It is recommended that the implementations should extend {@link BaseChunkStorage}.
+ * <p>
+ * To implement custom {@link ChunkStorage} implementation:
+ * <ol>
+ *     <li> Implement {@link ChunkStorage}. It is recommended that the implementations should extend {@link AsyncBaseChunkStorage}
+ *     or {@link BaseChunkStorage}.</li>
+ *     <li> Implement {@link io.pravega.segmentstore.storage.SimpleStorageFactory}.  </li>
+ *     <li> Implement {@link io.pravega.segmentstore.storage.StorageFactoryCreator}.
+ *     <ul>
+ *          <li>Return {@link io.pravega.segmentstore.storage.StorageFactoryInfo} object containing name to use to identify.
+ *          This identifier is used in config.properties file to identify implementation to use.</li>
+ *          <li> The bindings are loaded using ServiceLoader (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)</li>
+ *          <li> Add resource file named "io.pravega.segmentstore.storage.StorageFactoryCreator" to the implementation jar.
+ *          That file contains name of the class implementing {@link io.pravega.segmentstore.storage.StorageFactoryCreator}.</li>
+ *     </ul>
+ *     </li>
+ * </ol>
  */
 @Beta
 public interface ChunkStorage extends AutoCloseable, StatsReporter {

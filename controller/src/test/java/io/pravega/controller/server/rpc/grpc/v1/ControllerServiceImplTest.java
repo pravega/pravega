@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
@@ -170,6 +176,11 @@ public abstract class ControllerServiceImplTest {
     @Test
     public void streamsInScopeTest() {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
 
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE1).build();
@@ -187,7 +198,7 @@ public abstract class ControllerServiceImplTest {
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
         ResultObserver<CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, configuration), createStreamStatus3);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, cfgWithTags), createStreamStatus3);
         status = createStreamStatus3.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
@@ -251,7 +262,7 @@ public abstract class ControllerServiceImplTest {
 
     @Test
     public void kvtablesInScopeTest() {
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         // Test Create KeyValueTable
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
@@ -346,7 +357,7 @@ public abstract class ControllerServiceImplTest {
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus1.getStatus());
 
         //Create a test KeyValueTable
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
         ResultObserver<CreateKeyValueTableStatus> result1 = new ResultObserver<>();
         this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE1, config1), result1);
         CreateKeyValueTableStatus createStatus = result1.get();
@@ -446,6 +457,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration2), result2);
         status = result2.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
         // endregion
 
         // region duplicate create stream
@@ -484,6 +496,28 @@ public abstract class ControllerServiceImplTest {
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(3)).build();
+        ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration2), result2);
+        UpdateStreamStatus updateStreamStatus = result2.get();
+        Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
+
+        // Update stream for non-existent stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, "unknownstream", configuration3), result3);
+        updateStreamStatus = result3.get();
+        Assert.assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void updateStreamTestsWithTags() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        final StreamConfiguration configuration2 = StreamConfiguration.builder()
+                                                                      .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                      .tag("tag1")
+                                                                      .tag("tag2")
+                                                                      .build();
         ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
         this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration2), result2);
         UpdateStreamStatus updateStreamStatus = result2.get();
@@ -1125,7 +1159,7 @@ public abstract class ControllerServiceImplTest {
 
         // try failing request
         doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "")))
-                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any());
+                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any(), anyLong());
         request = Controller.TimestampFromWriter.newBuilder()
                                                 .setWriter(writer1)
                                                 .setTimestamp(4L)
@@ -1197,8 +1231,8 @@ public abstract class ControllerServiceImplTest {
 
     @Test(timeout = 30000L)
     public void createKeyValueTableTests() {
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(5).build();
-        KeyValueTableConfiguration config2 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(5).primaryKeyLength(4).secondaryKeyLength(4).build();
+        KeyValueTableConfiguration config2 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         // Test Create KeyValueTable
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
@@ -1241,7 +1275,7 @@ public abstract class ControllerServiceImplTest {
 
     @Test
     public void getCurrentSegmentsKeyValueTableTest() {
-        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         createScopeAndKVTable(SCOPE5, KVTABLE3, config);
 
         ResultObserver<SegmentRanges> result2 = new ResultObserver<>();

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
@@ -17,8 +23,12 @@ import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
+import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
+import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -27,10 +37,18 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.security.AuthHandlerManager;
+
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -48,14 +66,22 @@ import javax.annotation.concurrent.ThreadSafe;
 @Slf4j
 public final class ServiceStarter {
     //region Members
+    @VisibleForTesting
+    @Getter
+    private HealthServiceManager healthServiceManager;
+
+    @VisibleForTesting
+    @Getter
+    private final ServiceBuilder serviceBuilder;
 
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
-    private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
+    private AdminConnectionListener adminListener;
     private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
+    private RESTServer restServer;
     private boolean closed;
 
     //endregion
@@ -83,10 +109,17 @@ public final class ServiceStarter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
-        log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
-        statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
+        healthServiceManager.start();
+        log.info("Initializing HealthService ...");
+
+        MetricsConfig metricsConfig = builderConfig.getConfig(MetricsConfig::builder);
+        if (metricsConfig.isEnableStatistics()) {
+            log.info("Initializing metrics provider ...");
+            MetricsProvider.initialize(metricsConfig);
+            statsProvider = MetricsProvider.getMetricsProvider();
+            statsProvider.start();
+        }
 
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
@@ -118,11 +151,34 @@ public final class ServiceStarter {
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor());
+                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
+                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
+
+        if (serviceConfig.isEnableAdminGateway()) {
+            this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
+                    this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
+                    healthServiceManager);
+            this.adminListener.startListening();
+            log.info("AdminConnectionListener started successfully.");
+        }
         log.info("StreamSegmentService started.");
+
+        healthServiceManager.register(new ZKHealthContributor(zkClient));
+        healthServiceManager.register(new CacheManagerHealthContributor(serviceBuilder.getCacheManager()));
+        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getSegmentContainerRegistry()));
+
+        if (this.serviceConfig.isRestServerEnabled()) {
+            log.info("Initializing RESTServer ...");
+            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
+                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
+                    healthServiceManager.getEndpoint())));
+            restServer.startAsync();
+            restServer.awaitRunning();
+        }
     }
 
     public void shutdown() {
@@ -130,9 +186,25 @@ public final class ServiceStarter {
             this.serviceBuilder.close();
             log.info("StreamSegmentService shut down.");
 
+            if (this.healthServiceManager != null) {
+                this.healthServiceManager.close();
+                log.info("HealthServiceManager closed.");
+            }
+
+            if (this.restServer != null) {
+                this.restServer.stopAsync();
+                this.restServer.awaitTerminated();
+                log.info("RESTServer closed.");
+            }
+
             if (this.listener != null) {
                 this.listener.close();
                 log.info("PravegaConnectionListener closed.");
+            }
+
+            if (this.adminListener != null) {
+                this.adminListener.close();
+                log.info("AdminConnectionListener closed.");
             }
 
             if (this.statsProvider != null) {
@@ -177,7 +249,7 @@ public final class ServiceStarter {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
             return loader.load(setup,
-                    this.serviceConfig.getStorageImplementation().toString(),
+                    this.serviceConfig.getStorageImplementation(),
                     this.serviceConfig.getStorageLayout(),
                     setup.getStorageExecutor());
         });

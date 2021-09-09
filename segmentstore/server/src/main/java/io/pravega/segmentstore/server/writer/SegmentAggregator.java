@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -26,6 +32,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
@@ -249,6 +256,26 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         assert this.handle.get() == null : "non-null handle but state == " + this.state.get();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
 
+        if (this.metadata.isDeleted()) {
+            // Segment is dead on arrival. Delete it from Storage (if it exists) and do not bother to do anything else with it).
+            // This is a rather uncommon case, but it can happen in one of two cases: 1) the segment has been deleted
+            // immediately after creation or 2) after a container recovery.
+            log.info("{}: Segment '{}' is marked as Deleted in Metadata. Attempting Storage delete.",
+                    this.traceObjectId, this.metadata.getName());
+            return Futures.exceptionallyExpecting(
+                    this.storage.openWrite(this.metadata.getName())
+                            .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor),
+                    ex -> ex instanceof StreamSegmentNotExistsException, null) // It's OK if already deleted.
+                    .thenRun(() -> {
+                        updateMetadataPostDeletion(this.metadata);
+                        log.info("{}: Segment '{}' is marked as Deleted in Metadata and has been deleted from Storage. Ignoring all further operations on it.",
+                                this.traceObjectId, this.metadata.getName());
+                        setState(AggregatorState.Writing);
+                        LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
+                    });
+        }
+
+        // Segment not deleted.
         return openWrite(this.metadata.getName(), this.handle, timeout)
                 .thenAcceptAsync(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
@@ -318,13 +345,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Adds the given SegmentOperation to the Aggregator.
      *
      * @param operation the Operation to add.
-     * @throws DataCorruptionException  If the validation of the given Operation indicates a possible data corruption in
-     *                                  the code (offset gaps, out-of-order operations, etc.)
+     * @throws ServiceHaltException     If the validation of the given Operation indicates a possible data corruption in
+     *                                  the code (offset gaps, out-of-order operations, etc.) or state in which the
+     *                                  operation has been already acknowledged.
      * @throws IllegalArgumentException If the validation of the given Operation indicates a possible non-corrupting bug
      *                                  in the code.
      */
     @Override
-    public void add(SegmentOperation operation) throws DataCorruptionException {
+    public void add(SegmentOperation operation) throws ServiceHaltException {
         ensureInitializedAndNotClosed();
         if (!(operation instanceof StorageOperation)) {
             // We only care about StorageOperations.
@@ -352,7 +380,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.hasDeletePending.set(true);
     }
 
-    private void addStorageOperation(StorageOperation operation) throws DataCorruptionException {
+    private void addStorageOperation(StorageOperation operation) throws ServiceHaltException {
         checkValidStorageOperation(operation);
 
         // Add operation to list, but only if hasn't yet been persisted in Storage. It needs processing if either:
@@ -408,7 +436,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      *
      * @param operation The operation to handle.
      */
-    private void acknowledgeAlreadyProcessedOperation(SegmentOperation operation) throws DataCorruptionException {
+    private void acknowledgeAlreadyProcessedOperation(SegmentOperation operation) throws ServiceHaltException {
         if (operation instanceof MergeSegmentOperation) {
             // Only MergeSegmentOperations need special handling. Others, such as StreamSegmentSealOperation, are not
             // needed since they're handled in the initialize() method. Ensure that the DataSource is aware of this
@@ -419,7 +447,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             } catch (Throwable ex) {
                 // Something really weird must have happened if we ended up in here. To prevent any (further) damage, we need
                 // to stop the Segment Container right away.
-                throw new DataCorruptionException(String.format("Unable to acknowledge already processed operation '%s'.", operation), ex);
+                throw new ServiceHaltException(String.format("Unable to acknowledge already processed operation '%s'.", operation), ex);
             }
         }
     }
@@ -1147,6 +1175,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private long getRolloverSize() {
         // Configured value.
         long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
+
+        // rolloverSize being zero means the default value should be used.
+        rolloverSize = rolloverSize == 0 ? SegmentRollingPolicy.NO_ROLLING.getMaxLength() : rolloverSize;
 
         // Make sure it does not exceed configured max value.
         return Math.min(rolloverSize, this.config.getMaxRolloverSize());

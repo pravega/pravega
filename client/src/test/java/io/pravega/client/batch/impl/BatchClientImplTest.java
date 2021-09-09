@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.batch.impl;
 
@@ -61,7 +67,7 @@ public class BatchClientImplTest {
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().build(), connectionFactory);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
 
         Iterator<SegmentRange> unBoundedSegments = client.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
         assertTrue(unBoundedSegments.hasNext());
@@ -80,7 +86,8 @@ public class BatchClientImplTest {
         MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().build(), connectionFactory);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
 
         Iterator<SegmentRange> boundedSegments = client.getSegments(stream, getStreamCut(5L, 0, 1, 2), getStreamCut(15L, 0, 1, 2)).getIterator();
         assertTrue(boundedSegments.hasNext());
@@ -101,7 +108,7 @@ public class BatchClientImplTest {
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().build(), connectionFactory);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
 
         Iterator<SegmentRange> segments = client.getSegments(stream, null, null).getIterator();
         assertTrue(segments.hasNext());
@@ -129,7 +136,7 @@ public class BatchClientImplTest {
         doReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, "")))
                 .when(stubbedController).getSegments(any(StreamCut.class), any(StreamCut.class));
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(stubbedController, ClientConfig.builder().build(), connectionFactory);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(stubbedController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
 
         Iterator<SegmentRange> segmentIterator = client.getSegments(stream, null, null).getIterator();
         assertTrue(segmentIterator.hasNext());

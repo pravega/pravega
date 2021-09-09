@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -14,6 +20,7 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -31,7 +38,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -207,7 +213,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         CompletableFuture<Void> result = handleAttributeException(persistPendingAttributes(
                 this.state.getAttributes(), this.state.getLastSequenceNumber(), timer));
         if (this.state.hasSeal()) {
-            result = result.thenComposeAsync(v -> handleAttributeException(sealAttributes(timer)));
+            result = result.thenComposeAsync(v -> handleAttributeException(sealAttributes(timer)), this.executor);
         }
 
         return result.thenApply(v -> {
@@ -228,7 +234,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
     //region Helpers
 
-    private CompletableFuture<Void> persistPendingAttributes(Map<UUID, Long> attributes, long lastSeqNo, TimeoutTimer timer) {
+    private CompletableFuture<Void> persistPendingAttributes(Map<AttributeId, Long> attributes, long lastSeqNo, TimeoutTimer timer) {
         if (attributes.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
@@ -328,7 +334,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
      */
     @ThreadSafe
     private static class State {
-        private final Map<UUID, Long> attributes;
+        private final Map<AttributeId, Long> attributes;
         private final AtomicLong lastPersistedSequenceNumber;
         private final AtomicLong firstSequenceNumber;
         private final AtomicLong lastSequenceNumber;
@@ -465,7 +471,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
          *
          * @return The attributes and their latest values.
          */
-        Map<UUID, Long> getAttributes() {
+        Map<AttributeId, Long> getAttributes() {
             return this.attributes;
         }
 

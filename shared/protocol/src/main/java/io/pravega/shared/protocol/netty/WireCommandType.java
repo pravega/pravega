@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -25,6 +31,9 @@ public enum WireCommandType {
     PADDING(-1, WireCommands.Padding::readFrom),
 
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),
+
+    FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
+    FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlushed::readFrom),
 
     EVENT(0, null), // Is read manually.
 
@@ -79,11 +88,10 @@ public enum WireCommandType {
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
     ERROR_MESSAGE(61, WireCommands.ErrorMessage::readFrom),
 
+    GET_TABLE_SEGMENT_INFO(68, WireCommands.GetTableSegmentInfo::readFrom),
+    TABLE_SEGMENT_INFO(69, WireCommands.TableSegmentInfo::readFrom),
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
-    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
-    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
-
     UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
     TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
 

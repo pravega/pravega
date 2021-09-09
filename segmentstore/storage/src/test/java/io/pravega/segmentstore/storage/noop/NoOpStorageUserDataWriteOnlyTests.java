@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.noop;
 
@@ -15,6 +21,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
@@ -107,6 +114,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     public void testUnseal() throws Exception {
         StorageExtraConfig config = StorageExtraConfig.builder().build();
         NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_unseal");
+        @Cleanup
         NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
         storage.unseal(handle);
     }
@@ -115,6 +123,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     public void testTruncate() throws Exception {
         StorageExtraConfig config = StorageExtraConfig.builder().build();
         NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_truncate");
+        @Cleanup
         NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
         storage.truncate(handle, 0);
     }
@@ -123,6 +132,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     public void testSupportTruncation() throws Exception {
         StorageExtraConfig config = StorageExtraConfig.builder().build();
         NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_supportTruncation");
+        @Cleanup
         NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
         assertEquals(systemStorage.supportsTruncation(), storage.supportsTruncation());
     }

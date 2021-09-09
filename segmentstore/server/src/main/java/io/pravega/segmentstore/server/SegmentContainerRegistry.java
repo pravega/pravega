@@ -1,16 +1,22 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
-
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -33,6 +39,13 @@ public interface SegmentContainerRegistry extends AutoCloseable {
     SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
 
     /**
+     * Gets a reference to the all the SegmentContainers.
+     *
+     * @return collection of SegmentContainers within the registry.
+     */
+    Collection<SegmentContainer> getContainers();
+
+    /**
      * Starts processing the container with given Id.
      *
      * @param containerId The Id of the container to start processing.
@@ -43,6 +56,13 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @throws IllegalStateException If the container is already started.
      */
     CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout);
+
+    /**
+     * Tells if registry is closed.
+     *
+     * @return if the registry is closed.
+     */
+    boolean isClosed();
 
     /**
      * Starts processing the container associated with the given handle.

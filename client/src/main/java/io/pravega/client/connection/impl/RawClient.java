@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -29,7 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -98,23 +103,29 @@ public class RawClient implements AutoCloseable {
 
     public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {
         this.segmentId = null;
-        this.connection = connectionPool.getClientConnection(flow, uri, responseProcessor)
-        .exceptionally(e -> {
+        this.connection = new CompletableFuture<>();
+        this.connection.exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
-            throw new CompletionException(new ConnectionFailedException(e));
+            return null;
         });
-        Futures.exceptionListener(connection, e -> closeConnection(e));
+        Futures.exceptionListener(connection, this::closeConnection);
+        connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection);
     }
 
     public RawClient(Controller controller, ConnectionPool connectionPool, Segment segmentId) {
         this.segmentId = segmentId;
-        this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor))
+        this.connection = new CompletableFuture<>();
+        this.connection.exceptionally(e -> {
+            log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
+            return null;
+        });
+        Futures.exceptionListener(connection, this::closeConnection);
+        controller.getEndpointForSegment(segmentId.getScopedName())
+                                    .thenAccept((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection))
                                     .exceptionally(e -> {
-                                        log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
-                                        throw new CompletionException(new ConnectionFailedException(e));
+                                        this.connection.completeExceptionally(e);
+                                        return null;
                                     });
-        Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
     private void reply(Reply reply) {

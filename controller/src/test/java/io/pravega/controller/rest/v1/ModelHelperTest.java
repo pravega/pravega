@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.rest.v1;
 
@@ -48,11 +54,24 @@ public class ModelHelperTest {
         createStreamRequest.setStreamName("stream");
         createStreamRequest.setScalingPolicy(scalingConfig);
 
-        // Stream with Fixed Scaling Policy and no Retention Policy
+        // Stream with Fixed Scaling Policy and no Retention Policy and default rolloverSize
         StreamConfiguration streamConfig = getCreateStreamConfig(createStreamRequest);
         Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 0);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 0);
+
+        // Stream with Fixed Scaling Policy and no Retention Policy and positive rolloverSize
+        createStreamRequest = new CreateStreamRequest();
+        createStreamRequest.setStreamName("stream");
+        createStreamRequest.setScalingPolicy(scalingConfig);
+        createStreamRequest.setTimestampAggregationTimeout(1000L);
+        createStreamRequest.setRolloverSizeBytes(1024L);
+
+        streamConfig = getCreateStreamConfig(createStreamRequest);
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 1024L);
 
         // Stream with Fixed Scaling Policy & Size based Retention Policy with min & max limits
         RetentionConfig retentionConfig = new RetentionConfig();
@@ -84,7 +103,7 @@ public class ModelHelperTest {
         Assert.assertEquals(123, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
         retentionConfig.setValue(0L);
         TimeBasedRetention tr = new TimeBasedRetention();
@@ -94,7 +113,7 @@ public class ModelHelperTest {
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Duration retentionDuration = Duration.ofDays(10L).plusHours(4L).plusMinutes(7L);
         Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
         retentionConfig = new RetentionConfig();
         retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
@@ -179,7 +198,7 @@ public class ModelHelperTest {
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
     }
 
@@ -190,11 +209,15 @@ public class ModelHelperTest {
         scalingConfig.setMinSegments(2);
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         updateStreamRequest.setScalingPolicy(scalingConfig);
+        updateStreamRequest.setTimestampAggregationTimeout(1000L);
+        updateStreamRequest.setRolloverSizeBytes(1024L);
 
         StreamConfiguration streamConfig = getUpdateStreamConfig(updateStreamRequest);
         Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 1024L);
 
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingConfig.setTargetRate(123);
@@ -248,10 +271,14 @@ public class ModelHelperTest {
         Assert.assertEquals(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS, streamProperty.getScalingPolicy().getType());
         Assert.assertEquals((Integer) 1, streamProperty.getScalingPolicy().getMinSegments());
         Assert.assertNull(streamProperty.getRetentionPolicy());
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 0L);
+        Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 0L);
 
         streamConfig = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byDataRate(100, 200, 1))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
+                .timestampAggregationTimeout(1000L)
+                .rolloverSizeBytes(1024L)
                 .build();
         streamProperty = encodeStreamResponse("scope", "stream", streamConfig);
         Assert.assertEquals(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC,
@@ -262,6 +289,8 @@ public class ModelHelperTest {
         Assert.assertEquals(RetentionConfig.TypeEnum.LIMITED_DAYS,
                 streamProperty.getRetentionPolicy().getType());
         Assert.assertEquals((Long) 100L, streamProperty.getRetentionPolicy().getValue());
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 1000L);
+        Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 1024L);
 
         streamConfig = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 200, 1))

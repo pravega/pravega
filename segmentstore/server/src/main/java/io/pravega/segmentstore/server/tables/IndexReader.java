@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -13,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -69,7 +76,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The offset.
      */
-    long getLastIndexedOffset(SegmentProperties segmentInfo) {
+    static long getLastIndexedOffset(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, 0L);
     }
 
@@ -79,7 +86,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getEntryCount(SegmentProperties segmentInfo) {
+    static long getEntryCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.ENTRY_COUNT, 0L);
     }
 
@@ -90,7 +97,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getTotalEntryCount(SegmentProperties segmentInfo) {
+    static long getTotalEntryCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.TOTAL_ENTRY_COUNT, 0L);
     }
 
@@ -100,7 +107,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getBucketCount(SegmentProperties segmentInfo) {
+    static long getBucketCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.BUCKET_COUNT, 0L);
     }
 
@@ -110,7 +117,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The index.
      */
-    long getCompactionOffset(SegmentProperties segmentInfo) {
+    static long getCompactionOffset(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
     }
 
@@ -120,7 +127,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The result.
      */
-    long getCompactionUtilizationThreshold(SegmentProperties segmentInfo) {
+    static long getCompactionUtilizationThreshold(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.MIN_UTILIZATION, 0L);
     }
 
@@ -133,10 +140,12 @@ class IndexReader {
      * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
      */
     CompletableFuture<Map<UUID, TableBucket>> locateBuckets(DirectSegmentAccess segment, Collection<UUID> keyHashes, TimeoutTimer timer) {
+        val attributeIds = keyHashes.stream().map(AttributeId::fromUUID).collect(Collectors.toList());
         return segment
-                .getAttributes(keyHashes, false, timer.getRemaining())
+                .getAttributes(attributeIds, false, timer.getRemaining())
                 .thenApply(attributes -> attributes.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, e -> new TableBucket(e.getKey(), e.getValue()))));
+                        .map(e -> new TableBucket(((AttributeId.UUID) e.getKey()).toUUID(), e.getValue())) // These should always be UUID.
+                        .collect(Collectors.toMap(TableBucket::getHash, b -> b)));
     }
 
     /**
@@ -148,7 +157,7 @@ class IndexReader {
      * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
      */
     CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
-        UUID key = getBackpointerAttributeKey(offset);
+        AttributeId key = getBackpointerAttributeKey(offset);
         return segment.getAttributes(Collections.singleton(key), false, timeout)
                       .thenApply(attributes -> {
                           long result = attributes.getOrDefault(key, Attributes.NULL_ATTRIBUTE_VALUE);
@@ -182,17 +191,17 @@ class IndexReader {
     }
 
     /**
-     * Generates a 16-byte UUID that encodes the given Offset as a Backpointer (to some other offset).
+     * Generates a 16-byte AttributeId that encodes the given Offset as a Backpointer (to some other offset).
      * Format {0(64)}{Offset}
      * - MSB is 0
      * - LSB is Offset.
      *
      * @param offset The offset to generate a backpointer from.
-     * @return A UUID representing the Attribute Key.
+     * @return An AttributeId representing the Attribute Key.
      */
-    protected UUID getBackpointerAttributeKey(long offset) {
+    protected AttributeId getBackpointerAttributeKey(long offset) {
         Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
-        return new UUID(TableBucket.BACKPOINTER_PREFIX, offset);
+        return AttributeId.uuid(TableBucket.BACKPOINTER_PREFIX, offset);
     }
 
     /**
@@ -202,8 +211,8 @@ class IndexReader {
      * @return True if backpointer, false otherwise.
      */
     @VisibleForTesting
-    static boolean isBackpointerAttributeKey(UUID key) {
-        return key.getMostSignificantBits() == TableBucket.BACKPOINTER_PREFIX;
+    static boolean isBackpointerAttributeKey(AttributeId key) {
+        return key.getBitGroup(0) == TableBucket.BACKPOINTER_PREFIX;
     }
 
     //endregion

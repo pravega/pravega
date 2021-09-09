@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -15,11 +21,6 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -27,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base implementation of {@link ChunkStorage}.
@@ -164,7 +169,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         checkChunkName(chunkName);
         Preconditions.checkArgument(null != data, "data must not be null");
-        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative");
+        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative. Chunk=%s length=%s", chunkName, length);
 
         val traceId = LoggerHelpers.traceEnter(log, "CreateWithContent", chunkName);
         val opContext = new OperationContext();
@@ -198,7 +203,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk=%s", handle.getChunkName());
 
         val traceId = LoggerHelpers.traceEnter(log, "delete", handle.getChunkName());
         val opContext = new OperationContext();
@@ -313,11 +318,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     final public CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != handle, "handle");
+        Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(null != buffer, "buffer");
-        Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative");
-        Preconditions.checkArgument(length >= 0 && length <= buffer.length, "length");
+        Preconditions.checkArgument(null != buffer, "buffer must not be null");
+        Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative. Chunk=%s fromOffset=%s", handle.getChunkName(), fromOffset);
+        Preconditions.checkArgument(length >= 0 && length <= buffer.length,
+                "length must be non-negative and must not exceed buffer. Chunk=%s length=%s buffer.length=%s", handle.getChunkName(), length, buffer.length);
         Preconditions.checkElementIndex(bufferOffset, buffer.length, "bufferOffset");
 
         val traceId = LoggerHelpers.traceEnter(log, "read", handle.getChunkName(), fromOffset, bufferOffset, length);
@@ -361,10 +367,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk = %s", handle.getChunkName());
         Preconditions.checkArgument(null != data, "data must not be null");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
-        Preconditions.checkArgument(length >= 0, "length must be non-negative");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Chunk=%s offset=%s", handle.getChunkName(), offset);
+        Preconditions.checkArgument(length >= 0, "length must be non-negative. Chunk=%s length=%s", handle.getChunkName(), length);
         if (!supportsAppend()) {
             Preconditions.checkArgument(offset == 0, "offset must be 0 because storage does not support appends.");
         }
@@ -457,8 +463,8 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk=%s", handle.getChunkName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Chunk=%s offset=%s", handle.getChunkName(), offset);
 
         val traceId = LoggerHelpers.traceEnter(log, "truncate", handle.getChunkName());
 
@@ -711,7 +717,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     /**
      * Context data used to capture operation runtime information.
      */
-    static class OperationContext {
+    protected static class OperationContext {
         /**
          * End to end latency of the operation.
          */

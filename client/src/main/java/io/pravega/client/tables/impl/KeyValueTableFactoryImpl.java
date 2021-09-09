@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.tables.impl;
 
@@ -14,7 +20,6 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.shared.security.auth.AccessOperation;
@@ -35,13 +40,11 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
     private final ConnectionPool connectionPool;
 
     @Override
-    public <KeyT, ValueT> KeyValueTable<KeyT, ValueT> forKeyValueTable(
-            @NonNull String keyValueTableName, @NonNull Serializer<KeyT> keySerializer,
-            @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
+    public KeyValueTable forKeyValueTable(@NonNull String keyValueTableName, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
         val kvt = new KeyValueTableInfo(this.scope, keyValueTableName);
         val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName(), AccessOperation.READ_WRITE);
         val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionPool, clientConfiguration, provider);
-        return new KeyValueTableImpl<>(kvt, tsf, this.controller, keySerializer, valueSerializer);
+        return new KeyValueTableImpl(kvt, tsf, this.controller, this.connectionPool.getInternalExecutor());
     }
 
     @Override

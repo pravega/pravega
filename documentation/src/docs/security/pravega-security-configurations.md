@@ -1,11 +1,17 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Pravega Security Configurations
 
@@ -41,6 +47,16 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Valid values:|{`true`, `false`} |
    |Old name:|`controller.auth.tlsEnabled` (deprecated) |
     
+* __<ins>controller.security.tls.protocolVersion</ins>__
+
+   |Property| Value | 
+   |---:|:----|
+   |Description: | Configurable versions for TLS Protocol |
+   |Type:|String|
+   |Default:| `TLSv1.2,TLSv1.3`|
+   |Valid values:|{`TLSv1.2`, `TLSv1.3`, `TLSv1.2,TLSv1.3`, `TLSv1.3,TLSv1.2`} |
+
+
 * __<ins>controller.security.tls.server.certificate.location</ins>__
 
    |Property| Value | 
@@ -129,7 +145,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Type:|string|
    |Default: | None |
    |Sample value:|`/path/to/client/zookeeper.truststore.pwd`  |
-   |Old name:|`controller.zk.tlsTrustStoreFile` (deprecated) |   
+   |Old name:|`controller.zk.tlsTrustStorePasswordFile` (deprecated) |   
  
    
 ### Controller Authentication and Authorization Configuration Parameters
@@ -175,6 +191,16 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Default:| `false`|
    |Valid values:|{`true`, `false`} |
    |Old name:|`pravegaservice.enableTls` (deprecated) |
+
+* __<ins>pravegaservice.security.tls.protocolVersion</ins>__
+   
+   |Property| Value |
+   |---:|:----|
+   |Description: | Configurable versions for TLS Protocol |
+  |Type:|String|
+  |Default:| `TLSv1.2,TLSv1.3`|
+  |Valid values:|{`TLSv1.2`, `TLSv1.3`, `TLSv1.2,TLSv1.3`, `TLSv1.3,TLSv1.2`} |
+   
   
 * __<ins>pravegaservice.security.tls.certificate.autoReload.enable</ins>__
 
@@ -205,6 +231,24 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Default: | None |
    |Sample value:| `/path/to/server/server-privateKey.key`  |
    |Old name:|`pravegaservice.keyFile` (deprecated) | 
+
+* __<ins>pravegaservice.security.tls.server.keyStore.location</ins>__
+
+  |Property| Value | 
+     |---:|:----|
+  |Description: | Path of the `.jks` file that contains the TLS material used for securing the Segment Store's REST interface. It contains the server's public key certificate and the associated pivate key, as well as the CA's certificate.   |
+  |Type:|string|
+  |Default:| None | 
+  |Sample value:|`/path/to/server/server-keystore.jks`   |
+
+* __<ins>pravegaservice.security.tls.server.keyStore.pwd.location</ins>__
+
+  |Property| Value | 
+     |---:|:----|
+  |Description: | Path of the file containing the password for the keystore specified via `pravegaservice.security.tls.server.keyStore.location`. |
+  |Type:|string|
+  |Default:| None | 
+  |Sample value:|`/path/to/server/server-keystore.pwd`   |
   
 * __<ins>autoScale.controller.connect.security.tls.enable</ins>__
 
@@ -349,6 +393,7 @@ fewer security configuration parameters to configure.
 |Parameter|Details|Default |Feature|
 |---------|-------|-------------|-------|
 | `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | `false` | TLS |
+| `singlenode.security.tls.protocolVersion` | Version of the TLS Protocol. | `TLSv1.2,TLSv1.3` | TLS|
 | `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | None | TLS |
 | `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. | None | TLS |
 | `singlenode.security.tls.keyStore.location` | Path of the keystore file in `.jks` for the REST interface. | None | TLS |

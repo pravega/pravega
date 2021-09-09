@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.checkpoint;
 
@@ -86,6 +92,20 @@ public interface CheckpointStore {
             throws CheckpointStoreException;
 
     /**
+     * Removes the specified process.
+     * This is equivalent to calling {@link #sealReaderGroup(String, String)}, 
+     * then {@link #removeReader(String, String, String)} for all of the readers for that process.
+     * then {@link #removeReaderGroup(String, String)}.
+     * NOTE: this operation is not atomic, but it is idempotent.
+     * 
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     * @return Map of readers to their respective positions in the specified readerGroup.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
+     */
+    Map<String, Position> removeProcessFromGroup(final String process, final String readerGroup) throws CheckpointStoreException;
+    
+    /**
      * List all the reader groups added to a specified process.
      * @param process Process identifier.
      * @return List of reader groups added to the specified process.
@@ -114,4 +134,11 @@ public interface CheckpointStore {
             throws CheckpointStoreException;
 
     Set<String> getProcesses() throws CheckpointStoreException;
+
+    /**
+     * Get the health status.
+     *
+     * @return true/false.
+     */
+    public boolean isHealthy();
 }

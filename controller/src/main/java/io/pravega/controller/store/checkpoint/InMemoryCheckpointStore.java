@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.checkpoint;
 
@@ -121,6 +127,17 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
+    public Map<String, Position> removeProcessFromGroup(final String process, final String readerGroup) throws CheckpointStoreException {
+        Map<String, Position> result = sealReaderGroup(process, readerGroup);
+        for (String id : result.keySet()) {
+            removeProcessFromGroup(id, readerGroup);
+        }
+        removeReaderGroup(process, readerGroup);
+        return result;
+    }
+    
+    @Override
+    @Synchronized
     public List<String> getReaderGroups(final String process) {
         List<String> list = new ArrayList<>();
         map.entrySet().stream().forEach(pair -> {
@@ -164,6 +181,16 @@ class InMemoryCheckpointStore implements CheckpointStore {
     @Override
     public Set<String> getProcesses() throws CheckpointStoreException {
         return map.keySet().stream().map(this::getProcess).collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the health status.
+     *
+     * @return true by deafult.
+     */
+    @Override
+    public boolean isHealthy() {
+        return true;
     }
 
     private String getKey(final String process, final String readerGroup) {

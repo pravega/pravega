@@ -1,10 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -15,6 +22,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
@@ -92,6 +100,7 @@ public class TcpClientConnection implements ClientConnection {
         private final Thread thread;
         private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
+        private final ReusableLatch hasStopped = new ReusableLatch(false);
 
         public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
             this.name = name;
@@ -110,7 +119,12 @@ public class TcpClientConnection implements ClientConnection {
             IoBuffer buffer = new IoBuffer();
             while (!stop.get()) {
                 try {
+                    // This method blocks until it is able to read data from the tcp socket InputStream.
                     WireCommand command = readCommand(in, buffer);
+                    if (stop.get()) {
+                        // stop has already been invoked ignore the message received from the socket.
+                        break;
+                    }
                     if (command instanceof WireCommands.DataAppended) {
                         WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                         flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(dataAppended.getRequestId())).recordAck(dataAppended.getEventNumber());
@@ -135,6 +149,7 @@ public class TcpClientConnection implements ClientConnection {
                     stop();
                 }
             }
+            hasStopped.release();
         }
 
         @VisibleForTesting
@@ -161,7 +176,13 @@ public class TcpClientConnection implements ClientConnection {
             if (stop.getAndSet(true)) {
                 return;
             }
+            // close the input stream to ensure no further data can be received.
             closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
+            // No need to await termination if stop is invoked by the callback method.
+            if (Thread.currentThread().getId() != this.thread.getId()) {
+                // wait until we have completed the current call to the reply processors.
+                Exceptions.handleInterrupted(hasStopped::await);
+            }
             callback.connectionDropped();
         }
     }
@@ -197,7 +218,7 @@ public class TcpClientConnection implements ClientConnection {
                 reader.start();
                 // We use the flow id on both CommandEncoder and ConnectionReader to locate AppendBatchSizeTrackers.
                 CommandEncoder encoder = new CommandEncoder(requestId ->
-                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(requestId)), null, socket.getOutputStream());
+                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(requestId)), null, socket.getOutputStream(), callback, location);
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
                 closeQuietly(socket, log, "Failed to close socket while failing.");

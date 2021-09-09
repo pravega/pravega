@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -53,6 +59,9 @@ class ReadIndexCache implements StatsReporter {
      * @param maxIndexedChunks   Max number of cached indexed chunks.
      */
     public ReadIndexCache(int maxIndexedSegments, int maxIndexedChunks) {
+        Preconditions.checkArgument(maxIndexedSegments >= 0, "maxIndexedSegments must be non negative");
+        Preconditions.checkArgument(maxIndexedChunks >= 0, "maxIndexedChunks must be non negative");
+
         segmentsReadIndexCache = CacheBuilder.newBuilder()
                 .maximumSize(maxIndexedSegments)
                 .removalListener(this::removeSegment)
@@ -92,8 +101,8 @@ class ReadIndexCache implements StatsReporter {
      * @param newReadIndexEntries List of {@link ChunkNameOffsetPair} for new entries.
      */
     public void addIndexEntries(String streamSegmentName, List<ChunkNameOffsetPair> newReadIndexEntries) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(null != newReadIndexEntries, "newReadIndexEntries");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
+        Preconditions.checkArgument(null != newReadIndexEntries, "newReadIndexEntries must not be null");
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, true);
         for (val entry : newReadIndexEntries) {
             addIndexEntry(segmentReadIndex, streamSegmentName, entry.getChunkName(), entry.getOffset());
@@ -108,9 +117,9 @@ class ReadIndexCache implements StatsReporter {
      * @param startOffset       Start offset of the chunk.
      */
     public void addIndexEntry(String streamSegmentName, String chunkName, long startOffset) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(null != chunkName, "chunkName");
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
+        Preconditions.checkArgument(null != chunkName, "chunkName must not be null. Segment=%s", streamSegmentName);
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative. Segment=%s startOffset=%s", streamSegmentName, startOffset);
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, true);
         addIndexEntry(segmentReadIndex, streamSegmentName, chunkName, startOffset);
     }
@@ -135,7 +144,7 @@ class ReadIndexCache implements StatsReporter {
      * @param streamSegmentName Name of the segment to remove.
      */
     public void remove(String streamSegmentName) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
         val readIndex = segmentsReadIndexCache.getIfPresent(streamSegmentName);
         if (null != readIndex) {
             indexEntryCache.invalidateAll(readIndex.offsetToChunkNameIndex.values());
@@ -181,7 +190,7 @@ class ReadIndexCache implements StatsReporter {
      */
     public ChunkNameOffsetPair findFloor(String streamSegmentName, long offset) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Segment=%s offset=%s", streamSegmentName, offset);
 
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, false);
         if (null != segmentReadIndex && segmentReadIndex.offsetToChunkNameIndex.size() > 0) {
@@ -207,7 +216,7 @@ class ReadIndexCache implements StatsReporter {
      */
     public void truncateReadIndex(String streamSegmentName, long startOffset) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative");
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative. Segment=%s startOffset=%s", streamSegmentName, startOffset);
 
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, false);
         if (null != segmentReadIndex) {

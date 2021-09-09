@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.fault;
 
@@ -13,22 +19,19 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.store.host.ZKHostStore;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import java.util.Arrays;
@@ -45,31 +48,24 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentContainerMonitorTest {
 
-    private final static String CLUSTER_NAME = "testcluster";
-    
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
+    private static final String CLUSTER_NAME = "testcluster";
+
     //Ensure each test completes within 30 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    
-    private TestingServer zkTestServer;
-    private CuratorFramework zkClient;
+
     private Cluster cluster;
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-        String zkUrl = zkTestServer.getConnectString();
-
-        zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-        cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
+        cluster = new ClusterZKImpl(PRAVEGA_ZK_CURATOR_RESOURCE.client, ClusterType.HOST);
     }
 
     @After
     public void stopZookeeper() throws Exception {
         cluster.close();
-        zkClient.close();
-        zkTestServer.close();
     }
 
     @Test(timeout = 30000)
@@ -80,7 +76,7 @@ public class SegmentContainerMonitorTest {
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .build();
         HostControllerStore hostStore = HostStoreFactory.createStore(config,
-                StoreClientFactory.createZKStoreClient(zkClient));
+                StoreClientFactory.createZKStoreClient(PRAVEGA_ZK_CURATOR_RESOURCE.client));
         // 6 latches to match 6 operations of register/deregiter done in the test
         List<CompletableFuture<Void>> latches = Arrays.asList(
                 new CompletableFuture<>(), new CompletableFuture<>(),
@@ -124,12 +120,12 @@ public class SegmentContainerMonitorTest {
                 //Notify the test case of the update.
                 sync.release();
             }
-            
+
             @Override
             public int getContainerCount() {
                 return hostStore.getContainerCount();
             }
-            
+
             @Override
             public Host getHostForSegment(String scope, String stream, long segmentNumber) {
                 return null;
@@ -141,10 +137,9 @@ public class SegmentContainerMonitorTest {
             }
         }
 
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
                 new UniformContainerBalancer(), 2);
         monitor.startAsync().awaitRunning();
-
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 
         //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.

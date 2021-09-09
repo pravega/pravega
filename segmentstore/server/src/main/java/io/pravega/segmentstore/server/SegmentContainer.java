@@ -1,27 +1,35 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.segmentstore.contracts.SegmentApi;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
 
 /**
  * Defines a Container for StreamSegments.
  */
-public interface SegmentContainer extends StreamSegmentStore, Container {
+public interface SegmentContainer extends SegmentApi, Container {
     /**
      * Gets a collection of SegmentProperties for all active Segments (Active Segment = a segment that is currently allocated
      * in the internal Container's Metadata (usually a segment with recent activity)).
@@ -73,7 +81,29 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
      * failed, the future will be failed with the causing exception.
      */
-    CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout);
+    default CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        return forSegment(streamSegmentName, null, timeout);
+    }
+
+    /**
+     * See {@link #forSegment(String, Duration)}.
+     *
+     * The difference from that one is that this one creates a {@link DirectSegmentAccess} where all modify operations
+     * ({@link DirectSegmentAccess#append}, {@link DirectSegmentAccess#updateAttributes}, {@link DirectSegmentAccess#seal}
+     * and {@link DirectSegmentAccess#truncate}} will be attempted with the requested {@code desiredPriority} instead
+     * of the default one.
+     *
+     * @param streamSegmentName The name of the Segment to get for.
+     * @param desiredPriority   The desired {@link OperationPriority}. If null, the priority will be calculated in
+     *                          accordance with the rules defined internally in the Segment Container. Note that even if
+     *                          provided, the Segment Container may choose a higher priority (but not lower) if the Segment
+     *                          Type or Operation Type demand a higher one.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
+     * failed, the future will be failed with the causing exception.
+     */
+    CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, @Nullable OperationPriority desiredPriority,
+                                                      Duration timeout);
 
     /**
      * Gets a registered {@link SegmentContainerExtension} of the given type.

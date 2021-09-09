@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
@@ -134,6 +140,19 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
+        MockScope mockScope = this.createdScopes.get(scopeName);
+        Stream stream = Stream.of(scopeName, streamName);
+        if (mockScope != null && mockScope.streams.get(stream) != null) {
+            return CompletableFuture.completedFuture(mockScope.streams.get(stream));
+        } else {
+            CompletableFuture<StreamConfiguration> cf = new CompletableFuture<>();
+            cf.completeExceptionally(new IllegalStateException("Scope does not exist"));
+            return cf;
+        }
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         if (createdScopes.get(scopeName) != null) {
@@ -147,6 +166,15 @@ public class MockController implements Controller {
     @Synchronized
     public AsyncIterator<Stream> listStreams(String scopeName) {
         return list(scopeName, s -> s.streams.keySet(), Stream::getStreamName);
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
+        return list(scopeName, ms -> ms.streams.entrySet()
+                                               .stream()
+                                               .filter(e -> e.getValue().getTags().contains(tag))
+                                               .map(Map.Entry::getKey).collect(Collectors.toList()),
+                    Stream::getStreamName);
     }
 
     @Override
@@ -188,7 +216,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
-        StreamConfiguration config = getStreamConfiguration(stream);
+        StreamConfiguration config = getStreamConfig(stream);
         Preconditions.checkArgument(config != null, "Stream " + stream.getScopedName() + " must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
@@ -203,7 +231,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<Segment> getSegmentsForKeyValueTable(KeyValueTableInfo kvt) {
-        KeyValueTableConfiguration config = getKeyValueTableConfiguration(kvt);
+        KeyValueTableConfiguration config = getKeyValueTableConfig(kvt);
         Preconditions.checkArgument(config != null, "Key-Value Table " + kvt.getScopedName() + " must be created first");
         List<Segment> result = new ArrayList<>(config.getPartitionCount());
         for (int i = 0; i < config.getPartitionCount(); i++) {
@@ -220,7 +248,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<SegmentWithRange> getSegmentsWithRanges(Stream stream) {
-        StreamConfiguration config = getStreamConfiguration(stream);
+        StreamConfiguration config = getStreamConfig(stream);
         Preconditions.checkArgument(config != null, "Stream must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
@@ -233,7 +261,7 @@ public class MockController implements Controller {
         return result;
     }
 
-    private StreamConfiguration getStreamConfiguration(Stream stream) {
+    private StreamConfiguration getStreamConfig(Stream stream) {
         for (MockScope scope : createdScopes.values()) {
             StreamConfiguration sc = scope.streams.get(stream);
             if (sc != null) {
@@ -243,7 +271,7 @@ public class MockController implements Controller {
         return null;
     }
 
-    private KeyValueTableConfiguration getKeyValueTableConfiguration(KeyValueTableInfo kvtInfo) {
+    private KeyValueTableConfiguration getKeyValueTableConfig(KeyValueTableInfo kvtInfo) {
         for (MockScope scope : createdScopes.values()) {
             KeyValueTableConfiguration c = scope.keyValueTables.get(kvtInfo);
             if (c != null) {
@@ -265,11 +293,18 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
-        throw new UnsupportedOperationException();
+        MockScope mockScope = this.createdScopes.get(scope);
+        if (mockScope != null) {
+            mockScope.streams.put(Stream.of(scope, streamName), streamConfig);
+            return CompletableFuture.completedFuture(true);
+        } else {
+            return CompletableFuture.completedFuture(false);
+        }
     }
 
     @Override
     public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        createRGStream(scopeName, rgName);
         createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
                 this::getSegmentsForReaderGroup, Segment::getScopedName, this::createSegment);
         return CompletableFuture.completedFuture(config);
@@ -282,8 +317,9 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
-        String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
-        return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        String key = getScopedReaderGroupName(scope, rgName);
+        deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        return deleteStream(scope, getStreamForReaderGroup(rgName));
     }
 
     @Override
@@ -357,7 +393,7 @@ public class MockController implements Controller {
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "", 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -368,8 +404,8 @@ public class MockController implements Controller {
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
-        // All KeyValueTable Segments are Sorted.
-        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, true, "");
+
+        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, false, 0, "", 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -668,7 +704,7 @@ public class MockController implements Controller {
         };
         String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
-                0, ""), replyProcessor, result);
+                0, "", 0), replyProcessor, result);
         return result;
     }
 
@@ -686,7 +722,7 @@ public class MockController implements Controller {
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         final Stream segmentStream = Stream.of(segment.getScopedStreamName());
         final CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
-        if (getStreamConfiguration(segmentStream) == null) {
+        if (getStreamConfig(segmentStream) == null) {
             result.completeExceptionally(new RuntimeException("Stream is deleted"));
         } else {
             result.complete(new StreamSegmentsWithPredecessors(Collections.emptyMap(), ""));
@@ -696,7 +732,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
-        StreamConfiguration configuration = getStreamConfiguration(from.asImpl().getStream());
+        StreamConfiguration configuration = getStreamConfig(from.asImpl().getStream());
         if (configuration.getScalingPolicy().getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }
@@ -773,6 +809,12 @@ public class MockController implements Controller {
     @Synchronized
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         return list(scopeName, s -> s.keyValueTables.keySet(), KeyValueTableInfo::getKeyValueTableName);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return CompletableFuture.completedFuture(getKeyValueTableConfig(new KeyValueTableInfo(scope, kvtName)));
     }
 
     @Override

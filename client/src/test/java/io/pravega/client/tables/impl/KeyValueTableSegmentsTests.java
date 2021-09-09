@@ -1,18 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.tables.impl;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
@@ -30,7 +35,7 @@ public class KeyValueTableSegmentsTests {
     private static final int SEGMENT_COUNT = 16;
 
     /**
-     * Verifies uniformity for {@link KeyValueTableSegments#getSegmentForKey(ByteBuf)}.
+     * Verifies uniformity for {@link KeyValueTableSegments#getSegmentForKey(ByteBuffer)}.
      */
     @Test
     public void testGetSegmentForKeyByteBuf() {
@@ -42,11 +47,9 @@ public class KeyValueTableSegmentsTests {
         val rnd = new Random(0);
 
         for (int i = 0; i < testCount; i++) {
-            byte[] a1 = new byte[KeyFamilySerializer.PREFIX_LENGTH];
-            byte[] a2 = new byte[128];
-            rnd.nextBytes(a1);
-            rnd.nextBytes(a2);
-            val segment = s.getSegmentForKey(Unpooled.wrappedBuffer(Unpooled.wrappedBuffer(a1), Unpooled.wrappedBuffer(a2)));
+            byte[] k = new byte[128];
+            rnd.nextBytes(k);
+            val segment = s.getSegmentForKey(ByteBuffer.wrap(k));
             hits.put(segment, hits.getOrDefault(segment, 0.0) + 1.0 / testCount);
         }
 

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.security.auth.handler;
 
@@ -22,10 +28,10 @@ import io.grpc.Status;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
-import java.security.Principal;
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import java.security.Principal;
 
 /**
  * Intercepts gRPC requests and sets up Auth context.
@@ -33,18 +39,18 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AuthInterceptor implements ServerInterceptor {
 
-    private static final String PRINCIPAL_KEY_NAME = "PravegaContext";
-    private static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
+    public static final String PRINCIPAL_KEY_NAME = "PravegaContext";
+    public static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
 
     /**
-     * Represents the key used for indexing the {@link java.security.Principal} object stored in the current
-     * {@link io.grpc.Context}.
+     * Represents the key used for indexing the {@link Principal} object stored in the current
+     * {@link Context}.
      */
     static final Context.Key<Principal> PRINCIPAL_OBJECT_KEY = Context.key(PRINCIPAL_KEY_NAME);
 
     /**
      * Represents the key used for indexing an object instance of this class stored in the current
-     * {@link io.grpc.Context}.
+     * {@link Context}.
      */
     static final Context.Key<AuthInterceptor> AUTH_INTERCEPTOR_OBJECT_KEY = Context.key(INTERCEPTOR_KEY_NAME);
 

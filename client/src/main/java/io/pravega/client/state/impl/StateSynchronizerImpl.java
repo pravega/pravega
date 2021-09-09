@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state.impl;
 
@@ -85,15 +91,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 log.trace("Found entry {} ", entry.getValue());
                 if (entry.getValue().isInit()) {
                     InitialUpdate<StateT> init = entry.getValue().getInit();
-                    if (isNewer(entry.getKey())) {
-                        updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
-                    }
+                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
             }
         } catch (TruncatedDataException e) {
-            log.info("{} encountered truncation on segment {}", this, segment);
+            log.info("{} encountered truncation on segment {}, Details: {}", this, segment, e.getMessage());
             RETRY_INDEFINITELY
                  .retryingOn(TruncatedDataException.class)
                  .throwingOn(RuntimeException.class)
@@ -113,10 +117,8 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (entry.getValue().isInit()) {
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
-                if (isNewer(currentRevision)) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
-                    foundInit = true;
-                }
+                foundInit = true;
+                updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
             }
         }
         if (!foundInit) {
@@ -208,6 +210,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision oldMark = client.getMark();
             if (oldMark == null || oldMark.compareTo(newMark) < 0) {
                 client.compareAndSetMark(oldMark, newMark);
+                log.info("Compacted state is written at {} the oldMark is {}", newMark, oldMark);
             }
             if (oldMark != null) {
                 client.truncateToRevision(oldMark);
@@ -248,7 +251,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Synchronized
     private boolean isNewer(Revision revision) {
-        return currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        boolean result = currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        if (!result ) {
+            log.debug("In memory state {} is newer than the provided revision {}", currentState.getRevision(), revision);
+        }
+        return result;
     }
 
     @Synchronized

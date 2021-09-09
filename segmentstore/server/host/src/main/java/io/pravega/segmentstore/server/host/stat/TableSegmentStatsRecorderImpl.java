@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host.stat;
 
@@ -40,6 +46,8 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     private final Counter iterateKeys = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS);
     private final OpStatsLogger iterateEntriesLatency = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY);
     private final Counter iterateEntries = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES);
+    private final OpStatsLogger getInfoLatency = createLogger(MetricsNames.TABLE_SEGMENT_GET_INFO_LATENCY);
+    private final Counter getInfo = createCounter(MetricsNames.TABLE_SEGMENT_GET_INFO);
 
     //region AutoCloseable Implementation
 
@@ -61,6 +69,8 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
         this.iterateKeys.close();
         this.iterateEntriesLatency.close();
         this.iterateEntries.close();
+        this.getInfo.close();
+        this.getInfoLatency.close();
     }
 
     //endregion
@@ -105,6 +115,12 @@ class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     public void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed) {
         this.iterateEntriesLatency.reportSuccessEvent(elapsed);
         this.iterateEntries.add(resultCount);
+    }
+
+    @Override
+    public void getInfo(String tableSegmentName, Duration elapsed) {
+        this.getInfoLatency.reportSuccessEvent(elapsed);
+        this.getInfo.inc();
     }
 
     //endregion

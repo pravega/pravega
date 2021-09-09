@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.client.connection.impl;
@@ -35,9 +41,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.metrics.ClientMetricUpdater;
 import io.pravega.shared.metrics.MetricListener;
 import io.pravega.shared.metrics.MetricNotifier;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -82,6 +90,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     private final Object lock = new Object();
+    @VisibleForTesting
+    @Getter
     private final ClientConfig clientConfig;
     private final MetricNotifier metricNotifier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -118,11 +128,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
             final Connection connection;
             if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
-                log.info("Reusing connection: {}", suggestedConnection.get());
+                log.trace("Reusing connection: {}", suggestedConnection.get());
                 connection = suggestedConnection.get();
             } else {
                 // create a new connection.
-                log.info("Creating a new connection to {}", location);
+                log.trace("Creating a new connection to {}", location);
                 CompletableFuture<FlowHandler> establishedFuture = establishConnection(location);
                 connection = new Connection(location, establishedFuture);
                 prunedConnectionList.add(connection);
@@ -142,6 +152,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         CompletableFuture<FlowHandler> handler = establishConnection(location);
         Connection connection = new Connection(location, handler);
         return connection.getFlowHandler().thenApply(h -> h.createConnectionWithFlowDisabled(rp));
+    }
+
+    @Override
+    public void getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+        getClientConnection(flow, location, rp).thenApply(connection::complete).exceptionally( e -> connection.completeExceptionally(new ConnectionFailedException(e)));
     }
 
     private static boolean isUnused(Connection connection) {

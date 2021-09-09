@@ -1,22 +1,31 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -35,10 +44,10 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * An update transaction that can apply changes to a SegmentMetadata.
@@ -48,8 +57,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
 
     private final boolean recoveryMode;
-    private final Map<UUID, Long> baseAttributeValues;
-    private final Map<UUID, Long> attributeUpdates;
+    private final Map<AttributeId, Long> baseAttributeValues;
+    private final Map<AttributeId, Long> attributeUpdates;
     @Getter
     private final long id;
     @Getter
@@ -58,6 +67,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     private final int containerId;
     @Getter
     private final SegmentType type;
+    @Getter
+    private final int attributeIdLength;
     @Getter
     private long startOffset;
     @Getter
@@ -79,6 +90,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private long lastUsed;
     private boolean isChanged;
+    @Getter
+    @Setter
+    private boolean active;
 
     //endregion
 
@@ -96,6 +110,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
         this.type = baseMetadata.getType();
+        this.attributeIdLength = baseMetadata.getAttributeIdLength();
         this.startOffset = baseMetadata.getStartOffset();
         this.length = baseMetadata.getLength();
         this.baseStorageLength = baseMetadata.getStorageLength();
@@ -108,6 +123,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.baseAttributeValues = baseMetadata.getAttributes();
         this.attributeUpdates = new HashMap<>();
         this.lastUsed = baseMetadata.getLastUsed();
+        this.active = true;
     }
 
     //endregion
@@ -129,23 +145,18 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isActive() {
-        return true;
-    }
-
-    @Override
     public SegmentProperties getSnapshot() {
         throw new UnsupportedOperationException("getSnapshot() is not supported on " + getClass().getName());
     }
 
     @Override
-    public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+    public Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
         throw new UnsupportedOperationException("getAttributes(BiPredicate) is not supported on " + getClass().getName());
     }
 
     @Override
-    public Map<UUID, Long> getAttributes() {
-        HashMap<UUID, Long> result = new HashMap<>(this.baseAttributeValues);
+    public Map<AttributeId, Long> getAttributes() {
+        HashMap<AttributeId, Long> result = new HashMap<>(this.baseAttributeValues);
         result.putAll(this.attributeUpdates);
         return result;
     }
@@ -211,7 +222,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void updateAttributes(Map<UUID, Long> attributeValues) {
+    public void updateAttributes(Map<AttributeId, Long> attributeValues) {
         this.attributeUpdates.clear();
         this.attributeUpdates.putAll(attributeValues);
         this.isChanged = true;
@@ -229,7 +240,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void refreshType() {
+    public void refreshDerivedProperties() {
         // Nothing to do here. This method only applies to StreamSegmentMetadata.
     }
 
@@ -384,9 +395,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentNotSealedException If the source Segment is not sealed.
      * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
+     * @throws BadAttributeUpdateException     If any of the given AttributeUpdates is invalid given the current state of the segment.
      */
     void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -402,10 +414,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation);
         }
 
         if (!this.recoveryMode) {
+            // Update attributes first on the target Segment, if any.
+            preProcessAttributes(operation.getAttributeUpdates());
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
         }
@@ -448,17 +462,21 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * of that attribute in the Segment.
      *
      * @param attributeUpdates The Updates to process (if any).
-     * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
-     *                                     the segment.
-     * @throws MetadataUpdateException      If the operation cannot not be processed because a Metadata Update precondition
-     *                                      check failed.
+     * @throws BadAttributeUpdateException        If any of the given AttributeUpdates is invalid given the current state
+     *                                            of the segment.
+     * @throws AttributeIdLengthMismatchException If the given AttributeUpdates contains extended Attributes with the
+     *                                            wrong length (compared to that which is defined on the Segment).
+     * @throws MetadataUpdateException            If the operation cannot not be processed because a Metadata Update
+     *                                            precondition check failed.
      */
-    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates)
+    private void preProcessAttributes(AttributeUpdateCollection attributeUpdates)
             throws BadAttributeUpdateException, MetadataUpdateException {
         if (attributeUpdates == null) {
             return;
         }
 
+        // We must ensure that we aren't trying to set/update attributes that are incompatible with this Segment.
+        validateAttributeIdLengths(attributeUpdates);
         for (AttributeUpdate u : attributeUpdates) {
             if (Attributes.isUnmodifiable(u.getAttributeId())) {
                 throw new MetadataUpdateException(this.containerId,
@@ -513,6 +531,31 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 default:
                     throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
+        }
+
+        // Evaluate and set DynamicAttributeUpdates.
+        for (DynamicAttributeUpdate u : attributeUpdates.getDynamicAttributeUpdates()) {
+            u.setValue(u.getValueReference().evaluate(this));
+        }
+    }
+
+    private void validateAttributeIdLengths(AttributeUpdateCollection c) throws AttributeIdLengthMismatchException {
+        Integer actualLength = c.getExtendedAttributeIdLength();
+        if (actualLength == null) {
+            // No extended attributes to validate.
+            return;
+        }
+        int expectedLength = getAttributeIdLength();
+        if (expectedLength <= 0 && actualLength > 0) {
+            // We expect AttributeId.UUIDs, but we have AttributeId.Variable.
+            throw new AttributeIdLengthMismatchException(this.containerId, String.format(
+                    "Segment %s must have extended attributes of type UUID; tried to update with variable attributes of length %s.",
+                    this.id, actualLength));
+        } else if (expectedLength > 0 && expectedLength != actualLength) {
+            // We have length mismatch.
+            throw new AttributeIdLengthMismatchException(this.containerId, String.format(
+                    "Segment %s must have extended attributes of length %s; tried to update with attributes of length %s.",
+                    this.id, expectedLength, actualLength));
         }
     }
 
@@ -612,9 +655,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation);
         }
-
+        acceptAttributes(operation.getAttributeUpdates());
         this.length += transLength;
         this.isChanged = true;
     }
@@ -685,6 +728,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 "Target Segment Id mismatch. Expected %s, given %s.", this.id, target.getId());
         Preconditions.checkArgument(target.getName().equals(this.name),
                 "Target Segment Name mismatch. Expected %s, given %s.", name, target.getName());
+        Preconditions.checkState(isActive(), "Cannot apply changes for an inactive segment. Segment Id = %s, Segment Name = '%s'.", this.id, this.name);
 
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);
