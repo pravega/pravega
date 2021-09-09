@@ -40,6 +40,7 @@ import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
+@SuppressWarnings("deprecation")
 @Slf4j
 public class ZKStoreHelper {
     @Getter(AccessLevel.PUBLIC)

@@ -50,6 +50,7 @@ import org.apache.curator.framework.recipes.cache.NodeCacheListener;
  * The current batch is identified by a znode. All controller instances register a watch on this znode. And whenever batch
  * is updated, all watchers receive the latest update.
  */
+@SuppressWarnings("deprecation")
 @Slf4j
 class ZKGarbageCollector extends AbstractService {
     private static final String GC_ROOT = "/garbagecollection/%s";
