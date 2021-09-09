@@ -90,7 +90,7 @@ set_bookieid() {
       BK_bookieId="${HOST}:${BOOKIE_PORT}"
     else
       HOST="`hostname -s`"
-      BK_bookieId="${HOST}:${RANDOM}"
+      BK_bookieId="${HOST}-${RANDOM}"
     fi
   fi
   echo "BookieID = $BK_bookieId"
