@@ -20,6 +20,7 @@ import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import org.apache.curator.CuratorZookeeperClient;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.listen.Listenable;
 import org.apache.curator.framework.state.ConnectionStateListener;
@@ -47,11 +48,13 @@ public class SegmentContainerMonitorHealthContributorTest {
         HostControllerStore hostStore = mock(HostControllerStore.class);
         CuratorFramework client = mock(CuratorFramework.class);
         ContainerBalancer balancer = mock(ContainerBalancer.class);
+        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
         Listenable listen = mock(Listenable.class);
         doNothing().when(listen).addListener(any(ConnectionStateListener.class));
         doReturn(listen).when(client).getConnectionStateListenable();
+        doReturn(curatorZKClientMock).when(client).getZookeeperClient();
+        doReturn(true).when(curatorZKClientMock).isConnected();
         monitor = spy(new SegmentContainerMonitor(hostStore, client, balancer, 1));
-        doReturn(true).when(monitor).isZKConnected();
         contributor = new SegmentContainerMonitorHealthContributor("segmentcontainermonitor", monitor);
         builder = Health.builder().name("monitor");
     }
