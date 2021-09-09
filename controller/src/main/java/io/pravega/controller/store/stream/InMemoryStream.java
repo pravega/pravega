@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
@@ -58,6 +59,7 @@ import java.util.Optional;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -144,9 +146,9 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions(OperationContext context) {
+    public CompletableFuture<Long> getNumberOfOngoingTransactions(OperationContext context) {
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(activeTxns.size());
+            return CompletableFuture.completedFuture((long) activeTxns.size());
         }
     }
 
@@ -755,24 +757,24 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit, OperationContext context) {
+    CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(int limit, OperationContext context) {
         List<Long> toPurge = new ArrayList<>();
-        Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
+        ConcurrentSkipListSet<VersionedTransactionData> committing = new ConcurrentSkipListSet<>(Comparator.comparingLong(VersionedTransactionData::getCommitOrder));
         AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
         // take smallest epoch and collect transactions from smallest epoch.
         transactionCommitOrder
                 .forEach((order, txId) -> {
                     int epoch = RecordHelper.getTransactionEpoch(txId);
-                    ActiveTxnRecord record;
+                    VersionedMetadata<ActiveTxnRecord> record;
                     synchronized (txnsLock) {
-                        record = activeTxns.containsKey(txId) ? activeTxns.get(txId).getObject() :
-                                ActiveTxnRecord.EMPTY;
+                        record = activeTxns.containsKey(txId) ? activeTxns.get(txId) :
+                                new VersionedMetadata<>(ActiveTxnRecord.EMPTY, null);
                     }
-                    switch (record.getTxnStatus()) {
+                    switch (record.getObject().getTxnStatus()) {
                         case COMMITTING:
-                            if (record.getCommitOrder() == order) {
+                            if (record.getObject().getCommitOrder() == order) {
                                 // if entry matches record's position then include it
-                                committing.put(txId, record);
+                                committing.add(convertToVersionedMetadata(txId, record.getObject(), record.getVersion()));
                                 if (smallestEpoch.get() > epoch) {
                                     smallestEpoch.set(epoch);
                                 }
@@ -796,12 +798,19 @@ public class InMemoryStream extends PersistentStreamBase {
 
         // take smallest epoch from committing transactions. order transactions in this epoch by 
         // ordered position
-        List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
-                                                                .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
+        List<VersionedTransactionData> list = committing.stream().filter(x -> RecordHelper.getTransactionEpoch(x.getId()) == smallestEpoch.get())
+                                                                .sorted(Comparator.comparing(VersionedTransactionData::getCommitOrder))
                                                                 .limit(limit)
                                                                 .collect(Collectors.toList());
 
         return CompletableFuture.completedFuture(list);
+    }
+
+    private VersionedTransactionData convertToVersionedMetadata(UUID id, ActiveTxnRecord record, Version version) {
+        int epoch = NameUtils.getEpoch(id);
+        return new VersionedTransactionData(epoch, id, version, record.getTxnStatus(), record.getLeaseExpiryTime(),
+                record.getMaxExecutionExpiryTime(), record.getWriterId(), record.getCommitTime(), record.getCommitOrder(),
+                record.getCommitOffsets());
     }
 
     @Override
