@@ -29,6 +29,8 @@ import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
+import io.pravega.controller.store.checkpoint.ZKCheckpointStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -57,6 +59,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.apache.curator.CuratorZookeeperClient;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.listen.Listenable;
+import org.apache.curator.framework.state.ConnectionStateListener;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -92,7 +98,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     @Test(timeout = 30000L)
     public void testIsReady() throws Exception {
         Controller controller = mock(Controller.class);
-        CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
@@ -102,6 +107,14 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
+        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
+        CuratorFramework client = mock(CuratorFramework.class);
+        Listenable listen = mock(Listenable.class);
+        doNothing().when(listen).addListener(any(ConnectionStateListener.class));
+        doReturn(listen).when(client).getConnectionStateListenable();
+        doReturn(curatorZKClientMock).when(client).getZookeeperClient();
+        doReturn(true).when(curatorZKClientMock).isConnected();
+        ZKCheckpointStore checkpointStore = (ZKCheckpointStore) CheckpointStoreFactory.createZKStore(client);
 
         doAnswer(x -> null).when(streamMetadataTasks).initializeStreamWriters(any(), any());
         doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
@@ -138,37 +151,10 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 kvtStore, kvtTasks, system, executorService()));
 
-        //Check isReady() method with four possible cases
-        // 1. BootStrap = false and MetadataService = false
+        //Check isReady() method
         Assert.assertFalse(processors.getBootstrapCompleted().get());
-        Assert.assertFalse(processors.isMetadataServiceConnected());
+        Assert.assertTrue(processors.isMetadataServiceConnected());
         Assert.assertFalse(processors.isReady());
-        // 2. BootStrap = false and MetadataService = true
-        when(checkpointStore.isHealthy()).thenReturn(true);
-        Assert.assertFalse(processors.isReady());
-
-        // call bootstrap on ControllerEventProcessors
-        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
-        // wait on create scope being called.
-        createScopeSignalFuture.join();
-        createScopeResponseFuture.complete(true);
-        // call create streams now
-        createStreamSignalsList.get(0).join();
-        createStreamSignalsList.get(1).join();
-        createStreamSignalsList.get(2).join();
-        createStreamSignalsList.get(3).join();
-        // complete successfully
-        createStreamResponsesList.get(0).complete(true);
-        createStreamResponsesList.get(1).complete(true);
-        createStreamResponsesList.get(2).complete(true);
-        createStreamResponsesList.get(3).complete(true);
-        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
-        // 3. BootStrap = true and MetadataService = false
-        doReturn(false).when(processors).isMetadataServiceConnected();
-        Assert.assertFalse(processors.isReady());
-        // 4. BootStrap = true and MetadataService = true
-        doReturn(true).when(processors).isMetadataServiceConnected();
-        Assert.assertTrue(processors.isReady());
     }
 
     @Test(timeout = 10000)
