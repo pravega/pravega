@@ -161,7 +161,7 @@ public class LargeEventWriterTest {
                                                                    buffers,
                                                                    tokenProvider,
                                                                    EventWriterConfig.builder()
-                                                                       .initialBackoffMillis(0)
+                                                                       .initialBackoffMillis(1)
                                                                        .backoffMultiple(1)
                                                                        .retryAttempts(7)
                                                                        .build()));

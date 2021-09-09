@@ -29,7 +29,8 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -99,26 +100,24 @@ public class LargeEventWriter {
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         List<ByteBuf> payloads = createBufs(events);
         int attempts = 1 + Math.max(0, config.getRetryAttempts());
-        boolean sent = false;
-        Exception cause = null;
-        while (!sent && attempts > 0) {
-            try {
-                @Cleanup
-                RawClient client = new RawClient(controller, connectionPool, segment);
-                write(segment, payloads, client, tokenProvider);
-                sent = true;
-            } catch (ConnectionFailedException e) {
-                log.info("Connection failure while sending large event: {}. Retrying", e.getMessage());
-                cause = e;
-            } catch (TokenExpiredException e) {
+        Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(), attempts, config.getMaxBackoffMillis()).retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (ex instanceof ConnectionFailedException) {
+                log.info("Connection failure while sending large event: {}. Retrying", ex.getMessage());
+                return true;
+            } else if (ex instanceof TokenExpiredException) {
                 tokenProvider.signalTokenExpired();
                 log.info("Authentication token expired while writing large event to segment {}. Retrying", segment);
+                return true;
+            } else {
+                return false;
             }
-            attempts--;
-        }
-        if (!sent) {
-            throw new RetriesExhaustedException("Failed to write large event to segment " + segment, cause);
-        }
+        }).run(() -> {
+            @Cleanup
+            RawClient client = new RawClient(controller, connectionPool, segment);
+            write(segment, payloads, client, tokenProvider);
+            return null;
+        });
     }
 
     private List<ByteBuf> createBufs(List<ByteBuffer> events) {
