@@ -83,6 +83,18 @@ public class LargeEventWriter {
     @Nonnull
     private final ConnectionPool connectionPool;
 
+    /**
+     * Write the provided list of events (atomically) to the provided segment.
+     * 
+     * @param segment The segment to write to
+     * @param events The events to append
+     * @param tokenProvider A token provider
+     * @param config Used for retry configuration parameters
+     * @throws NoSuchSegmentException If the provided segment does not exit.
+     * @throws SegmentSealedException If the segment is sealed.
+     * @throws AuthenticationException If the token can't be used for this segment.
+     * @throws UnsupportedOperationException If the server does not support large events.
+     */
     public void writeLargeEvent(Segment segment, List<ByteBuffer> events, DelegationTokenProvider tokenProvider,
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         List<ByteBuf> payloads = createBufs(events);
