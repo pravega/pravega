@@ -27,7 +27,6 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
-import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -140,7 +139,6 @@ public class SegmentContainerMonitorTest {
 
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
                 new UniformContainerBalancer(), 2);
-        Assert.assertFalse(monitor.isZKConnected());
         monitor.startAsync().awaitRunning();
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 

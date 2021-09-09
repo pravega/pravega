@@ -15,6 +15,7 @@
  */
 package io.pravega.local;
 
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -57,6 +58,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     public static final class LocalPravegaEmulatorBuilder {
+        private String[] tlsProtocolVersion = new TLSProtocolVersion(SingleNodeConfig.TLS_PROTOCOL_VERSION.getDefaultValue()).getProtocols();
         public LocalPravegaEmulator build() {
             this.inProcPravegaCluster = InProcPravegaCluster
                     .builder()

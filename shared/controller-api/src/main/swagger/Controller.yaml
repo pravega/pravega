@@ -187,6 +187,10 @@ paths:
                 $ref: "#/definitions/RetentionConfig"
               streamTags:
                 $ref: "#/definitions/TagsList"
+              timestampAggregationTimeout:
+                $ref: "#/definitions/TimestampAggregationTimeout"
+              rolloverSizeBytes:
+                $ref: "#/definitions/RolloverSizeBytes"
       produces:
         - application/json
       responses:
@@ -249,6 +253,11 @@ paths:
                 $ref: "#/definitions/RetentionConfig"
               streamTags:
                 $ref: "#/definitions/TagsList"
+              timestampAggregationTimeout:
+                $ref: "#/definitions/TimestampAggregationTimeout"
+              rolloverSizeBytes:
+                $ref: "#/definitions/RolloverSizeBytes"
+
       produces:
         - application/json
       responses:
@@ -594,6 +603,12 @@ paths:
         500:
           description: Internal server error while fetching the health status of a given health contributor.
 definitions:
+  TimestampAggregationTimeout:
+    type: long
+    minimum: 0
+  RolloverSizeBytes:
+    type: long
+    minimum: 0
   TagsList:
     type: array
     items:
@@ -638,6 +653,10 @@ definitions:
         $ref: "#/definitions/RetentionConfig"
       tags:
         $ref: "#/definitions/TagsList"
+      timestampAggregationTimeout:
+        $ref: "#/definitions/TimestampAggregationTimeout"
+      rolloverSizeBytes:
+        $ref: "#/definitions/RolloverSizeBytes"
   ScalingConfig:
     type: object
     properties:

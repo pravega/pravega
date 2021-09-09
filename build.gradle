@@ -120,6 +120,7 @@ allprojects {
             force "io.netty:netty-handler-proxy:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
+            force "junit:junit:" + junitVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -509,6 +510,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         compile project(':shared:rest')
+        compile project(':shared:health')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -1448,7 +1450,7 @@ task preparePravegaImage(type: Copy) {
     from "docker/pravega"
     from (installDist) {
         into "pravega"
-        exclude "**/*.bat"
+        exclude "**/*.bat", "**/log4j*.jar"
     }
 }
 

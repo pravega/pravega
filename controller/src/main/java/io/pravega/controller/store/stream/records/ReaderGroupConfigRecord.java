@@ -71,7 +71,8 @@ public class ReaderGroupConfigRecord {
                 .retentionTypeOrdinal(rgConfig.getRetentionType().ordinal())
                 .startingStreamCuts(startStreamCuts)
                 .endingStreamCuts(endStreamCuts)
-                .updating(isUpdating).build();
+                .updating(isUpdating)
+                .build();
     }
 
     public static ReaderGroupConfigRecord complete(ReaderGroupConfigRecord rgConfigRecord) {
@@ -83,7 +84,8 @@ public class ReaderGroupConfigRecord {
                 .retentionTypeOrdinal(rgConfigRecord.getRetentionTypeOrdinal())
                 .startingStreamCuts(rgConfigRecord.getStartingStreamCuts())
                 .endingStreamCuts(rgConfigRecord.getEndingStreamCuts())
-                .updating(false).build();
+                .updating(false)
+                .build();
     }
 
     @SneakyThrows(IOException.class)

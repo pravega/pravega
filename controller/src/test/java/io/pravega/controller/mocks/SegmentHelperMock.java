@@ -66,13 +66,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
@@ -92,7 +92,7 @@ public class SegmentHelperMock {
                 .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
                 anyString(), anyBoolean(), anyString(), anyLong());
@@ -109,13 +109,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
@@ -127,7 +127,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
 
         return helper;
     }
@@ -147,7 +147,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
         // endregion
         
         // region delete table
