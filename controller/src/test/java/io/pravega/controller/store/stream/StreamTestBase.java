@@ -147,17 +147,16 @@ public abstract class StreamTestBase {
 
     private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
         OperationContext context = getContext();
-
         stream.startCommittingTransactions(100, context)
                                         .thenCompose(ctr ->
                                                 stream.getVersionedState(context)
                                                       .thenCompose(state -> stream.updateVersionedState(state, 
                                                               State.COMMITTING_TXN, context))
-                                                .thenCompose(state -> stream.startRollingTxn(activeEpoch, ctr, context)
+                                                .thenCompose(state -> stream.startRollingTxn(activeEpoch, ctr.getKey(), context)
                                                         .thenCompose(ctr2 -> stream.rollingTxnCreateDuplicateEpochs(
                                                                 txnSizeMap, time, ctr2, context)
                                                         .thenCompose(v -> stream.completeRollingTxn(activeSizeMap, ctr2, context))
-                                                                .thenCompose(v -> stream.completeCommittingTransactions(ctr2, context))
+                                                                .thenCompose(v -> stream.completeCommittingTransactions(ctr2, context, Collections.emptyMap()))
                                         )))
               .thenCompose(x -> stream.updateState(State.ACTIVE, context)).join();
     }
@@ -712,7 +711,7 @@ public abstract class StreamTestBase {
         List<StreamSegmentRecord> activeSegmentsBefore = stream.getActiveSegments(context).join();
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join().getKey();
         stream.getVersionedState(context).thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN, context)).join();
 
         // start rolling transaction
@@ -749,7 +748,7 @@ public abstract class StreamTestBase {
                 startingSegmentNumber + 5, 3)));
 
         stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
-        stream.completeCommittingTransactions(ctr, context).join();
+        stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
     }
 
     @Test(timeout = 30000L)
@@ -1615,16 +1614,17 @@ public abstract class StreamTestBase {
         String writer1 = "writer1";
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time, context).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100, context).join();
-        streamObj.recordCommitOffsets(txnId, Collections.singletonMap(0L, 1L), context).join();
-        streamObj.generateMarksForTransactions(record.getObject(), context).join();
+        streamObj.startCommittingTransactions(100, context).join();
+        TxnWriterMark writerMarks = new TxnWriterMark(time, Collections.singletonMap(0L, 1L), txnId);
+        Map<String, TxnWriterMark> marksForWriters = Collections.singletonMap(writer1, writerMarks);
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
 
         // idempotent call to generateMarksForTransactions
-        streamObj.generateMarksForTransactions(record.getObject(), context).join();
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
         mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
 
@@ -1633,9 +1633,10 @@ public abstract class StreamTestBase {
         AssertExtensions.assertFutureThrows("", streamObj.getActiveTx(0, txnId, context),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        streamObj.generateMarksForTransactions(record.getObject(), context).join();
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
         mark = streamObj.getWriterMark(writer1, context).join();
         assertEquals(mark.getTimestamp(), time);
+
     }
     
     @Test(timeout = 30000L)
@@ -1664,12 +1665,12 @@ public abstract class StreamTestBase {
         VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100, context).join();
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L, context).join();
 
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100, context).join();
-        streamObj.recordCommitOffsets(txnId1, Collections.singletonMap(0L, 1L), context).join();
-        streamObj.recordCommitOffsets(txnId2, Collections.singletonMap(0L, 2L), context).join();
-        streamObj.recordCommitOffsets(txnId3, Collections.singletonMap(0L, 3L), context).join();
-        streamObj.recordCommitOffsets(txnId4, Collections.singletonMap(0L, 4L), context).join();
-        streamObj.generateMarksForTransactions(record.getObject(), context).join();
+        streamObj.startCommittingTransactions(100, context).join();
+        TxnWriterMark writerMarks = new TxnWriterMark(time + 4L,
+                Collections.singletonMap(0L, 1L), txnId4);
+        Map<String, TxnWriterMark> marksForWriters = Collections.singletonMap(writer, writerMarks);
+
+        streamObj.generateMarksForTransactions(context, marksForWriters).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = streamObj.getWriterMark(writer, context).join();
