@@ -138,6 +138,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+    private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -454,7 +455,8 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).thenCompose(x -> createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                        .rolloverSizeBytes(READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES).build(),
                 System.currentTimeMillis(), 10, getRequestId(context))
                 .thenCompose(createStatus -> {
                     if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
@@ -1790,7 +1792,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId,
                                             response.getConfiguration().getScalingPolicy(),
-                                            this.retrieveDelegationToken(), requestId);
+                                            this.retrieveDelegationToken(), requestId, config.getRolloverSizeBytes());
                                 })
                                 .thenCompose(v -> {
                                     return streamMetadataStore.getVersionedState(scope, markStream, context, executor)
@@ -1832,14 +1834,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .stream()
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken,
-                        requestId))
+                        requestId, configuration.getRolloverSizeBytes()))
                 .collect(Collectors.toList())));
     }
 
     public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken, long requestId) {
+                                                    String controllerToken, long requestId, long rolloverSize) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, controllerToken, requestId), executor));
+                stream, segmentId, policy, controllerToken, requestId, rolloverSize), executor));
     }
 
     public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,

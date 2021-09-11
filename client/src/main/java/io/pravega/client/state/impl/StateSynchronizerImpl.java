@@ -91,9 +91,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 log.trace("Found entry {} ", entry.getValue());
                 if (entry.getValue().isInit()) {
                     InitialUpdate<StateT> init = entry.getValue().getInit();
-                    if (isNewer(entry.getKey())) {
-                        updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
-                    }
+                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
@@ -119,10 +117,8 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (entry.getValue().isInit()) {
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
-                if (isNewer(currentRevision)) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
-                    foundInit = true;
-                }
+                foundInit = true;
+                updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
             }
         }
         if (!foundInit) {
@@ -214,6 +210,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision oldMark = client.getMark();
             if (oldMark == null || oldMark.compareTo(newMark) < 0) {
                 client.compareAndSetMark(oldMark, newMark);
+                log.info("Compacted state is written at {} the oldMark is {}", newMark, oldMark);
             }
             if (oldMark != null) {
                 client.truncateToRevision(oldMark);
@@ -254,7 +251,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Synchronized
     private boolean isNewer(Revision revision) {
-        return currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        boolean result = currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        if (!result ) {
+            log.debug("In memory state {} is newer than the provided revision {}", currentState.getRevision(), revision);
+        }
+        return result;
     }
 
     @Synchronized

@@ -552,6 +552,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testFlushToStorage() throws IOException {
+        testCommand(new WireCommands.FlushToStorage(i, "", l));
+    }
+
+    @Test
+    public void testStorageFlushed() throws IOException {
+        testCommand(new WireCommands.StorageFlushed(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }
@@ -601,7 +611,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, "", 1024L));
     }
 
     @Test
@@ -616,7 +626,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, ""));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, "", 1024L));
     }
 
     @Test

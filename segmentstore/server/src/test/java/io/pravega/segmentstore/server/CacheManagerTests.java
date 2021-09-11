@@ -23,8 +23,11 @@ import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -601,6 +604,28 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
         cm.getUtilizationProvider().registerCleanupListener(l2); // This should have no effect.
+    }
+
+    /**
+     * Tests the health contributor made with cache manager
+     */
+    @Test
+    public void testCacheHealth() {
+        final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
+
+        @Cleanup
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+
+        CacheManagerHealthContributor cacheManagerHealthContributor = new CacheManagerHealthContributor(cm);
+        Health.HealthBuilder builder = Health.builder().name(cacheManagerHealthContributor.getName());
+        Status status = cacheManagerHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
+        cm.close();
+        status = cacheManagerHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, status);
     }
 
     private static class TestCleanupListener implements ThrottleSourceListener {

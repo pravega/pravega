@@ -91,7 +91,7 @@ public class PravegaTablesScope implements Scope {
         // We will first attempt to create the entry for the scope in scopes table.
         // If scopes table does not exist, we create the scopes table (idempotent)
         // followed by creating a new entry for this scope with a new unique id.
-        // We then retrive id from the store (in case someone concurrently created the entry or entry already existed.
+        // We then retrieve id from the store (in case someone concurrently created the entry or entry already existed.
         // This unique id is used to create scope specific table with unique id.
         // If scope entry exists in Scopes table, create the streamsInScope table before throwing DataExists exception
         return Futures.handleCompose(withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
@@ -485,6 +485,6 @@ public class PravegaTablesScope implements Scope {
                                                              }
                                                              token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
                                                              return new ImmutablePair<>(taken, token.get());
-                                                         }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyList(), null));
+                                                         }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyList(), token.get()));
     }
 }

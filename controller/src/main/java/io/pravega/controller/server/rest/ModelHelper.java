@@ -104,11 +104,21 @@ public class ModelHelper {
         if (createStreamRequest.getStreamTags() != null) {
             tagsList = createStreamRequest.getStreamTags();
         }
-        return StreamConfiguration.builder()
-                .scalingPolicy(scalingPolicy)
-                .retentionPolicy(retentionPolicy)
-                .tags(tagsList)
-                .build();
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
+                                                                      .scalingPolicy(scalingPolicy)
+                                                                      .retentionPolicy(retentionPolicy)
+                                                                      .tags(tagsList);
+
+        if (createStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(createStreamRequest.getTimestampAggregationTimeout());
+        }
+
+        if (createStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(createStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**
@@ -150,10 +160,26 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
-        return StreamConfiguration.builder()
+
+        TagsList tagsList = new TagsList();
+        if (updateStreamRequest.getStreamTags() != null) {
+            tagsList = updateStreamRequest.getStreamTags();
+        }
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
-                .build();
+                .tags(tagsList);
+
+        if (updateStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(updateStreamRequest.getTimestampAggregationTimeout());
+        }
+
+        if (updateStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(updateStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**
@@ -219,6 +245,8 @@ public class ModelHelper {
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         streamProperty.setTags(tagList);
+        streamProperty.setTimestampAggregationTimeout(streamConfiguration.getTimestampAggregationTimeout());
+        streamProperty.setRolloverSizeBytes(streamConfiguration.getRolloverSizeBytes());
         return streamProperty;
     }
 

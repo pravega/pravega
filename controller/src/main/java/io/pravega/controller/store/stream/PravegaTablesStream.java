@@ -213,7 +213,8 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                  OperationContext context) {
+                                                                  OperationContext context,
+                                                                  Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // create all transaction entries in committing txn list.
@@ -235,7 +236,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         if (record.getObject().getTransactionsToCommit().size() == 0) {
             future = CompletableFuture.completedFuture(null);
         } else {
-            future = generateMarksForTransactions(record.getObject(), context)
+            future = generateMarksForTransactions(context, writerMarks)
                 .thenCompose(v -> createCompletedTxEntries(completedRecords, context))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch(), context)
                             .thenCompose(table -> {
@@ -834,10 +835,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions(OperationContext context) {
+    public CompletableFuture<Long> getNumberOfOngoingTransactions(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
-        List<CompletableFuture<Integer>> futures = new ArrayList<>();
+        List<CompletableFuture<Long>> futures = new ArrayList<>();
         // first get the number of ongoing transactions from the cache. 
         return getEpochsWithTransactionsTable(context)
                 .thenCompose(epochsWithTxn -> storeHelper.getAllKeys(epochsWithTxn, context.getRequestId())
@@ -848,21 +849,19 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                          .thenCompose(v -> Futures.allOfWithResults(futures)
                                                                                   .thenApply(list -> list
                                                                                           .stream()
-                                                                                          .reduce(0, Integer::sum))));
+                                                                                          .reduce(0L, Long::sum))));
     }
 
-    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch, OperationContext context) {
+    private CompletableFuture<Long> getNumberOfOngoingTransactions(int epoch, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         AtomicInteger count = new AtomicInteger(0);
         return getTransactionsInEpochTable(epoch, context)
-                .thenCompose(epochTableName -> storeHelper.getAllKeys(epochTableName, context.getRequestId())
-                                                          .forEachRemaining(x -> count.incrementAndGet(), executor)
-                                                          .thenApply(x -> count.get()));
+                .thenCompose(epochTableName -> storeHelper.getEntryCount(epochTableName, context.getRequestId()));
     }
 
     @Override
-    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(
+    public CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(
             int limit, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
@@ -889,6 +888,30 @@ class PravegaTablesStream extends PersistentStreamBase {
                                  for (int i = 0; i < txnIds.size(); i++) {
                                      VersionedMetadata<ActiveTxnRecord> txn = res.get(i);
                                      list.add(txn.getObject());
+                                 }
+                                 return list;
+                             }));
+    }
+
+    @Override
+    CompletableFuture<List<VersionedTransactionData>> getVersionedTransactionRecords(int epoch, List<String> txnIds, OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        return getTransactionsInEpochTable(epoch, context)
+                .thenCompose(epochTxnTable -> storeHelper.getEntries(epochTxnTable, txnIds,
+                        ActiveTxnRecord::fromBytes, NON_EXISTENT_TXN, context.getRequestId())
+                             .thenApply(res -> {
+                                 List<VersionedTransactionData> list = new ArrayList<>();
+                                 for (int i = 0; i < txnIds.size(); i++) {
+                                     VersionedMetadata<ActiveTxnRecord> txn = res.get(i);
+                                     ActiveTxnRecord activeTxnRecord = txn.getObject();
+
+                                     VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
+                                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
+                                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
+                                             activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(),
+                                             activeTxnRecord.getCommitOffsets());
+                                     list.add(vdata);
                                  }
                                  return list;
                              }));

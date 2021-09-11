@@ -27,9 +27,11 @@ public class TableSegmentConfig {
     public static final TableSegmentConfig NO_CONFIG = TableSegmentConfig.builder().build();
     @Builder.Default
     private final int keyLength = 0;
+    @Builder.Default
+    private final long rolloverSizeBytes = 0L;
 
     @Override
     public String toString() {
-        return String.format("KeyLength = %s", this.keyLength);
+        return String.format("KeyLength = %s, RolloverSizeBytes = %s", this.keyLength, this.rolloverSizeBytes);
     }
 }
