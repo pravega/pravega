@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.sun.management.HotSpotDiagnosticMXBean;
 import io.pravega.common.Exceptions;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -45,6 +46,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -255,6 +257,19 @@ public final class ServiceStarter {
         });
     }
 
+    private static void validateConfig(ServiceBuilderConfig config) {
+        long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+                .getVMOption("MaxDirectMemorySize").getValue()); // value in bytes
+        long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
+        long xmx = Runtime.getRuntime().maxMemory();
+        //run checks
+        Preconditions.checkState(((com.sun.management.OperatingSystemMXBean) ManagementFactory
+                        .getOperatingSystemMXBean()).getTotalPhysicalMemorySize() >= (maxDirectMemorySize + xmx),
+                "MaxDirectMemorySize("+maxDirectMemorySize+"B) along with JVM Xmx value("+xmx+"B) configured is greater than the available system memory!");
+        Preconditions.checkState(maxDirectMemorySize > cacheSize,
+                "Cache size("+cacheSize+"B)configured is more than the MaxDirectMemory("+maxDirectMemorySize+") value!!");
+    }
+
     private void attachZKSegmentManager(ServiceBuilder builder) {
         builder.withContainerManager(setup ->
                 new ZKSegmentContainerManager(setup.getContainerRegistry(),
@@ -337,6 +352,7 @@ public final class ServiceStarter {
             // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
             log.info("Segment store configuration:");
             config.forEach((key, value) -> log.info("{} = {}", key, value));
+            validateConfig(config);
             serviceStarter.set(new ServiceStarter(config));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
