@@ -29,7 +29,8 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nonnull;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -62,39 +64,60 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 
+/**
+ * Used by {@link EventStreamWriterImpl} to write events larger than {@link Serializer#MAX_EVENT_SIZE}.
+ * It works by creating a Transient segment and then writing the data to the transient segment in multiple commands,
+ * then merging the transient segment into the parent segment.
+ * 
+ * Ordinary connection failures and other transient errors are handled internally. However if the parent segment is sealed
+ * this this class will throw {@link SegmentSealedException} and the caller will have to handle it.
+ */
 @RequiredArgsConstructor
 @Slf4j
 public class LargeEventWriter {
 
     private static final int WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
+    @Nonnull
     private final UUID writerId;
+    @Nonnull
     private final Controller controller;
+    @Nonnull
     private final ConnectionPool connectionPool;
 
+    /**
+     * Write the provided list of events (atomically) to the provided segment.
+     * 
+     * @param segment The segment to write to
+     * @param events The events to append
+     * @param tokenProvider A token provider
+     * @param config Used for retry configuration parameters
+     * @throws NoSuchSegmentException If the provided segment does not exit.
+     * @throws SegmentSealedException If the segment is sealed.
+     * @throws AuthenticationException If the token can't be used for this segment.
+     * @throws UnsupportedOperationException If the server does not support large events.
+     */
     public void writeLargeEvent(Segment segment, List<ByteBuffer> events, DelegationTokenProvider tokenProvider,
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         List<ByteBuf> payloads = createBufs(events);
         int attempts = 1 + Math.max(0, config.getRetryAttempts());
-        boolean sent = false;
-        Exception cause = null;
-        while (!sent && attempts > 0) {
-            try {
-                @Cleanup
-                RawClient client = new RawClient(controller, connectionPool, segment);
-                write(segment, payloads, client, tokenProvider);
-                sent = true;
-            } catch (ConnectionFailedException e) {
-                log.info("Connection failure while sending large event: {}. Retrying", e.getMessage());
-                cause = e;
-            } catch (TokenExpiredException e) {
+        Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(), attempts, config.getMaxBackoffMillis()).retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (ex instanceof ConnectionFailedException) {
+                log.info("Connection failure while sending large event: {}. Retrying", ex.getMessage());
+                return true;
+            } else if (ex instanceof TokenExpiredException) {
                 tokenProvider.signalTokenExpired();
                 log.info("Authentication token expired while writing large event to segment {}. Retrying", segment);
+                return true;
+            } else {
+                return false;
             }
-            attempts--;
-        }
-        if (!sent) {
-            throw new RetriesExhaustedException("Failed to write large event to segment " + segment, cause);
-        }
+        }).run(() -> {
+            @Cleanup
+            RawClient client = new RawClient(controller, connectionPool, segment);
+            write(segment, payloads, client, tokenProvider);
+            return null;
+        });
     }
 
     private List<ByteBuf> createBufs(List<ByteBuffer> events) {
@@ -140,7 +163,7 @@ public class LargeEventWriter {
         AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
                                                        created.getSegment());
 
-        if (appendSetup.getLastEventNumber() != 0) {
+        if (appendSetup.getLastEventNumber() != WireCommands.NULL_ATTRIBUTE_VALUE) {
             throw new IllegalStateException(
                     "Server indicates that transient segment was already written to: " + created.getSegment());
         }

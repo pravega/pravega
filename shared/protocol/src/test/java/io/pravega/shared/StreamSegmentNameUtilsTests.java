@@ -93,6 +93,23 @@ public class StreamSegmentNameUtilsTests {
     }
 
     @Test
+    public void testTransientStreamSegmentName() {
+        long segmentId = NameUtils.computeSegmentId(10, 100);
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+
+        UUID writerId = UUID.randomUUID();
+        String transientSegment = NameUtils.getTransientNameFromId(qualifiedName, writerId);
+        assertTrue(NameUtils.isTransientSegment(transientSegment));
+        assertEquals(qualifiedName, NameUtils.getParentStreamSegmentName(transientSegment));
+
+        String primary = NameUtils.extractPrimaryStreamSegmentName(qualifiedName);
+        assertEquals("scope/stream/10", primary);
+
+        String primaryFromTransient = NameUtils.extractPrimaryStreamSegmentName(transientSegment);
+        assertEquals("scope/stream/10", primaryFromTransient);
+    }
+
+    @Test
     public void testQualifiedStreamSegmentName() {
         long segmentId = NameUtils.computeSegmentId(10, 100);
         String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);

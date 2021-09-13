@@ -72,6 +72,7 @@ public class DelegatingRequestProcessorTest {
         rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, 0, ""));
         rp.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(0, "", "", 0, 0));
         rp.createTransientSegment(new WireCommands.CreateTransientSegment(0, new UUID(0, 0), "", null));
+        rp.connectionDropped();
 
         verify(rp.getNextRequestProcessor(), times(1)).hello(any());
         verify(rp.getNextRequestProcessor(), times(1)).setupAppend(any());
@@ -98,5 +99,6 @@ public class DelegatingRequestProcessorTest {
         verify(rp.getNextRequestProcessor(), times(1)).readTableEntries(any());
         verify(rp.getNextRequestProcessor(), times(1)).readTableEntriesDelta(any());
         verify(rp.getNextRequestProcessor(), times(1)).createTransientSegment(any());
+        verify(rp.getNextRequestProcessor(), times(1)).connectionDropped();
     }
 }
