@@ -212,11 +212,6 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated) {
-        throw new IllegalStateException("Unexpected operation: " + transientSegmentCreated);
-    }
-
-    @Override
     public void errorMessage(WireCommands.ErrorMessage errorMessage) {
         throw new IllegalStateException("Unexpected operation: " + errorMessage);
     }

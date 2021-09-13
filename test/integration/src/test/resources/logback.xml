@@ -22,7 +22,11 @@ limitations under the License.
         </encoder>
     </appender>
 
-    <root level="INFO">
+    <logger name="io.pravega.test.integration.LargeAppendTest" level="DEBUG">
         <appender-ref ref="STDOUT"/>
-    </root>
+    </logger>
+
+<!--    <root level="INFO">-->
+<!--        <appender-ref ref="STDOUT"/>-->
+<!--    </root>-->
 </configuration>
