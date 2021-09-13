@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Slf4j
-public class LargeAppendTest extends LeakDetectorTestSuite {
+public class LargeEventTest extends LeakDetectorTestSuite {
 
     private AtomicLong eventReadCount;
     private AtomicLong eventWriteCount;
