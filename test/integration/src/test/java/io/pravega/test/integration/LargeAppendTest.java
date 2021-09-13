@@ -16,6 +16,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -145,8 +146,11 @@ public class LargeAppendTest extends LeakDetectorTestSuite {
         String readerGroupName = "testLargeEventReaderGroup";
 
         //20  readers -> 20 stream segments ( to have max read parallelism)
-        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+        ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(scalingPolicy)
+                .retentionPolicy(RetentionPolicy.bySizeBytes(Long.MAX_VALUE))
+                .build();
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
@@ -164,7 +168,7 @@ public class LargeAppendTest extends LeakDetectorTestSuite {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        int eventSize = Serializer.MAX_EVENT_SIZE * 2;
+        int eventSize = Serializer.MAX_EVENT_SIZE * 3;
         for (int i = 0; i < NUM_WRITERS; i++) {
             byte[] bytes = RandomUtils.nextBytes(eventSize);
             // Make the first byte the writerId for logging purposes.
@@ -216,25 +220,6 @@ public class LargeAppendTest extends LeakDetectorTestSuite {
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
         }
-        // ------------------------------------------------------------------------------------------------------------
-        //ByteBuffer payload = ByteBuffer.allocate((int) messageSize);
-
-        //long heapSize = Runtime.getRuntime().maxMemory();
-        //long totalBytes = heapSize / 8;
-
-        //// Writes many large events.
-        ////for (int i = 0; i < totalBytes / messageSize; i++) {
-        //for (int i = 0; i < 1; i++) {
-        //    CompletableFuture<Void> ack = producer.writeEvent(payload);
-        //    ack.thenRun(() -> {
-        //        System.out.println("\033[31m RED");
-        //        System.out.println("Large event written.");
-        //    }).get();
-        //}
-
-        //Future<Void> ack = producer.writeEvent(testString);
-        //ack.get(5, TimeUnit.SECONDS);
-
     }
     private CompletableFuture<Void> startNewWriter(final String routingKey,
                                                    final AtomicLong writeCount,
@@ -269,7 +254,6 @@ public class LargeAppendTest extends LeakDetectorTestSuite {
             log.info("Starting Reader: {}", readerId);
             log.debug("ExitFlag: {}, ReadCount: {}, WriteCount: {}", exitFlag.get(), readCount.get(), writeCount.get());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
-                log.debug("Attempting to read next event.");
                 final ByteBuffer event = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
                 // This first byte should be the writerId.
                 log.debug("Reading event [{}:{} ...]", event.get(0), event.get(1));
