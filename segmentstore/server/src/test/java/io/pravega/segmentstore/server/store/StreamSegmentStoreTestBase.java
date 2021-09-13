@@ -25,7 +25,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
@@ -103,7 +105,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int MAX_INSTANCE_COUNT = 4;
     private static final int CONTAINER_COUNT = 4;
     private static final long DEFAULT_EPOCH = 1;
-    private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
+    private static final List<AttributeId> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> AttributeId.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
 
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -423,6 +425,87 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests an end-to-end scenario for the SegmentStore, using a read-write SegmentStore to add some segment data.
+     * Using another instance to verify that the segments have been successfully persisted to Storage.
+     * This test does not use ChunkedSegmentStorage.
+     *
+     * @throws Exception If an exception occurred.
+     */
+    @Test(timeout = 120000)
+    public void testFlushToStorage() throws Exception {
+        endToEndFlushToStorage(false);
+    }
+
+    /**
+     * Tests an end-to-end scenario for the SegmentStore, using a read-write SegmentStore to add some segment data.
+     * Using another instance to verify that the segments have been successfully persisted to Storage.
+     * This test uses ChunkedSegmentStorage.
+     *
+     * @throws Exception If an exception occurred.
+     */
+    @Test(timeout = 120000)
+    public void testFlushToStorageWithChunkedStorage() throws Exception {
+        endToEndFlushToStorage(true);
+    }
+
+    /**
+     * End to end test to verify storage flush API.
+     *
+     * @param useChunkedStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
+     * @throws Exception If an exception occurred.
+     */
+    void endToEndFlushToStorage(boolean useChunkedStorage) throws Exception {
+        ArrayList<String> segmentNames;
+        HashMap<String, Long> lengths = new HashMap<>();
+        ArrayList<ByteBuf> appendBuffers = new ArrayList<>();
+        HashMap<String, Long> startOffsets = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        long expectedAttributeValue = 0;
+        int instanceId = 0;
+
+        // Phase 1: Create segments and add some appends.
+        log.info("Starting Phase 1.");
+        try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
+            val segmentStore = builder.createStreamSegmentService();
+
+            // Create the StreamSegments.
+            segmentNames = createSegments(segmentStore);
+            log.info("Created Segments: {}.", String.join(", ", segmentNames));
+
+            // Add some appends.
+            ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
+            appendData(segmentsAndTransactions, segmentContents, lengths, appendBuffers, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
+            log.info("Finished appending data.");
+
+            checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
+            log.info("Finished Phase 1");
+        }
+
+        // Verify all buffers have been released.
+        checkAppendLeaks(appendBuffers);
+        appendBuffers.clear();
+
+        log.info("Starting Phase 2.");
+        try (val builder = createBuilder(++instanceId, useChunkedStorage);) {
+            val segmentStore = builder.createStreamSegmentService();
+            for (int id = 1; id < CONTAINER_COUNT; id++) {
+                segmentStore.flushToStorage(id, TIMEOUT);
+            }
+            // Wait for all the data to move to Storage.
+            waitForSegmentsInStorage(segmentNames, segmentStore)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished waiting for segments in Storage.");
+
+            checkStorage(segmentContents, segmentStore);
+            log.info("Finished Storage check.");
+            log.info("Finished Phase 2.");
+        }
+
+        log.info("Finished.");
+    }
+
+    /**
      * Tests an end-to-end scenario for the SegmentStore where operations are continuously executed while the SegmentStore
      * itself is being fenced out by new instances. The difference between this and testEndToEnd() is that this does not
      * do a graceful shutdown of the Segment Store, instead it creates a new instance while the previous one is still running.
@@ -576,10 +659,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return execute(createAppendDataRequests(segmentNames, segmentContents, lengths, appendBuffers), store);
     }
 
-    private Collection<AttributeUpdate> createAttributeUpdates() {
+    private AttributeUpdateCollection createAttributeUpdates() {
         return ATTRIBUTES.stream()
                 .map(id -> new AttributeUpdate(id, AttributeUpdateType.Accumulate, 1))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(AttributeUpdateCollection::new));
     }
 
     private ArrayList<StoreRequest> createMergeTransactionsRequests(
@@ -759,7 +842,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 // Check attributes.
                 val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
-                for (UUID attributeId : ATTRIBUTES) {
+                for (AttributeId attributeId : ATTRIBUTES) {
                     Assert.assertEquals("Unexpected attribute value from getAttributes().",
                             expectedAttributeValue, (long) allAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
 

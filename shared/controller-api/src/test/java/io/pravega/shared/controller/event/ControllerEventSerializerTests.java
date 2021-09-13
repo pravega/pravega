@@ -83,8 +83,8 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testCreateTableEvent() {
-        testClass(() -> new CreateTableEvent(SCOPE, KVTABLE, 3, System.currentTimeMillis(),
-                                            123L, UUID.randomUUID()));
+        testClass(() -> new CreateTableEvent(SCOPE, KVTABLE, 3, 4, 8, System.currentTimeMillis(),
+                                            123L, UUID.randomUUID(), 0));
     }
 
     @Test

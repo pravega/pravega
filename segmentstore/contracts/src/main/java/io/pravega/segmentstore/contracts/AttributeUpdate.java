@@ -16,10 +16,8 @@
 package io.pravega.segmentstore.contracts;
 
 import com.google.common.base.Preconditions;
-import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -29,13 +27,12 @@ import lombok.Setter;
 @AllArgsConstructor
 @Getter
 @Setter
-@EqualsAndHashCode
 @NotThreadSafe
 public class AttributeUpdate {
     /**
      * The ID of the Attribute to update.
      */
-    private final UUID attributeId;
+    private final AttributeId attributeId;
 
     /**
      * The UpdateType of the attribute.
@@ -60,14 +57,44 @@ public class AttributeUpdate {
      * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
      * @param value       The new value to set.
      */
-    public AttributeUpdate(UUID attributeId, AttributeUpdateType updateType, long value) {
+    public AttributeUpdate(AttributeId attributeId, AttributeUpdateType updateType, long value) {
         this(attributeId, updateType, value, Long.MIN_VALUE);
         Preconditions.checkArgument(updateType != AttributeUpdateType.ReplaceIfEquals,
                 "Cannot use this constructor with ReplaceIfEquals.");
     }
 
+    /**
+     * Gets a value indicating whether this is a {@link DynamicAttributeUpdate}.
+     *
+     * @return True if dynamic, false otherwise.
+     */
+    public boolean isDynamic() {
+        return false;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof AttributeUpdate) {
+            AttributeUpdate other = (AttributeUpdate) obj;
+            return this.attributeId.equals(other.attributeId)
+                    && this.updateType == other.updateType
+                    && this.value == other.value
+                    && this.comparisonValue == other.comparisonValue;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.attributeId.hashCode();
+    }
+
     @Override
     public String toString() {
-        return String.format("AttributeId = %s, Value = %s, UpdateType = %s", this.attributeId, this.value, this.updateType);
+        if (this.updateType == AttributeUpdateType.ReplaceIfEquals) {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s, Compare = %s", this.attributeId, this.updateType, this.value, this.comparisonValue);
+        } else {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s", this.attributeId, this.updateType, this.value);
+        }
     }
 }

@@ -16,15 +16,16 @@
 package io.pravega.controller.server.rest;
 
 import io.pravega.client.stream.Stream;
-import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
-import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
-import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.TagsList;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
+import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.NotImplementedException;
@@ -98,10 +99,26 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
-        return StreamConfiguration.builder()
-                .scalingPolicy(scalingPolicy)
-                .retentionPolicy(retentionPolicy)
-                .build();
+
+        TagsList tagsList = new TagsList();
+        if (createStreamRequest.getStreamTags() != null) {
+            tagsList = createStreamRequest.getStreamTags();
+        }
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
+                                                                      .scalingPolicy(scalingPolicy)
+                                                                      .retentionPolicy(retentionPolicy)
+                                                                      .tags(tagsList);
+
+        if (createStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(createStreamRequest.getTimestampAggregationTimeout());
+        }
+
+        if (createStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(createStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**
@@ -143,10 +160,26 @@ public class ModelHelper {
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
-        return StreamConfiguration.builder()
+
+        TagsList tagsList = new TagsList();
+        if (updateStreamRequest.getStreamTags() != null) {
+            tagsList = updateStreamRequest.getStreamTags();
+        }
+
+        StreamConfiguration.StreamConfigurationBuilder builder =  StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
-                .build();
+                .tags(tagsList);
+
+        if (updateStreamRequest.getTimestampAggregationTimeout() != null) {
+            builder.timestampAggregationTimeout(updateStreamRequest.getTimestampAggregationTimeout());
+        }
+
+        if (updateStreamRequest.getRolloverSizeBytes() != null) {
+            builder.rolloverSizeBytes(updateStreamRequest.getRolloverSizeBytes());
+        }
+
+        return builder.build();
     }
 
     /**
@@ -203,11 +236,17 @@ public class ModelHelper {
             }
         }
 
+        TagsList tagList = new TagsList();
+        tagList.addAll(streamConfiguration.getTags());
+
         StreamProperty streamProperty = new StreamProperty();
         streamProperty.setScopeName(scope);
         streamProperty.setStreamName(streamName);
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
+        streamProperty.setTags(tagList);
+        streamProperty.setTimestampAggregationTimeout(streamConfiguration.getTimestampAggregationTimeout());
+        streamProperty.setRolloverSizeBytes(streamConfiguration.getRolloverSizeBytes());
         return streamProperty;
     }
 

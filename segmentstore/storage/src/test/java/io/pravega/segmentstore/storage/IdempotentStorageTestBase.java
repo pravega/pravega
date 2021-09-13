@@ -240,7 +240,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
                 Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
                         readBuffer.length, bytesRead);
                 AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
-                        readBuffer, (int) offset, readBuffer, 0, bytesRead);
+                        readBuffer, offset, readBuffer, 0, bytesRead);
             }
             s1.delete(writeHandle1, TIMEOUT).join();
         }

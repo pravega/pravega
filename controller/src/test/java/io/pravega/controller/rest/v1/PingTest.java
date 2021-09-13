@@ -15,17 +15,15 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.controller.server.rest.resources.PingImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.ProcessingException;
@@ -41,7 +39,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
 
 /**
  * Test for ping API.
@@ -55,15 +52,11 @@ public abstract class PingTest {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private ConnectionFactory connectionFactory;
-    
+
     @Before
     public void setup() throws Exception {
-        ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory);
+        restServer = new RESTServer(serverConfig, Set.of(new PingImpl()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
@@ -79,7 +72,6 @@ public abstract class PingTest {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
-        connectionFactory.close();
     }
 
     @Test
@@ -132,6 +124,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
+                                       .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                        .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                                        .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
                                        .build();
@@ -148,6 +141,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
+                                       .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                        .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                                        .keyFilePasswordPath("Wrong_Path")
                                        .build();

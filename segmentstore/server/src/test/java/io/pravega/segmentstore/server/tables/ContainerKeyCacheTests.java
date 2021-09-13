@@ -400,7 +400,7 @@ public class ContainerKeyCacheTests {
             keyCache.updateGenerations(i, 0, false);
             val keyHash = KEY_HASHER.hash(newTableKey(rnd).getKey());
             for (long segmentId = 0; segmentId < segmentCount; segmentId++) {
-                keyCache.includeExistingKey(segmentId, keyHash, (long) i);
+                keyCache.includeExistingKey(segmentId, keyHash, i);
                 expectedResult.put(new TestKey(segmentId, keyHash), new CacheBucketOffset(i, false));
             }
         }
@@ -684,7 +684,8 @@ public class ContainerKeyCacheTests {
                                    .collect(Collectors.toList());
 
             // Fetch initial tail hashes now, before we apply the updates
-            val expectedTailHashes = new HashMap<UUID, CacheBucketOffset>(keyCache.getTailHashes(segmentId));
+            val expectedTailHashes = new HashMap<>(keyCache.getTailHashes(segmentId));
+            Assert.assertEquals(getExpectedTailUpdateDelta(expectedTailHashes.values()), keyCache.getTailUpdateDelta(segmentId));
 
             // Update the Cache.
             val batchUpdateResult = keyCache.includeUpdateBatch(segmentId, e.getValue(), batchOffset);
@@ -714,7 +715,20 @@ public class ContainerKeyCacheTests {
                 val actual = tailHashes.get(expected.getKey());
                 Assert.assertEquals("Unexpected tail hash.", expected.getValue(), actual);
             }
+            Assert.assertEquals(getExpectedTailUpdateDelta(expectedTailHashes.values()), keyCache.getTailUpdateDelta(segmentId));
         }
+    }
+
+    private int getExpectedTailUpdateDelta(Collection<CacheBucketOffset> tailOffsets) {
+        int r = 0;
+        for (val c : tailOffsets) {
+            if (c.isRemoval()) {
+                r--;
+            } else {
+                r++;
+            }
+        }
+        return r;
     }
 
     private void updateSegmentIndexOffsets(ContainerKeyCache keyCache, long offset) {

@@ -23,8 +23,6 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -38,12 +36,15 @@ import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Builder;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -113,7 +114,7 @@ public class ControllerWrapper implements AutoCloseable {
                              int accessTokenTtlInSeconds) {
         this (connectionString, disableEventProcessor, disableControllerCluster, controllerPort, serviceHost,
                 servicePort, containerCount, restPort, enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
-                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "", "", "", "");
+                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, SecurityConfigDefaults.TLS_PROTOCOL_VERSION, "", "", "", "");
     }
 
     @Builder
@@ -123,7 +124,7 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
                              String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
-                             int accessTokenTtlInSeconds, boolean enableTls, String serverCertificatePath,
+                             int accessTokenTtlInSeconds, boolean enableTls, String[] tlsProtocolVersion, String serverCertificatePath,
                              String serverKeyPath, String serverKeystorePath, String serverKeystorePasswordPath) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
@@ -181,6 +182,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(isRGWritesWithReadPermEnabled)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .tlsEnabled(enableTls)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .tlsTrustStore(serverCertificatePath)
                 .tlsCertFile(serverCertificatePath)
                 .tlsKeyFile(serverKeyPath)
@@ -189,6 +191,7 @@ public class ControllerWrapper implements AutoCloseable {
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
                 Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort)
                         .tlsEnabled(enableTls)
+                        .tlsProtocolVersion(tlsProtocolVersion)
                         .keyFilePath(serverKeystorePath)
                         .keyFilePasswordPath(serverKeystorePasswordPath)
                         .build()) :

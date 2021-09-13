@@ -28,7 +28,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -41,6 +43,8 @@ import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -50,6 +54,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.NoOpScheduledExecutor;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -59,7 +64,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,7 +111,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get());
+                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
@@ -187,7 +191,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @GuardedBy("lock")
         private final Map<String, Long> segments = new HashMap<>();
         @GuardedBy("lock")
-        private final Map<String, Map<UUID, Long>> attributes = new HashMap<>();
+        private final Map<String, Map<AttributeId, Long>> attributes = new HashMap<>();
         private final Object lock = new Object();
 
         @Override
@@ -205,7 +209,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
                     long offset = this.segments.getOrDefault(streamSegmentName, -1L);
@@ -224,7 +228,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return append(streamSegmentName, data, attributeUpdates, timeout);
         }
 
@@ -245,7 +249,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (this.lock) {
                     val segmentAttributes = this.attributes.get(streamSegmentName);
@@ -259,7 +263,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
                     val segmentAttributes = this.attributes.get(streamSegmentName);
@@ -273,12 +277,24 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+            throw new UnsupportedOperationException("flushToStorage");
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             throw new UnsupportedOperationException("read");
         }
 
         @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source, Duration timeout) {
+            throw new UnsupportedOperationException("mergeStreamSegment");
+        }
+
+        @Override
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source,
+                                                                              AttributeUpdateCollection attributeUpdates,
+                                                                              Duration timeout) {
             throw new UnsupportedOperationException("mergeStreamSegment");
         }
 
@@ -348,7 +364,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         private final AtomicLong nextVersion = new AtomicLong(0);
 
         @Override
-        public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+        public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (this.segments) {
                     if (this.segments.containsKey(segmentName)) {
@@ -474,13 +490,8 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("mergeTableSegments");
-        }
-
-        @Override
-        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-            throw new UnsupportedOperationException("sealTableSegment");
+        public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
+            throw new UnsupportedOperationException("getInfo");
         }
     }
 }

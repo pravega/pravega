@@ -870,6 +870,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.noteTime(123);
@@ -893,6 +894,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.noteTime(123));       
@@ -917,6 +919,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         CollectingExecutor executor = new CollectingExecutor();
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executor, executor);
         

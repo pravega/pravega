@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.Data;
+import lombok.ToString;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
@@ -550,6 +552,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testFlushToStorage() throws IOException {
+        testCommand(new WireCommands.FlushToStorage(i, "", l));
+    }
+
+    @Test
+    public void testStorageFlushed() throws IOException {
+        testCommand(new WireCommands.StorageFlushed(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }
@@ -599,12 +611,22 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, "", 1024L));
+    }
+
+    @Test
+    public void testGetTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.GetTableSegmentInfo(l, testString1, ""));
+    }
+
+    @Test
+    public void testTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.TableSegmentInfo(l, testString1, l + 1, l + 2, 3, 4));
     }
 
     @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, ""));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, "", 1024L));
     }
 
     @Test
@@ -618,11 +640,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testMergeTableSegments() throws IOException {
-        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
-    }
-
-    @Test
     public void testSegmentsMerged() throws IOException {
         testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2, -l));
     }
@@ -630,11 +647,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
-    }
-
-    @Test
-    public void testSealTableSegment() throws IOException {
-        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test
@@ -805,35 +817,31 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testGetTableKeys() throws IOException {
-        ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, buf2);
-        testCommand(cmd);
-
-        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
-        testCommand(cmd);
-
-        // Test that we are able to read fields from an older version.
-        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, Unpooled.EMPTY_BUFFER);
-        ByteBufferOutputStream bout = new ByteBufferOutputStream();
-        cmd.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
+    public void testTableIterators() throws IOException {
+        testTableIterators(args -> new WireCommands.ReadTableKeys(l, testString1, "", 100, args));
+        testTableIterators(args -> new WireCommands.ReadTableEntries(l, testString1, "", 100, args));
     }
 
-    @Test
-    public void testGetTableEntries() throws IOException {
+    private <T extends WireCommand> void testTableIterators(Function<WireCommands.TableIteratorArgs, T> createWireCommand) throws IOException {
+        // Continuation Token.
         ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, buf2);
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        T cmd = createWireCommand.apply(args);
         testCommand(cmd);
 
-        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
+        // From/To.
+        args = new WireCommands.TableIteratorArgs(Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, buf, buf2);
+        cmd = createWireCommand.apply(args);
         testCommand(cmd);
 
         // Test that we are able to read fields from an older version.
-        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, Unpooled.EMPTY_BUFFER);
+        ByteBuf buf3 = buf.copy().setInt(0, Integer.MAX_VALUE - 1);
+        args = new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, buf2, buf3);
+        cmd = createWireCommand.apply(args);
         ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
+        T cmd2 = createWireCommand.apply(new WireCommands.TableIteratorArgs(buf, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
+        testCommandFromByteArray(bout.getData().slice(0, bout.size() - 2 * Integer.BYTES - buf2.readableBytes() - buf3.readableBytes()).getCopy(), cmd2);
     }
 
     @Test
@@ -899,13 +907,62 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testMergeSegmentsWithAttributes() throws IOException {
+        List<WireCommands.ConditionalAttributeUpdate> attributeUpdates = Arrays.asList(
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), WireCommands.ConditionalAttributeUpdate.REPLACE, 0, Long.MIN_VALUE),
+                new WireCommands.ConditionalAttributeUpdate(UUID.randomUUID(), WireCommands.ConditionalAttributeUpdate.REPLACE_IF_EQUALS, 0, Long.MIN_VALUE));
+        WireCommands.MergeSegments conditionalMergeSegments = new WireCommands.MergeSegments(l, testString1, testString2,
+                "", attributeUpdates);
+        testCommand(conditionalMergeSegments);
+        // Check the size of the ConditionalAttributeUpdate.
+        assertEquals(attributeUpdates.get(0).size(), 4 * Long.BYTES + 1);
+    }
+
+    @Data
+    public static final class MergeSegmentsV5 implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
+        final long requestId;
+        final String target;
+        final String source;
+        @ToString.Exclude
+        final String delegationToken;
+
+        public MergeSegmentsV5(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeUTF(source);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+    }
+
+    @Test
+    public void testCompatibilityMergeSegmentsV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        MergeSegmentsV5 commandV5 = new MergeSegmentsV5(l, testString1, testString2, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.MergeSegments(l, testString1, testString2, "", Collections.emptyList()));
+    }
+
+    @Test
     public void testErrorMessage() throws IOException {
         for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
-            Class exceptionType = code.getExceptionType();
+            Class<? extends Throwable> exceptionType = code.getExceptionType();
             WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
             testCommand(cmd);
-            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
-            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+            assertEquals(cmd.getErrorCode().getExceptionType(), exceptionType);
+            assertEquals(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType), code);
 
             RuntimeException exception = cmd.getThrowableException();
             AssertExtensions.assertThrows(exceptionType, () -> {

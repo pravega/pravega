@@ -52,6 +52,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
@@ -99,7 +100,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     @Test
     public void testListScopes() {
         when(this.mockControllerService.listScopes(any(), anyInt(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("a", "b", "c"), 
+                CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("a", "b", "c"),
                         "last")));
         when(this.mockControllerService.listScopes(eq("last"), anyInt(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "last")));
@@ -487,7 +488,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     public void testUpdateSubscriberStreamCut() throws ExecutionException, InterruptedException {
         UUID someId = UUID.randomUUID();
         StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap());
-        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), 
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(),
                 anyLong(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.SUCCESS).build()));
@@ -501,7 +502,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), 
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(),
                 anyLong(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
@@ -518,7 +519,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), 
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(),
                 anyLong(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.GENERATION_MISMATCH).build()));
@@ -677,24 +678,25 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testCreateKeyValueTable() {
+        val kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(4).secondaryKeyLength(4).build();
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createKeyValueTable("scope", "kvtable",
-                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+                kvtConfig).join());
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS).build()));
         Assert.assertFalse(this.testController.createKeyValueTable("scope", "kvtable",
-                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+                kvtConfig).join());
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
@@ -702,7 +704,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
@@ -710,7 +712,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
@@ -718,7 +720,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable1",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 
@@ -753,6 +755,40 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(listOfKVTables));
         KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
         assertEquals("kvtable1", info.getKeyValueTableName());
+    }
+
+    @Test
+    public void testGetKeyValueTableConfiguration() {
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.SUCCESS)
+                        .setConfig(ModelHelper.decode("scope", "kvtable1", config)).build()));
+        KeyValueTableConfiguration responseConfig = this.testController.getKeyValueTableConfiguration("scope", "kvtable1").join();
+        assertEquals(config.getPartitionCount(), responseConfig.getPartitionCount());
+        assertEquals(config.getPrimaryKeyLength(), responseConfig.getPrimaryKeyLength());
+        assertEquals(config.getSecondaryKeyLength(), responseConfig.getSecondaryKeyLength());
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable2").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.TABLE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable3").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
     }
 
     @Test

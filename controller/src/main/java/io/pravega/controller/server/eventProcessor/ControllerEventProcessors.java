@@ -80,10 +80,12 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
@@ -121,6 +123,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final long rebalanceIntervalMillis;
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
+    @Getter
+    private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -139,7 +143,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     @VisibleForTesting
-    ControllerEventProcessors(final String host,
+    public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
@@ -181,6 +185,35 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected.
+     */
+    public boolean isMetadataServiceConnected() {
+        return  checkpointStore.isHealthy();
+     }
+
+    /**
+     * Get bootstrap completed status.
+     *
+     * @return true if bootstrapCompleted is set to true.
+     */
+    public boolean isBootstrapCompleted() {
+        return this.bootstrapCompleted.get();
+    }
+
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected and bootstrap is completed.
+     */
+    public boolean isReady() {
+        log.debug("Checking values of isMetadataServiceConnected:- {} and isBootstrapCompleted:- {}",
+                isMetadataServiceConnected(), isBootstrapCompleted());
+        return isMetadataServiceConnected() && isBootstrapCompleted();
+    }
+
     @Override
     protected void startUp() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
@@ -208,12 +241,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         }
     }
 
-    @Override
-    public boolean isReady() {
-        return isRunning();
-    }
-
-    @Override
+     @Override
     public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> processes) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -343,6 +371,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
                     () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
                     delay, executor), executor);
+            this.bootstrapCompleted.set(true);
+            log.info("Bootstrapping controller completed.");
         }, executor);
     }
 

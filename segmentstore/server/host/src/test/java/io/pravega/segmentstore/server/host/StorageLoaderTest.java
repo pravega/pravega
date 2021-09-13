@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.ConfigSetup;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
@@ -60,7 +59,7 @@ public class StorageLoaderTest {
                         .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
-                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
 
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
@@ -173,7 +172,7 @@ public class StorageLoaderTest {
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
     }
 
-    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
+    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageLoader loader = new StorageLoader();

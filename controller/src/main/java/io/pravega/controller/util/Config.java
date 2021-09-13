@@ -16,20 +16,24 @@
 package io.pravega.controller.util;
 
 import com.google.common.base.Strings;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.shared.metrics.MetricsConfig;
+import lombok.SneakyThrows;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Utility class to supply Controller Configuration.
@@ -125,6 +129,9 @@ public final class Config {
     public static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named(
             "security.tls.enable", false, "auth.tlsEnabled");
 
+    public static final Property<String> PROPERTY_TLS_PROTOCOL_VERSION = Property.named(
+            "security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
+
     public static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named(
             "security.tls.server.certificate.location", "", "auth.tlsCertFile");
 
@@ -174,7 +181,7 @@ public final class Config {
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
     public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
-            "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
+            "transaction.lease.count.max", 600000L, "transaction.maxLeaseValue");
 
     public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
             "transaction.execution.timeBound.days", 1);
@@ -196,6 +203,9 @@ public final class Config {
 
     public static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
+
+    public static final Property<Integer> PROPERTY_HEALTH_CHECK_FREQUENCY = Property.named(
+            "health.frequency.seconds", 10);
 
     public static final String COMPONENT_CODE = "controller";
 
@@ -225,6 +235,7 @@ public final class Config {
     public static final boolean AUTHORIZATION_ENABLED;
     public static final String USER_PASSWORD_FILE;
     public static final boolean TLS_ENABLED;
+    public static final List<String> TLS_PROTOCOL_VERSION;
     public static final String TLS_KEY_FILE;
     public static final String TLS_CERT_FILE;
     public static final String TLS_TRUST_STORE;
@@ -285,8 +296,9 @@ public final class Config {
 
     public static final Integer REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE;
 
-    private static final String METRICS_PATH = "controller.metrics.";
+    public static final int HEALTH_CHECK_FREQUENCY;
 
+    private static final String METRICS_PATH = "controller.metrics.";
 
     //endregion
 
@@ -315,6 +327,8 @@ public final class Config {
         WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
+        String[] protocols = new TLSProtocolVersion(p.get(PROPERTY_TLS_PROTOCOL_VERSION)).getProtocols();
+        TLS_PROTOCOL_VERSION = Collections.unmodifiableList(Arrays.asList(protocols));
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
@@ -354,6 +368,7 @@ public final class Config {
         METRICS_CONFIG = createMetricsConfig(properties);
 
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
+        HEALTH_CHECK_FREQUENCY = p.getInt(PROPERTY_HEALTH_CHECK_FREQUENCY);
     }
 
     private static Properties loadConfiguration() {
@@ -448,6 +463,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
+                .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]))
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)

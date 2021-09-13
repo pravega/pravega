@@ -27,9 +27,7 @@ import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -115,7 +113,7 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
-            .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableKeyDoesNotExist.class, 
+            .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableKeyDoesNotExist.class,
                     WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
             .put(WireCommands.DeleteTableSegment.class, ImmutableSet.of(WireCommands.TableSegmentNotEmpty.class))
@@ -124,12 +122,12 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .build();
 
+    protected final ConnectionPool connectionPool;
+    protected final ScheduledExecutorService executorService;
+    protected final AtomicReference<Duration> timeout;
     private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executorService;
-    private final AtomicReference<Duration> timeout;
 
-    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, 
+    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore,
                          ScheduledExecutorService executorService) {
         this.connectionPool = connectionPool;
         this.hostStore = hostStore;
@@ -159,7 +157,8 @@ public class SegmentHelper implements AutoCloseable {
                                                  final long segmentId,
                                                  final ScalingPolicy policy,
                                                  final String controllerToken,
-                                                 final long clientRequestId) {
+                                                 final long clientRequestId,
+                                                 final long rolloverSizeBytes) {
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -169,8 +168,8 @@ public class SegmentHelper implements AutoCloseable {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         return sendRequest(connection, clientRequestId, new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
-            extracted.getLeft(), extracted.getRight(), controllerToken))
-            .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, 
+            extracted.getLeft(), extracted.getRight(), controllerToken, rolloverSizeBytes))
+            .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName,
                     WireCommands.CreateSegment.class, type));
     }
 
@@ -189,7 +188,7 @@ public class SegmentHelper implements AutoCloseable {
 
         return sendRequest(connection, clientRequestId, new WireCommands.TruncateSegment(requestId,
                 qualifiedStreamSegmentName, offset, delegationToken))
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, 
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName,
                         WireCommands.TruncateSegment.class, type));
     }
 
@@ -204,7 +203,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        return sendRequest(connection, clientRequestId, new WireCommands.DeleteSegment(requestId, 
+        return sendRequest(connection, clientRequestId, new WireCommands.DeleteSegment(requestId,
                 qualifiedStreamSegmentName, delegationToken))
                 .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName,
                         WireCommands.DeleteSegment.class, type));
@@ -240,7 +239,8 @@ public class SegmentHelper implements AutoCloseable {
                                                      final long segmentId,
                                                      final UUID txId,
                                                      final String delegationToken,
-                                                     final long clientRequestId) {
+                                                     final long clientRequestId,
+                                                     final long rolloverSizeBytes) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -249,10 +249,10 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
-                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
+                WireCommands.CreateSegment.NO_SCALE, 0, delegationToken, rolloverSizeBytes);
 
         return sendRequest(connection, clientRequestId, request)
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class, 
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class,
                         type));
     }
 
@@ -294,7 +294,7 @@ public class SegmentHelper implements AutoCloseable {
                             return getSegmentInfo(scope, stream, targetSegmentId, delegationToken, clientRequestId)
                                     .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
                         } else {
-                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.", 
+                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.",
                                     reply.getSegment());
                             return CompletableFuture.completedFuture(-1L);
                         }
@@ -339,7 +339,7 @@ public class SegmentHelper implements AutoCloseable {
                 qualifiedName, extracted.getLeft(), extracted.getRight(), delegationToken);
 
         return sendRequest(connection, clientRequestId, request)
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedName, 
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedName,
                         WireCommands.UpdateSegmentPolicy.class, type));
     }
 
@@ -361,7 +361,7 @@ public class SegmentHelper implements AutoCloseable {
         
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(r -> {
-                    handleReply(clientRequestId, r, connection, qualifiedName, WireCommands.GetStreamSegmentInfo.class, 
+                    handleReply(clientRequestId, r, connection, qualifiedName, WireCommands.GetStreamSegmentInfo.class,
                             type);
                     assert r instanceof WireCommands.StreamSegmentInfo;
                     return (WireCommands.StreamSegmentInfo) r;
@@ -375,6 +375,9 @@ public class SegmentHelper implements AutoCloseable {
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @param sortedTableSegment  Boolean flag indicating if the Table Segment should be created in sorted order.
+     * @param keyLength           Key Length. If 0, a Hash Table Segment (Variable Key Length) will be created, otherwise
+     *                            a Fixed-Key-Length Table Segment will be created with this value for the key length.
+     * @param rolloverSizeBytes   The rollover size of segment in LTS.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
@@ -382,7 +385,9 @@ public class SegmentHelper implements AutoCloseable {
     public CompletableFuture<Void> createTableSegment(final String tableName,
                                                       String delegationToken,
                                                       final long clientRequestId,
-                                                      final boolean sortedTableSegment) {
+                                                      final boolean sortedTableSegment,
+                                                      final int keyLength,
+                                                      final long rolloverSizeBytes) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
@@ -391,10 +396,8 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         // All Controller Metadata Segments are non-sorted.
-        return sendRequest(connection, clientRequestId, new WireCommands.CreateTableSegment(requestId, tableName, 
-                sortedTableSegment, delegationToken))
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
-                        WireCommands.CreateTableSegment.class, type));
+        return sendRequest(connection, clientRequestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, keyLength, delegationToken, rolloverSizeBytes))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 
     /**
@@ -420,7 +423,7 @@ public class SegmentHelper implements AutoCloseable {
 
         return sendRequest(connection, clientRequestId, new WireCommands.DeleteTableSegment(requestId,
                 tableName, mustBeEmpty, delegationToken))
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName,
                         WireCommands.DeleteTableSegment.class, type));
     }
 
@@ -470,6 +473,53 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     /**
+     * This method sends a WireCommand to get information about a Table Segment.
+     *
+     * @param tableName           Qualified table name.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed successfully, will return information about the Table Segment.
+     * If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<WireCommands.TableSegmentInfo> getTableSegmentInfo(final String tableName,
+                                                      String delegationToken,
+                                                      final long clientRequestId) {
+
+        final Controller.NodeUri uri = getTableUri(tableName);
+        final WireCommandType type = WireCommandType.GET_TABLE_SEGMENT_INFO;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        // All Controller Metadata Segments are non-sorted.
+        return sendRequest(connection, clientRequestId, new WireCommands.GetTableSegmentInfo(requestId, tableName, delegationToken))
+                .thenApply(r -> {
+                    handleReply(clientRequestId, r, connection, tableName, WireCommands.GetTableSegmentInfo.class,
+                            type);
+                    assert r instanceof WireCommands.TableSegmentInfo;
+                    return (WireCommands.TableSegmentInfo) r;
+                });
+    }
+
+    /**
+     * This method gets the entry count for a Table Segment.
+     *
+     * @param tableName           Qualified table name.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed successfully, will return entry count of a Table Segment.
+     * If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Long> getTableSegmentEntryCount(final String tableName,
+                                                                                String delegationToken,
+                                                                                final long clientRequestId) {
+        return getTableSegmentInfo(tableName, delegationToken, clientRequestId)
+                .thenApply(WireCommands.TableSegmentInfo::getEntryCount);
+    }
+
+    /**
      * This method sends a WireCommand to remove table keys.
      *
      * @param tableName       Qualified table name.
@@ -500,7 +550,7 @@ public class SegmentHelper implements AutoCloseable {
                 requestId, tableName, delegationToken, keyList, WireCommands.NULL_TABLE_SEGMENT_OFFSET);
 
         return sendRequest(connection, clientRequestId, request)
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName,
                         WireCommands.RemoveTableKeys.class, type));
     }
 
@@ -556,29 +606,30 @@ public class SegmentHelper implements AutoCloseable {
 
      * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
-                                                                          final int suggestedKeyCount,
-                                                                          final IteratorStateImpl state,
-                                                                          final String delegationToken,
-                                                                          final long clientRequestId) {
+    public CompletableFuture<HashTableIteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
+                                                                                   final int suggestedKeyCount,
+                                                                                   final HashTableIteratorItem.State state,
+                                                                                   final String delegationToken,
+                                                                                   final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
+        final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken,
-                suggestedKeyCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedKeyCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
                     WireCommands.TableKeysRead tableKeysRead = (WireCommands.TableKeysRead) rpl;
-                    final IteratorState newState = IteratorStateImpl.fromBytes(tableKeysRead.getContinuationToken());
+                    final HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(tableKeysRead.getContinuationToken());
                     final List<TableSegmentKey> keys =
                             tableKeysRead.getKeys().stream().map(k -> TableSegmentKey.versioned(k.getData(),
                                     k.getKeyVersion())).collect(Collectors.toList());
-                    return new IteratorItem<>(newState, keys);
+                    return new HashTableIteratorItem<>(newState, keys);
                 });
     }
 
@@ -593,19 +644,19 @@ public class SegmentHelper implements AutoCloseable {
      * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
      * SegmentStore.
      */
-    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+    public CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final int suggestedEntryCount,
-                                                                               final IteratorStateImpl state,
+                                                                               final HashTableIteratorItem.State state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
         return readTableEntries(tableName, ModelHelper.encode(getTableUri(tableName)), suggestedEntryCount, state,
                 delegationToken, clientRequestId);
     }
 
-    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+    public CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final PravegaNodeUri uri,
                                                                                final int suggestedEntryCount,
-                                                                               final IteratorStateImpl state,
+                                                                               final HashTableIteratorItem.State state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
@@ -613,15 +664,16 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
+        final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                suggestedEntryCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedEntryCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
                     WireCommands.TableEntriesRead tableEntriesRead = (WireCommands.TableEntriesRead) rpl;
-                    final IteratorState newState = IteratorStateImpl.fromBytes(tableEntriesRead.getContinuationToken());
+                    final HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(tableEntriesRead.getContinuationToken());
                     final List<TableSegmentEntry> entries =
                             tableEntriesRead.getEntries().getEntries().stream()
                                             .map(e -> {
@@ -630,11 +682,11 @@ public class SegmentHelper implements AutoCloseable {
                                                         e.getValue().getData(),
                                                         k.getKeyVersion());
                                             }).collect(Collectors.toList());
-                    return new IteratorItem<>(newState, entries);
+                    return new HashTableIteratorItem<>(newState, entries);
                 });
     }
 
-    public CompletableFuture<WireCommands.SegmentRead> readSegment(String qualifiedName, int offset, int length,
+    public CompletableFuture<WireCommands.SegmentRead> readSegment(String qualifiedName, long offset, int length,
                                                                         PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         RawClient connection = new RawClient(uri, connectionPool);
@@ -669,7 +721,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     public CompletableFuture<WireCommands.SegmentAttributeUpdated> updateSegmentAttribute(
-            String qualifiedName, UUID attributeId, long newValue, long existingValue, PravegaNodeUri uri, 
+            String qualifiedName, UUID attributeId, long newValue, long existingValue, PravegaNodeUri uri,
             String delegationToken) {
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_ATTRIBUTE;
         RawClient connection = new RawClient(uri, connectionPool);
@@ -725,7 +777,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private void closeConnection(Reply reply, RawClient client, long callerRequestId) {
-        log.debug(callerRequestId, "Closing connection as a result of receiving: flowId: {}: reply: {}", 
+        log.debug(callerRequestId, "Closing connection as a result of receiving: flowId: {}: reply: {}",
                 reply.getRequestId(), reply);
         if (client != null) {
             try {
@@ -736,7 +788,7 @@ public class SegmentHelper implements AutoCloseable {
         }
     }
 
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId, 
+    protected <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId,
                                                                                    T request) {
         log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: request: {}",
                 request.getRequestId(), request);
@@ -780,7 +832,6 @@ public class SegmentHelper implements AutoCloseable {
      * @param qualifiedStreamSegmentName StreamSegmentName
      * @param requestType         request which reply need to be transformed
      * @param type                WireCommand for this request
-     * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
     private void handleReply(long callerRequestId,
@@ -789,9 +840,33 @@ public class SegmentHelper implements AutoCloseable {
                              String qualifiedStreamSegmentName,
                              Class<? extends Request> requestType,
                              WireCommandType type) {
+        handleExpectedReplies(callerRequestId, reply, client, qualifiedStreamSegmentName, requestType, type, EXPECTED_SUCCESS_REPLIES, EXPECTED_FAILING_REPLIES);
+    }
+
+    /**
+     * This method handles the reply returned from RawClient.sendRequest given the expected success and failure cases.
+     *
+     * @param callerRequestId     request id issues by the client
+     * @param reply               actual reply received
+     * @param client              RawClient for sending request
+     * @param qualifiedStreamSegmentName StreamSegmentName
+     * @param requestType         request which reply need to be transformed
+     * @param type                WireCommand for this request
+     * @param expectedSuccessReplies the expected replies for a successful case
+     * @param expectedFailureReplies the expected replies for a failing case
+     * @throws ConnectionFailedException in case the reply is unexpected
+     */
+    protected void handleExpectedReplies(long callerRequestId,
+                                         Reply reply,
+                                         RawClient client,
+                                         String qualifiedStreamSegmentName,
+                                         Class<? extends Request> requestType,
+                                         WireCommandType type,
+                                         Map<Class<? extends Request>, Set<Class<? extends Reply>>> expectedSuccessReplies,
+                                         Map<Class<? extends Request>, Set<Class<? extends Reply>>> expectedFailureReplies) throws ConnectionFailedException {
         closeConnection(reply, client, callerRequestId);
-        Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
-        Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
+        Set<Class<? extends Reply>> expectedReplies = expectedSuccessReplies.get(requestType);
+        Set<Class<? extends Reply>> expectedFailingReplies = expectedFailureReplies.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
             log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
@@ -818,7 +893,7 @@ public class SegmentHelper implements AutoCloseable {
                     reply.getClass().getSimpleName(), reply.getRequestId());
             throw new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost);
         } else {
-            log.error(callerRequestId, "Unexpected reply {} {} {} {}.", requestType.getSimpleName(), 
+            log.error(callerRequestId, "Unexpected reply {} {} {} {}.", requestType.getSimpleName(),
                     qualifiedStreamSegmentName, reply.getClass().getSimpleName(), reply.getRequestId());
 
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting one of "

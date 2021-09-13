@@ -19,8 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
@@ -32,6 +30,8 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.RESTServerConfig;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.Optional;
@@ -91,6 +91,7 @@ public class Main {
                     .host(Config.REST_SERVER_IP)
                     .port(Config.REST_SERVER_PORT)
                     .tlsEnabled(Config.TLS_ENABLED)
+                    .tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]))
                     .keyFilePath(Config.REST_KEYSTORE_FILE_PATH)
                     .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();

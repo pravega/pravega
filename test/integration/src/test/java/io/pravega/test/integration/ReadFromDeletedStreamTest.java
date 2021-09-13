@@ -32,6 +32,7 @@ import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
@@ -56,7 +57,7 @@ public class ReadFromDeletedStreamTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         streamManager.createScope("test");

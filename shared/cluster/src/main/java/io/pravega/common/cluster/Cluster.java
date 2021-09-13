@@ -60,4 +60,10 @@ public interface Cluster extends AutoCloseable {
      */
     public Set<Host> getClusterMembers();
 
+    /**
+     * Get the health status.
+     *
+     * @return true/false.
+     */
+    public boolean isHealthy();
 }

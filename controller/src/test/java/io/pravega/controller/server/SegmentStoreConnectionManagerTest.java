@@ -56,6 +56,7 @@ public class SegmentStoreConnectionManagerTest {
         connectionCounter = new AtomicInteger();
     }
 
+    @SuppressWarnings("resource")
     @Test(timeout = 30000)
     public void connectionTest() {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
@@ -241,6 +242,11 @@ public class SegmentStoreConnectionManagerTest {
             }
 
             @Override
+            public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+
+            }
+
+            @Override
             public void segmentRead(WireCommands.SegmentRead segmentRead) {
 
             }
@@ -312,6 +318,11 @@ public class SegmentStoreConnectionManagerTest {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+
+            @Override
+            public void tableSegmentInfo(WireCommands.TableSegmentInfo info) {
 
             }
 

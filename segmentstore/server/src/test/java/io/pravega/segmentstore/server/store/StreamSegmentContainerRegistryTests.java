@@ -21,7 +21,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
@@ -44,7 +46,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -93,6 +94,37 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
             Assert.assertTrue("Wrong container Java type.", container instanceof TestContainer);
             Assert.assertEquals("Unexpected container Id.", handle.getContainerId(), container.getId());
             container.close();
+        }
+
+        AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
+
+        AssertExtensions.assertThrows(
+                "getContainer did not throw when passed an invalid container id.",
+                () -> registry.getContainer(containerCount + 1),
+                ex -> ex instanceof ContainerNotFoundException);
+    }
+
+    /**
+     * Tests the getContainers method for registered and unregistered containers.
+     */
+    @Test
+    public void testGetContainers() throws Exception {
+        final int containerCount = 1000;
+        TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
+
+        HashSet<Integer> expectedContainerIds = new HashSet<>();
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            registry.startContainer(containerId, TIMEOUT);
+            expectedContainerIds.add(containerId);
+        }
+
+        HashSet<Integer> actualHandleIds = new HashSet<>();
+        for (SegmentContainer segmentContainer : registry.getContainers()) {
+            actualHandleIds.add(segmentContainer.getId());
+            Assert.assertTrue("Wrong container Java type.", segmentContainer instanceof TestContainer);
+            segmentContainer.close();
         }
 
         AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
@@ -350,22 +382,22 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         //region Unimplemented methods
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
             return null;
         }
 
@@ -386,6 +418,12 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                              AttributeUpdateCollection attributes, Duration timeout) {
             return null;
         }
 

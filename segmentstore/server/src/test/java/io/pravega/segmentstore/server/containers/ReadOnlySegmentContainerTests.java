@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -30,7 +32,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import lombok.Cleanup;
@@ -76,7 +77,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
                 .thenCompose(v -> context.storage.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT)).join();
         val expectedInfo = StreamSegmentInformation.from(storageInfo)
                 .startOffset(storageInfo.getLength() / 2)
-                .attributes(ImmutableMap.of(UUID.randomUUID(), 100L, Attributes.EVENT_COUNT, 1L))
+                .attributes(ImmutableMap.of(AttributeId.randomUUID(), 100L, Attributes.EVENT_COUNT, 1L))
                 .build();
 
         // Fetch the SegmentInfo from the ReadOnlyContainer and verify it is as expected.
@@ -132,6 +133,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("truncateStreamSegment", () -> context.container.truncateStreamSegment(SEGMENT_NAME, 0, TIMEOUT));
         assertUnsupported("deleteStreamSegment", () -> context.container.deleteStreamSegment(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT));
+        assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, new AttributeUpdateCollection(), TIMEOUT));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

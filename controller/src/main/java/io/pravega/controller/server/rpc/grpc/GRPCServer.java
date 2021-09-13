@@ -20,18 +20,23 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyServerBuilder;
 import io.netty.channel.ChannelOption;
+import io.netty.handler.ssl.SslContext;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.net.ssl.SSLException;
 
 /**
  * gRPC based RPC Server for the Controller.
@@ -66,7 +71,7 @@ public class GRPCServer extends AbstractIdleService {
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.authHandlerManager = new AuthHandlerManager(serverConfig);
-            this.authHandlerManager.registerInterceptors(builder);
+            GrpcAuthHelper.registerInterceptors(authHandlerManager.getHandlerMap(), builder);
         } else {
             this.authHandlerManager = null;
         }
@@ -74,8 +79,17 @@ public class GRPCServer extends AbstractIdleService {
         if (serverConfig.isTlsEnabled() && !Strings.isNullOrEmpty(serverConfig.getTlsCertFile())) {
             builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
                     new File(serverConfig.getTlsKeyFile()));
+            SslContext ctx = getSSLContext(serverConfig);
+            ((NettyServerBuilder) builder).sslContext(ctx);
         }
         this.server = builder.build();
+    }
+
+    @SneakyThrows(SSLException.class)
+    private SslContext getSSLContext(GRPCServerConfig serverConfig) {
+        return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
+                .protocols(serverConfig.getTlsProtocolVersion())
+                .build();
     }
 
     /**

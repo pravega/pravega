@@ -94,7 +94,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
+    public void testConnectAndSend() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -113,7 +113,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testRecvErrorMessage() throws SegmentSealedException, ConnectionFailedException {
+    public void testRecvErrorMessage() throws SegmentSealedException {
         int requestId = 0;
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -122,6 +122,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -135,7 +136,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
 
     @Test(timeout = 10000)
-    public void testReconnectWorksWithTokenTaskInInternalExecutor() {
+    public void testReconnectWorksWithTokenTaskInInternalExecutor() throws SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
@@ -151,6 +152,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.create(controller, "scope", "stream", AccessOperation.ANY));
         output.reconnect();
@@ -284,6 +286,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -331,6 +334,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -386,7 +390,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
+    public void testConditionalSend() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -456,7 +460,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
-            ByteBuffer data, int num) throws SegmentSealedException, ConnectionFailedException {
+            ByteBuffer data, int num) throws ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, num, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
@@ -464,7 +468,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testClose() throws ConnectionFailedException, SegmentSealedException {
+    public void testClose() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -536,7 +540,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testReconnectOnMissedAcks() throws ConnectionFailedException, SegmentSealedException {
+    public void testReconnectOnMissedAcks() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
@@ -547,6 +551,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -578,7 +583,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testReconnectSendsSetupAppendOnTokenExpiration() throws ConnectionFailedException {
+    public void testReconnectSendsSetupAppendOnTokenExpiration() throws ConnectionFailedException, SegmentSealedException {
         UUID writerId = UUID.randomUUID();
         PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
@@ -593,7 +598,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection mockConnection = mock(ClientConnection.class);
 
         mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
-
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
                 mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
                 DelegationTokenProviderFactory.createWithEmptyToken());
@@ -613,7 +618,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testReconnectDoesNotSetupAppendOnTokenCheckFailure() throws ConnectionFailedException {
+    public void testReconnectDoesNotSetupAppendOnTokenCheckFailure() throws ConnectionFailedException, SegmentSealedException {
         UUID writerId = UUID.randomUUID();
         PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
@@ -628,7 +633,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection mockConnection = mock(ClientConnection.class);
 
         mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
-
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
                 mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
                 DelegationTokenProviderFactory.createWithEmptyToken());
@@ -649,7 +654,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testReconnectOnBadAcks() throws ConnectionFailedException, SegmentSealedException {
+    public void testReconnectOnBadAcks() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
@@ -660,6 +665,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -699,6 +705,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -752,6 +759,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
 
@@ -796,7 +804,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, data, acked3));
         inOrder.verify(connection).send(append);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        inOrder.verify(connection).send(any(Append.class));
+        inOrder.verify(connection).send(eq(append2));
         // the setup append should not transmit the inflight events given that the segment is sealed.
         inOrder.verifyNoMoreInteractions();
         assertFalse(acked.isDone());
@@ -906,6 +914,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -932,6 +941,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -971,6 +981,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -1132,6 +1143,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 throw new IllegalStateException();
             }
         };
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, exceptionCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -1170,7 +1182,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -1204,7 +1216,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -1224,7 +1236,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -1311,6 +1323,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         InOrder order = Mockito.inOrder(connection);
 
         // Create a Segment writer.
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
 
@@ -1359,7 +1372,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testConnectAndSendWithoutConnectionPooling() throws SegmentSealedException, ConnectionFailedException {
+    public void testConnectAndSendWithoutConnectionPooling() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();

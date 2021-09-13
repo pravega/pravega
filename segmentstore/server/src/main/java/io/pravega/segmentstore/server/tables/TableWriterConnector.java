@@ -48,14 +48,6 @@ interface TableWriterConnector extends AutoCloseable {
     KeyHasher getKeyHasher();
 
     /**
-     * Gets the {@link SegmentSortedKeyIndex} associated with this Table Segment. If this Table Segment is not Sorted,
-     * this should return {@link SegmentSortedKeyIndex#noop()}.
-     *
-     * @return The {@link SegmentSortedKeyIndex} for this Table Segment.
-     */
-    SegmentSortedKeyIndex getSortedKeyIndex();
-
-    /**
      * Gets a {@link DirectSegmentAccess} that can be used to operate directly on the Table Segment.
      *
      * @param timeout Timeout for the operation.
@@ -79,6 +71,14 @@ interface TableWriterConnector extends AutoCloseable {
      * @return The maximum compaction length.
      */
     int getMaxCompactionSize();
+
+    /**
+     * Gets a value representing the maximum number of bytes to attempt to index (flush) at once.
+     * @return The maximum flush size.
+     */
+    default int getMaxFlushSize() {
+        return 134217728; // 128MB
+    }
 
     /**
      * This method will be invoked by the {@link WriterTableProcessor} when it is closed.

@@ -42,7 +42,6 @@ BOOKKEEPER=${BINDIR}/bookkeeper
 SCRIPTS_DIR=${BK_HOME}/scripts
 
 export PATH=$PATH:/opt/bookkeeper/bin
-export JAVA_HOME=/usr/lib/jvm/java-11
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BOOKIE_PORT=${BOOKIE_PORT}
 export SERVICE_PORT=${BOOKIE_PORT}

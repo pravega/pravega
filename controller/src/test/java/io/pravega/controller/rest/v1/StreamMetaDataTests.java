@@ -24,8 +24,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
@@ -38,8 +39,8 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
@@ -58,6 +59,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +70,8 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -78,10 +82,15 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * Tests for Stream metadata REST APIs.
@@ -195,8 +204,7 @@ public class StreamMetaDataTests {
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                         .build());
-        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory);
+        restServer = new RESTServer(serverConfig, Set.of(new StreamMetadataResourceImpl(controller, mockControllerService, authManager, connectionFactory, ClientConfig.builder().build())));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -737,7 +745,7 @@ public class StreamMetaDataTests {
         final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        Map<String, StreamConfiguration> allStreamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2, 
+        Map<String, StreamConfiguration> allStreamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2,
                 streamConfiguration2, NameUtils.getInternalNameForStream("stream3"), streamConfiguration3);
         when(mockControllerService.listStreamsInScope(eq("scope1"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(allStreamsList));
@@ -750,13 +758,46 @@ public class StreamMetaDataTests {
         assertEquals("List element", "stream2", streamsListResp.getStreams().get(1).getStreamName());
         response.close();
 
-        response = addAuthHeaders(client.target(resourceURI).queryParam("showInternalStreams", "true").request()).buildGet().invoke();
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "showInternalStreams").request()).buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
         streamsListResp = response.readEntity(StreamsList.class);
         assertEquals("List count", 1, streamsListResp.getStreams().size());
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
                 streamsListResp.getStreams().get(0).getStreamName());
+        response.close();
+
+        // Test for tags
+        final StreamConfiguration streamConfigurationForTags = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+                .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L))).tag("testTag")
+                .build();
+        List<String> tagStream = new ArrayList<>();
+        tagStream.add("streamForTags");
+        ImmutablePair<List<String>, String> tagPair = new ImmutablePair<>(tagStream, "");
+        ImmutablePair<List<String>, String> emptyPair = new ImmutablePair<>(Collections.emptyList(), "");
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(CompletableFuture.completedFuture(tagPair)).thenReturn(CompletableFuture.completedFuture(emptyPair));
+        when(mockControllerService.getStream(eq("scope1"), eq("streamForTags"), anyLong())).thenReturn(CompletableFuture.completedFuture(streamConfigurationForTags));
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
+        final StreamsList streamsListForTags = response.readEntity(StreamsList.class);
+        assertEquals("List count", streamsListForTags.getStreams().size(), 1);
+        assertEquals("List element", streamsListForTags.getStreams().get(0).getStreamName(), "streamForTags");
+        response.close();
+
+        final CompletableFuture<Pair<List<String>, String>> completableFutureForTag = new CompletableFuture<>();
+        completableFutureForTag.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(completableFutureForTag);
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 404, response.getStatus());
+        response.close();
+
+        final CompletableFuture<Pair<List<String>, String>> completableFutureForTag1 = new CompletableFuture<>();
+        completableFutureForTag1.completeExceptionally(new Exception());
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(completableFutureForTag1);
+        response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
+        assertEquals("List Streams response code", 500, response.getStatus());
         response.close();
 
         // Test to list large number of streams.
@@ -958,7 +999,7 @@ public class StreamMetaDataTests {
                 .build();
 
         // Fetch reader groups list.
-        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamconf1, stream2, 
+        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamconf1, stream2,
                 streamconf2, getStreamForReaderGroup("readerGroup1"), readerGroup1,
                 getStreamForReaderGroup("readerGroup2"), readerGroup2);
         when(mockControllerService.listStreamsInScope(eq(scope1), anyLong()))
@@ -1003,6 +1044,20 @@ public class StreamMetaDataTests {
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", 50000, readerGroupsList.getReaderGroups().size());
         response.close();
+    }
+
+    @Test
+    public void testGetReaderGroup() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+
+        when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
+        when(mockControllerService.getCurrentSegments(anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        // Verify that a ReaderGroupNotFoundException is generated as the segments are null.
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Reader Groups response code", 404, response.getStatus());
+        verify(mockControllerService, times(1)).getCurrentSegments(anyString(), anyString(), anyLong());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {

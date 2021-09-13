@@ -265,6 +265,7 @@ public abstract class Command {
                         .put(ConfigCommand.Set::descriptor, ConfigCommand.Set::new)
                         .put(ScopeCommand.Create::descriptor, ScopeCommand.Create::new)
                         .put(ScopeCommand.Delete::descriptor, ScopeCommand.Delete::new)
+                        .put(ScopeCommand.List::descriptor, ScopeCommand.List::new)
                         .put(StreamCommand.Create::descriptor, StreamCommand.Create::new)
                         .put(StreamCommand.Delete::descriptor, StreamCommand.Delete::new)
                         .put(StreamCommand.List::descriptor, StreamCommand.List::new)
@@ -278,9 +279,7 @@ public abstract class Command {
                         .put(KeyValueTableCommand.PutIf::descriptor, KeyValueTableCommand.PutIf::new)
                         .put(KeyValueTableCommand.PutIfAbsent::descriptor, KeyValueTableCommand.PutIfAbsent::new)
                         .put(KeyValueTableCommand.PutAll::descriptor, KeyValueTableCommand.PutAll::new)
-                        .put(KeyValueTableCommand.PutRange::descriptor, KeyValueTableCommand.PutRange::new)
                         .put(KeyValueTableCommand.Remove::descriptor, KeyValueTableCommand.Remove::new)
-                        .put(KeyValueTableCommand.ListKeys::descriptor, KeyValueTableCommand.ListKeys::new)
                         .put(KeyValueTableCommand.ListEntries::descriptor, KeyValueTableCommand.ListEntries::new)
                         .build());
 

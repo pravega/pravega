@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventHelperMock;
@@ -69,6 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -78,6 +80,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -88,11 +91,14 @@ import static org.junit.Assert.assertTrue;
  * Controller Event ProcessorTests.
  */
 public abstract class ControllerEventProcessorTest {
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
@@ -118,7 +124,7 @@ public abstract class ControllerEventProcessorTest {
         zkClient.start();
 
         streamStore = createStore();
-        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
+        bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         eventHelperMock = EventHelperMock.getEventHelperMock(executor, "1", ((AbstractStreamMetadataStore) this.streamStore).getHostTaskIndex());

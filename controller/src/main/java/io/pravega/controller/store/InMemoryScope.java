@@ -141,6 +141,11 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
+        return Futures.failedFuture(new UnsupportedOperationException("Not implmemented"));
+    }
+
     @Synchronized
     public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
         kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, id));
@@ -178,7 +183,7 @@ public class InMemoryScope implements Scope {
     @Synchronized
     public CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context) {
         if (this.readerGroupsMap.containsKey(rgName)) {
-            return CompletableFuture.completedFuture(((InMemoryReaderGroup) this.readerGroupsMap.get(rgName)).getId());
+            return CompletableFuture.completedFuture(this.readerGroupsMap.get(rgName).getId());
         }
         return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "reader group not found in scope."));
     }

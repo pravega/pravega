@@ -99,25 +99,27 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
         return Futures.toVoid(
                 streamMetadataStore.getEpochTransition(scope, stream, context, executor)
-                .thenCompose(etr -> streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, 
+                .thenCompose(etr -> streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING,
                         state, context, executor)
                 .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
-                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), 
+                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(),
                                 requestId))
-                        .thenCompose(x -> handleSegmentCounUpdates(scope, stream, configProperty, etr, context, executor, 
-                                requestId))
-                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, 
+                        .thenCompose(x -> handleSegmentCountUpdates(scope, stream, configProperty, etr, context, executor,
+                                                                    requestId))
+                        .thenCompose(x -> streamMetadataStore.removeTagsFromIndex(scope, stream, configProperty.getRemoveTags(), context, executor))
+                        .thenCompose(x -> streamMetadataStore.addStreamTagsToIndex(scope, stream, configProperty.getStreamConfiguration(), context, executor))
+                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context,
                                 executor))
-                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, 
+                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated,
                                 context, executor)))));
     }
 
-    private CompletableFuture<Void> handleSegmentCounUpdates(final String scope, final String stream,
-                                                             final StreamConfigurationRecord config,
-                                                             final VersionedMetadata<EpochTransitionRecord> etr,
-                                                             final OperationContext context,
-                                                             final ScheduledExecutorService executor,
-                                                             final long requestId) {
+    private CompletableFuture<Void> handleSegmentCountUpdates(final String scope, final String stream,
+                                                              final StreamConfigurationRecord config,
+                                                              final VersionedMetadata<EpochTransitionRecord> etr,
+                                                              final OperationContext context,
+                                                              final ScheduledExecutorService executor,
+                                                              final long requestId) {
         return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                               .thenCompose(activeEpoch -> {
                                   ScalingPolicy scalingPolicy = config.getStreamConfiguration().getScalingPolicy();
@@ -136,23 +138,23 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     private CompletableFuture<Void> processScale(String scope, String stream, int numSegments,
                                                  VersionedMetadata<EpochTransitionRecord> etr, EpochRecord activeEpoch,
                                                  OperationContext context, long requestId) {
-        // First reset the existing epoch transition (any submitted but unattempted scale 
+        // First reset the existing epoch transition (any submitted but unattempted scale
         // request is discarded). Then submit a new scale to seal all segments in active epoch and create new segments
-        // with count = numSegments and range equally divided among them. 
+        // with count = numSegments and range equally divided among them.
         final double keyRangeChunk = 1.0 / numSegments;
-        
+
         List<Map.Entry<Double, Double>> newRange = IntStream.range(0, numSegments).boxed()
-                                                            .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, 
+                                                            .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk,
                                                                     (x + 1) * keyRangeChunk))
                                                             .collect(Collectors.toList());
         log.debug("{} Scaling stream to update minimum number of segments to {}", requestId, numSegments);
         return streamMetadataStore.resetEpochTransition(scope, stream, etr, context, executor)
-              .thenCompose(reset -> streamMetadataStore.submitScale(scope, stream, 
+              .thenCompose(reset -> streamMetadataStore.submitScale(scope, stream,
                       new ArrayList<>(activeEpoch.getSegmentIds()), newRange,
                       System.currentTimeMillis(), reset, context, executor))
-              .thenCompose(updated -> streamMetadataTasks.processScale(scope, stream, updated, context, 
+              .thenCompose(updated -> streamMetadataTasks.processScale(scope, stream, updated, context,
                       requestId, streamMetadataStore)
-              .thenAccept(r -> log.info("{} Stream scaled to epoch {} to update minimum number of segments to {}", requestId, 
+              .thenAccept(r -> log.info("{} Stream scaled to epoch {} to update minimum number of segments to {}", requestId,
                       updated.getObject().getActiveEpoch(), numSegments)));
     }
 

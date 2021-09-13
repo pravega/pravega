@@ -48,6 +48,7 @@ public interface GRPCServerConfig extends ServerConfig {
      *
      * @return Whether this deployment has auth enabled.
      */
+    @Override
     boolean isAuthorizationEnabled();
 
     /**
@@ -64,6 +65,12 @@ public interface GRPCServerConfig extends ServerConfig {
       * @return A flag representing TLS status.
      */
     boolean isTlsEnabled();
+
+    /**
+     * A configuration for TLS protocol versions.
+     * @return A variable for tls protocol version
+     */
+    String[] getTlsProtocolVersion();
 
     /**
      * The truststore to be used while talking to segmentstore over TLS.

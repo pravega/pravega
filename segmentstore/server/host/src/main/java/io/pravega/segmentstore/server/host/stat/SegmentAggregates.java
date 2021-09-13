@@ -138,7 +138,7 @@ abstract class SegmentAggregates {
                 // reported update and current update by calling the decay function for all silent tick intervals
                 // with event count as 0 for them.
                 for (long i = 0; i < iterations - 1; i++) {
-                    computeDecay(0, (double) TICK_INTERVAL / 1000.0);
+                    computeDecay(0, TICK_INTERVAL / 1000.0);
                 }
                 double duration = (age - ((iterations - 1) * TICK_INTERVAL)) / 1000.0;
                 computeDecay(count, duration);

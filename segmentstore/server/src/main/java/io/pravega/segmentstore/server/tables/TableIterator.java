@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -118,7 +119,7 @@ class TableIterator<T> implements AsyncIterator<T> {
         return this.indexHashIterator.getNext().thenApplyAsync(this::fetchNextTableBuckets, this.executor);
     }
 
-    private synchronized boolean fetchNextTableBuckets(List<Map.Entry<UUID, Long>> indexHashes) {
+    private synchronized boolean fetchNextTableBuckets(List<Map.Entry<AttributeId, Long>> indexHashes) {
         List<TableBucket> buckets = toBuckets(indexHashes);
         if (buckets == null) {
             // End of iteration.
@@ -135,25 +136,28 @@ class TableIterator<T> implements AsyncIterator<T> {
     /**
      * Merges the given list of Index Hashes with the available Cache Hashes and generates the associated {@link TableBucket}s.
      */
-    private synchronized List<TableBucket> toBuckets(List<Map.Entry<UUID, Long>> indexHashes) {
+    private synchronized List<TableBucket> toBuckets(List<Map.Entry<AttributeId, Long>> indexHashes) {
         val buckets = new ArrayList<TableBucket>();
         if (indexHashes == null) {
             // Nothing more in the index. Add whatever is in the cache attributes.
             while (!this.cacheHashes.isEmpty()) {
-                add(this.cacheHashes.removeFirst(), buckets);
+                val ch = this.cacheHashes.removeFirst();
+                add(ch.getKey(), ch.getValue(), buckets);
             }
 
             return buckets.isEmpty() ? null : buckets;
         } else {
             // Transform every eligible Attribute into a TableBucket and add it to the result.
             for (val indexHash : indexHashes) {
-                if (KeyHasher.isValid(indexHash.getKey()) && indexHash.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
+                Preconditions.checkArgument(indexHash.getKey().isUUID(), "TableSegments should only have 16-byte (UUID) Attribute Ids.");
+                UUID indexHashKey = ((AttributeId.UUID) indexHash.getKey()).toUUID();
+                if (KeyHasher.isValid(indexHashKey) && indexHash.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
                     // For each bucket returned above, include all Buckets/hashes from the ContainerKeyIndex which are equal to or
                     // below it. (this is very similar to the AttributeMixer - maybe reuse that methodology).
                     boolean overridden = false;
                     while (!this.cacheHashes.isEmpty()) {
                         val cacheHash = this.cacheHashes.peekFirst();
-                        int cmp = indexHash.getKey().compareTo(this.cacheHashes.peekFirst().getKey());
+                        int cmp = indexHashKey.compareTo(this.cacheHashes.peekFirst().getKey());
                         if (cmp < 0) {
                             // Cache Hash is after Index Hash. We are done here.
                             break;
@@ -161,12 +165,12 @@ class TableIterator<T> implements AsyncIterator<T> {
 
                         // The value we got from the Index was overridden by the one in the cache.
                         overridden = overridden || cmp == 0;
-                        add(cacheHash, buckets);
+                        add(cacheHash.getKey(), cacheHash.getValue(), buckets);
                         this.cacheHashes.removeFirst();
                     }
 
                     if (!overridden) {
-                        add(indexHash, buckets);
+                        add(indexHashKey, indexHash.getValue(), buckets);
                     }
                 }
             }
@@ -175,8 +179,8 @@ class TableIterator<T> implements AsyncIterator<T> {
         return buckets;
     }
 
-    private void add(Map.Entry<UUID, Long> bucketInfo, List<TableBucket> buckets) {
-        buckets.add(new TableBucket(bucketInfo.getKey(), bucketInfo.getValue()));
+    private void add(UUID bucketHash, long bucketOffset, List<TableBucket> buckets) {
+        buckets.add(new TableBucket(bucketHash, bucketOffset));
     }
 
     //endregion
@@ -297,7 +301,7 @@ class TableIterator<T> implements AsyncIterator<T> {
         CompletableFuture<AsyncIterator<T>> build() {
             // Sort the Cache Hashes and get the Attribute Iterator.
             val cacheHashes = getCacheHashes(this.cacheHashes, this.firstHash);
-            val aiFuture = this.segment.attributeIterator(this.firstHash, KeyHasher.MAX_HASH, this.fetchTimeout);
+            val aiFuture = this.segment.attributeIterator(AttributeId.fromUUID(this.firstHash), AttributeId.fromUUID(KeyHasher.MAX_HASH), this.fetchTimeout);
             return aiFuture.thenApply(attributeIterator ->
                     new TableIterator<>(attributeIterator, this.resultConverter, cacheHashes, this.executor)
                             .asSequential(this.executor));

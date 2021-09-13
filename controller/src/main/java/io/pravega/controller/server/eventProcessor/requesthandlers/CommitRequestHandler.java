@@ -17,6 +17,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -29,11 +30,13 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.TxnWriterMark;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -41,6 +44,8 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,7 +56,7 @@ import java.util.stream.Collectors;
  * Request handler for processing commit events in commit-stream.
  */
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleTask.class));
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CommitRequestHandler.class));
 
     private static final int MAX_TRANSACTION_COMMIT_BATCH_SIZE = 100;
 
@@ -159,24 +164,27 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final String stream,
                                                           final OperationContext context) {
         Timer timer = new Timer();
+        Map<String, TxnWriterMark> writerMarks = new HashMap<>();
+        Map<UUID, String> txnIdToWriterId = new HashMap<>();
+
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
-
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
                             streamMetadataStore.startCommitTransactions(scope, stream, MAX_TRANSACTION_COMMIT_BATCH_SIZE, 
                                     context, executor)
-                            .thenComposeAsync(versionedMetadata -> {
-                                if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
+                            .thenComposeAsync(txnsTuple -> {
+                                VersionedMetadata<CommittingTransactionsRecord> committingTxnsRecord = txnsTuple.getKey();
+                                if (committingTxnsRecord.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from
                                     // a previous execution
                                     // that died just before updating the state back to ACTIVE but after having 
                                     // completed all the work.
-                                    return CompletableFuture.completedFuture(versionedMetadata);
+                                    return CompletableFuture.completedFuture(committingTxnsRecord);
                                 } else {
-                                    int txnEpoch = versionedMetadata.getObject().getEpoch();
-                                    List<UUID> txnList = versionedMetadata.getObject().getTransactionsToCommit();
+                                    int txnEpoch = committingTxnsRecord.getObject().getEpoch();
+                                    List<UUID> txnList = committingTxnsRecord.getObject().getTransactionsToCommit();
 
                                     log.info(context.getRequestId(), 
                                             "Committing {} transactions on epoch {} on stream {}/{}", 
@@ -198,6 +206,16 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                             .thenAccept(stateRecord::set);
                                     }
 
+                                    txnsTuple.getValue().forEach(txn -> {
+                                        if (!Strings.isNullOrEmpty(txn.getWriterId())) {
+                                            txnIdToWriterId.put(txn.getId(), txn.getWriterId());
+                                            if (!writerMarks.containsKey(txn.getWriterId())
+                                                    || writerMarks.get(txn.getWriterId()).getTimestamp() < txn.getCommitTime()) {
+                                            writerMarks.put(txn.getWriterId(),
+                                                    new TxnWriterMark(txn.getCommitTime(), ImmutableMap.of(), txn.getId()));
+                                            }
+                                        }
+                                    });
                                     // Note: since we have set the state to COMMITTING_TXN (or it was already sealing),
                                     // the active epoch that we fetch now cannot change until we perform rolling txn. 
                                     // TxnCommittingRecord ensures no other rollingTxn can run concurrently
@@ -211,11 +229,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                     // we can commit transactions immediately
                                                     return commitTransactions(scope, stream, 
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
-                                                            context, timer)
-                                                            .thenApply(x -> versionedMetadata);
+                                                            context, txnIdToWriterId, writerMarks)
+                                                            .thenApply(txnOffsets -> committingTxnsRecord);
                                                 } else {
                                                     return rollTransactions(scope, stream, txnEpochRecord, activeEpochRecord,
-                                                            versionedMetadata, context, timer);
+                                                            committingTxnsRecord, context, txnIdToWriterId, writerMarks);
                                                 }
                                             }));
                                 }
@@ -224,16 +242,19 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // once all commits are done, reset the committing txn record.
                     // reset state to ACTIVE if it was COMMITTING_TXN
                     return commitFuture
-                            .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(
-                                    scope, stream, versionedMetadata, context, executor)
+                            .thenCompose(committingTxnsRecord -> streamMetadataStore.completeCommitTransactions(
+                                    scope, stream, committingTxnsRecord, context, executor, writerMarks)
                             .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context))
-                            .thenApply(v -> versionedMetadata.getObject().getEpoch()));
+                            .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()))
+                            .thenApply(v -> committingTxnsRecord.getObject().getEpoch()));
                 }, executor);
     }
 
     private CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollTransactions(
-            String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch, 
-            VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context, Timer timer) {
+            String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
+            VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context,
+            Map<UUID, String> txnIdToWriterId,
+            Map<String, TxnWriterMark> writerMarks) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(
@@ -245,7 +266,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             if (activeEpoch.getEpoch() > record.getObject().getCurrentEpoch()) {
                 return CompletableFuture.completedFuture(record);
             } else {
-                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context, timer)
+                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context, txnIdToWriterId, writerMarks)
                         .thenApply(v -> record);
             }
         });
@@ -254,7 +275,8 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     private CompletableFuture<Void> runRollingTxn(String scope, String stream, EpochRecord txnEpoch,
                                                   EpochRecord activeEpoch, 
                                                   VersionedMetadata<CommittingTransactionsRecord> existing,
-                                                  OperationContext context, Timer timer) {
+                                                  OperationContext context, Map<UUID, String> txnIdToWriterId,
+                                                  Map<String, TxnWriterMark> writerMarks) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 
@@ -269,7 +291,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                             newActiveEpoch))
                                                      .collect(Collectors.toList());
         List<UUID> transactionsToCommit = existing.getObject().getTransactionsToCommit();
-        return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context, timer)
+        return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context, txnIdToWriterId, writerMarks)
                 .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context,
                         delegationToken, context.getRequestId()))
                 .thenCompose(v -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, txnEpochDuplicate,
@@ -300,8 +322,8 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      * those duplicate segments.
      */
     private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
-                                                                      List<Long> segmentIds, OperationContext context, 
-                                                                      Timer timer) {
+                                                                      List<Long> segmentIds, OperationContext context, Map<UUID, String> txnIdToWriterId,
+                                                                                            Map<String, TxnWriterMark> writerMarks) {
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
@@ -309,8 +331,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         CompletableFuture<Void> createSegmentsFuture = Futures.allOf(segmentIds.stream().map(segment -> {
             // Use fixed scaling policy for these segments as they are created, merged into and sealed and are not
             // supposed to auto scale.
-            return streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken, 
-                    context.getRequestId());
+            return streamMetadataStore.getConfiguration(scope, stream, context, executor).thenCompose(config ->
+                    streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken,
+                    context.getRequestId(), config.getRolloverSizeBytes()));
         }).collect(Collectors.toList()));
 
         return createSegmentsFuture
@@ -319,9 +342,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             "Rolling transaction, successfully created duplicate txn epoch {} for stream {}/{}", 
                             segmentIds, scope, stream);
                     // now commit transactions into these newly created segments
-                    return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context, timer);
+                    return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context, txnIdToWriterId, writerMarks);
                 })
-                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken, 
+                .thenAccept(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken,
                         context.getRequestId()));
     }
 
@@ -330,30 +353,32 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      * At the end of this method's execution, all transactions in the list would have committed into given list of segments.
      */
     private CompletableFuture<Void> commitTransactions(String scope, String stream, List<Long> segments,
-                                                       List<UUID> transactionsToCommit, OperationContext context, Timer timer) {
+                                                                             List<UUID> transactionsToCommit, OperationContext context,
+                                                                             Map<UUID, String> txnIdToWriterId,
+                                                                             Map<String, TxnWriterMark> writerMarks) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
+        boolean noteTime = writerMarks.size() > 0;
         CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
         for (UUID txnId : transactionsToCommit) {
             log.info(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, stream);
             // commit transaction in segment store
             future = future
-                    // Note, we can use the same segments and transaction id as only
-                    // primary id is taken for creation of txn-segment name and secondary part is erased and replaced with
-                    // transaction's epoch.
-                    // And we are creating duplicates of txn epoch keeping the primary same.
-                    // After committing transactions, we collect the current sizes of segments and update the offset 
-                    // at which the transaction was committed into ActiveTxnRecord in an idempotent fashion. 
-                    // Note: if its a rerun, transaction commit offsets may have been updated already in previous iteration
-                    // so this will not update/modify it. 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId, context.getRequestId()))
-                    .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor))
-                    .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()));
+                    .thenAccept(txnOffsets -> {
+                        String writerId = txnIdToWriterId.get(txnId);
+                        if (!Strings.isNullOrEmpty(writerId) && writerMarks.get(writerId).getTransactionId().equals(txnId)) {
+                            TxnWriterMark mark = writerMarks.get(writerId);
+                            writerMarks.put(writerId, new TxnWriterMark(mark.getTimestamp(), txnOffsets, mark.getTransactionId()));
+                            }
+                        }
+            );
         }
-        
-        return future
-                .thenCompose(v -> bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
-                        stream, executor));
+        return future.thenAcceptAsync(x -> {
+            if (noteTime) {
+                bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor);
+            }
+        });
     }
 
     /**
@@ -387,4 +412,5 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING));
     }
+
 }

@@ -37,6 +37,7 @@ import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -83,7 +84,7 @@ public class EndToEndStatsTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 statsRecorder, TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

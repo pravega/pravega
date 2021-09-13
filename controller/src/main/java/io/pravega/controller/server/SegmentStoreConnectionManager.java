@@ -299,6 +299,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         @Override
+        public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+            execute(ReplyProcessor::storageFlushed, storageFlushed);
+        }
+
+        @Override
         public void segmentRead(WireCommands.SegmentRead segmentRead) {
             execute(ReplyProcessor::segmentRead, segmentRead);
         }
@@ -371,6 +376,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             execute(ReplyProcessor::authTokenCheckFailed, authTokenCheckFailed);
+        }
+
+        @Override
+        public void tableSegmentInfo(WireCommands.TableSegmentInfo info) {
+            execute(ReplyProcessor::tableSegmentInfo, info);
         }
 
         @Override
