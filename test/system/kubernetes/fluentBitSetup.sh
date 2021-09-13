@@ -32,6 +32,7 @@ LOGS_DIR="pravega-logs-export"
 TAR_NAME="${LOGS_DIR}.tar"
 SKIP_FORCE_ROTATE=${SKIP_FORCE_ROTATE:-"false"}
 ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine:latest"}
+SKIP_LOG_BUNDLE_COMPRESSION=${SKIP_LOG_BUNDLE_COMPRESSION:-"false"}
 RETRIES=3
 
 # Configurable flag parameters.
