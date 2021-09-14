@@ -17,7 +17,7 @@ package io.pravega.segmentstore.server.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.sun.management.HotSpotDiagnosticMXBean;
+import io.netty.util.internal.PlatformDependent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -258,16 +258,17 @@ public final class ServiceStarter {
     }
 
     private static void validateConfig(ServiceBuilderConfig config) {
-        long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
-                .getVMOption("MaxDirectMemorySize").getValue()); // value in bytes
-        long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
         long xmx = Runtime.getRuntime().maxMemory();
+        long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
+        long maxDirectMemorySize = nettyDirectMem == 0L?xmx:nettyDirectMem;//defaults to xmx
+        long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
+        log.info("MaxDirectMemorySize is "+maxDirectMemorySize + " Cache size is "+cacheSize+ " Xmx value is "+xmx);
         //run checks
         Preconditions.checkState(((com.sun.management.OperatingSystemMXBean) ManagementFactory
                         .getOperatingSystemMXBean()).getTotalPhysicalMemorySize() >= (maxDirectMemorySize + xmx),
                 "MaxDirectMemorySize("+maxDirectMemorySize+"B) along with JVM Xmx value("+xmx+"B) configured is greater than the available system memory!");
         Preconditions.checkState(maxDirectMemorySize > cacheSize,
-                "Cache size("+cacheSize+"B)configured is more than the MaxDirectMemory("+maxDirectMemorySize+") value!!");
+                "Cache size("+cacheSize+"B)configured is more than the MaxDirectMemory("+maxDirectMemorySize+"B) value!!");
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
