@@ -248,7 +248,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         InOrder verify = inOrder(connection);
         cf.provideConnection(uri, connection);
-        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -271,6 +270,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
         verify.verify(connection).close();
         verifyNoMoreInteractions(connection);
+        // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
     }
 
     @Test(timeout = 10000)
@@ -336,7 +337,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -364,6 +364,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
         // Verify that the inflight event future is completed exceptionally.
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
+        // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
     }
 
     @SuppressWarnings("unchecked")
