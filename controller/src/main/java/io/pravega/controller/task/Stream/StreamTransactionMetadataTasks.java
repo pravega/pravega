@@ -312,7 +312,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param stream     stream name.
      * @param txId       transaction id.
      * @param writerId   writer id
-     * @param timestamp  commit time as recorded by writer
+     * @param timestamp  commit time as recorded by writer. This is required for watermarking.
      * @param requestId  requestid
      * @return true/false.
      */

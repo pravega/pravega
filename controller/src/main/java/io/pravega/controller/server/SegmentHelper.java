@@ -473,6 +473,53 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     /**
+     * This method sends a WireCommand to get information about a Table Segment.
+     *
+     * @param tableName           Qualified table name.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed successfully, will return information about the Table Segment.
+     * If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<WireCommands.TableSegmentInfo> getTableSegmentInfo(final String tableName,
+                                                      String delegationToken,
+                                                      final long clientRequestId) {
+
+        final Controller.NodeUri uri = getTableUri(tableName);
+        final WireCommandType type = WireCommandType.GET_TABLE_SEGMENT_INFO;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        // All Controller Metadata Segments are non-sorted.
+        return sendRequest(connection, clientRequestId, new WireCommands.GetTableSegmentInfo(requestId, tableName, delegationToken))
+                .thenApply(r -> {
+                    handleReply(clientRequestId, r, connection, tableName, WireCommands.GetTableSegmentInfo.class,
+                            type);
+                    assert r instanceof WireCommands.TableSegmentInfo;
+                    return (WireCommands.TableSegmentInfo) r;
+                });
+    }
+
+    /**
+     * This method gets the entry count for a Table Segment.
+     *
+     * @param tableName           Qualified table name.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed successfully, will return entry count of a Table Segment.
+     * If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Long> getTableSegmentEntryCount(final String tableName,
+                                                                                String delegationToken,
+                                                                                final long clientRequestId) {
+        return getTableSegmentInfo(tableName, delegationToken, clientRequestId)
+                .thenApply(WireCommands.TableSegmentInfo::getEntryCount);
+    }
+
+    /**
      * This method sends a WireCommand to remove table keys.
      *
      * @param tableName       Qualified table name.
