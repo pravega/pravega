@@ -112,7 +112,6 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             ImmutableMap.Builder<String, RGStreamCutRecord> endStreamCutBuilder = ImmutableMap.builder();
             source.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, endStreamCutBuilder);
             eb.endingStreamCuts(endStreamCutBuilder.build());
-
         }
     }
     //endregion

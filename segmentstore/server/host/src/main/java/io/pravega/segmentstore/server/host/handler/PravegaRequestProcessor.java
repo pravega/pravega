@@ -122,6 +122,7 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
+import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
@@ -439,20 +440,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String operation = "createSegment";
 
+        if (createStreamSegment.getRolloverSizeBytes() < 0) {
+            log.warn("Segment rollover size bytes cannot be less than 0, actual is {}, fall back to default value", createStreamSegment.getRolloverSizeBytes());
+        }
+        final long rolloverSizeBytes = createStreamSegment.getRolloverSizeBytes() < 0 ? 0 : createStreamSegment.getRolloverSizeBytes();
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, rolloverSizeBytes),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
-       if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
+        if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
             return;
-       }
+        }
 
-       log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
-       segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
-                   .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
-                   .whenComplete((res, e) -> {
+        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
+        segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
+                    .whenComplete((res, e) -> {
                     if (e == null) {
                         statsRecorder.createSegment(createStreamSegment.getSegment(),
                                 createStreamSegment.getScaleType(), createStreamSegment.getTargetRate(), timer.getElapsed());
@@ -630,6 +637,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             typeBuilder.fixedKeyLengthTableSegment();
             configBuilder.keyLength(createTableSegment.getKeyLength());
         }
+
+        if (createTableSegment.getRolloverSizeBytes() < 0) {
+            log.warn("Table segment rollover size bytes cannot be less than 0, actual is {}, fall back to default value", createTableSegment.getRolloverSizeBytes());
+        }
+        final long rolloverSizeByes = createTableSegment.getRolloverSizeBytes() < 0 ? 0 : createTableSegment.getRolloverSizeBytes();
+        configBuilder.rolloverSizeBytes(rolloverSizeByes);
 
         tableStore.createSegment(createTableSegment.getSegment(), typeBuilder.build(), configBuilder.build(), TIMEOUT)
                 .thenAccept(v -> {
