@@ -286,7 +286,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
@@ -318,7 +317,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack2));
         verify(connection, never()).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack2));
-
+        // Verify that a flush on the SegmentOutputStream does throw a RetriesExhaustedException.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flush);
+        // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
     }
 
     @Test(timeout = 10000)

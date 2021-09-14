@@ -211,7 +211,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
                 log.info("Handling exception {} for connection {} on writer {}. SetupCompleted: {}, Closed: {}",
                          throwable, connection, writerId, connectionSetupCompleted == null ? null : connectionSetupCompleted.isDone(), closed);
-                if (exception == null) {
+                if (exception == null || throwable instanceof RetriesExhaustedException) {
                     exception = throwable;
                 }
                 connection = null;
@@ -587,6 +587,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
 
+        } else if (state.exception instanceof RetriesExhaustedException) {
+            throw Exceptions.sneakyThrow(state.exception);
         }
     }
 
