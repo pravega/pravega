@@ -588,6 +588,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
 
         } else if (state.exception instanceof RetriesExhaustedException) {
+            // All attempts to connect with SSS have failed.
+            // The number of retry attempts is based on EventWriterConfig
             throw Exceptions.sneakyThrow(state.exception);
         }
     }
