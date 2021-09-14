@@ -347,10 +347,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
 
-            // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-            this.server.startListening();
-
             Futures.allOf(readers).get();
             ExecutorServiceHelpers.shutdown(readerPool);
 
@@ -378,7 +374,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
             // Start writing events to the stream.
-            val writers = createReconnectingEventWriters(streamName, NUM_WRITERS, clientFactory, connectionFactory);
+            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
