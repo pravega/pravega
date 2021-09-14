@@ -17,14 +17,16 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.serializers.StorageData;
+import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
+import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.client.stream.Serializer;
 
 import java.util.Map;
 
 public class SetValueSerializerCommand extends TableSegmentCommand {
-    private static final Map<String, Serializer> SERIALIZERS = ImmutableMap.<String, Serializer>builder()
-            .put("slts_value", new StorageData.StorageDataSerializer())
+    private static final Map<String, Serializer<String>> SERIALIZERS = ImmutableMap.<String, Serializer<String>>builder()
+            .put("slts_value", new SltsMetadataSerializer())
+            .put("container_meta_value", new ContainerMetadataSerializer())
             .build();
 
     /**

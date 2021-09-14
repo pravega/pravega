@@ -15,17 +15,18 @@
  */
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
+import com.google.common.base.Charsets;
+import io.netty.buffer.ByteBuf;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
-import io.pravega.common.io.ByteBufferOutputStream;
-import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +57,7 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
         CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(TableSegmentKey.unversioned(key.getBytes())), super.authHelper.retrieveMasterToken(), 0L);
+
         val data = getCommandArgs().getState().getValueSerializer().deserialize(ByteBuffer.wrap(reply.join().get(0).getValue().array()));
         output("The value: %s", data);
     }

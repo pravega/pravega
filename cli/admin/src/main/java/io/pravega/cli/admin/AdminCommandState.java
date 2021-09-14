@@ -34,10 +34,10 @@ public class AdminCommandState implements AutoCloseable {
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "password-tools");
     @Getter
     @Setter
-    private Serializer keySerializer = null;
+    private Serializer<String> keySerializer = null;
     @Getter
     @Setter
-    private Serializer valueSerializer = null;
+    private Serializer<String> valueSerializer = null;
 
     /**
      * Creates a new instance of the AdminCommandState class.

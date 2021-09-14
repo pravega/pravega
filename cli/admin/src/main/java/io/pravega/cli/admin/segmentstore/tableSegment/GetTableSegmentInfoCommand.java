@@ -47,6 +47,7 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         CompletableFuture<WireCommands.TableSegmentInfo> reply = adminSegmentHelper.getTableSegmentInfo(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+
         output("GetTableSegmentInfo: %s", reply.join().toString());
     }
 

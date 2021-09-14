@@ -15,10 +15,10 @@
  */
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
+import com.google.common.base.Charsets;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
-import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
@@ -51,9 +51,11 @@ public class PutTableSegmentCommand extends TableSegmentCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(key.getBytes(Charsets.UTF_8),
+                getCommandArgs().getState().getValueSerializer().serialize(value).array());
         CompletableFuture<List<TableSegmentKeyVersion>> reply = adminSegmentHelper.updateTableEntries(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
-                Collections.singletonList(TableSegmentEntry.unversioned(key.getBytes(), value.getBytes())), super.authHelper.retrieveMasterToken(), 0L);
+                Collections.singletonList(updatedEntry), super.authHelper.retrieveMasterToken(), 0L);
         // TODO: Serialization logic here.
     }
 
