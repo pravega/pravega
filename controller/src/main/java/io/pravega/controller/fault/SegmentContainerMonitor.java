@@ -65,7 +65,8 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         segmentMonitorLeader = new SegmentMonitorLeader(hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
 
-        //Listen for any zookeeper connectivity error and relinquish leadership.
+        this.zkConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
                     this.zkConnected.set(newState.isConnected());
