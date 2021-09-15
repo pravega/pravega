@@ -1,3 +1,18 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
@@ -67,11 +82,18 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class LargeEventTest extends LeakDetectorTestSuite {
 
+    private static final int NUM_WRITERS = 2;
+    private static final int NUM_READERS = 1;
+    private static final String SCOPE_NAME = "scope";
+    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int controllerPort = TestUtils.getAvailableListenPort();
+
+
+    private TableStore tableStore;
+    private StreamSegmentStore store;
     private AtomicLong eventReadCount;
     private AtomicLong eventWriteCount;
     private AtomicBoolean stopReadFlag;
-    private static final int NUM_WRITERS = 2;
-    private static final int NUM_READERS = 1;
     private ServiceBuilder serviceBuilder;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
@@ -81,14 +103,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private ScheduledExecutorService readerPool;
     private ConcurrentLinkedQueue<ByteBuffer> eventsReadFromPravega;
     private ConcurrentHashMap<Integer, ByteBuffer> eventsWrittenToPravega;
-    private final int servicePort = TestUtils.getAvailableListenPort();
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    TableStore tableStore;
-    StreamSegmentStore store;
 
-    private static final String STREAM_NAME = "stream";
 
-    private static final String SCOPE_NAME = "scope";
 
     @Before
     public void setup() throws Exception {
