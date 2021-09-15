@@ -226,9 +226,9 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     }
 
     private List<CompletableFuture<Void>> createEventReaders(int readers, ClientFactoryImpl factory, String readerGroupName) {
-        log.info("Creating {} Readers.", NUM_READERS);
+        log.info("Creating {} Readers.", readers);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
-        for (int i = 0; i < NUM_READERS; i++) {
+        for (int i = 0; i < readers; i++) {
             String readerId = String.format("LargeEventReader-%d", i);
             readerList.add(startNewReader(readerId,
                     factory,
@@ -331,8 +331,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         String streamName = "ConnectionReconnect";
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
 
+        int numWriters = 1;
+        int numReaders = 1;
         createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, Serializer.MAX_EVENT_SIZE * 5);
+        generateWriteEventData(numWriters, Serializer.MAX_EVENT_SIZE * 5);
 
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
@@ -342,7 +344,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
-            val readers = createEventReaders(1, clientFactory, readerGroupName);
+            val readers = createEventReaders(numReaders, clientFactory, readerGroupName);
             Futures.allOf(writers).get();
             ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
