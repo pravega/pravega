@@ -84,11 +84,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     private static final int NUM_WRITERS = 2;
     private static final int NUM_READERS = 1;
+    private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
     private static final String SCOPE_NAME = "scope";
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int controllerPort = TestUtils.getAvailableListenPort();
-
-    private final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
 
     private TableStore tableStore;
     private StreamSegmentStore store;
