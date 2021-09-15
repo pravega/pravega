@@ -86,7 +86,7 @@ set_bookieid() {
     BK_bookieId=`cat ${BK_ID_FILE}`
   else
     if [ `find $directory_names -type f 2> /dev/null | wc -l` -gt 0 ]; then
-      HOST="$(echo -e `hostname -A` | sed -e 's/[[:space:]]*$//')"
+      HOST="$(echo -e `hostname -f` | sed -e 's/[[:space:]]*$//')"
       BK_bookieId="${HOST}:${BOOKIE_PORT}"
     else
       HOST="`hostname -s`"
