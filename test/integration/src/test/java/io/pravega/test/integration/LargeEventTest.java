@@ -165,10 +165,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
              StreamManager streamManager = new StreamManagerImpl(controller, cp)) {
             //create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
-            log.info("Create scope status {}", createScopeStatus);
+            log.info("Create Scope status {}.", createScopeStatus);
             //create a stream
             Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
-            log.info("Create stream status {}", createStreamStatus);
+            log.info("Create Stream status {}.", createStreamStatus);
         }
     }
 
@@ -213,7 +213,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 log.info("Closing writer {} ClientConnection.", writerId);
                 exporter.getConnection().close();
             };
-            writerList.add(startNewWriterPreflushAction(streamName, routingKey, eventWriteCount, eventsWrittenToPravega.get(i), factory, restart));
+            writerList.add(startNewWriterPreflushAction(routingKey, streamName, eventWriteCount, eventsWrittenToPravega.get(i), factory, restart));
         }
         return writerList;
     }
@@ -327,12 +327,12 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     @Test
     public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException {
-        String readerGroupName = "testLargeEventReconnectReaderGroup";
-        String streamName = "ConnectionReconnect";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
-
         int numWriters = 1;
         int numReaders = 1;
+        String readerGroupName = "testLargeEventReconnectReaderGroup";
+        String streamName = "ConnectionReconnect";
+        StreamConfiguration config = getStreamConfiguraton(numReaders);
+
         createScopeStream(SCOPE_NAME, streamName, config);
         generateWriteEventData(numWriters, Serializer.MAX_EVENT_SIZE * 5);
 
@@ -340,7 +340,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
             // Start writing events to the stream.
-            val writers = createReconnectingEventWriters(streamName, NUM_WRITERS, clientFactory, connectionFactory);
+            val writers = createReconnectingEventWriters(streamName, numWriters, clientFactory, connectionFactory);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
@@ -384,10 +384,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             Futures.allOf(writers).get();
             ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
-
-            // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-            this.server.startListening();
 
             Futures.allOf(readers).get();
             ExecutorServiceHelpers.shutdown(readerPool);
