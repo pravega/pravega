@@ -774,7 +774,7 @@ public abstract class MetadataStore implements AutoCloseable {
             }
         }
 
-        static class SegmentInfoBuilder implements ObjectBuilder<SegmentInfo> {
+        public static class SegmentInfoBuilder implements ObjectBuilder<SegmentInfo> {
         }
 
         public static class SegmentInfoSerializer extends VersionedSerializer.WithBuilder<SegmentInfo, SegmentInfo.SegmentInfoBuilder> {

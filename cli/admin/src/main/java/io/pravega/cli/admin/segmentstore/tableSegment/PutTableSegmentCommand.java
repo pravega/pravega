@@ -15,7 +15,6 @@
  */
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
-import com.google.common.base.Charsets;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
@@ -40,30 +39,33 @@ public class PutTableSegmentCommand extends TableSegmentCommand {
     }
 
     @Override
-    public void execute() throws Exception {
+    public void execute() {
         ensureArgCount(4);
 
         final String fullyQualifiedTableSegmentName = getArg(0);
-        final String key = getArg(1);
-        final String value = getArg(2);
-        final String segmentStoreHost = getArg(3);
+        final String segmentStoreHost = getArg(1);
+        final String key = getArg(2);
+        final String value = getArg(3);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(key.getBytes(Charsets.UTF_8),
+        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(
+                getCommandArgs().getState().getKeySerializer().serialize(key).array(),
                 getCommandArgs().getState().getValueSerializer().serialize(value).array());
+
         CompletableFuture<List<TableSegmentKeyVersion>> reply = adminSegmentHelper.updateTableEntries(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(updatedEntry), super.authHelper.retrieveMasterToken(), 0L);
-        // TODO: Serialization logic here.
+        long version = reply.join().get(0).getSegmentVersion();
+        output("Successfully updated the key %s in table %s with version %s", key, fullyQualifiedTableSegmentName, version);
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "put", "Update the key within table segment with the provided value.",
+        return new CommandDescriptor(COMPONENT, "put", "Update the given key in the table with the provided value.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
-                new ArgDescriptor("key", "The key for which the value is to be updated."),
-                new ArgDescriptor("value", "The new value to be updated."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
+                new ArgDescriptor("key", "The key to be updated."),
+                new ArgDescriptor("value", "The new value to be updated, provided in the form of \"key1=value1;key2=value2;key3=value3;...\"."));
     }
 }

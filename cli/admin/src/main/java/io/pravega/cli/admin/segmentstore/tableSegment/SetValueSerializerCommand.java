@@ -30,7 +30,7 @@ public class SetValueSerializerCommand extends TableSegmentCommand {
             .build();
 
     /**
-     * Creates a new instance of the SetKeySerializerCommand.
+     * Creates a new instance of the SetValueSerializerCommand.
      *
      * @param args The arguments for the command.
      */
@@ -44,5 +44,11 @@ public class SetValueSerializerCommand extends TableSegmentCommand {
 
         String identifier = getArg(0);
         getCommandArgs().getState().setValueSerializer(SERIALIZERS.get(identifier.toLowerCase()));
+    }
+
+    public static CommandDescriptor descriptor() {
+        return new CommandDescriptor(COMPONENT, "set-value-serializer", "Set the serializer for the values obtained from the table segments.",
+                new ArgDescriptor("serializer-name", "The required serializer. " +
+                        "Serializer-names for built-in serializers are \"SLTS_VALUE\"(for SLTS segments) and \"CONTAINER_META_VALUE\"(for container segments)."));
     }
 }
