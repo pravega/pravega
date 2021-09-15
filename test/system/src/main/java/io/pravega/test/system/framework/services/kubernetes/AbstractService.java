@@ -130,8 +130,8 @@ public abstract class AbstractService implements Service {
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
                 .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
-                .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                .put("controllerResources", getResources("2000m", "2Gi", "1000m", "2Gi"))
+                .put("segmentStoreResources", getResources("2000m", "6Gi", "1000m", "6Gi"))
                 .put("options", props)
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
@@ -224,15 +224,15 @@ public abstract class AbstractService implements Service {
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
     // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=5g", "-Xmx1024m"};
     }
 
     private String[] getControllerJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
     }
 
     private String[] getBookkeeperMemoryOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
     }
 
 
