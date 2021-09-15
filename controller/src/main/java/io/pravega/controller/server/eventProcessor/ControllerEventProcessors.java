@@ -209,9 +209,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
      * @return true if zookeeper is connected and bootstrap is completed.
      */
     public boolean isReady() {
-        log.debug("Checking values of isMetadataServiceConnected:- {} and isBootstrapCompleted:- {}",
-                isMetadataServiceConnected(), isBootstrapCompleted());
-        return isMetadataServiceConnected() && isBootstrapCompleted();
+        boolean isMetaConnected = isMetadataServiceConnected();
+        boolean isBootstrapComplete = isBootstrapCompleted();
+        boolean isSvcRunning = this.isRunning();
+        boolean isReady = isMetaConnected && isBootstrapComplete && isSvcRunning;
+        log.debug("IsReady={} as isMetaConnected={}, isBootstrapComplete={}, isSvcRunning={}", isReady, isMetaConnected, isBootstrapComplete, isSvcRunning);
+        return isReady;
     }
 
     @Override

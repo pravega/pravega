@@ -1837,8 +1837,8 @@ public class ControllerImpl implements Controller {
             final String rgScopedName = NameUtils.getScopedReaderGroupName(scope, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to create reader group: {}", rgScopedName);
-                    throw new ControllerFailureException("Failed to create readergroup: " + rgScopedName);
+                    log.warn(requestId, "Failed to update reader group: {}", rgScopedName);
+                    throw new ControllerFailureException("Failed to update reader group: " + rgScopedName);
                 case INVALID_CONFIG:
                     log.warn(requestId, "Illegal Reader Group Config for reader group {}: {}", rgScopedName, rgConfig);
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + rgConfig.toString());
@@ -1846,18 +1846,18 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Reader Group not found: {}", rgScopedName);
                     throw new ReaderGroupNotFoundException(rgScopedName);
                 case SUCCESS:
-                    log.info(requestId, "ReaderGroup created successfully: {}", rgScopedName);
+                    log.info(requestId, "Reader Group updated successfully: {}", rgScopedName);
                     return x.getGeneration();
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status creating reader group " + rgScopedName
+                    throw new ControllerFailureException("Unknown return status updating reader group " + rgScopedName
                             + " " + x.getStatus());
             }
         }, this.executor).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "createReaderGroup {}/{} failed: ", scope, rgName, e);
+                log.warn(requestId, "updateReaderGroup {}/{} failed: ", scope, rgName, e);
             }
-            LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
+            LoggerHelpers.traceLeave(log, "updateReaderGroup", traceId, rgConfig, requestId);
         });
     }
 
