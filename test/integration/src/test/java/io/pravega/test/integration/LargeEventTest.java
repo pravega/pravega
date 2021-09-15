@@ -88,6 +88,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int controllerPort = TestUtils.getAvailableListenPort();
 
+    private final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
 
     private TableStore tableStore;
     private StreamSegmentStore store;
@@ -110,7 +111,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     public void setup() throws Exception {
         resetReadWriteObjects();
         String serviceHost = "localhost";
-        int containerCount = 4;
+        int containerCount = 1;
 
         // 1. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
@@ -226,7 +227,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             String routingKey = String.format("LargeEventWriter-%d", i);
             int writerId = i;
             Runnable restart = () -> {
-                log.info("Closing writer {} ClientConnection.", writerId);
+                log.info("Closing writer {} ClientConnection ({}).", writerId, exporter.getConnection());
                 exporter.getConnection().close();
             };
             writerList.add(startNewWriterPreflushAction(routingKey, streamName, eventWriteCount, eventsWrittenToPravega.get(i), factory, restart));
@@ -262,13 +263,12 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(SCOPE_NAME, streamName);
         log.info("Sealing stream {}", streamName);
         assertTrue(sealStreamStatus.get());
-        assertTrue(sealStreamStatus.get());
 
-        //delete the stream
+        // Delete the stream.
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(SCOPE_NAME, streamName);
         log.info("Deleting stream '{}'", streamName);
         assertTrue(deleteStreamStatus.get());
-        //delete the  SCOPE_NAME
+        // Delete the scope.
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(SCOPE_NAME);
         log.info("Deleting scope '{}'", SCOPE_NAME);
         assertTrue(deleteScopeStatus.get());
@@ -280,7 +280,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         String streamName = "ReadWrite";
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, Serializer.MAX_EVENT_SIZE * 5);
+        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
 
         try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
@@ -292,10 +292,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
             Futures.allOf(writers).get();
-            ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
             Futures.allOf(readers).get();
-            ExecutorServiceHelpers.shutdown(readerPool);
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -307,11 +305,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     @Test
     public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
-    String readerGroupName = "testLargeEventFailoverReaderGroup";
+        String readerGroupName = "testLargeEventFailoverReaderGroup";
         String streamName = "SegmentStoreRestart";
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, Serializer.MAX_EVENT_SIZE * 5);
+        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
 
         try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
@@ -323,15 +321,13 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
             Futures.allOf(writers).get();
-            ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
 
+            this.server.close();
             // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
             this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
-
             Futures.allOf(readers).get();
-            ExecutorServiceHelpers.shutdown(readerPool);
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -343,30 +339,26 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     @Test
     public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException {
-        int numWriters = 1;
-        int numReaders = 1;
         String readerGroupName = "testLargeEventReconnectReaderGroup";
         String streamName = "ConnectionReconnect";
-        StreamConfiguration config = getStreamConfiguraton(numReaders);
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
 
         createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(numWriters, Serializer.MAX_EVENT_SIZE * 5);
+        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
 
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
             // Start writing events to the stream.
-            val writers = createReconnectingEventWriters(streamName, numWriters, clientFactory, connectionFactory);
+            val writers = createReconnectingEventWriters(streamName, NUM_WRITERS, clientFactory, connectionFactory);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
-            val readers = createEventReaders(numReaders, clientFactory, readerGroupName);
+            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
             Futures.allOf(writers).get();
-            ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
 
             Futures.allOf(readers).get();
-            ExecutorServiceHelpers.shutdown(readerPool);
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -386,7 +378,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 .build();
 
         createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, Serializer.MAX_EVENT_SIZE * 5);
+        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
 
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
@@ -398,11 +390,9 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
             Futures.allOf(writers).get();
-            ExecutorServiceHelpers.shutdown(writerPool);
             stopReadFlag.set(true);
 
             Futures.allOf(readers).get();
-            ExecutorServiceHelpers.shutdown(readerPool);
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -420,7 +410,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         return startNewWriterPreflushAction(routingKey, streamName, writeCount, data, clientFactory, null);
     }
 
-    // For now, limit to just one even per writer.
     private CompletableFuture<Void> startNewWriterPreflushAction(final String routingKey,
                                                    final String streamName,
                                                    final AtomicLong writeCount,
@@ -497,7 +486,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     }
 
     private static class ConnectionExporter extends SocketConnectionFactoryImpl {
-
         @Getter
         public ClientConnection connection;
 
