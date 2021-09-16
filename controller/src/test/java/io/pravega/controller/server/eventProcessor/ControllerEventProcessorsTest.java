@@ -197,7 +197,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         processors.startAsync();
         processors.awaitRunning();
         Assert.assertTrue(processors.isMetadataServiceConnected());
-        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertTrue(processors.isBootstrapCompleted());
         Assert.assertTrue(processors.isRunning());
         Assert.assertTrue(processors.isReady());
     }
