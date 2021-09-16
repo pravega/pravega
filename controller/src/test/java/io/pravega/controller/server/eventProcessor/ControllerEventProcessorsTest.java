@@ -24,6 +24,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
@@ -51,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -70,10 +72,21 @@ import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     @Rule
@@ -151,10 +164,42 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 kvtStore, kvtTasks, system, executorService()));
 
-        //Check isReady() method
+        //Check isReady() method before invoking bootstrap
         Assert.assertFalse(processors.getBootstrapCompleted().get());
         Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertFalse(processors.isRunning());
         Assert.assertFalse(processors.isReady());
+
+        // call bootstrap on ControllerEventProcessors
+        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
+
+        // wait on create scope being called.
+        createScopeSignalFuture.join();
+        createScopeResponseFuture.complete(true);
+        createStreamSignalsList.get(0).join();
+        createStreamSignalsList.get(1).join();
+        createStreamSignalsList.get(2).join();
+        createStreamSignalsList.get(3).join();
+        createStreamResponsesList.get(0).complete(true);
+        createStreamResponsesList.get(1).complete(true);
+        createStreamResponsesList.get(2).complete(true);
+        createStreamResponsesList.get(3).complete(true);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertFalse(processors.isRunning());
+        Assert.assertFalse(processors.isReady());
+
+        EventProcessorGroup mockEventProcessorGroup = mock(EventProcessorGroup.class);
+        doNothing().when(mockEventProcessorGroup).awaitRunning();
+        doReturn(mockEventProcessorGroup).when(system).createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class));
+
+        processors.startAsync();
+        processors.awaitRunning();
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertTrue(processors.isBootstrapCompleted());
+        Assert.assertTrue(processors.isRunning());
+        Assert.assertTrue(processors.isReady());
     }
 
     @Test(timeout = 10000)
