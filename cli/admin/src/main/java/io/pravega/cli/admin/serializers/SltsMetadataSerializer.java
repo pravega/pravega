@@ -30,7 +30,12 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static io.pravega.cli.admin.utils.SerializerUtils.addField;
+import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
+import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
+/**
+ * An implementation of {@link Serializer} that converts a user-friendly string representing SLTS metadata.
+ */
 public class SltsMetadataSerializer implements Serializer<String> {
     private static final TransactionData.TransactionDataSerializer SERIALIZER = new TransactionData.TransactionDataSerializer();
 
@@ -79,7 +84,26 @@ public class SltsMetadataSerializer implements Serializer<String> {
 
     @Override
     public ByteBuffer serialize(String value) {
-        return null;
+        ByteBuffer buf;
+        try {
+            // Convert string to map with fields and values.
+            Map<String, String> data = parseStringData(value);
+            // Use the map to build TransactionData. If the field/key queried does not exist we throw an IllegalArgumentException.
+            // The value is handled by checking if a unique field corresponding to any specific implementation of StorageMetadata exists.
+            // The correct instance of StorageMetadata is then generated.
+            TransactionData transactionData = TransactionData.builder()
+                    .key(getAndRemoveIfExists(data, "key"))
+                    .created(Boolean.parseBoolean(getAndRemoveIfExists(data, "created")))
+                    .deleted(Boolean.parseBoolean(getAndRemoveIfExists(data, "deleted")))
+                    .persisted(Boolean.parseBoolean(getAndRemoveIfExists(data, "persisted")))
+                    .pinned(Boolean.parseBoolean(getAndRemoveIfExists(data, "pinned")))
+                    .value(generateStorageMetadataValue(data))
+                    .build();
+            buf = SERIALIZER.serialize(transactionData).asByteBuffer();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return buf;
     }
 
     @Override
@@ -97,6 +121,12 @@ public class SltsMetadataSerializer implements Serializer<String> {
         return stringValueBuilder.toString();
     }
 
+    /**
+     * Convert {@link StorageMetadata} into string of fields and values to be appended it into the given StringBuilder.
+     *
+     * @param builder  The given StringBuilder.
+     * @param metadata The StorageMetadata instance.
+     */
     private void handleStorageMetadataValue(StringBuilder builder, StorageMetadata metadata) {
         if (metadata instanceof ChunkMetadata) {
             addField(builder, STORAGE_METADATA_TYPE, "ChunkMetadata");
@@ -113,5 +143,49 @@ public class SltsMetadataSerializer implements Serializer<String> {
             ReadIndexBlockMetadata readIndexBlockMetadata = (ReadIndexBlockMetadata) metadata;
             READ_INDEX_BLOCK_METADATA_FIELD_MAP.forEach((name, f) -> addField(builder, name, String.valueOf(f.apply(readIndexBlockMetadata))));
         }
+    }
+
+    /**
+     * Convert the data map into the required {@link StorageMetadata} instance.
+     *
+     * @param storageMetadataMap The map containing StorageMetadata in String form.
+     * @return The required StorageMetadata instance.
+     * @throws IllegalArgumentException if any of the queried fields do not correspond to any valid StorageMetadata implementation.
+     */
+    private StorageMetadata generateStorageMetadataValue(Map<String, String> storageMetadataMap) {
+        if (CHUNK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
+            return ChunkMetadata.builder()
+                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
+                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "length")))
+                    .nextChunk(getAndRemoveIfExists(storageMetadataMap, "nextChunk"))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
+                    .build();
+
+        } else if (SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
+            return SegmentMetadata.builder()
+                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
+                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "length")))
+                    .chunkCount(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "chunkCount")))
+                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "startOffset")))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
+                    .maxRollinglength(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "maxRollingLength")))
+                    .firstChunk(getAndRemoveIfExists(storageMetadataMap, "firstChunk"))
+                    .lastChunk(getAndRemoveIfExists(storageMetadataMap, "lastChunk"))
+                    .lastModified(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "lastModified")))
+                    .firstChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "firstChunkStartOffset")))
+                    .lastChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "lastChunkStartOffset")))
+                    .ownerEpoch(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "ownerEpoch")))
+                    .build();
+
+        } else if (READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
+            return ReadIndexBlockMetadata.builder()
+                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
+                    .chunkName(getAndRemoveIfExists(storageMetadataMap, "chunkName"))
+                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "startOffset")))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
+                    .build();
+        }
+
+        throw new IllegalArgumentException("Values provided do not correspond to any valid SLTS metadata.");
     }
 }

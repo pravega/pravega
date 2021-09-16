@@ -66,6 +66,6 @@ public class PutTableSegmentCommand extends TableSegmentCommand {
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new ArgDescriptor("key", "The key to be updated."),
-                new ArgDescriptor("value", "The new value to be updated, provided in the form of \"key1=value1;key2=value2;key3=value3;...\"."));
+                new ArgDescriptor("value", "The new value to be updated, provided as \"key1=value1;key2=value2;key3=value3;...\"."));
     }
 }

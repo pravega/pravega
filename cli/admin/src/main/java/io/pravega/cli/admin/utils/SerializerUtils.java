@@ -20,12 +20,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Utility class for serialization purposes.
+ */
 public class SerializerUtils {
 
+    /**
+     * Append the given field name-value in a user-friendly format to the StringBuilder.
+     *
+     * @param builder The StringBuilder to append to.
+     * @param name    The name of the field.
+     * @param value   The value of the field.
+     */
     public static void addField(StringBuilder builder, String name, String value) {
         builder.append(name).append(": ").append(value).append(";\n");
     }
 
+    /**
+     * Parse the given string into a map of keys and values.
+     *
+     * @param stringData The string to parse
+     * @return A map containing all the key-value pairs parsed from the string.
+     */
     public static Map<String, String> parseStringData(String stringData) {
         Map<String, String> parsedData = new HashMap<>();
         List<String> fields = Arrays.asList(stringData.split(";"));
@@ -37,6 +53,15 @@ public class SerializerUtils {
         return parsedData;
     }
 
+    /**
+     * Checks if the given key exists in the map. If it exists, it returns the value corresponding to the key and removes
+     * the key from the map.
+     *
+     * @param data The map to check in.
+     * @param key  The key.
+     * @return The value of the key if it exists.
+     * @throws IllegalArgumentException if the key does not exist.
+     */
     public static String getAndRemoveIfExists(Map<String, String> data, String key) {
         if (!data.containsKey(key)) {
             throw new IllegalArgumentException(String.format("%s not provided.", key));

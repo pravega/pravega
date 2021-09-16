@@ -52,8 +52,8 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get-info", "Get the details of a given table segment",
-                new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
+        return new CommandDescriptor(COMPONENT, "get-info", "Get the details of a given table.",
+                new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table to get info from."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

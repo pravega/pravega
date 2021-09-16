@@ -35,6 +35,9 @@ import static io.pravega.cli.admin.utils.SerializerUtils.addField;
 import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
 import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
+/**
+ * An implementation of {@link Serializer} that converts a user-friendly string representing container metadata.
+ */
 public class ContainerMetadataSerializer implements Serializer<String> {
     private static final SegmentInfo.SegmentInfoSerializer SERIALIZER = new SegmentInfo.SegmentInfoSerializer();
 
@@ -52,14 +55,24 @@ public class ContainerMetadataSerializer implements Serializer<String> {
     public ByteBuffer serialize(String value) {
         ByteBuffer buf;
         try {
+            // Convert string to map with fields and values.
             Map<String, String> data = parseStringData(value);
             long segmentId = Long.parseLong(getAndRemoveIfExists(data, "segmentId"));
-            StreamSegmentInformation.StreamSegmentInformationBuilder infoBuilder = StreamSegmentInformation.builder();
-            populateSegmentInfo(infoBuilder, data);
+            // Use the map to build SegmentProperties. The fields/keys are removed after being queried to ensure attributes
+            // can be handled without interference. If the field/key queried does not exist we throw an IllegalArgumentException.
+            StreamSegmentInformation properties = StreamSegmentInformation.builder()
+                    .name(getAndRemoveIfExists(data, "name"))
+                    .sealed(Boolean.parseBoolean(getAndRemoveIfExists(data, "sealed")))
+                    .deleted(Boolean.parseBoolean(getAndRemoveIfExists(data, "deleted")))
+                    .lastModified(new ImmutableDate(Long.parseLong(getAndRemoveIfExists(data, "lastModified"))))
+                    .startOffset(Long.parseLong(getAndRemoveIfExists(data, "startOffset")))
+                    .length(Long.parseLong(getAndRemoveIfExists(data, "length")))
+                    .attributes(getAttributes(data))
+                    .build();
 
             SegmentInfo segment = SegmentInfo.builder()
                     .segmentId(segmentId)
-                    .properties(infoBuilder.build())
+                    .properties(properties)
                     .build();
             buf = SERIALIZER.serialize(segment).asByteBuffer();
         } catch (IOException e) {
@@ -86,23 +99,17 @@ public class ContainerMetadataSerializer implements Serializer<String> {
         }
         return stringValueBuilder.toString();
     }
-    
-    private void populateSegmentInfo(StreamSegmentInformation.StreamSegmentInformationBuilder infoBuilder, Map<String, String> data) {
-        infoBuilder
-                .name(getAndRemoveIfExists(data, "name"))
-                .sealed(Boolean.parseBoolean(getAndRemoveIfExists(data, "sealed")))
-                .deleted(Boolean.parseBoolean(getAndRemoveIfExists(data, "deleted")))
-                .lastModified(new ImmutableDate(Long.parseLong(getAndRemoveIfExists(data, "lastModified"))))
-                .startOffset(Long.parseLong(getAndRemoveIfExists(data, "startOffset")))
-                .length(Long.parseLong(getAndRemoveIfExists(data, "length")));
-        
-        Map<AttributeId, Long> attributes = populateAttributes(data);
-        infoBuilder.attributes(attributes);
-    }
 
-    private Map<AttributeId, Long> populateAttributes(Map<String, String> data) {
+    /**
+     * Reads the remaining data map for attribute Ids and their values.
+     * Note: The data map should only contain attribute information.
+     *
+     * @param segmentMap The map containing segment attributes in String form.
+     * @return A map of segment attributes as attributeId-value pairs.
+     */
+    private Map<AttributeId, Long> getAttributes(Map<String, String> segmentMap) {
         Map<AttributeId, Long> attributes = new HashMap<>();
-        data.forEach((k, v) -> attributes.put(AttributeId.fromUUID(UUID.fromString(k)), Long.parseLong(v)));
+        segmentMap.forEach((k, v) -> attributes.put(AttributeId.fromUUID(UUID.fromString(k)), Long.parseLong(v)));
         return attributes;
     }
 }
