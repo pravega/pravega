@@ -74,6 +74,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
+
 @Slf4j
 public class LocalController implements Controller {
 
@@ -181,21 +183,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
-        return this.controller.deleteScope(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    throw new ControllerFailureException("Failed to delete scope: " + scopeName);
-                case SCOPE_NOT_EMPTY:
-                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
-                case SCOPE_NOT_FOUND:
-                    return false;
-                case SUCCESS:
-                    return true;
-                default:
-                    throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
-                            + " " + x.getStatus());
-            }
-        });
+        return null;
     }
 
     @Override

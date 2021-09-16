@@ -50,6 +50,14 @@ public interface Scope {
      * @return null on success and exception on failure.
      */
     CompletableFuture<Void> deleteScope(OperationContext context);
+
+    /**
+     * Delete the scope recursively.
+     *
+     * @param context operation context
+     * @return null on success and exception on failure.
+     */
+    CompletableFuture<Void> deleteScopeRecursive(OperationContext context);
     
     /**
      * A paginated api on the scope to get requested number of streams from under the scope starting from the continuation token. 

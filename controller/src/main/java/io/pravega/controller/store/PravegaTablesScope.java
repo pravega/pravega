@@ -238,6 +238,12 @@ public class PravegaTablesScope implements Scope {
     }
 
     @Override
+    public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
+        storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId());
+        return null;
+    }
+
+    @Override
     public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor,
                                                                      OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
