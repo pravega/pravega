@@ -46,8 +46,12 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -65,14 +69,19 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -85,7 +94,9 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private static final int NUM_WRITERS = 2;
     private static final int NUM_READERS = 1;
     private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
+    private static final int TINY_EVENT_SIZE = 8;
     private static final String SCOPE_NAME = "scope";
+
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int controllerPort = TestUtils.getAvailableListenPort();
 
@@ -102,15 +113,18 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private ScheduledExecutorService writerPool;
     private ScheduledExecutorService readerPool;
     private ConcurrentLinkedQueue<ByteBuffer> eventsReadFromPravega;
-    private ConcurrentHashMap<Integer, ByteBuffer> eventsWrittenToPravega;
-
-
+    private ConcurrentHashMap<Integer, List<ByteBuffer>> eventsWrittenToPravega;
 
     @Before
     public void setup() throws Exception {
-        resetReadWriteObjects();
         String serviceHost = "localhost";
         int containerCount = 1;
+
+        eventsReadFromPravega = new ConcurrentLinkedQueue<>();
+        eventsWrittenToPravega = new ConcurrentHashMap<>();
+        eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
+        eventWriteCount = new AtomicLong();
+        stopReadFlag = new AtomicBoolean(false);
 
         // 1. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
@@ -167,12 +181,229 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     }
 
 
+    @Test
+    public void readWriteTest() throws ExecutionException, InterruptedException {
+        String readerGroupName = "testLargeEventReaderGroup";
+        String streamName = "ReadWrite";
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        createScopeStream(SCOPE_NAME, streamName, config);
+        int events = 1;
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
+
+        readWriteCycle(streamName, readerGroupName, data);
+        validateCleanUp(streamName);
+    }
+
+    @Test
+    public void testNormalThenLargeEvent() throws ExecutionException, InterruptedException {
+
+        String streamName = "NormalEventLargeEvent";
+        String readerGroupName = "testNormalThenLargeEvent";
+
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        createScopeStream(SCOPE_NAME, streamName, config);
+
+        int events = 1;
+        // Normal Event Write/Read.
+        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS,  events * 0, events, LARGE_EVENT_SIZE));
+
+        log.info("Writing {} new events.", eventsWrittenToPravega.size());
+        eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
+        log.info("Read back {} events.", eventsReadFromPravega.size());
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        // Large Event Write/Read.
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, TINY_EVENT_SIZE);
+        merge(eventsWrittenToPravega, data);
+
+        log.info("Writing {} new events.", eventsWrittenToPravega.size());
+        eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, data);
+
+        log.info("Read back {} events.", eventsReadFromPravega.size());
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        validateCleanUp(streamName);
+    }
+
+    @Test
+    public void testSingleWriterMixedEvents() throws ExecutionException, InterruptedException {
+        String streamName = "SingleWriterMixedEvents";
+        String readerGroupName = "testSingleWriterMixedEvents";
+
+        int writers = 1;
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        createScopeStream(SCOPE_NAME, streamName, config);
+
+        int events = 2;
+        // Normal Event Write/Read.
+        merge(eventsWrittenToPravega, generateEventData(writers,  events * 0, events, TINY_EVENT_SIZE));
+        // Add two Large Events
+        merge(eventsWrittenToPravega, generateEventData(writers, events * 1, events, LARGE_EVENT_SIZE));
+        // Add two normal events.
+        merge(eventsWrittenToPravega, generateEventData(writers, events * 2, events, TINY_EVENT_SIZE));
+
+        log.info("Writing {} new events.", eventsWrittenToPravega.size());
+        eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
+        log.info("Read back {} events.", eventsReadFromPravega.size());
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        validateCleanUp(streamName);
+    }
+
+    @Test
+    public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
+        String readerGroupName = "testLargeEventFailoverReaderGroup";
+        String streamName = "SegmentStoreRestart";
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        createScopeStream(SCOPE_NAME, streamName, config);
+
+        int events = 1;
+        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE));
+
+        eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
+        this.server.close();
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server.startListening();
+
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, TINY_EVENT_SIZE);
+        // Generate new data.
+        merge(eventsWrittenToPravega, data);
+
+        eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, data);
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        validateCleanUp(streamName);
+    }
+
+    @Test
+    public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException {
+        String readerGroupName = "testLargeEventReconnectReaderGroup";
+        String streamName = "ConnectionReconnect";
+        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+
+        createScopeStream(SCOPE_NAME, streamName, config);
+
+        int numEvents = 1;
+        generateEventData(NUM_WRITERS, 0, numEvents, LARGE_EVENT_SIZE);
+        Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
+
+        AtomicReference<Boolean> latch = new AtomicReference<>(true);
+        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
+            // Start writing events to the stream.
+            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  eventsWrittenToPravega);
+            // Create a ReaderGroup.
+            createReaderGroup(readerGroupName, readerGroupManager, streamName);
+            // Create Readers.
+            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
+            Futures.allOf(writers).get();
+            stopReadFlag.set(true);
+
+            Futures.allOf(readers).get();
+
+            log.info("Deleting ReaderGroup: {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
+
+        validateCleanUp(streamName);
+        validateEventReads(reads, eventsWrittenToPravega);
+    }
+
+    @Test
+    public void testReadWriteStreamSeal() throws ExecutionException, InterruptedException {
+        String readerGroupName = "testLargeEventStreamSealReaderGroup";
+        String streamName = "StreamSeal";
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byDataRate(500, 2, 1))
+                .retentionPolicy(RetentionPolicy.bySizeBytes(Long.MAX_VALUE))
+                .build();
+
+        createScopeStream(SCOPE_NAME, streamName, config);
+
+        int events = 1;
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
+        merge(eventsWrittenToPravega, data);
+
+        Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
+
+        AtomicReference<Boolean> latch = new AtomicReference<>(false);
+        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
+            // Start writing events to the stream.
+            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory, eventsWrittenToPravega);
+            // Create a ReaderGroup.
+            createReaderGroup(readerGroupName, readerGroupManager, streamName);
+            // Create Readers.
+            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
+            Futures.allOf(writers).get();
+            stopReadFlag.set(true);
+            Futures.allOf(readers).get();
+            log.info("Deleting ReaderGroup: {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
+
+        validateCleanUp(streamName);
+        validateEventReads(reads, eventsWrittenToPravega);
+    }
+
+    private ConcurrentLinkedQueue<ByteBuffer> readWriteCycle(String streamName, String readerGroupName, Map<Integer, List<ByteBuffer>> writes) throws ExecutionException, InterruptedException {
+        // Each read-cycle should clear these objects.
+        stopReadFlag = new AtomicBoolean(false);
+        // Reads should be clear, but not writes.
+        eventReadCount.set(0);
+        // The reads should return all events written, and not just the to be written events (writes).
+        ConcurrentLinkedQueue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
+
+        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
+            // Start writing events to the stream.
+            val writers = createEventWriters(streamName, writes.size(), clientFactory, writes);
+            // Create a ReaderGroup.
+            createReaderGroup(readerGroupName, readerGroupManager, streamName);
+            // Create Readers.
+            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
+            Futures.allOf(writers).get();
+            stopReadFlag.set(true);
+            Futures.allOf(readers).get();
+            log.info("Deleting ReaderGroup: {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
+
+        return reads;
+    }
+
+    private CompletableFuture<Void> startNewWriter(final String routingKey,
+                                                   final String streamName,
+                                                   final AtomicLong writeCount,
+                                                   final List<ByteBuffer> data,
+                                                   final EventStreamClientFactory clientFactory) {
+        return CompletableFuture.runAsync(() -> {
+            @Cleanup
+            final EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName,
+                    new ByteBufferSerializer(),
+                    EventWriterConfig.builder().build());
+            log.debug("Writing Large Event : {}", routingKey);
+            for (ByteBuffer buf : data) {
+                writeCount.incrementAndGet();
+                writer.writeEvent(routingKey, buf);
+            }
+            log.info("Closing writer {}", writer);
+            writer.close();
+        }, writerPool);
+    }
+
     private StreamConfiguration getStreamConfiguraton(int readers) {
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(readers);
         return StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
-                .retentionPolicy(RetentionPolicy.bySizeBytes(Long.MAX_VALUE))
-                .build();
+            .retentionPolicy(RetentionPolicy.bySizeBytes(Long.MAX_VALUE))
+            .build();
     }
 
     private void createScopeStream(String scope, String stream, StreamConfiguration config) {
@@ -188,48 +419,33 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         }
     }
 
-    private void resetReadWriteObjects() {
-        eventsReadFromPravega = new ConcurrentLinkedQueue<>();
-        eventsWrittenToPravega = new ConcurrentHashMap<>();
-        eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
-        eventWriteCount = new AtomicLong();
-        stopReadFlag = new AtomicBoolean(false);
-    }
-
-    private void generateWriteEventData(int writers, int eventSize) {
-        for (int i = 0; i < writers; i++) {
-            byte[] bytes = RandomUtils.nextBytes(eventSize);
-            // Make the first byte the writerId for logging purposes.
-            bytes[0] = (byte) i;
-            ByteBuffer buf = ByteBuffer.wrap(bytes);
-            eventsWrittenToPravega.put(i, buf);
+    // Offset is the number to start the event id at, i.e. the number of events already generated (so we don't generate
+    // conflicting events).
+    private Map<Integer, List<ByteBuffer>> generateEventData(int writers, int offset, int events, int eventSize) {
+        Map<Integer, List<ByteBuffer>> data = new HashMap<>();
+        for (int i = 1; i <= writers; i++) {
+            List<ByteBuffer> buffs = new ArrayList<>();
+            for (int j = offset; j < events + offset; j++) {
+                byte[] bytes = RandomUtils.nextBytes(eventSize);
+                // Make the first byte the writerId for logging purposes.
+                bytes[0] = (byte) i;
+                // Make the second byte the j'th event written by that writer.
+                bytes[1] = (byte) j;
+                ByteBuffer buf = ByteBuffer.wrap(bytes);
+                buffs.add(buf);
+            }
+            data.put(i, buffs);
         }
+        return data;
     }
 
-    private List<CompletableFuture<Void>> createEventWriters(String streamName, int writers, ClientFactoryImpl factory) {
+    private List<CompletableFuture<Void>> createEventWriters(String streamName, int writers, ClientFactoryImpl factory, Map<Integer, List<ByteBuffer>> data) {
         log.info("Creating {} Writers.", writers);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
-        for (int i = 0; i < writers; i++) {
-            log.info("Starting Writer {}", i);
-            String routingKey = String.format("LargeEventWriter-%d", i);
-            writerList.add(startNewWriter(routingKey, streamName, eventWriteCount, eventsWrittenToPravega.get(i), factory));
-        }
-        return writerList;
-    }
-
-    // For now, limit writers to one.
-    private List<CompletableFuture<Void>> createReconnectingEventWriters(String streamName, int writers, ClientFactoryImpl factory, ConnectionExporter exporter) {
-        log.info("Creating {} Writers.", writers);
-        List<CompletableFuture<Void>> writerList = new ArrayList<>();
-        for (int i = 0; i < writers; i++) {
-            log.info("Starting Writer {}", i);
-            String routingKey = String.format("LargeEventWriter-%d", i);
-            int writerId = i;
-            Runnable restart = () -> {
-                log.info("Closing writer {} ClientConnection ({}).", writerId, exporter.getConnection());
-                exporter.getConnection().close();
-            };
-            writerList.add(startNewWriterPreflushAction(routingKey, streamName, eventWriteCount, eventsWrittenToPravega.get(i), factory, restart));
+        for (val entry : data.entrySet()) {
+            log.info("Starting Writer {}", entry.getKey());
+            String routingKey = String.format("LargeEventWriter-%d", entry.getKey());
+            writerList.add(startNewWriter(routingKey, streamName, eventWriteCount, entry.getValue(), factory));
         }
         return writerList;
     }
@@ -241,15 +457,15 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         log.info("ReaderGroup Scope : {}", manager.getReaderGroup(group).getScope());
     }
 
-    private List<CompletableFuture<Void>> createEventReaders(int readers, ClientFactoryImpl factory, String readerGroupName) {
+    private List<CompletableFuture<Void>> createEventReaders(int readers, ClientFactoryImpl factory, String readerGroupName, Queue<ByteBuffer> reads) {
         log.info("Creating {} Readers.", readers);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
-        for (int i = 0; i < readers; i++) {
+        for (int i = 1; i <= readers; i++) {
             String readerId = String.format("LargeEventReader-%d", i);
             readerList.add(startNewReader(readerId,
                     factory,
                     readerGroupName,
-                    eventsReadFromPravega,
+                    reads,
                     eventWriteCount,
                     eventReadCount,
                     stopReadFlag));
@@ -273,171 +489,9 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         assertTrue(deleteScopeStatus.get());
     }
 
-    @Test
-    public void readWriteTest() throws ExecutionException, InterruptedException {
-        String readerGroupName = "testLargeEventReaderGroup";
-        String streamName = "ReadWrite";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
-        createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
-
-        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
-            // Start writing events to the stream.
-            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory);
-            // Create a ReaderGroup.
-            createReaderGroup(readerGroupName, readerGroupManager, streamName);
-            // Create Readers.
-            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
-            Futures.allOf(writers).get();
-            stopReadFlag.set(true);
-            Futures.allOf(readers).get();
-
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-
-        validateCleanUp(streamName);
-        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
-    }
-
-    @Test
-    public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
-        String readerGroupName = "testLargeEventFailoverReaderGroup";
-        String streamName = "SegmentStoreRestart";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
-        createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
-
-        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
-            // Start writing events to the stream.
-            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory);
-            // Create a ReaderGroup.
-            createReaderGroup(readerGroupName, readerGroupManager, streamName);
-            // Create Readers.
-            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
-            Futures.allOf(writers).get();
-            stopReadFlag.set(true);
-
-            this.server.close();
-            // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-            this.server.startListening();
-            Futures.allOf(readers).get();
-
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-
-        validateCleanUp(streamName);
-        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
-    }
-
-    @Test
-    public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException {
-        String readerGroupName = "testLargeEventReconnectReaderGroup";
-        String streamName = "ConnectionReconnect";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
-
-        createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
-
-        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
-            // Start writing events to the stream.
-            val writers = createReconnectingEventWriters(streamName, NUM_WRITERS, clientFactory, connectionFactory);
-            // Create a ReaderGroup.
-            createReaderGroup(readerGroupName, readerGroupManager, streamName);
-            // Create Readers.
-            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
-            Futures.allOf(writers).get();
-            stopReadFlag.set(true);
-
-            Futures.allOf(readers).get();
-
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-
-        validateCleanUp(streamName);
-        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
-    }
-
-    @Test
-    public void testReadWriteStreamSeal() throws ExecutionException, InterruptedException {
-        String readerGroupName = "testLargeEventStreamSealReaderGroup";
-        String streamName = "StreamSeal";
-        StreamConfiguration config = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.byDataRate(500, 2, 1))
-                .retentionPolicy(RetentionPolicy.bySizeBytes(Long.MAX_VALUE))
-                .build();
-
-        createScopeStream(SCOPE_NAME, streamName, config);
-        generateWriteEventData(NUM_WRITERS, LARGE_EVENT_SIZE);
-
-        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
-            // Start writing events to the stream.
-            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory);
-            // Create a ReaderGroup.
-            createReaderGroup(readerGroupName, readerGroupManager, streamName);
-            // Create Readers.
-            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName);
-            Futures.allOf(writers).get();
-            stopReadFlag.set(true);
-
-            Futures.allOf(readers).get();
-
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-
-        validateCleanUp(streamName);
-        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
-    }
-
-    private CompletableFuture<Void> startNewWriter(final String routingKey,
-                                                   final String streamName,
-                                                   final AtomicLong writeCount,
-                                                   final ByteBuffer data,
-                                                   final EventStreamClientFactory clientFactory) {
-        return startNewWriterPreflushAction(routingKey, streamName, writeCount, data, clientFactory, null);
-    }
-
-    private CompletableFuture<Void> startNewWriterPreflushAction(final String routingKey,
-                                                   final String streamName,
-                                                   final AtomicLong writeCount,
-                                                   final ByteBuffer data,
-                                                   final EventStreamClientFactory clientFactory,
-                                                         Runnable action) {
-        return CompletableFuture.runAsync(() -> {
-            @Cleanup
-            final EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName,
-                    new ByteBufferSerializer(),
-                    EventWriterConfig.builder().build());
-
-            log.debug("Writing Large Event : {}", routingKey);
-            writeCount.incrementAndGet();
-            writer.writeEvent(routingKey, data);
-            // Allow one to supply an action during a write call, such as a SegmentStore restart.
-            if (action != null) {
-                action.run();
-            }
-            writer.flush();
-            log.info("Closing writer {}", writer);
-            writer.close();
-
-        }, writerPool);
-    }
-
     private CompletableFuture<Void> startNewReader(final String readerId, final EventStreamClientFactory clientFactory, final String
-            readerGroupName, final ConcurrentLinkedQueue<ByteBuffer> readResult, final AtomicLong writeCount, final
-                                                   AtomicLong readCount, final  AtomicBoolean exitFlag) {
+            readerGroupName, final Queue<ByteBuffer> readResult, final AtomicLong writeCount, final
+                                                   AtomicLong readCount, final AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
             @Cleanup
             final EventStreamReader<ByteBuffer> reader = clientFactory.createReader(readerId,
@@ -445,11 +499,12 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                     new ByteBufferSerializer(),
                     ReaderConfig.builder().build());
             log.info("Starting Reader: {}", readerId);
+            log.info("Read Count: {}, Write Count: {}", readCount.get(), writeCount.get());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 final ByteBuffer event = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
                 if (event != null) {
                     // This first byte should be the writerId.
-                    log.info("Reading Event [{}], {} total bytes.", event.get(0), event.array().length);
+                    log.info("Reading Event [{}: {}], {} total bytes.", (event.get(0) << 8) + event.get(1), event.get(3), event.array().length);
                     // Update if event read is not null.
                     readResult.add(event);
                     readCount.incrementAndGet();
@@ -460,51 +515,145 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         }, readerPool);
     }
 
-    void validateEventReads(ConcurrentLinkedQueue<ByteBuffer> eventsRead, ConcurrentHashMap<Integer, ByteBuffer> eventsWritten) {
-        assertEquals("Mismatched number of events read vs. written.", eventsRead.size(), eventsWritten.size());
+    void validateEventReads(Queue<ByteBuffer> eventsRead, Map<Integer, List<ByteBuffer>> eventsWritten) {
+        int writesSize = 0;
+        for (val entry : eventsWritten.entrySet()) {
+            writesSize += entry.getValue().size();
+        }
+        assertEquals("Mismatched number of events written vs. read.", writesSize, eventsRead.size());
+        // Expect each writer's first event read to be zero.
+        Map<Integer, Integer> writerEventNumber = new HashMap<>();
         for (ByteBuffer read : eventsRead) {
             // Get first byte to determine which writer the event came from.
             int writerId = read.get(0);
             assertNotNull(String.format("Unexpected writerId (%d) read from event.", writerId), eventsWritten.get(writerId));
-            ByteBuffer write = eventsWritten.get(writerId);
+            List<ByteBuffer> events = eventsWritten.get(writerId);
+            // The expected event number.
+            int writerEvent = writerEventNumber.getOrDefault(writerId, 0);
+            ByteBuffer write = events.get(writerEvent);
+            // Make sure the event ordering is valid.
+            assertEquals("Received out of order write events.", writerEvent, write.get(1));
+            // Increment the next expected event number.
+            writerEventNumber.put(writerId, writerEvent + 1);
             // Validate ordering of bytes>
             int bytesRead = read.array().length;
             int bytesWritten = write.array().length;
-            log.debug("Validating LargeEvent '{}'.", writerId);
             assertEquals(String.format("Mismatch of bytes read (%d) vs. bytes written (%d).", bytesRead, bytesWritten), bytesRead, bytesWritten);
-            for (int i = 0; i < bytesRead; i++) {
-                byte rb = read.get(i);
-                byte wb = write.get(i);
+            for (int j = 0; j < bytesRead; j++) {
+                byte rb = read.get(j);
+                byte wb = write.get(j);
                 // Avoid cost of String creation on matching bytes.
                 if (rb != wb) {
-                    Assert.fail(String.format("Byte mismatch at index %d (read: %b, written: %b).", i, rb, wb));
+                    Assert.fail(String.format("Byte mismatch at index %d (read: %d, written: %d).", j, rb, wb));
                 }
             }
-            log.debug("LargeEvent '{}' validated.", writerId);
+        }
+        log.info("Read/Write cycle validated.");
+    }
+
+    void merge(Map<Integer, List<ByteBuffer>> sink, Map<Integer, List<ByteBuffer>> source) {
+        for (val entry : source.entrySet()) {
+            if (!sink.containsKey(entry.getKey())) {
+                sink.put(entry.getKey(), new ArrayList<>());
+            }
+            sink.get(entry.getKey()).addAll(entry.getValue());
         }
     }
 
+
     private static class ConnectionExporter extends SocketConnectionFactoryImpl {
         @Getter
-        public ClientConnection connection;
+        public ConnectionSendIntercept connection;
+        private AtomicReference<Boolean> latch;
+        private Runnable callback;
 
-        ConnectionExporter(ClientConfig config) {
+        // The latch ensures that the callback will only be ran once during the lifetime of this object.
+
+        ConnectionExporter(ClientConfig config, AtomicReference<Boolean> latch, Runnable callback) {
             super(config);
+            this.callback = callback;
+            this.latch = latch;
+        }
+
+        ConnectionExporter(ClientConfig config, AtomicReference<Boolean> latch) {
+            this(config, latch, null);
         }
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-            CompletableFuture<ClientConnection> connection = super.establishConnection(endpoint, rp);
-            connection.thenAccept(conn -> this.connection = conn);
-            return connection;
+            CompletableFuture<ClientConnection> conn = super.establishConnection(endpoint, rp);
+            ClientConnection connection = null;
+            try {
+                connection = conn.get();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            // If no callback is provided default to closing the connection.
+            // This callback will be called *once* mid write.
+            if (callback == null) {
+                ClientConnection c = connection;
+                callback = () -> {
+                    c.close();
+                };
+            }
+
+            return CompletableFuture.completedFuture(new ConnectionSendIntercept(connection, latch, callback));
         }
 
         @Override
         public void close() {
             super.close();
-            this.connection.close();
+            if (this.connection != null) {
+                this.connection.close();
+            }
         }
 
     }
 
+    private static class ConnectionSendIntercept implements ClientConnection {
+
+        private static final int PAYLOAD_LIMIT = 2;
+
+        private ClientConnection connection;
+        private AtomicReference<Boolean> close;
+        private AtomicInteger counter = new AtomicInteger(0);
+        private Runnable callback;
+
+        ConnectionSendIntercept(ClientConnection connection, AtomicReference<Boolean> close, Runnable callback) {
+            this.connection = connection;
+            this.callback = callback;
+            this.close = close;
+        }
+
+        @Override
+        public void send(WireCommand cmd) throws ConnectionFailedException {
+            if (this.close.get() && cmd instanceof WireCommands.ConditionalBlockEnd) {
+                if (counter.getAndIncrement() > PAYLOAD_LIMIT) {
+                    if (callback != null) {
+                        callback.run();
+                    }
+                    this.close.set(false);
+                    return;
+                }
+            }
+            connection.send(cmd);
+        }
+
+        @Override
+        public void send(Append append) throws ConnectionFailedException {
+            connection.send(append);
+        }
+
+        @Override
+        public void sendAsync(List<Append> appends, CompletedCallback callback) {
+            connection.sendAsync(appends, callback);
+        }
+
+        @Override
+        public void close() {
+            connection.close();
+        }
+    }
 }
