@@ -1841,7 +1841,7 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Failed to update Reader Group: {}", rgScopedName);
                     throw new ControllerFailureException("Failed to update Reader Group: " + rgScopedName);
                 case INVALID_CONFIG:
-                    log.warn(requestId, "Failed to update Reader Group {} as Config was invalid.", rgScopedName, rgConfig);
+                    log.warn(requestId, "Failed to update Reader Group {} as Config was invalid: {}", rgScopedName, rgConfig);
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + rgConfig.toString());
                 case RG_NOT_FOUND:
                     log.warn(requestId, "Failed to update Reader Group {} as Reader Group was not found.", rgScopedName);
