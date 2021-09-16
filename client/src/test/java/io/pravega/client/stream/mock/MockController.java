@@ -193,6 +193,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        return null;
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
         String markStream = NameUtils.getMarkStreamForStream(streamName);

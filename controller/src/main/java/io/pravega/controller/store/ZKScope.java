@@ -93,6 +93,11 @@ public class ZKScope implements Scope {
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(streamsInScopePath), DATA_NOT_FOUND_PREDICATE, null));
     }
 
+    @Override
+    public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
+        return null;
+    }
+
     /**
      * Streams are ordered under the scope in the order of stream position. 
      * The metadata store first calls `getNextStreamPosition` method to generate a new position. 

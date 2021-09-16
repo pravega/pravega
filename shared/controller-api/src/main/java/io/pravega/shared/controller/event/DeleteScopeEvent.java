@@ -38,23 +38,23 @@ public class DeleteScopeEvent implements ControllerEvent {
 
     @Override
     public String getKey() {
-        return String.format("%s/%s", scope, stream);
+        return String.format("%s/%s", scope);
     }
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor) processor).processDeleteStream(this);
+        return ((StreamRequestProcessor) processor).processDeleteScope(this);
     }
 
     //region Serialization
 
-    private static class DeleteStreamEventBuilder implements ObjectBuilder<DeleteStreamEvent> {
+    private static class DeleteScopeEventBuilder implements ObjectBuilder<DeleteScopeEvent> {
     }
 
-    public static class Serializer extends VersionedSerializer.WithBuilder<DeleteStreamEvent, DeleteStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<DeleteScopeEvent, DeleteScopeEventBuilder> {
         @Override
-        protected DeleteStreamEventBuilder newBuilder() {
-            return DeleteStreamEvent.builder();
+        protected DeleteScopeEventBuilder newBuilder() {
+            return DeleteScopeEvent.builder();
         }
 
         @Override
@@ -67,13 +67,13 @@ public class DeleteScopeEvent implements ControllerEvent {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(DeleteStreamEvent e, RevisionDataOutput target) throws IOException {
+        private void write00(DeleteScopeEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeLong(e.requestId);
             target.writeLong(e.creationTime);
         }
 
-        private void read00(RevisionDataInput source, DeleteStreamEventBuilder b) throws IOException {
+        private void read00(RevisionDataInput source, DeleteScopeEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.requestId(source.readLong());
             b.creationTime(source.readLong());

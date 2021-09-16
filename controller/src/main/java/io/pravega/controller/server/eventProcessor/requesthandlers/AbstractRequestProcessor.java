@@ -24,19 +24,7 @@ import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.controller.event.CommitEvent;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.CreateReaderGroupEvent;
-import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
-import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import io.pravega.shared.controller.event.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -138,6 +126,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     @Override
     public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processDeleteScope(DeleteScopeEvent deleteScopeEvent) {
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 

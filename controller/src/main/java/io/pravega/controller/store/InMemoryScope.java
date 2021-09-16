@@ -84,6 +84,11 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+    @Override
+    public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
+        return null;
+    }
+
     @Synchronized
     public CompletableFuture<Void> addStreamToScope(String stream, OperationContext context) {
         int next = streamsPositionMap.size();
