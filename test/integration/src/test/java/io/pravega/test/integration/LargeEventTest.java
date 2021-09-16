@@ -46,6 +46,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -68,6 +69,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -325,30 +327,25 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 1;
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, TINY_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
 
-        AtomicReference<Boolean> latch = new AtomicReference<>(false);
-        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch);
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
-            // Start writing events to the stream.
-            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory, eventsWrittenToPravega);
-            // Create a ReaderGroup.
-            createReaderGroup(readerGroupName, readerGroupManager, streamName);
-            // Create Readers.
-            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
-            Futures.allOf(writers).get();
-            stopReadFlag.set(true);
-            Futures.allOf(readers).get();
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-
-        validateCleanUp(streamName);
+        // Create some data and create the stream.
+        reads = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
         validateEventReads(reads, eventsWrittenToPravega);
+
+        // Wait for the Stream to be sealed.
+        store.sealStreamSegment(NameUtils.getQualifiedStreamSegmentName(SCOPE_NAME, streamName, 0), Duration.ofMillis(1000)).join();
+        // Try another write -- should fail.
+        data = generateEventData(NUM_WRITERS, events * 1, events, LARGE_EVENT_SIZE);
+        reads = readWriteCycle(streamName, readerGroupName, data);
+        // Only the first data set should have succeeded.
+        validateEventReads(reads, eventsWrittenToPravega);
+
+        // Attempt to write to it again.
+        validateCleanUp(streamName);
     }
 
     private ConcurrentLinkedQueue<ByteBuffer> readWriteCycle(String streamName, String readerGroupName, Map<Integer, List<ByteBuffer>> writes) throws ExecutionException, InterruptedException {
@@ -390,8 +387,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                     EventWriterConfig.builder().build());
             log.debug("Writing Large Event : {}", routingKey);
             for (ByteBuffer buf : data) {
-                writeCount.incrementAndGet();
-                writer.writeEvent(routingKey, buf);
+                writer.writeEvent(routingKey, buf).thenRun(() -> writeCount.incrementAndGet());
             }
             log.info("Closing writer {}", writer);
             writer.close();
