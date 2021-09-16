@@ -27,7 +27,6 @@ FROM apache/bookkeeper:4.14.1
 
 ARG BK_VERSION=4.14.1
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
-ENV JAVA_HOME=/usr/lib/jvm/java-11
 
 RUN set -x \
     && yum install -y iproute wget \
@@ -47,7 +46,6 @@ RUN set -x \
 WORKDIR /opt/bookkeeper
 
 COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
-COPY bookkeeperTeardown.sh /opt/bookkeeper/scripts/bookkeeperTeardown.sh
 
 # For backwards compatibility with older operator versions
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
