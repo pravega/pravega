@@ -43,7 +43,7 @@ public class DeleteScopeEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor) processor).processDeleteScope(this);
+        return ((StreamRequestProcessor) processor).processDeleteScopeRecursive(this);
     }
 
     //region Serialization
