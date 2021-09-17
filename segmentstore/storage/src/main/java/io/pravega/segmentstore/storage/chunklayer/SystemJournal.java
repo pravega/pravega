@@ -749,7 +749,7 @@ public class SystemJournal {
     /**
      * Read contents from file.
      */
-    private CompletableFuture<byte[]> getContents(String chunkPath, boolean shouldIgnore) {
+    private CompletableFuture<byte[]> getContents(String chunkPath, boolean supressExceptionWarning) {
         val isReadDone = new AtomicBoolean();
         val shouldBreak = new AtomicBoolean();
         val attempt = new AtomicInteger();
@@ -768,7 +768,7 @@ public class SystemJournal {
                                 boolean shouldLog = true;
                                 if (!shouldRetry(ex)) {
                                     shouldBreak.set(true);
-                                    shouldLog = shouldIgnore;
+                                    shouldLog = !supressExceptionWarning;
                                 }
                                 if (shouldLog) {
                                     log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
@@ -783,7 +783,7 @@ public class SystemJournal {
                 executor)
                 .handleAsync((v, e) -> {
                     // If read is not done and we have exception then throw.
-                    if ((!shouldIgnore && shouldBreak.get()) || (!isReadDone.get() && lastException.get() != null)) {
+                    if ((!supressExceptionWarning && shouldBreak.get()) || (!isReadDone.get() && lastException.get() != null)) {
                         throw new CompletionException(lastException.get());
                     }
                     return v;
