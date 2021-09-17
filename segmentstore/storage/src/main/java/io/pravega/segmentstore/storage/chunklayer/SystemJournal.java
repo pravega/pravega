@@ -743,6 +743,13 @@ public class SystemJournal {
      * Read contents from file.
      */
     private CompletableFuture<byte[]> getContents(String chunkPath) {
+        return getContents(chunkPath, false);
+    }
+
+    /**
+     * Read contents from file.
+     */
+    private CompletableFuture<byte[]> getContents(String chunkPath, boolean shouldIgnore) {
         val isReadDone = new AtomicBoolean();
         val shouldBreak = new AtomicBoolean();
         val attempt = new AtomicInteger();
@@ -757,10 +764,14 @@ public class SystemJournal {
                             if (e != null) {
                                 // record the exception
                                 lastException.set(e);
-                                log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
                                 val ex = Exceptions.unwrap(e);
+                                boolean shouldLog = true;
                                 if (!shouldRetry(ex)) {
                                     shouldBreak.set(true);
+                                    shouldLog = shouldIgnore;
+                                }
+                                if (shouldLog) {
+                                    log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
                                 }
                                 return null;
                             } else {
@@ -772,7 +783,7 @@ public class SystemJournal {
                 executor)
                 .handleAsync((v, e) -> {
                     // If read is not done and we have exception then throw.
-                    if (shouldBreak.get() || (!isReadDone.get() && lastException.get() != null)) {
+                    if ((!shouldIgnore && shouldBreak.get()) || (!isReadDone.get() && lastException.get() != null)) {
                         throw new CompletionException(lastException.get());
                     }
                     return v;
@@ -852,7 +863,7 @@ public class SystemJournal {
                             () -> !isScanDone.get(),
                             () -> {
                                 val systemLogName = getSystemJournalChunkName(containerId, epochToRecover.get(), fileIndexToRecover.get());
-                                return getContents(systemLogName)
+                                return getContents(systemLogName, true)
                                         .thenApplyAsync(contents -> {
                                             // We successfully read the contents.
                                             journalsProcessed.add(systemLogName);

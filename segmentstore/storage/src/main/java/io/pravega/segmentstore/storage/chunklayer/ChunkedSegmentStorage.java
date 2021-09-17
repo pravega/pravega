@@ -224,7 +224,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} openWrite - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName),
                     txn -> txn.get(streamSegmentName)
                             .thenComposeAsync(storageMetadata -> {
@@ -252,6 +254,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
                                     // This instance is the owner, return a handle.
                                     val retValue = SegmentStorageHandle.writeHandle(streamSegmentName);
+                                    log.debug("{} openWrite - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                     LoggerHelpers.traceLeave(log, "openWrite", traceId, retValue);
                                     return retValue;
                                 }, executor);
@@ -582,8 +585,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
+            val timer = new Timer();
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} openRead - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn ->
                             txn.get(streamSegmentName).thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -609,6 +614,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                 }
                                 return f.thenApplyAsync(v -> {
                                     val retValue = SegmentStorageHandle.readHandle(streamSegmentName);
+                                    log.debug("{} openRead - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                     LoggerHelpers.traceLeave(log, "openRead", traceId, retValue);
                                     return retValue;
                                 }, executor);
@@ -628,7 +634,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} getStreamSegmentInfo - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(true, streamSegmentName), txn ->
                     txn.get(streamSegmentName)
                             .thenApplyAsync(storageMetadata -> {
@@ -643,6 +651,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                         .startOffset(segmentMetadata.getStartOffset())
                                         .lastModified(new ImmutableDate(segmentMetadata.getLastModified()))
                                         .build();
+                                log.debug("{} getStreamSegmentInfo - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                 LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, retValue);
                                 return retValue;
                             }, executor), executor);

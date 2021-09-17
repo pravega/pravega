@@ -83,6 +83,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             if (segmentMetadata.getStartOffset() >= offset) {
                                 // Nothing to do
+                                logEnd();
                                 return CompletableFuture.completedFuture(null);
                             }
                             val oldChunkCount = segmentMetadata.getChunkCount();
@@ -113,7 +114,9 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 }
 
                                                 // Remove read index block entries.
-                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
+                                                if (!segmentMetadata.isStorageSystemSegment()) {
+                                                    chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
+                                                }
 
                                                 // Collect garbage.
                                                 return chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete)
