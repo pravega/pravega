@@ -52,7 +52,7 @@ service ControllerService {
     rpc checkStreamExists(StreamInfo) returns (ExistsResponse);
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
-    rpc deleteScopeRecursive(ScopeInfo) returns (DeleteScopeStatus);
+    rpc deleteScopeRecursive(ScopeInfo) returns (DeleteScopeRecursiveStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
@@ -284,6 +284,16 @@ message CreateScopeStatus {
 }
 
 message DeleteScopeStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+        SCOPE_NOT_EMPTY = 3;
+    }
+    Status status = 1;
+}
+
+message DeleteScopeRecursiveStatus {
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;

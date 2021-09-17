@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -36,6 +37,7 @@ import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -224,6 +226,17 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return null on success and exception on failure.
      */
     CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName, final OperationContext context, Executor executor);
+
+    /**
+     * Deletes a Scope if contains no streams.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @param context operation context
+     * @param executor executor
+     * @return null on success and exception on failure.
+     */
+    CompletableFuture<Controller.DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scopeName, final OperationContext context,
+                                                                                  final Executor executor);
 
     /**
      * Retrieve configuration of scope.
@@ -1594,5 +1607,4 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
                                              Executor executor);
-
 }

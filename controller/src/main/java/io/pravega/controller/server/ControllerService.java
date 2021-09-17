@@ -29,6 +29,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
@@ -48,6 +49,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -825,6 +827,22 @@ public class ControllerService {
     }
 
     /**
+     * Controller Service API to delete scope recursively.
+     *
+     * @param scope Name of scope to be deleted.
+     * @param requestId request id
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scope, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
+        OperationContext context = streamStore.createScopeContext(scope, requestId);
+
+        return streamStore.deleteScopeRecursive(scope, context, executor).thenApply(r -> reportDeleteScopeRecursiveMetrics(scope, r,
+                timer.getElapsed()));
+    }
+
+    /**
      * List existing streams in scopes.
      *
      * @param scope Name of the scope.
@@ -1024,6 +1042,15 @@ public class ControllerService {
         return status;
     }
 
+    private DeleteScopeRecursiveStatus reportDeleteScopeRecursiveMetrics(String scope, DeleteScopeRecursiveStatus status, Duration latency) {
+        if (status.getStatus().equals(DeleteScopeRecursiveStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(latency);
+        } else if (status.getStatus().equals(DeleteScopeRecursiveStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeFailed(scope);
+        }
+        return status;
+    }
+
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, 
                                                                                    long timestamp, Map<Long, Long> streamCut,
                                                                                    long requestId) {
@@ -1071,6 +1098,5 @@ public class ControllerService {
                     return response.build();
                 });
     }
-
     // End metrics reporting region
 }

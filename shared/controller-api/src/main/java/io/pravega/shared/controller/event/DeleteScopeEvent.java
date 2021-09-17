@@ -15,16 +15,16 @@
  */
 package io.pravega.shared.controller.event;
 
-        import io.pravega.common.ObjectBuilder;
-        import io.pravega.common.io.serialization.RevisionDataInput;
-        import io.pravega.common.io.serialization.RevisionDataOutput;
-        import io.pravega.common.io.serialization.VersionedSerializer;
-        import java.io.IOException;
-        import java.util.concurrent.CompletableFuture;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
-        import lombok.AllArgsConstructor;
-        import lombok.Builder;
-        import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 
 @Builder
 @Data
@@ -37,9 +37,7 @@ public class DeleteScopeEvent implements ControllerEvent {
     private final long creationTime;
 
     @Override
-    public String getKey() {
-        return String.format("%s/%s", scope);
-    }
+    public String getKey() { return this.scope; }
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
