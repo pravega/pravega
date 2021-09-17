@@ -71,6 +71,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -550,7 +551,38 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE, scopeName, requestId);
-        return null;
+
+        final CompletableFuture<DeleteScopeRecursiveStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteScopeRecursiveStatus> callback = new RPCAsyncCallback<>(requestId, "deleteScope", scopeName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, DELETE_SCOPE, scopeName)
+                    .deleteScopeRecursive(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete scope recursively: {}", scopeName);
+                    throw new ControllerFailureException("Failed to delete scope: " + scopeName);
+                case SCOPE_NOT_EMPTY:
+                    log.warn(requestId, "Cannot delete non empty scope: {}", scopeName);
+                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scopeName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Recursive Scope deleted successfully: {}", scopeName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope recursively " + scopeName
+                            + " " + x.getStatus());
+            }
+        }, this.executor).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteScopeRecursive {} failed: ", scopeName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteScopeRecursive", traceId, scopeName, requestId);
+        });
     }
 
     @Override
@@ -2225,6 +2257,9 @@ public class ControllerImpl implements Controller {
                 io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo request, 
                 RPCAsyncCallback<SegmentRanges> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getCurrentSegmentsKeyValueTable(request, callback);
+        }
+
+        public void deleteScopeRecursive(ScopeInfo build, RPCAsyncCallback<DeleteScopeRecursiveStatus> callback) {
         }
     }
 }

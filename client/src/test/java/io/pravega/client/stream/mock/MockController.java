@@ -193,8 +193,13 @@ public class MockController implements Controller {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
-        return null;
+        if (createdScopes.get(scopeName) == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        createdScopes.remove(scopeName);
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
