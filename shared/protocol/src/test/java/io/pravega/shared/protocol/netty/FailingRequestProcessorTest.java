@@ -81,6 +81,7 @@ public class FailingRequestProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.createTableSegment(new CreateTableSegment(0, "", false, 0, "")));
         assertThrows(IllegalStateException.class, () -> rp.readTableEntriesDelta(new ReadTableEntriesDelta(0, "", "", 0, 0)));
         assertThrows(IllegalStateException.class, () -> rp.createTransientSegment(new CreateTransientSegment(0, new UUID(0, 0), "", "")));
+        assertThrows(IllegalStateException.class, () -> rp.connectionDropped());
     }
 
 }
