@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Function;
 
-import static io.pravega.cli.admin.utils.SerializerUtils.addField;
+import static io.pravega.cli.admin.utils.SerializerUtils.appendField;
 import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
 import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
@@ -38,15 +38,6 @@ import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
  */
 public class SltsMetadataSerializer implements Serializer<String> {
     private static final TransactionData.TransactionDataSerializer SERIALIZER = new TransactionData.TransactionDataSerializer();
-
-    private static final Map<String, Function<TransactionData, Object>> TRANSACTION_DATA_FIELD_MAP =
-            ImmutableMap.<String, Function<TransactionData, Object>>builder()
-                    .put("key", TransactionData::getKey)
-                    .put("created", TransactionData::isCreated)
-                    .put("deleted", TransactionData::isDeleted)
-                    .put("persisted", TransactionData::isPersisted)
-                    .put("pinned", TransactionData::isPinned)
-                    .build();
 
     private static final Map<String, Function<ChunkMetadata, Object>> CHUNK_METADATA_FIELD_MAP =
             ImmutableMap.<String, Function<ChunkMetadata, Object>>builder()
@@ -80,8 +71,6 @@ public class SltsMetadataSerializer implements Serializer<String> {
                     .put("status", ReadIndexBlockMetadata::getStatus)
                     .build();
 
-    private static final String STORAGE_METADATA_TYPE = "storage-metadata-type";
-
     @Override
     public ByteBuffer serialize(String value) {
         ByteBuffer buf;
@@ -93,10 +82,6 @@ public class SltsMetadataSerializer implements Serializer<String> {
             // The correct instance of StorageMetadata is then generated.
             TransactionData transactionData = TransactionData.builder()
                     .key(getAndRemoveIfExists(data, "key"))
-                    .created(Boolean.parseBoolean(getAndRemoveIfExists(data, "created")))
-                    .deleted(Boolean.parseBoolean(getAndRemoveIfExists(data, "deleted")))
-                    .persisted(Boolean.parseBoolean(getAndRemoveIfExists(data, "persisted")))
-                    .pinned(Boolean.parseBoolean(getAndRemoveIfExists(data, "pinned")))
                     .value(generateStorageMetadataValue(data))
                     .build();
             buf = SERIALIZER.serialize(transactionData).asByteBuffer();
@@ -111,9 +96,9 @@ public class SltsMetadataSerializer implements Serializer<String> {
         StringBuilder stringValueBuilder;
         try {
             TransactionData data = SERIALIZER.deserialize(new ByteArrayInputStream(serializedValue.array()));
-            stringValueBuilder = new StringBuilder("SLTS metadata info:\n");
+            stringValueBuilder = new StringBuilder();
 
-            TRANSACTION_DATA_FIELD_MAP.forEach((name, f) -> addField(stringValueBuilder, name, String.valueOf(f.apply(data))));
+            appendField(stringValueBuilder, "key", data.getKey());
             handleStorageMetadataValue(stringValueBuilder, data.getValue());
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -129,19 +114,16 @@ public class SltsMetadataSerializer implements Serializer<String> {
      */
     private void handleStorageMetadataValue(StringBuilder builder, StorageMetadata metadata) {
         if (metadata instanceof ChunkMetadata) {
-            addField(builder, STORAGE_METADATA_TYPE, "ChunkMetadata");
             ChunkMetadata chunkMetadata = (ChunkMetadata) metadata;
-            CHUNK_METADATA_FIELD_MAP.forEach((name, f) -> addField(builder, name, String.valueOf(f.apply(chunkMetadata))));
+            CHUNK_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(chunkMetadata))));
 
         } else if (metadata instanceof SegmentMetadata) {
-            addField(builder, STORAGE_METADATA_TYPE, "SegmentMetadata");
             SegmentMetadata segmentMetadata = (SegmentMetadata) metadata;
-            SEGMENT_METADATA_FIELD_MAP.forEach((name, f) -> addField(builder, name, String.valueOf(f.apply(segmentMetadata))));
+            SEGMENT_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(segmentMetadata))));
 
         } else if (metadata instanceof ReadIndexBlockMetadata) {
-            addField(builder, STORAGE_METADATA_TYPE, "ReadIndexBlockMetadata");
             ReadIndexBlockMetadata readIndexBlockMetadata = (ReadIndexBlockMetadata) metadata;
-            READ_INDEX_BLOCK_METADATA_FIELD_MAP.forEach((name, f) -> addField(builder, name, String.valueOf(f.apply(readIndexBlockMetadata))));
+            READ_INDEX_BLOCK_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(readIndexBlockMetadata))));
         }
     }
 
@@ -186,6 +168,15 @@ public class SltsMetadataSerializer implements Serializer<String> {
                     .build();
         }
 
-        throw new IllegalArgumentException("Values provided do not correspond to any valid SLTS metadata.");
+        StringBuilder chunkGuide = new StringBuilder("key;");
+        CHUNK_METADATA_FIELD_MAP.keySet().forEach(s -> chunkGuide.append(s).append(";"));
+        StringBuilder segmentGuide = new StringBuilder("key;");
+        SEGMENT_METADATA_FIELD_MAP.keySet().forEach(s -> segmentGuide.append(s).append(";"));
+        StringBuilder readIndexBlockGuide = new StringBuilder("key;");
+        READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().forEach(s -> readIndexBlockGuide.append(s).append(";"));
+        throw new IllegalArgumentException("Values provided do not correspond to any valid SLTS metadata.\nThe following are valid metadata keys for each type:\n" +
+                "ChunkMetadata: " + chunkGuide.toString() + "\n" +
+                "SegmentMetadata: " + segmentGuide.toString() + "\n" +
+                "ReadIndexBlockMetadata: " + readIndexBlockGuide.toString() + "\n");
     }
 }

@@ -16,6 +16,8 @@
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
+import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
@@ -26,7 +28,10 @@ import org.apache.curator.framework.CuratorFramework;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
 public class GetTableSegmentCommand extends TableSegmentCommand {
 
@@ -57,7 +62,7 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
 
         String value = getCommandArgs().getState().getValueSerializer().deserialize(ByteBuffer.wrap(reply.join().get(0).getValue().array()));
         output("For the given key: %s", key);
-        output(value);
+        userFriendlyOutput(value);
     }
 
     public static CommandDescriptor descriptor() {
@@ -65,5 +70,15 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
                 new ArgDescriptor("key", "The key to be queried."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+    }
+
+    private void userFriendlyOutput(String data) {
+        Map<String, String> dataMap = parseStringData(data);
+        if (getCommandArgs().getState().getKeySerializer() instanceof ContainerMetadataSerializer) {
+            output("SLTS metadata info: ");
+        } else if (getCommandArgs().getState().getValueSerializer() instanceof SltsMetadataSerializer) {
+            output("Container metadata info: ");
+        }
+        dataMap.forEach((k, v) -> output("%s = %s;", k, v));
     }
 }

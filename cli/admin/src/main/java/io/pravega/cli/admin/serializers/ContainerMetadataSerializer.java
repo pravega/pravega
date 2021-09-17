@@ -17,7 +17,6 @@ package io.pravega.cli.admin.serializers;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -31,7 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
-import static io.pravega.cli.admin.utils.SerializerUtils.addField;
+import static io.pravega.cli.admin.utils.SerializerUtils.appendField;
 import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
 import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
@@ -45,8 +44,6 @@ public class ContainerMetadataSerializer implements Serializer<String> {
             ImmutableMap.<String, Function<SegmentProperties, Object>>builder()
                     .put("name", SegmentProperties::getName)
                     .put("sealed", SegmentProperties::isSealed)
-                    .put("deleted", SegmentProperties::isDeleted)
-                    .put("lastModified", SegmentProperties::getLastModified)
                     .put("startOffset", SegmentProperties::getStartOffset)
                     .put("length", SegmentProperties::getLength)
                     .build();
@@ -63,8 +60,6 @@ public class ContainerMetadataSerializer implements Serializer<String> {
             StreamSegmentInformation properties = StreamSegmentInformation.builder()
                     .name(getAndRemoveIfExists(data, "name"))
                     .sealed(Boolean.parseBoolean(getAndRemoveIfExists(data, "sealed")))
-                    .deleted(Boolean.parseBoolean(getAndRemoveIfExists(data, "deleted")))
-                    .lastModified(new ImmutableDate(Long.parseLong(getAndRemoveIfExists(data, "lastModified"))))
                     .startOffset(Long.parseLong(getAndRemoveIfExists(data, "startOffset")))
                     .length(Long.parseLong(getAndRemoveIfExists(data, "length")))
                     .attributes(getAttributes(data))
@@ -86,14 +81,13 @@ public class ContainerMetadataSerializer implements Serializer<String> {
         StringBuilder stringValueBuilder;
         try {
             SegmentInfo data = SERIALIZER.deserialize(new ByteArrayInputStream(serializedValue.array()));
-            stringValueBuilder = new StringBuilder("Container metadata info:\n");
+            stringValueBuilder = new StringBuilder();
 
-            addField(stringValueBuilder, "segmentId", String.valueOf(data.getSegmentId()));
+            appendField(stringValueBuilder, "segmentId", String.valueOf(data.getSegmentId()));
             SegmentProperties sp = data.getProperties();
-            SEGMENT_PROPERTIES_FIELD_MAP.forEach((name, f) -> addField(stringValueBuilder, name, String.valueOf(f.apply(sp))));
+            SEGMENT_PROPERTIES_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, String.valueOf(f.apply(sp))));
 
-            stringValueBuilder.append("Segment Attributes: ").append("\n");
-            sp.getAttributes().forEach(((attributeId, attributeValue) -> addField(stringValueBuilder, attributeId.toString(), attributeValue.toString())));
+            sp.getAttributes().forEach((attributeId, attributeValue) -> appendField(stringValueBuilder, attributeId.toString(), attributeValue.toString()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

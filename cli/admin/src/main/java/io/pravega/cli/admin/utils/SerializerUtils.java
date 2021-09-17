@@ -32,8 +32,8 @@ public class SerializerUtils {
      * @param name    The name of the field.
      * @param value   The value of the field.
      */
-    public static void addField(StringBuilder builder, String name, String value) {
-        builder.append(name).append(": ").append(value).append(";\n");
+    public static void appendField(StringBuilder builder, String name, String value) {
+        builder.append(name).append("=").append(value).append(";");
     }
 
     /**
