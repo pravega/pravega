@@ -2107,6 +2107,11 @@ public class ControllerImpl implements Controller {
                       .deleteScope(scopeInfo, callback);
         }
 
+        public void deleteScopeRecursive(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeRecursiveStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteScopeRecursive(scopeInfo, callback);
+        }
+
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .createStream(streamConfig, callback);
@@ -2257,9 +2262,6 @@ public class ControllerImpl implements Controller {
                 io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo request, 
                 RPCAsyncCallback<SegmentRanges> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getCurrentSegmentsKeyValueTable(request, callback);
-        }
-
-        public void deleteScopeRecursive(ScopeInfo build, RPCAsyncCallback<DeleteScopeRecursiveStatus> callback) {
         }
     }
 }

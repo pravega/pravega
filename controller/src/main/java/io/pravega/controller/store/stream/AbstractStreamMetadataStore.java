@@ -52,6 +52,7 @@ import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.Getter;
@@ -310,6 +311,33 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             } else {
                 log.error(context.getRequestId(), "DeleteScope failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
+            }
+        }), executor);
+    }
+
+    /**
+     * Delete a scope recursively with given name.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @return DeleteScopeRecursiveStatus future.
+     */
+    @Override
+    public CompletableFuture<DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scopeName, final OperationContext ctx,
+                                                            Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+
+        return Futures.completeOn(getScope(scopeName, context).deleteScopeRecursive(context).handle((result, e) -> {
+            Throwable ex = Exceptions.unwrap(e);
+            if (ex == null) {
+                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SUCCESS).build();
+            }
+            if (ex instanceof StoreException.DataNotFoundException) {
+                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build();
+            } else if (ex instanceof StoreException.DataNotEmptyException) {
+                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_EMPTY).build();
+            } else {
+                log.error(context.getRequestId(), "DeleteScopeRecursive failed for scope {} due to {} ", scopeName, ex);
+                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.FAILURE).build();
             }
         }), executor);
     }
