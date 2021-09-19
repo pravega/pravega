@@ -783,7 +783,7 @@ public class SystemJournal {
                 executor)
                 .handleAsync((v, e) -> {
                     // If read is not done and we have exception then throw.
-                    if ((!supressExceptionWarning && shouldBreak.get()) || (!isReadDone.get() && lastException.get() != null)) {
+                    if (shouldBreak.get() || (!isReadDone.get() && lastException.get() != null)) {
                         throw new CompletionException(lastException.get());
                     }
                     return v;
