@@ -1142,7 +1142,6 @@ Update configuration of an existing stream
 |**timestampAggregationTimeout**  <br />*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
-
 #### Responses
 
 |HTTP Code|Description|Schema|
@@ -1490,6 +1489,11 @@ Updates the current state of the stream
 *Type* : long
 
 
+<a name="rolloversizebytes"></a>
+### RolloverSizeBytes
+*Type* : long
+
+
 <a name="scalemetadata"></a>
 
 ### ScaleMetadata
@@ -1603,6 +1607,11 @@ Updates the current state of the stream
 
 <a name="timestampaggregationtimeout"></a>
 
+### TimestampAggregationTimeout
+*Type* : long
+
+
+<a name="timestampaggregationtimeout"></a>
 ### TimestampAggregationTimeout
 *Type* : long
 

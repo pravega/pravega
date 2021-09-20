@@ -191,13 +191,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             commitWriterFuture.complete(clientFactory.createEventWriter(
                     config.getCommitStreamName(),
                     ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
-                    EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()));
+                    EventWriterConfig.builder().enableConnectionPooling(true).retryAttempts(Integer.MAX_VALUE).build()));
         }
         if (!abortWriterFuture.isDone()) {
             abortWriterFuture.complete(clientFactory.createEventWriter(
                     config.getAbortStreamName(),
                     ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
-                    EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()));
+                    EventWriterConfig.builder().enableConnectionPooling(true).retryAttempts(Integer.MAX_VALUE).build()));
         }
         this.setReady();
     }

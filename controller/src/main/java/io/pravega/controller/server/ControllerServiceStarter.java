@@ -252,7 +252,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 clientConfigBuilder.enableTlsToSegmentStore(tlsEnabledForSegmentStore.get());
             }
             
-            ClientConfig clientConfig = clientConfigBuilder.build();
+            // Use one connection per Segment Store to save up resources.
+            ClientConfig clientConfig = clientConfigBuilder.maxConnectionsPerSegmentStore(1).build();
             connectionFactory = connectionFactoryRef.orElseGet(() -> new SocketConnectionFactoryImpl(clientConfig));
             connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
             segmentHelper = segmentHelperRef.orElseGet(() -> new SegmentHelper(connectionPool, hostStore, controllerExecutor));
