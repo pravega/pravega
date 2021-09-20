@@ -74,15 +74,17 @@ create_bookie_dirs() {
 }
 
 # Create a Bookie ID if this is a newly added bookkeeper pod
-# or read the Bookie ID if it already exists
+# or read the Bookie ID if a cookie containing this value already exists
 set_bookieid() {
   IFS=',' read -ra journal_directories <<< $BK_journalDirectories
-  BK_ID_FILE="${journal_directories[0]}/current/VERSION"
-  if [ `find ${BK_ID_FILE} | wc -l` -gt 0 ]; then
-    bkHost=`cat ${BK_ID_FILE} | grep bookieHost`
+  COOKIE="${journal_directories[0]}/current/VERSION"
+  if [ `find ${COOKIE} | wc -l` -gt 0 ]; then
+    # Reading the Bookie ID value from the existing cookie
+    bkHost=`cat ${COOKIE} | grep bookieHost`
     IFS=" " read -ra id <<< $bkHost
     BK_bookieId=${id[1]:1:-1}
   else
+    # Creating a new Bookie ID following the latest nomenclature
     BK_bookieId="`hostname -s`-${RANDOM}"
   fi
   echo "BookieID = $BK_bookieId"
