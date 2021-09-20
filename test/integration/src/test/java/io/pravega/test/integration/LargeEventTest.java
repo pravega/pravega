@@ -265,16 +265,47 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
 
-        // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
-        this.server.close();
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-        this.server.startListening();
+        Runnable restart = () -> {
+            // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
+            this.server.close();
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+            this.server.startListening();
+        };
+        restart.run();
 
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, TINY_EVENT_SIZE);
-        // Generate new data.
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, data);
+        validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
+
+        // Clear objects necessary for read-write validation.
+        stopReadFlag = new AtomicBoolean(false);
+        eventsReadFromPravega.clear();
+        eventReadCount.set(0);
+        // Generate new data.
+        data = generateEventData(NUM_WRITERS, events * 2, events, LARGE_EVENT_SIZE);
+        merge(eventsWrittenToPravega, data);
+
+        // Now try the restart *during* a large event write.
+        AtomicReference<Boolean> latch = new AtomicReference<>(true);
+        try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch, restart);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
+            // Start writing events to the stream.
+            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  data);
+            // Create a ReaderGroup.
+            createReaderGroup(readerGroupName, readerGroupManager, streamName);
+            // Create Readers.
+            val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, eventsReadFromPravega);
+            Futures.allOf(writers).get();
+            stopReadFlag.set(true);
+
+            Futures.allOf(readers).get();
+
+            log.info("Deleting ReaderGroup: {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
 
         validateCleanUp(streamName);
@@ -544,7 +575,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 }
             }
         }
-        log.info("Read/Write cycle validated.");
+        log.info("Read/Write validation completed: {} events read matched {} events written. |", eventsRead.size(), writesSize);
     }
 
     void merge(Map<Integer, List<ByteBuffer>> sink, Map<Integer, List<ByteBuffer>> source) {
@@ -583,8 +614,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 connection = conn.get();
             } catch (ExecutionException e) {
                 e.printStackTrace();
+                Assert.fail("Exception occurred while waiting for the ClientConnection.");
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                Assert.fail("Exception occurred while waiting for the ClientConnection");
             }
             // If no callback is provided default to closing the connection.
             // This callback will be called *once* mid write.
