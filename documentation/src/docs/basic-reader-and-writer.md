@@ -1,3 +1,7 @@
+---
+title: Basic Reader and Writer
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Working with Pravega: Basic Reader and Writer
 
 Let's examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be

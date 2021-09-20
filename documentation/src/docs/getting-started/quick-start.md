@@ -1,3 +1,7 @@
+---
+title: Running a Sample Application
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -7,7 +11,6 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Quick Start Guide
 
 ## Download the latest Pravega
 In one terminal, fetch the latest Pravega release:

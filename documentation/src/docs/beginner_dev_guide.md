@@ -1,3 +1,7 @@
+---
+title: Pravega - Creating Your First Application 
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega - Creating Your First Application
 
 Learn how to create a Hello World Pravega app. This guide covers:
 

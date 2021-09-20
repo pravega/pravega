@@ -1,3 +1,7 @@
+---
+title: Manual Installation
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Manual Installation
 
 This page describes the prerequisites and installation steps to deploy Pravega in a multi-node production environment.
 

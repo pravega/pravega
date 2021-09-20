@@ -1,3 +1,7 @@
+---
+title: Transactions
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Working with Pravega: Transactions
 
 This article explores how to write a set of Events to a Stream atomically using
 Pravega Transactions.

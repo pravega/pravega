@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -37,7 +38,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -601,6 +607,38 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         @Override
         public String toString() {
             return isEmpty() ? "<EMPTY>" : String.format("OG-NG = %d-%d", this.oldestGeneration, this.newestGeneration);
+        }
+    }
+
+    /**
+     * A contributor to manage the health of cache manager.
+     */
+    public static class CacheManagerHealthContributor extends AbstractHealthContributor {
+
+        private final CacheManager cacheManager;
+
+        public CacheManagerHealthContributor(@NonNull CacheManager cacheManager) {
+            super("CacheManager");
+            this.cacheManager = cacheManager;
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = Status.DOWN;
+            boolean running = !cacheManager.closed.get();
+            if (running) {
+                status = Status.UP;
+            }
+
+            builder.details(ImmutableMap.of(
+                    "cacheState", this.cacheManager.lastCacheState.get(),
+                    "numOfClients", this.cacheManager.clients.size(),
+                    "currentGeneration", this.cacheManager.currentGeneration,
+                    "oldGeneration", this.cacheManager.oldestGeneration,
+                    "essentialEntriesOnly", this.cacheManager.essentialEntriesOnly
+            ));
+
+            return status;
         }
     }
 

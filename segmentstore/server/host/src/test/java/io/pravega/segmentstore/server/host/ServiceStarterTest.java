@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -31,6 +32,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+/**
+ * Test the functionality of ServiceStarter used to setup segment store.
+ */
 @RunWith(SerializedClassRunner.class)
 public class ServiceStarterTest {
 
@@ -70,6 +74,7 @@ public class ServiceStarterTest {
         @Cleanup
         CuratorFramework zkClient = serviceStarter.createZKClient();
         zkClient.blockUntilConnected();
+        @Cleanup
         ZKHealthContributor zkHealthContributor = new ZKHealthContributor(zkClient);
         Health.HealthBuilder builder = Health.builder().name(zkHealthContributor.getName());
         Status zkStatus = zkHealthContributor.doHealthCheck(builder);
@@ -78,6 +83,18 @@ public class ServiceStarterTest {
         zkClient.close();
         zkStatus = zkHealthContributor.doHealthCheck(builder);
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, zkStatus);
+    }
+
+    /**
+     * Check health of SegmentContainerRegistry
+     */
+    @Test
+    public void testSegmentContainerRegistryHealth() {
+        @Cleanup
+        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(serviceStarter.getServiceBuilder().getSegmentContainerRegistry());
+        Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
+        Status status = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
     }
 
     /**

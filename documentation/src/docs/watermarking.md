@@ -1,3 +1,7 @@
+---
+title: Watermarking
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Watermarking
 
 Stream-processing applications may require a time-bounded set of metrics to make a calculation, make a decision, or
 commit a transaction. Pravega watermarking provides a way for applications to define time and know with some certainty

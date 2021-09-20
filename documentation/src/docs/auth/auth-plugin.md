@@ -1,3 +1,7 @@
+---
+title: Implementation of Pravega Authentication/Authorization Plugin
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Implementation of Pravega Authentication/Authorization Plugin
 
 This guide describes in detail the Authentication/Authorization plugin model for Pravega.
 

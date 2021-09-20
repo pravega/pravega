@@ -1,3 +1,7 @@
+---
+title: Pravega Gateways
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Pravega Gateways
 
 As part of the Pravega ecosystem, we provide a set of Gateways that can help applications and services to
 interact with Pravega:

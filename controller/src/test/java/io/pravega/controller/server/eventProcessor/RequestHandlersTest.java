@@ -258,7 +258,7 @@ public abstract class RequestHandlersTest {
         verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                 .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                 .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
 
@@ -368,7 +368,7 @@ public abstract class RequestHandlersTest {
             verify(streamStore1Spied, times(invocationCount.get("completeRollingTxn")))
                     .completeRollingTxn(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                     .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
         } else {
@@ -398,8 +398,8 @@ public abstract class RequestHandlersTest {
                     signal.complete(null);
                     waitOn.join();
                     return store.completeCommitTransactions(x.getArgument(0), x.getArgument(1),
-                            x.getArgument(2), x.getArgument(3), x.getArgument(4));
-                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                            x.getArgument(2), x.getArgument(3), x.getArgument(4), Collections.emptyMap());
+                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
                 break;
             case "startRollingTxn":
                 doAnswer(x -> {
@@ -936,7 +936,7 @@ public abstract class RequestHandlersTest {
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis(), 0L).join();
 
-        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L).join().getKey().getId();
+        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L, 1024 * 1024L).join().getKey().getId();
         streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, 
                 null, executor).join();
         

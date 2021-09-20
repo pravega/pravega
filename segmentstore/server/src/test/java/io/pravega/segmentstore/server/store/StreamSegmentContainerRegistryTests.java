@@ -105,6 +105,37 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the getContainers method for registered and unregistered containers.
+     */
+    @Test
+    public void testGetContainers() throws Exception {
+        final int containerCount = 1000;
+        TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
+
+        HashSet<Integer> expectedContainerIds = new HashSet<>();
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            registry.startContainer(containerId, TIMEOUT);
+            expectedContainerIds.add(containerId);
+        }
+
+        HashSet<Integer> actualHandleIds = new HashSet<>();
+        for (SegmentContainer segmentContainer : registry.getContainers()) {
+            actualHandleIds.add(segmentContainer.getId());
+            Assert.assertTrue("Wrong container Java type.", segmentContainer instanceof TestContainer);
+            segmentContainer.close();
+        }
+
+        AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
+
+        AssertExtensions.assertThrows(
+                "getContainer did not throw when passed an invalid container id.",
+                () -> registry.getContainer(containerCount + 1),
+                ex -> ex instanceof ContainerNotFoundException);
+    }
+
+    /**
      * Tests the ability to stop the container via the stopContainer() method.
      */
     @Test

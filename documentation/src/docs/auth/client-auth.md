@@ -1,3 +1,7 @@
+---
+title: Client Auth Interface
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Client _auth_ Interface
+
 Pravega client can access Pravega APIs through `grpc`. Some of the admin APIs can be accessed via `REST` API. 
 The Authorization/Authentication API and plugin works for both of these interfaces.
 

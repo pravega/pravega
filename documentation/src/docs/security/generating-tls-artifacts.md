@@ -1,3 +1,7 @@
+---
+title: Creating TLS Certificates, Keys and Other TLS Artifacts
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Creating TLS Certificates, Keys and Other TLS Artifacts
 
 This document describes how to create TLS certificates, keys and other artifacts for the server components. The 
 generated CA certificate and Java truststore may also be used on client-side for validating the servers' certificates.

@@ -1,3 +1,7 @@
+---
+title: Deploying Pravega on Kubernetes 101
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Deploying Pravega on Kubernetes 101
 
 We show you how to deploy your "first Pravega cluster in Kubernetes". We provide a step-by-step guide 
 to deploy Pravega in both Google Kubernetes Engine (GKE) and Amazon Elastic Kubernetes Service (EKS). 

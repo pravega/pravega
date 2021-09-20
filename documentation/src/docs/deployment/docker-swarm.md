@@ -1,3 +1,7 @@
+---
+title: Deploying in a Docker Swarm
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Deploying in a Docker Swarm
 
 Docker Swarm can be used to quickly spin up a distributed Pravega cluster that can easily scale up and down. Unlike
 `docker-compose`, this is useful for more than just testing and development. In future, Docker Swarm will be suitable for production workloads.

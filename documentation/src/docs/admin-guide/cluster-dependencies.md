@@ -1,3 +1,7 @@
+---
+title: Cluster Service Dependencies
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Cluster Service Dependencies
 
 A Pravega Cluster consists of a set of services (Zookeeper, Bookkeeper, Segment Store, Controller and Long-Term Storage)
 that interact among each other. Understanding such dependencies and the parameters that express them is key. Next, we describe

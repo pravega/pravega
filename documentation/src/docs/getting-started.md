@@ -1,3 +1,7 @@
+---
+title: Getting Started
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Getting Started
-
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
 application.

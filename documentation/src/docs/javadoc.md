@@ -1,3 +1,7 @@
+---
+title: Pravega API Reference
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega API Reference
 
 Pravega provides applications with a reliable, fast and consistent storage service for data Streams.
 Along the years, Pravega has also incorporated powerful APIs on top of the Stream primitive that allows
