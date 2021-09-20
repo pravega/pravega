@@ -237,14 +237,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                 final CompletableFuture<Void> f;
                                 if (segmentMetadata.getOwnerEpoch() < this.epoch) {
                                     log.debug("{} openWrite - Segment needs ownership change - segment={}.", logPrefix, segmentMetadata.getName());
-                                    f = claimOwnership(txn, segmentMetadata)
-                                            .exceptionally(e -> {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                                    throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                                }
-                                                throw new CompletionException(ex);
-                                            });
+                                    f = claimOwnership(txn, segmentMetadata);
                                 } else {
                                     f = CompletableFuture.completedFuture(null);
                                 }
@@ -262,7 +255,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     executor)
                     .handleAsync( (v, ex) -> {
                         if (null != ex) {
-                            log.warn("{} openWrite - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
+                            log.debug("{} openWrite - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
                             handleException(streamSegmentName, ex);
                         }
                         return v;
@@ -396,7 +389,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             }, executor)
             .handleAsync((v, e) -> {
                 if (null != e) {
-                    log.warn("{} create - exception segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, timer.getElapsedMillis(), e);
+                    log.debug("{} create - exception segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, timer.getElapsedMillis(), e);
                     handleException(streamSegmentName, e);
                 }
                 return v;
@@ -405,13 +398,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     private void handleException(String streamSegmentName, Throwable e) {
-        if (null != e) {
             val ex = Exceptions.unwrap(e);
             if (ex instanceof StorageMetadataWritesFencedOutException) {
                 throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
             }
             throw new CompletionException(ex);
-        }
     }
 
     @Override
@@ -439,7 +430,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "seal", handle);
             Timer timer = new Timer();
-            log.debug("{} seal - segment={} latency={}.", logPrefix, handle.getSegmentName());
+            log.debug("{} seal - started segment={} latency={}.", logPrefix, handle.getSegmentName());
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
@@ -466,13 +457,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                 log.debug("{} seal - finished segment={} latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis());
                                 LoggerHelpers.traceLeave(log, "seal", traceId, handle);
                             }, executor), executor)
-                    .handleAsync( (v, ex) -> {
-                        if (null != ex) {
-                            log.warn("{} seal - exception segment={} latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
-                            handleException(streamSegmentName, ex);
-                        }
-                        return v;
-                    }, executor);
+                    .exceptionally( ex -> {
+                        log.warn("{} seal - exception segment={} latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        handleException(streamSegmentName, ex);
+                        return null;
+                    });
         }, handle.getSegmentName());
     }
 
@@ -556,13 +545,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                             }, executor);
                                 }, executor);
                     }, executor), executor)
-                    .handleAsync( (v, ex) -> {
-                        if (null != ex) {
-                            log.warn("{} delete - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
-                            handleException(streamSegmentName, ex);
-                        }
-                        return v;
-                    }, executor);
+                    .exceptionally( ex -> {
+                        log.warn("{} delete - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        handleException(streamSegmentName, ex);
+                        return null;
+                    });
         }, handle.getSegmentName());
     }
 
@@ -614,14 +601,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                     // In case of a fail-over, length recorded in metadata will be lagging behind its actual length in the storage.
                                     // This can happen with lazy commits that were still not committed at the time of fail-over.
                                     f = executeSerialized(() ->
-                                        claimOwnership(txn, segmentMetadata)
-                                            .exceptionally(e -> {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                                    throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                                }
-                                                throw new CompletionException(ex);
-                                            }), streamSegmentName);
+                                        claimOwnership(txn, segmentMetadata), streamSegmentName);
                                 } else {
                                     f = CompletableFuture.completedFuture(null);
                                 }
@@ -635,7 +615,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     executor)
                     .handleAsync( (v, ex) -> {
                         if (null != ex) {
-                            log.warn("{} openRead - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
+                            log.debug("{} openRead - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
                             handleException(streamSegmentName, ex);
                         }
                         return v;
@@ -678,7 +658,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     executor)
                     .handleAsync( (v, ex) -> {
                         if (null != ex) {
-                            log.warn("{} getStreamSegmentInfo - exception segment={}.", logPrefix, streamSegmentName, ex);
+                            log.debug("{} getStreamSegmentInfo - exception segment={}.", logPrefix, streamSegmentName, ex);
                             handleException(streamSegmentName, ex);
                         }
                         return v;

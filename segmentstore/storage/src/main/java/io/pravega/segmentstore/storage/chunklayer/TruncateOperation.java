@@ -114,6 +114,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 }
 
                                                 // Remove read index block entries.
+                                                // To avoid possibility of unintentional deadlock, skip this step for storage system segments.
                                                 if (!segmentMetadata.isStorageSystemSegment()) {
                                                     chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
                                                 }
