@@ -86,7 +86,14 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
-        return null;
+        this.sortedStreamsInScope.clear();
+        this.sortedStreamsInScope = null;
+        this.streamsPositionMap.clear();
+        this.streamsPositionMap = null;
+
+        this.kvTablesMap.clear();
+        this.readerGroupsMap.clear();
+        return CompletableFuture.completedFuture(null);
     }
 
     @Synchronized
