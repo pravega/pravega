@@ -16,8 +16,6 @@
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
-import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
@@ -31,6 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.cli.admin.utils.SerializerUtils.CHUNK_METADATA_FIELD_MAP;
+import static io.pravega.cli.admin.utils.SerializerUtils.READ_INDEX_BLOCK_METADATA_FIELD_MAP;
+import static io.pravega.cli.admin.utils.SerializerUtils.SEGMENT_METADATA_FIELD_MAP;
 import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
 
 public class GetTableSegmentCommand extends TableSegmentCommand {
@@ -74,9 +75,15 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
 
     private void userFriendlyOutput(String data) {
         Map<String, String> dataMap = parseStringData(data);
-        if (getCommandArgs().getState().getKeySerializer() instanceof ContainerMetadataSerializer) {
-            output("SLTS metadata info: ");
-        } else if (getCommandArgs().getState().getValueSerializer() instanceof SltsMetadataSerializer) {
+        if (dataMap.containsKey("key")) {
+            if (CHUNK_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
+                output("SLTS metadata info (ChunkMetadata): ");
+            } else if (SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
+                output("SLTS metadata info (SegmentMetadata): ");
+            } else if (READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
+                output("SLTS metadata info (ReadIndexBlockMetadata): ");
+            }
+        } else if (dataMap.containsKey("segmentId") && SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
             output("Container metadata info: ");
         }
         dataMap.forEach((k, v) -> output("%s = %s;", k, v));

@@ -63,8 +63,13 @@ public class SetKeySerializerCommand extends TableSegmentCommand {
     public void execute() {
         ensureArgCount(1);
 
-        String identifier = getArg(0);
-        getCommandArgs().getState().setKeySerializer(SERIALIZERS.get(identifier.toLowerCase()));
+        String identifier = getArg(0).toLowerCase();
+        if (!SERIALIZERS.containsKey(identifier)) {
+            output("Key serializer named %s does not exist.", identifier);
+        } else {
+            getCommandArgs().getState().setKeySerializer(SERIALIZERS.get(identifier));
+            output("Key serializer changed to %s successfully.", identifier);
+        }
     }
 
     public static CommandDescriptor descriptor() {

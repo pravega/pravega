@@ -42,8 +42,13 @@ public class SetValueSerializerCommand extends TableSegmentCommand {
     public void execute() {
         ensureArgCount(1);
 
-        String identifier = getArg(0);
-        getCommandArgs().getState().setValueSerializer(SERIALIZERS.get(identifier.toLowerCase()));
+        String identifier = getArg(0).toLowerCase();
+        if (!SERIALIZERS.containsKey(identifier)) {
+            output("Value serializer named %s does not exist.", identifier);
+        } else {
+            getCommandArgs().getState().setValueSerializer(SERIALIZERS.get(identifier));
+            output("Value serializer changed to %s successfully.", identifier);
+        }
     }
 
     public static CommandDescriptor descriptor() {

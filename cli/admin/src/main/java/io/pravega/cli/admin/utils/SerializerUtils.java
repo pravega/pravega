@@ -15,15 +15,61 @@
  */
 package io.pravega.cli.admin.utils;
 
+import com.google.common.collect.ImmutableMap;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
+import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Utility class for serialization purposes.
  */
 public class SerializerUtils {
+    public static final Map<String, Function<SegmentProperties, Object>> SEGMENT_PROPERTIES_FIELD_MAP =
+            ImmutableMap.<String, Function<SegmentProperties, Object>>builder()
+                    .put("name", SegmentProperties::getName)
+                    .put("sealed", SegmentProperties::isSealed)
+                    .put("startOffset", SegmentProperties::getStartOffset)
+                    .put("length", SegmentProperties::getLength)
+                    .build();
+
+    public static final Map<String, Function<ChunkMetadata, Object>> CHUNK_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<ChunkMetadata, Object>>builder()
+                    .put("name", ChunkMetadata::getKey)
+                    .put("length", ChunkMetadata::getLength)
+                    .put("nextChunk", ChunkMetadata::getNextChunk)
+                    .put("status", ChunkMetadata::getStatus)
+                    .build();
+
+    public static final Map<String, Function<SegmentMetadata, Object>> SEGMENT_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<SegmentMetadata, Object>>builder()
+                    .put("name", SegmentMetadata::getKey)
+                    .put("length", SegmentMetadata::getLength)
+                    .put("chunkCount", SegmentMetadata::getChunkCount)
+                    .put("startOffset", SegmentMetadata::getStartOffset)
+                    .put("status", SegmentMetadata::getStatus)
+                    .put("maxRollingLength", SegmentMetadata::getMaxRollinglength)
+                    .put("firstChunk", SegmentMetadata::getFirstChunk)
+                    .put("lastChunk", SegmentMetadata::getLastChunk)
+                    .put("lastModified", SegmentMetadata::getLastModified)
+                    .put("firstChunkStartOffset", SegmentMetadata::getFirstChunkStartOffset)
+                    .put("lastChunkStartOffset", SegmentMetadata::getLastChunkStartOffset)
+                    .put("ownerEpoch", SegmentMetadata::getOwnerEpoch)
+                    .build();
+
+    public static final Map<String, Function<ReadIndexBlockMetadata, Object>> READ_INDEX_BLOCK_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<ReadIndexBlockMetadata, Object>>builder()
+                    .put("name", ReadIndexBlockMetadata::getKey)
+                    .put("chunkName", ReadIndexBlockMetadata::getChunkName)
+                    .put("startOffset", ReadIndexBlockMetadata::getStartOffset)
+                    .put("status", ReadIndexBlockMetadata::getStatus)
+                    .build();
 
     /**
      * Append the given field name-value in a user-friendly format to the StringBuilder.

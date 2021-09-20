@@ -16,6 +16,8 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
+import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
@@ -225,6 +227,43 @@ public abstract class AbstractSegmentStoreCommandsTest {
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testSetValueSerializerCommand() throws Exception {
+        Assert.assertNull(STATE.get().getValueSerializer());
+
+        String commandResult = TestUtils.executeCommand("table-segment set-value-serializer dummy", STATE.get());
+        Assert.assertTrue(commandResult.contains("Value serializer named dummy does not exist."));
+        Assert.assertNull(STATE.get().getValueSerializer());
+
+        commandResult = TestUtils.executeCommand("table-segment set-value-serializer slts_value", STATE.get());
+        Assert.assertTrue(commandResult.contains("Value serializer changed to slts_value successfully."));
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof SltsMetadataSerializer);
+
+        commandResult = TestUtils.executeCommand("table-segment set-value-serializer container_meta_value", STATE.get());
+        Assert.assertTrue(commandResult.contains("Value serializer changed to container_meta_value successfully."));
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+    }
+
+    @Test
+    public void testSetKeySerializerCommand() throws Exception {
+        String testString = "hello";
+        Assert.assertNull(STATE.get().getKeySerializer());
+
+        String commandResult = TestUtils.executeCommand("table-segment set-key-serializer dummy", STATE.get());
+        Assert.assertTrue(commandResult.contains("Key serializer named dummy does not exist."));
+        Assert.assertNull(STATE.get().getKeySerializer());
+
+        commandResult = TestUtils.executeCommand("table-segment set-key-serializer slts_key", STATE.get());
+        Assert.assertTrue(commandResult.contains("Key serializer changed to slts_key successfully."));
+        Assert.assertNotNull(STATE.get().getKeySerializer());
+        Assert.assertEquals(testString, STATE.get().getKeySerializer().deserialize(STATE.get().getKeySerializer().serialize(testString)));
+
+        commandResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
+        Assert.assertTrue(commandResult.contains("Key serializer changed to container_meta_key successfully."));
+        Assert.assertNotNull(STATE.get().getKeySerializer());
+        Assert.assertEquals(testString, STATE.get().getKeySerializer().deserialize(STATE.get().getKeySerializer().serialize(testString)));
     }
 
     @After
