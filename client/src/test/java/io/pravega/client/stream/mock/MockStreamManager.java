@@ -151,8 +151,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
-        return false;
+    public boolean deleteScopeRecursive(String scopeName) {
+        return Boolean.TRUE.equals(Futures.getAndHandleExceptions(controller.deleteScopeRecursive(scope),
+                RuntimeException::new));
     }
 
     @Override
