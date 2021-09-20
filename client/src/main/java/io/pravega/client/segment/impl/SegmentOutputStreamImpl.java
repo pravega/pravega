@@ -574,6 +574,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (Exception e) {
                 failConnection(e);
                 if (e instanceof RetriesExhaustedException) {
+                    log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
                     //throw an exception to the external world that the flush failed due to RetriesExhaustedException
                     throw Exceptions.sneakyThrow(e);
                 }
@@ -591,6 +592,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         } else if (state.exception instanceof RetriesExhaustedException) {
             // All attempts to connect with SSS have failed.
             // The number of retry attempts is based on EventWriterConfig
+            log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
             throw Exceptions.sneakyThrow(state.exception);
         }
     }
