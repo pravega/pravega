@@ -77,21 +77,13 @@ create_bookie_dirs() {
 # or read the Bookie ID if it already exists
 set_bookieid() {
   IFS=',' read -ra journal_directories <<< $BK_journalDirectories
-  IFS=',' read -ra ledger_directories <<< $BK_ledgerDirectories
-  IFS=" " eval 'directory_names="${journal_directories[*]} ${ledger_directories[*]}"'
-  BK_ID_DIR="${journal_directories[0]}"
-  BK_ID_FILE="${BK_ID_DIR}/id"
+  BK_ID_FILE="${journal_directories[0]}/current/VERSION"
   if [ `find ${BK_ID_FILE} | wc -l` -gt 0 ]; then
-    echo "Found BookieID"
-    BK_bookieId=`cat ${BK_ID_FILE}`
+    bkHost=`cat ${BK_ID_FILE} | grep bookieHost`
+    IFS=" " read -ra id <<< $bkHost
+    BK_bookieId=${id[1]:1:-1}
   else
-    if [ `find $directory_names -type f 2> /dev/null | wc -l` -gt 0 ]; then
-      HOST="$(echo -e `hostname -f` | sed -e 's/[[:space:]]*$//')"
-      BK_bookieId="${HOST}:${BOOKIE_PORT}"
-    else
-      HOST="`hostname -s`"
-      BK_bookieId="${HOST}-${RANDOM}"
-    fi
+    BK_bookieId="`hostname -s`-${RANDOM}"
   fi
   echo "BookieID = $BK_bookieId"
   sed -i "s|.*bookieId=.*\$|bookieId=${BK_bookieId}|" ${BK_HOME}/conf/bk_server.conf
@@ -165,8 +157,6 @@ initialize_cluster() {
         fi
     fi
     set -e
-    echo "Writing BookieID ${BK_bookieId} in the persistent file ${BK_ID_FILE}"
-    echo ${BK_bookieId} > ${BK_ID_FILE}
 }
 
 format_bookie_data_and_metadata() {
