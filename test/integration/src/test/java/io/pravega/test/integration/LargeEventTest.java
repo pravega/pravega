@@ -529,10 +529,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             log.info("Read Count: {}, Write Count: {}", readCount.get(), writeCount.get());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 final ByteBuffer event = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
+                // Update if event read is not null.
                 if (event != null) {
-                    // This first byte should be the writerId.
-                    log.info("Reading Event [{}: {}], {} total bytes.", (event.get(0) << 8) + event.get(1), event.get(3), event.array().length);
-                    // Update if event read is not null.
                     readResult.add(event);
                     readCount.incrementAndGet();
                 }
