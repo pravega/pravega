@@ -835,10 +835,12 @@ public class ControllerService {
     public CompletableFuture<DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scope, final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Timer timer = new Timer();
-        OperationContext context = streamStore.createScopeContext(scope, requestId);
 
-        return streamStore.deleteScopeRecursive(scope, context, executor).thenApply(r -> reportDeleteScopeRecursiveMetrics(scope, r,
-                timer.getElapsed()));
+        return streamMetadataTasks.deleteScopeRecursive(scope, requestId)
+                .thenApplyAsync(status -> {
+                    reportDeleteScopeRecursiveMetrics(scope, status, timer.getElapsed());
+                    return DeleteScopeRecursiveStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     /**
@@ -1041,10 +1043,10 @@ public class ControllerService {
         return status;
     }
 
-    private DeleteScopeRecursiveStatus reportDeleteScopeRecursiveMetrics(String scope, DeleteScopeRecursiveStatus status, Duration latency) {
-        if (status.getStatus().equals(DeleteScopeRecursiveStatus.Status.SUCCESS)) {
+    private DeleteScopeRecursiveStatus.Status reportDeleteScopeRecursiveMetrics(String scope, DeleteScopeRecursiveStatus.Status status, Duration latency) {
+        if (status.equals(DeleteScopeRecursiveStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteScope(latency);
-        } else if (status.getStatus().equals(DeleteScopeRecursiveStatus.Status.FAILURE)) {
+        } else if (status.equals(DeleteScopeRecursiveStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().deleteScopeFailed(scope);
         }
         return status;

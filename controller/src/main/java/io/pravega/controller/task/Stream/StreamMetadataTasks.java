@@ -59,12 +59,13 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
-import io.pravega.shared.controller.event.RGStreamCutRecord;
+import io.pravega.shared.controller.event.*;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
@@ -85,15 +86,6 @@ import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.CreateReaderGroupEvent;
-import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
-import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -137,6 +129,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+    private static final int SCOPE_DELETION_MAX_RETRIES = 10;
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
@@ -718,6 +711,32 @@ public class StreamMetadataTasks extends TaskBase {
                                                            OperationContext context) {
         return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
            ReaderGroupState.DELETING, currentState, context, executor));
+    }
+
+    /**
+     * Delete Scope Recursively.
+     *
+     * @param scope           scope to be deleted.
+     * @param requestId       request id.
+     * @return deletion status.
+     */
+    public CompletableFuture<DeleteScopeRecursiveStatus.Status> deleteScopeRecursive(final String scope,
+                                                                              final long requestId) {
+        final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
+        return RetryHelper.withRetriesAsync(() ->
+                streamMetadataStore.checkScopeExists(scope, context, executor)
+                        .thenCompose(exists -> {
+                            if(!exists){
+                                return CompletableFuture.completedFuture(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND);
+                            } else {
+                                DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                                            () -> streamMetadataStore.setScopeState(scope, State.SEALING, context, executor))
+                                                    .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeleted(scope, context)))
+                                                    .thenApply(y -> DeleteScopeRecursiveStatus.Status.SUCCESS);
+                            }
+                        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
+        );
     }
 
     /**
@@ -1608,6 +1627,11 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Boolean> isDeleted(String scope, String stream, OperationContext context) {
         return streamMetadataStore.checkStreamExists(scope, stream, context, executor)
+                .thenApply(x -> !x);
+    }
+
+    private CompletableFuture<Boolean> isScopeDeleted(String scope, OperationContext context) {
+        return streamMetadataStore.checkScopeExists(scope, context, executor)
                 .thenApply(x -> !x);
     }
 

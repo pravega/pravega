@@ -165,6 +165,18 @@ public interface StreamMetadataStore extends AutoCloseable {
                                      final Executor executor);
 
     /**
+     * Api to set the state for scope in metadata.
+     * @param scope scope name
+     * @param state scope state
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of boolean if state update succeeded.
+     */
+    CompletableFuture<Void> setScopeState(final String scope,
+                                     final State state, final OperationContext context,
+                                     final Executor executor);
+
+    /**
      * Api to get the state for stream from metadata.
      *
      * @param scope scope name

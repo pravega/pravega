@@ -34,7 +34,6 @@ public class DeleteScopeEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final long requestId;
-    private final long creationTime;
 
     @Override
     public String getKey() { return this.scope; }
@@ -68,13 +67,11 @@ public class DeleteScopeEvent implements ControllerEvent {
         private void write00(DeleteScopeEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeLong(e.requestId);
-            target.writeLong(e.creationTime);
         }
 
         private void read00(RevisionDataInput source, DeleteScopeEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.requestId(source.readLong());
-            b.creationTime(source.readLong());
         }
     }
 
