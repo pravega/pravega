@@ -28,24 +28,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
-import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.ContainerNotFoundException;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
@@ -979,8 +962,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.info(requestId, "Segment '{}' already exists and cannot perform operation '{}'.",
                      segment, operation);
             invokeSafely(connection::send, new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace), failureHandler);
-
-        } else if (u instanceof StreamSegmentNotExistsException) {
+        } else if (u instanceof StreamSegmentNotExistsException || u instanceof BadSegmentTypeException) {
             log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
                      segment, operation);
             invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace, offset), failureHandler);
