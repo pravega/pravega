@@ -329,14 +329,14 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         //region AutoCloseable implementation
 
         /**
-         * This method stop the service (superclass), auto-unregisters from the existing set of active
+         * This method stops the service (superclass), auto-unregisters from the existing set of active
          * {@link EventProcessor} instances (via onClose callback), and closes the metrics.
          */
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
-                super.close();
+                super.stopAsync();
                 this.metrics.close();
                 this.onClose.run();
             }
@@ -372,6 +372,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                            } else {
                                log.info("{}: Terminated.", this.traceObjectId);
                            }
+                           System.err.println("Exiting");
                            return null;
                        });
         }

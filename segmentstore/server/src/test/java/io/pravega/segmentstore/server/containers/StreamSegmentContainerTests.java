@@ -2446,6 +2446,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
         // Close the processor and unregister it.
         processor.close();
+        // Make sure that EventProcessor eventually terminates.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
 
         // Now, re-create the Event Processor with a handler to consume the events.
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
