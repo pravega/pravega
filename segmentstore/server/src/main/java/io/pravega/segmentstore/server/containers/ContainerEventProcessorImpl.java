@@ -372,7 +372,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                            } else {
                                log.info("{}: Terminated.", this.traceObjectId);
                            }
-                           System.err.println("Exiting");
                            return null;
                        });
         }
