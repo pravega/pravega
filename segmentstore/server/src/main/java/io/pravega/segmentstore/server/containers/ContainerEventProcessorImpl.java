@@ -339,16 +339,21 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
                 Services.onStop(super.stopAsync(),
                         () -> log.info("{}: EventProcessor service shutdown complete.", this.traceObjectId),
-                        ex -> log.warn("{}: Problem shutting down EventProcessor service.", this.traceObjectId, ex),
+                        this::failureCallback,
                         this.executor);
                 this.metrics.close();
                 this.onClose.run();
             }
         }
 
+        @VisibleForTesting
+        void failureCallback(Throwable ex) {
+            log.warn("{}: Problem shutting down EventProcessor service.", this.traceObjectId, ex);
+        }
+
         //endregion
 
-        //region Runnable implementation
+        //region AbstractThreadPoolService implementation
 
         @Override
         protected Duration getShutdownTimeout() {
