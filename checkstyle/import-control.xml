@@ -9,6 +9,7 @@
     <allow pkg="java"/>
     <allow pkg="javax.management"/>
     <allow pkg="javax.annotation"/>
+    <allow pkg="com.sun"/>
     <allow pkg="org.apache.commons.lang"/>
     <allow pkg="org.slf4j"/>
     <allow pkg="org.junit"/>

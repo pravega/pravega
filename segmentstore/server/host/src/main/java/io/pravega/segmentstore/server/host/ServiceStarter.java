@@ -262,16 +262,16 @@ public final class ServiceStarter {
         long xmx = Runtime.getRuntime().maxMemory();
         long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
         long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
-                .getVMOption("MaxDirectMemorySize").getValue());
-        maxDirectMemorySize = (maxDirectMemorySize==0)?xmx:maxDirectMemorySize;
+                                                                   .getVMOption("MaxDirectMemorySize").getValue());
+        maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
         long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
-        log.info("MaxDirectMemorySize is "+maxDirectMemorySize + " Cache size is "+cacheSize+ " Xmx value is "+xmx + " Netty DM "+nettyDirectMem);
+        log.info("MaxDirectMemorySize is " + maxDirectMemorySize + " Cache size is " + cacheSize + " Xmx value is " + xmx + " Netty DM " + nettyDirectMem);
         //run checks
         Preconditions.checkState(((com.sun.management.OperatingSystemMXBean) ManagementFactory
                         .getOperatingSystemMXBean()).getTotalPhysicalMemorySize() > (maxDirectMemorySize + xmx),
-                "MaxDirectMemorySize("+maxDirectMemorySize+"B) along with JVM Xmx value("+xmx+"B) configured is greater than the available system memory!");
+                "MaxDirectMemorySize(" + maxDirectMemorySize + "B) along with JVM Xmx value(" + xmx + "B) configured is greater than the available system memory!");
         Preconditions.checkState(maxDirectMemorySize > (cacheSize + nettyDirectMem),
-                "Cache size("+cacheSize+"B) along with Netty DirectMemory("+nettyDirectMem+"B)configured is more than the JVM MaxDirectMemory("+maxDirectMemorySize+"B) value!!");
+                "Cache size(" + cacheSize + "B) along with Netty DirectMemory(" + nettyDirectMem + "B)configured is more than the JVM MaxDirectMemory(" + maxDirectMemorySize + "B) value!!");
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
