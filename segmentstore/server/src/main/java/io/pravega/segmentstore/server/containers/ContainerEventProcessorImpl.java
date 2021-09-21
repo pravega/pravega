@@ -22,6 +22,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -336,7 +337,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
-                super.stopAsync();
+                Services.onStop(super.stopAsync(),
+                        () -> log.info("{}: EventProcessor service shutdown complete.", this.traceObjectId),
+                        ex -> log.warn("{}: Problem shutting down EventProcessor service.", this.traceObjectId, ex),
+                        this.executor);
                 this.metrics.close();
                 this.onClose.run();
             }
