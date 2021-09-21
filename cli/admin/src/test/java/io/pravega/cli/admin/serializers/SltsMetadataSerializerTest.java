@@ -19,10 +19,10 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
-import static io.pravega.cli.admin.utils.SerializerUtils.appendField;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
 import static org.junit.Assert.assertEquals;
 
-public class SerializerTest {
+public class SltsMetadataSerializerTest {
 
     @Test
     public void testSltsChunkMetadataSerializer() {
@@ -87,34 +87,6 @@ public class SerializerTest {
 
         String userString = userGeneratedMetadataBuilder.toString();
         SltsMetadataSerializer serializer = new SltsMetadataSerializer();
-        serializer.serialize(userString);
-    }
-
-    @Test
-    public void testContainerMetadataSerializer() {
-        StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
-        appendField(userGeneratedMetadataBuilder, "segmentId", "1");
-        appendField(userGeneratedMetadataBuilder, "name", "segment-name");
-        appendField(userGeneratedMetadataBuilder, "sealed", "false");
-        appendField(userGeneratedMetadataBuilder, "startOffset", "0");
-        appendField(userGeneratedMetadataBuilder, "length", "10");
-
-        String userString = userGeneratedMetadataBuilder.toString();
-        ContainerMetadataSerializer serializer = new ContainerMetadataSerializer();
-        ByteBuffer buf = serializer.serialize(userString);
-        assertEquals(userString, serializer.deserialize(buf));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testContainerMetadataSerializerArgumentFailure() {
-        StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
-        appendField(userGeneratedMetadataBuilder, "name", "segment-name");
-        appendField(userGeneratedMetadataBuilder, "sealed", "false");
-        appendField(userGeneratedMetadataBuilder, "startOffset", "0");
-        appendField(userGeneratedMetadataBuilder, "length", "10");
-
-        String userString = userGeneratedMetadataBuilder.toString();
-        ContainerMetadataSerializer serializer = new ContainerMetadataSerializer();
         serializer.serialize(userString);
     }
 }

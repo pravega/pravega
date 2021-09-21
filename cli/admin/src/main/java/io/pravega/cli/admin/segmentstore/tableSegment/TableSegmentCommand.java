@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
+import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.SegmentStoreCommand;
 
@@ -23,6 +24,13 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
 
     public TableSegmentCommand(CommandArgs args) {
         super(args);
+    }
+
+    void ensureSerializersExist() {
+        Preconditions.checkArgument(getCommandArgs().getState().getValueSerializer() != null, "The value serializer has not been set. " +
+                "Use the command \"table-segment set-value-serializer <serializer-name>\" and try again.");
+        Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null, "The key serializer has not been set. " +
+                "Use the command \"table-segment set-key-serializer <serializer-name>\" and try again.");
     }
 }
 

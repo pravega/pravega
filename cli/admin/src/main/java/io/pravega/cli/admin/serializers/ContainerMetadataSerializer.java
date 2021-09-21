@@ -15,7 +15,9 @@
  */
 package io.pravega.cli.admin.serializers;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -27,17 +29,26 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
-import static io.pravega.cli.admin.utils.SerializerUtils.SEGMENT_PROPERTIES_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.appendField;
-import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
-import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
+import java.util.function.Function;
 
 /**
  * An implementation of {@link Serializer} that converts a user-friendly string representing container metadata.
  */
-public class ContainerMetadataSerializer implements Serializer<String> {
+public class ContainerMetadataSerializer extends AbstractSerializer {
     private static final SegmentInfo.SegmentInfoSerializer SERIALIZER = new SegmentInfo.SegmentInfoSerializer();
+
+    public static final Map<String, Function<SegmentProperties, Object>> SEGMENT_PROPERTIES_FIELD_MAP =
+            ImmutableMap.<String, Function<SegmentProperties, Object>>builder()
+                    .put("name", SegmentProperties::getName)
+                    .put("sealed", SegmentProperties::isSealed)
+                    .put("startOffset", SegmentProperties::getStartOffset)
+                    .put("length", SegmentProperties::getLength)
+                    .build();
+
+    @Override
+    public String getName() {
+        return "container";
+    }
 
     @Override
     public ByteBuffer serialize(String value) {
@@ -71,7 +82,7 @@ public class ContainerMetadataSerializer implements Serializer<String> {
     public String deserialize(ByteBuffer serializedValue) {
         StringBuilder stringValueBuilder;
         try {
-            SegmentInfo data = SERIALIZER.deserialize(new ByteArrayInputStream(serializedValue.array()));
+            SegmentInfo data = SERIALIZER.deserialize(new ByteArraySegment(serializedValue).getReader());
             stringValueBuilder = new StringBuilder();
 
             appendField(stringValueBuilder, "segmentId", String.valueOf(data.getSegmentId()));

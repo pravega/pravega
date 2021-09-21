@@ -19,6 +19,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -27,20 +28,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public class PutTableSegmentCommand extends TableSegmentCommand {
+public class PutTableSegmentEntryCommand extends TableSegmentCommand {
 
     /**
      * Creates a new instance of the PutTableSegmentCommand.
      *
      * @param args The arguments for the command.
      */
-    public PutTableSegmentCommand(CommandArgs args) {
+    public PutTableSegmentEntryCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
     public void execute() {
         ensureArgCount(4);
+        ensureSerializersExist();
 
         final String fullyQualifiedTableSegmentName = getArg(0);
         final String segmentStoreHost = getArg(1);
@@ -50,9 +52,10 @@ public class PutTableSegmentCommand extends TableSegmentCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(
-                getCommandArgs().getState().getKeySerializer().serialize(key).array(),
-                getCommandArgs().getState().getValueSerializer().serialize(value).array());
+
+        ByteArraySegment serializedKey = new ByteArraySegment(getCommandArgs().getState().getKeySerializer().serialize(key));
+        ByteArraySegment serializedValue = new ByteArraySegment(getCommandArgs().getState().getValueSerializer().serialize(value));
+        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(serializedKey.getCopy(), serializedValue.getCopy());
 
         CompletableFuture<List<TableSegmentKeyVersion>> reply = adminSegmentHelper.updateTableEntries(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
@@ -65,7 +68,9 @@ public class PutTableSegmentCommand extends TableSegmentCommand {
         return new CommandDescriptor(COMPONENT, "put", "Update the given key in the table with the provided value.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
-                new ArgDescriptor("key", "The key to be updated."),
-                new ArgDescriptor("value", "The new value to be updated, provided as \"key1=value1;key2=value2;key3=value3;...\"."));
+                new ArgDescriptor("key", "The key to be updated. " +
+                        "Use the command \"table-segment set-key-serializer <serializer-name>\" to use the appropriate serializer before using this command."),
+                new ArgDescriptor("value", "The new value to be updated, provided as \"key1=value1;key2=value2;key3=value3;...\". " +
+                        "Use the command \"table-segment set-value-serializer <serializer-name>\" to use the appropriate serializer before using this command."));
     }
 }

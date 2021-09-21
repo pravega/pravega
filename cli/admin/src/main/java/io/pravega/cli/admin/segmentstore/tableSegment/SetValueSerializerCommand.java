@@ -17,14 +17,14 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
 import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
-import io.pravega.client.stream.Serializer;
 
 import java.util.Map;
 
 public class SetValueSerializerCommand extends TableSegmentCommand {
-    private static final Map<String, Serializer<String>> SERIALIZERS = ImmutableMap.<String, Serializer<String>>builder()
+    private static final Map<String, AbstractSerializer> SERIALIZERS = ImmutableMap.<String, AbstractSerializer>builder()
             .put("slts_value", new SltsMetadataSerializer())
             .put("container_meta_value", new ContainerMetadataSerializer())
             .build();
@@ -52,8 +52,8 @@ public class SetValueSerializerCommand extends TableSegmentCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "set-value-serializer", "Set the serializer for the values obtained from the table segments.",
+        return new CommandDescriptor(COMPONENT, "set-value-serializer", "Set the serializer for values that are obtained from, and updated to table segments.",
                 new ArgDescriptor("serializer-name", "The required serializer. " +
-                        "Serializer-names for built-in serializers are \"SLTS_VALUE\"(for SLTS segments) and \"CONTAINER_META_VALUE\"(for container segments)."));
+                        "Serializer-names for built-in serializers are " + SERIALIZERS.keySet().stream().reduce("", (sList, s) -> sList + ", " + s) + "."));
     }
 }

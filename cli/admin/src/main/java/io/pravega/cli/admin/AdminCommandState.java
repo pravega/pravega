@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin;
 
+import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.client.stream.Serializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -34,10 +35,10 @@ public class AdminCommandState implements AutoCloseable {
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "password-tools");
     @Getter
     @Setter
-    private Serializer<String> keySerializer = null;
+    private AbstractSerializer keySerializer = null;
     @Getter
     @Setter
-    private Serializer<String> valueSerializer = null;
+    private AbstractSerializer valueSerializer = null;
 
     /**
      * Creates a new instance of the AdminCommandState class.

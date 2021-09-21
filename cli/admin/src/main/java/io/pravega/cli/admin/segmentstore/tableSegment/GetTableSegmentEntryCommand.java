@@ -19,6 +19,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -29,25 +30,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static io.pravega.cli.admin.utils.SerializerUtils.CHUNK_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.READ_INDEX_BLOCK_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.SEGMENT_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringData;
 
-public class GetTableSegmentCommand extends TableSegmentCommand {
+public class GetTableSegmentEntryCommand extends TableSegmentCommand {
 
     /**
      * Creates a new instance of the GetTableSegmentCommand.
      *
      * @param args The arguments for the command.
      */
-    public GetTableSegmentCommand(CommandArgs args) {
+    public GetTableSegmentEntryCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
     public void execute() {
         ensureArgCount(3);
+        ensureSerializersExist();
 
         final String fullyQualifiedTableSegmentName = getArg(0);
         final String key = getArg(1);
@@ -56,12 +55,16 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+
+        ByteArraySegment serializedKey = new ByteArraySegment(getCommandArgs().getState().getKeySerializer().serialize(key));
+
         CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
-                Collections.singletonList(TableSegmentKey.unversioned(getCommandArgs().getState().getKeySerializer().serialize(key).array())),
+                Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
                 super.authHelper.retrieveMasterToken(), 0L);
 
-        String value = getCommandArgs().getState().getValueSerializer().deserialize(ByteBuffer.wrap(reply.join().get(0).getValue().array()));
+        ByteBuffer serializedValue = ByteBuffer.wrap(new byte[reply.join().get(0).getValue().readableBytes()]);
+        String value = getCommandArgs().getState().getValueSerializer().deserialize(serializedValue);
         output("For the given key: %s", key);
         userFriendlyOutput(value);
     }
@@ -75,17 +78,7 @@ public class GetTableSegmentCommand extends TableSegmentCommand {
 
     private void userFriendlyOutput(String data) {
         Map<String, String> dataMap = parseStringData(data);
-        if (dataMap.containsKey("key")) {
-            if (CHUNK_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
-                output("SLTS metadata info (ChunkMetadata): ");
-            } else if (SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
-                output("SLTS metadata info (SegmentMetadata): ");
-            } else if (READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
-                output("SLTS metadata info (ReadIndexBlockMetadata): ");
-            }
-        } else if (dataMap.containsKey("segmentId") && SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(dataMap::containsKey)) {
-            output("Container metadata info: ");
-        }
+        output("%s metadata info: ", getCommandArgs().getState().getValueSerializer().getName());
         dataMap.forEach((k, v) -> output("%s = %s;", k, v));
     }
 }

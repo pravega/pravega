@@ -17,37 +17,16 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.client.stream.Serializer;
-import org.apache.curator.shaded.com.google.common.base.Charsets;
+import io.pravega.cli.admin.serializers.AbstractSerializer;
+import io.pravega.cli.admin.serializers.ContainerKeySerializer;
+import io.pravega.cli.admin.serializers.SltsKeySerializer;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class SetKeySerializerCommand extends TableSegmentCommand {
-    private static final Map<String, Serializer<String>> SERIALIZERS = ImmutableMap.<String, Serializer<String>>builder()
-            .put("slts_key", new Serializer<>() {
-                @Override
-                public ByteBuffer serialize(String value) {
-                    return ByteBuffer.wrap(value.getBytes(Charsets.UTF_8));
-                }
-
-                @Override
-                public String deserialize(ByteBuffer serializedValue) {
-                    return StandardCharsets.UTF_8.decode(serializedValue).toString();
-                }
-            })
-            .put("container_meta_key", new Serializer<>() {
-                @Override
-                public ByteBuffer serialize(String value) {
-                    return ByteBuffer.wrap(value.getBytes(Charsets.UTF_8));
-                }
-
-                @Override
-                public String deserialize(ByteBuffer serializedValue) {
-                    return StandardCharsets.UTF_8.decode(serializedValue).toString();
-                }
-            })
+    private static final Map<String, AbstractSerializer> SERIALIZERS = ImmutableMap.<String, AbstractSerializer>builder()
+            .put("slts_key", new SltsKeySerializer())
+            .put("container_meta_key", new ContainerKeySerializer())
             .build();
 
     /**
@@ -75,6 +54,6 @@ public class SetKeySerializerCommand extends TableSegmentCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "set-key-serializer", "Set the serializer for the keys used in table segments.",
                 new ArgDescriptor("serializer-name", "The required serializer. " +
-                        "Serializer-names for built-in serializers are \"SLTS_KEY\"(for SLTS segments) and \"CONTAINER_META_KEY\"(for container segments)."));
+                        "Serializer-names for built-in serializers are " + SERIALIZERS.keySet().stream().reduce("", (sList, s) -> sList + ", " + s) + "."));
     }
 }

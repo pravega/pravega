@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.serializers;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
@@ -26,19 +27,50 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
-
-import static io.pravega.cli.admin.utils.SerializerUtils.CHUNK_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.READ_INDEX_BLOCK_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.SEGMENT_METADATA_FIELD_MAP;
-import static io.pravega.cli.admin.utils.SerializerUtils.appendField;
-import static io.pravega.cli.admin.utils.SerializerUtils.getAndRemoveIfExists;
-import static io.pravega.cli.admin.utils.SerializerUtils.parseStringData;
+import java.util.function.Function;
 
 /**
  * An implementation of {@link Serializer} that converts a user-friendly string representing SLTS metadata.
  */
-public class SltsMetadataSerializer implements Serializer<String> {
+public class SltsMetadataSerializer extends AbstractSerializer {
     private static final TransactionData.TransactionDataSerializer SERIALIZER = new TransactionData.TransactionDataSerializer();
+
+    public static final Map<String, Function<ChunkMetadata, Object>> CHUNK_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<ChunkMetadata, Object>>builder()
+                    .put("name", ChunkMetadata::getKey)
+                    .put("length", ChunkMetadata::getLength)
+                    .put("nextChunk", ChunkMetadata::getNextChunk)
+                    .put("status", ChunkMetadata::getStatus)
+                    .build();
+
+    public static final Map<String, Function<SegmentMetadata, Object>> SEGMENT_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<SegmentMetadata, Object>>builder()
+                    .put("name", SegmentMetadata::getKey)
+                    .put("length", SegmentMetadata::getLength)
+                    .put("chunkCount", SegmentMetadata::getChunkCount)
+                    .put("startOffset", SegmentMetadata::getStartOffset)
+                    .put("status", SegmentMetadata::getStatus)
+                    .put("maxRollingLength", SegmentMetadata::getMaxRollinglength)
+                    .put("firstChunk", SegmentMetadata::getFirstChunk)
+                    .put("lastChunk", SegmentMetadata::getLastChunk)
+                    .put("lastModified", SegmentMetadata::getLastModified)
+                    .put("firstChunkStartOffset", SegmentMetadata::getFirstChunkStartOffset)
+                    .put("lastChunkStartOffset", SegmentMetadata::getLastChunkStartOffset)
+                    .put("ownerEpoch", SegmentMetadata::getOwnerEpoch)
+                    .build();
+
+    public static final Map<String, Function<ReadIndexBlockMetadata, Object>> READ_INDEX_BLOCK_METADATA_FIELD_MAP =
+            ImmutableMap.<String, Function<ReadIndexBlockMetadata, Object>>builder()
+                    .put("name", ReadIndexBlockMetadata::getKey)
+                    .put("chunkName", ReadIndexBlockMetadata::getChunkName)
+                    .put("startOffset", ReadIndexBlockMetadata::getStartOffset)
+                    .put("status", ReadIndexBlockMetadata::getStatus)
+                    .build();
+
+    @Override
+    public String getName() {
+        return "SLTS";
+    }
 
     @Override
     public ByteBuffer serialize(String value) {
