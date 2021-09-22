@@ -29,11 +29,11 @@ import java.util.function.Function;
 
 public class GetTableSegmentInfoCommand extends TableSegmentCommand {
 
-    private static final String SEGMENT_NAME = "segmentName";
-    private static final String START_OFFSET = "startOffset";
-    private static final String LENGTH = "length";
-    private static final String ENTRY_COUNT = "entryCount";
-    private static final String KEY_LENGTH = "keyLength";
+    public static final String SEGMENT_NAME = "segmentName";
+    public static final String START_OFFSET = "startOffset";
+    public static final String LENGTH = "length";
+    public static final String ENTRY_COUNT = "entryCount";
+    public static final String KEY_LENGTH = "keyLength";
 
     private static final Map<String, Function<WireCommands.TableSegmentInfo, Object>> SEGMENT_INFO_FIELD_MAP =
             ImmutableMap.<String, Function<WireCommands.TableSegmentInfo, Object>>builder()

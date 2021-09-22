@@ -52,6 +52,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.ENTRY_COUNT;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.KEY_LENGTH;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.LENGTH;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.SEGMENT_NAME;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.START_OFFSET;
+import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
 
@@ -263,6 +269,18 @@ public abstract class AbstractSegmentStoreCommandsTest {
         commandResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
         Assert.assertTrue(commandResult.contains("Key serializer changed to container_meta_key successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+    }
+
+    @Test
+    public void testGetTableSegmentInfoCommand() throws Exception {
+        String tableSegmentName = getMetadataSegmentName(0);
+        String commandResult = TestUtils.executeCommand("table-segment get-info " + tableSegmentName + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(tableSegmentName));
+        Assert.assertTrue(commandResult.contains(SEGMENT_NAME));
+        Assert.assertTrue(commandResult.contains(START_OFFSET));
+        Assert.assertTrue(commandResult.contains(LENGTH));
+        Assert.assertTrue(commandResult.contains(ENTRY_COUNT));
+        Assert.assertTrue(commandResult.contains(KEY_LENGTH));
     }
 
     @After
