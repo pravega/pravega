@@ -2388,7 +2388,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testEventProcessorMultiplePConsumers() throws Exception {
+    public void testEventProcessorMultipleConsumers() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2446,6 +2446,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
         // Close the processor and unregister it.
         processor.close();
+        // Make sure that EventProcessor eventually terminates.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
 
         // Now, re-create the Event Processor with a handler to consume the events.
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
@@ -2466,6 +2468,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for all items to be processed.
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults.size() == allEventsToProcess, 10000);
         Assert.assertArrayEquals(processorResults.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
+        // Just check failure callback.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).failureCallback(new IntentionalException());
+        // Close the processor and unregister it.
+        processor.close();
+        // Make sure that EventProcessor eventually terminates.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
     }
 
     /**
