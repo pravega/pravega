@@ -8,28 +8,30 @@ import { IfHaveFeature, IfMissingFeature, SDPVersion } from 'nautilus-docs';
 
 This table describes the methods that can be used to write and read data in Pravega streams. It is intended to be a comprehensive list which includes open-source, experimental, and commercial products that integrate with Pravega.
 
-Method                                                                                | Write | Transactional Write | Read | Special Features | Notes
---------------------------------------------------------------------------------------|-------|---------------------|------|------------------|------------------------------------------------------
-[Pravega Sensor Collector](#pravega-sensor-collector)                                 | Yes   | Yes                 | No   | EO               |
-[SDP Ingest Gateway](#sdp-ingest-gateway)                                             | Yes   | No                  | No   |                  |
-[Pravega Ingest Gateway](https://github.com/pravega/pravega-ingest-gateway)           | Yes   | No                  | Yes  |                  |
-[Pravega Search](#pravega-search)                                                     | Yes   | Yes                 | Yes  | EO               |
-[Apache Flink](../flink-connectors/overview.md)                                       | Yes   | Yes                 | Yes  | EO               |
-[Apache Spark](../spark-connectors/overview.md)                                       | Yes   | Yes                 | Yes  | EO               |
-[Apache NiFi](https://github.com/pravega/nifi-pravega)                                | Yes   | No                  | Yes  |                  |
-[Logstash](https://github.com/pravega?q=logstash)                                     | Yes   | No                  | Yes  |                  |
-[Apache Hadoop](https://github.com/pravega/hadoop-connectors)                         | Yes   | No                  | Yes  |                  |
-[Kafka Adapter](https://github.com/pravega/kafka-adapter)                             | Yes   | No                  | No   |                  | Limited support for Kafka applications that use Java.
-[Boomi](https://github.com/pravega/boomi-connector)                                   | Yes   | No                  | Yes  |                  |
-[Pravega GRPC Gateway](https://github.com/pravega/pravega-grpc-gateway)               | Yes   | Yes                 | Yes  |                  |
-[GStreamer](https://github.com/pravega/gstreamer-pravega)                             | Yes   | No                  | Yes  |                  |
-[NVIDIA DeepStream Message Broker](https://github.com/pravega/gstreamer-pravega)      | Yes   | No                  | No   |                  |
-[.NET](https://github.com/rofr/pravega-sharp)                                         | Yes   | No                  | Yes  |                  |
-[Akka](https://doc.akka.io/docs/alpakka/current/pravega.html)                         | Yes   | No                  | Yes  |                  |
-[Presto](https://github.com/pravega/presto-connector)                                 | No    | No                  | Yes  |                  |
-[Pravega Java API](javadoc)                                                           | Yes   | Yes                 | Yes  |                  |
-[Pravega Rust API](https://pravega.github.io/pravega-client-rust/)                    | Yes   | Yes                 | Yes  |                  |
-[Pravega Python API](https://pravega.github.io/pravega-client-rust/Python/index.html) | Yes   | Yes                 | Yes  |                  |
+Method                                                                                          | Write | Transactional Write | Read | Special Features | Notes
+------------------------------------------------------------------------------------------------|-------|---------------------|------|------------------|------------------------------------------------------
+[Pravega Sensor Collector](#pravega-sensor-collector)                                           | Yes   | Yes                 | No   | EO               |
+[SDP Ingest Gateway](#sdp-ingest-gateway)                                                       | Yes   | No                  | No   |                  |
+[Pravega Ingest Gateway](https://github.com/pravega/pravega-ingest-gateway)                     | Yes   | No                  | Yes  |                  |
+[Pravega Search](#pravega-search)                                                               | Yes   | Yes                 | Yes  | EO               |
+[Apache Flink](https://github.com/pravega/flink-connectors/documentation/src/docs/overview.md)  | Yes   | Yes                 | Yes  | EO               |
+[Apache Spark](https://github.com/pravega/spark-connectors/documentation/src/docs/overview.md)  | Yes   | Yes                 | Yes  | EO               |
+[Apache NiFi](https://github.com/pravega/nifi-pravega)                                          | Yes   | No                  | Yes  |                  |
+[Logstash](https://github.com/pravega?q=logstash)                                               | Yes   | No                  | Yes  |                  |
+[Apache Hadoop](https://github.com/pravega/hadoop-connectors)                                   | Yes   | No                  | Yes  |                  |
+[Kafka Adapter](https://github.com/pravega/kafka-adapter)                                       | Yes   | No                  | No   |                  | Limited support for Kafka applications that use Java.
+[Boomi](https://github.com/pravega/boomi-connector)                                             | Yes   | No                  | Yes  |                  |
+[Pravega GRPC Gateway](https://github.com/pravega/pravega-grpc-gateway)                         | Yes   | Yes                 | Yes  |                  |
+[GStreamer](https://github.com/pravega/gstreamer-pravega)                                       | Yes   | No                  | Yes  |                  |
+[NVIDIA DeepStream Message Broker](https://github.com/pravega/gstreamer-pravega)                | Yes   | No                  | No   |                  |
+[.NET](https://github.com/rofr/pravega-sharp)                                                   | Yes   | No                  | Yes  |                  |
+[Akka](https://doc.akka.io/docs/alpakka/current/pravega.html)                                   | Yes   | No                  | Yes  | KVT              |
+[Presto & Trino](https://github.com/pravega/presto-connector)                                   | No    | No                  | Yes  |                  |
+[Pravega Java API](javadoc)                                                                     | Yes   | Yes                 | Yes  |                  |
+[Pravega Rust API](https://pravega.github.io/pravega-client-rust/)                              | Yes   | Yes                 | Yes  |                  |
+[Pravega Python API](https://pravega.github.io/pravega-client-rust/Python/index.html)           | Yes   | Yes                 | Yes  |                  |
+[Debezium](https://debezium.io/documentation/reference/operations/debezium-server.html#_pravega)| Yes   | Yes                 | No   |                  |
+[ZIO](https://github.com/cheleb/zio-pravega)                                                    | Yes   | No                  | Yes  |                  |
 
 **Write**: *Yes* means that the method can write data to Pravega streams. Writes must always append to the tail of a Pravega stream.
 
@@ -51,17 +53,3 @@ SDP Ingest Gateway is a component of **Dell EMC Streaming Data Platform** that p
 
 For more information, see the [Streaming Data Platform Developer's Guide](https://dl.dell.com/content/docu96951_Streaming_Data_Platform_Developers_Guide.pdf).
 
-## Pravega Search
-
-Pravega Search (PSearch) is a component of **Dell EMC Streaming Data Platform** that provides search functionality against Pravega streams.
-
-<IfMissingFeature feature="nautilus">
-
-For more information, see the [Streaming Data Platform Developer's Guide](https://dl.dell.com/content/docu96951_Streaming_Data_Platform_Developers_Guide.pdf).
-
-</IfMissingFeature>
-<IfHaveFeature feature="nautilus">
-
-For more information, see the [Streaming Data Platform Developer's Guide](../sdp/developer-guide/guide#working-with-pravega-search-psearch).
-
-</IfHaveFeature>
