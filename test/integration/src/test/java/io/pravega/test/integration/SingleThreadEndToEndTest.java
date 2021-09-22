@@ -15,14 +15,23 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertTrue;
 
 /**
  * This runs a basic end to end test with a single thread in the thread pool to make sure we don't
@@ -46,6 +55,29 @@ public class SingleThreadEndToEndTest {
         EventStreamReader<Integer> reader = setupUtils.getIntegerReader("stream", rgm);
         EventRead<Integer> event = reader.readNextEvent(10000);
         Assert.assertEquals(1, (int) event.getEvent());
+    }
+    
+    @Test(timeout = 60000)
+    public void testSealedStream() throws Exception {
+        @Cleanup("stopAllServices")
+        SetupUtils setupUtils = new SetupUtils();
+        setupUtils.startAllServices(1);
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(setupUtils.getClientConfig());
+        streamManager.createScope("scope");
+        streamManager.createStream("scope", "stream",
+                                   StreamConfiguration.builder()
+                                                      .scalingPolicy(ScalingPolicy.fixed(1))
+                                                      .build());
+        
+        @Cleanup
+        EventStreamWriter<byte[]> writer = setupUtils.getClientFactory().createEventWriter("stream", new ByteArraySerializer(), EventWriterConfig.builder().retryAttempts(2).build());
+        writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE+1]).join();
+        writer.flush();
+        assertTrue(streamManager.sealStream("scope", "stream"));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE+1]).join());
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[1]).join());
+        writer.flush();
     }
 
 }

@@ -188,7 +188,7 @@ public class LargeEventWriter {
         }
         requestId = client.getFlow().getNextSequenceNumber();
 
-        MergeSegments merge = new MergeSegments(requestId, created.getSegment(), parentSegment.getScopedName(), token);
+        MergeSegments merge = new MergeSegments(requestId, parentSegment.getScopedName(), created.getSegment(), token);
 
         transformSegmentMerged(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment());
     }

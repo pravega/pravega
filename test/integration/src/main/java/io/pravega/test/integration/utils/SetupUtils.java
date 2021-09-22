@@ -86,6 +86,7 @@ public final class SetupUtils {
     private final int servicePort = TestUtils.getAvailableListenPort();
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
+    @Getter
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
     
     /**
