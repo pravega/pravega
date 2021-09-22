@@ -1,3 +1,7 @@
+---
+title: ReaderGroup Notifications
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Working with Pravega: ReaderGroup Notifications
 
 The ReaderGroup api supports different types of notifications. Currently, we
 have two types implemented, but we plan to add more over time.

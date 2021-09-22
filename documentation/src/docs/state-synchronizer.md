@@ -1,3 +1,7 @@
+---
+title: State Synchronizer
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Working with Pravega: State Synchronizer
 
 You can think about Pravega as a streaming storage primitive, because it is a
 great way to durably persist data.  You can think about Pravega as a great

@@ -1,7 +1,9 @@
-# Pravega Controller APIs
-
+---
+title: Pravega Controller REST APIs
+---
 
 <a name="overview"></a>
+
 ## Overview
 List of admin REST APIs for the Pravega controller service.
 
@@ -32,9 +34,11 @@ List of admin REST APIs for the Pravega controller service.
 
 
 <a name="paths"></a>
+
 ## Paths
 
 <a name="gethealth"></a>
+
 ### GET /health
 
 #### Description
@@ -85,6 +89,7 @@ Return the Health of the Controller service.
 
 
 <a name="getdetails"></a>
+
 ### GET /health/details
 
 #### Description
@@ -126,7 +131,8 @@ Fetch the details of the Controller service.
 
 
 <a name="getcontributordetails"></a>
-### GET /health/details/{id}
+
+### GET /health/details/\{id\}
 
 #### Description
 Fetch the details of a specific health contributor.
@@ -136,7 +142,7 @@ Fetch the details of a specific health contributor.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+|**Path**|**id**  <br />*required*|The id of an existing health contributor.|string|
 
 
 #### Responses
@@ -175,6 +181,7 @@ Fetch the details of a specific health contributor.
 
 
 <a name="getliveness"></a>
+
 ### GET /health/liveness
 
 #### Description
@@ -216,7 +223,8 @@ true
 
 
 <a name="getcontributorliveness"></a>
-### GET /health/liveness/{id}
+
+### GET /health/liveness/\{id\}
 
 #### Description
 Fetch the liveness state of the specified health contributor.
@@ -226,7 +234,7 @@ Fetch the liveness state of the specified health contributor.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+|**Path**|**id**  <br />*required*|The id of an existing health contributor.|string|
 
 
 #### Responses
@@ -265,6 +273,7 @@ true
 
 
 <a name="getreadiness"></a>
+
 ### GET /health/readiness
 
 #### Description
@@ -306,7 +315,8 @@ true
 
 
 <a name="getcontributorreadiness"></a>
-### GET /health/readiness/{id}
+
+### GET /health/readiness/\{id\}
 
 #### Description
 Fetch the ready state of the health contributor.
@@ -316,7 +326,7 @@ Fetch the ready state of the health contributor.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+|**Path**|**id**  <br />*required*|The id of an existing health contributor.|string|
 
 
 #### Responses
@@ -355,6 +365,7 @@ true
 
 
 <a name="getstatus"></a>
+
 ### GET /health/status
 
 #### Description
@@ -396,7 +407,8 @@ Fetch the status of the Controller service.
 
 
 <a name="getcontributorstatus"></a>
-### GET /health/status/{id}
+
+### GET /health/status/\{id\}
 
 #### Description
 Fetch the status of a specific health contributor.
@@ -406,7 +418,7 @@ Fetch the status of a specific health contributor.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+|**Path**|**id**  <br />*required*|The id of an existing health contributor.|string|
 
 
 #### Responses
@@ -445,7 +457,8 @@ Fetch the status of a specific health contributor.
 
 
 <a name="getcontributorhealth"></a>
-### GET /health/{id}
+
+### GET /health/\{id\}
 
 #### Description
 Return the Health of a health contributor with a given id.
@@ -455,7 +468,7 @@ Return the Health of a health contributor with a given id.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+|**Path**|**id**  <br />*required*|The id of an existing health contributor.|string|
 
 
 #### Responses
@@ -503,6 +516,7 @@ Return the Health of a health contributor with a given id.
 
 
 <a name="createscope"></a>
+
 ### POST /scopes
 
 #### Description
@@ -513,14 +527,15 @@ Create a new scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Body**|**CreateScopeRequest**  <br>*required*|The scope configuration|[CreateScopeRequest](#createscope-createscoperequest)|
+|**Body**|**CreateScopeRequest**  <br />*required*|The scope configuration|[CreateScopeRequest](#createscope-createscoperequest)|
 
 <a name="createscope-createscoperequest"></a>
+
 **CreateScopeRequest**
 
 |Name|Description|Schema|
 |---|---|---|
-|**scopeName**  <br>*optional*|**Example** : `"string"`|string|
+|**scopeName**  <br />*optional*|**Example** : `"string"`|string|
 
 
 #### Responses
@@ -574,6 +589,7 @@ Create a new scope
 
 
 <a name="listscopes"></a>
+
 ### GET /scopes
 
 #### Description
@@ -619,7 +635,8 @@ List all available scopes in Pravega
 
 
 <a name="getscope"></a>
-### GET /scopes/{scopeName}
+
+### GET /scopes/&#123;scopeName&#125;
 
 #### Description
 Retrieve details of an existing scope
@@ -629,7 +646,7 @@ Retrieve details of an existing scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
 
 
 #### Responses
@@ -670,7 +687,8 @@ Retrieve details of an existing scope
 
 
 <a name="deletescope"></a>
-### DELETE /scopes/{scopeName}
+
+### DELETE /scopes/&#123;scopeName&#125;
 
 #### Description
 Delete a scope
@@ -680,7 +698,7 @@ Delete a scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
 
 
 #### Responses
@@ -707,7 +725,8 @@ Delete a scope
 
 
 <a name="listreadergroups"></a>
-### GET /scopes/{scopeName}/readergroups
+
+### GET /scopes/&#123;scopeName&#125;/readergroups
 
 #### Description
 List reader groups within the given scope
@@ -717,7 +736,7 @@ List reader groups within the given scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
 
 
 #### Responses
@@ -758,7 +777,7 @@ List reader groups within the given scope
 
 
 <a name="getreadergroup"></a>
-### GET /scopes/{scopeName}/readergroups/{readerGroupName}
+### GET /scopes/&#123;scopeName&#125;/readergroups/&#123;readerGroupName&#125;
 
 #### Description
 Fetch the properties of an existing reader group
@@ -768,8 +787,8 @@ Fetch the properties of an existing reader group
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**readerGroupName**  <br>*required*|Reader group name|string|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
+|**Path**|**readerGroupName**  <br />*required*|Reader group name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
 
 
 #### Responses
@@ -813,7 +832,8 @@ Fetch the properties of an existing reader group
 
 
 <a name="createstream"></a>
-### POST /scopes/{scopeName}/streams
+
+### POST /scopes/&#123;scopeName&#125;/streams
 
 #### Description
 Create a new stream
@@ -823,20 +843,21 @@ Create a new stream
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Body**|**CreateStreamRequest**  <br>*required*|The stream configuration|[CreateStreamRequest](#createstream-createstreamrequest)|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Body**|**CreateStreamRequest**  <br />*required*|The stream configuration|[CreateStreamRequest](#createstream-createstreamrequest)|
 
 <a name="createstream-createstreamrequest"></a>
+
 **CreateStreamRequest**
 
 |Name|Description|Schema|
 |---|---|---|
-|**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
-|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
-|**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
-|**streamName**  <br>*optional*|**Example** : `"string"`|string|
-|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
-|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
+|**retentionPolicy**  <br />*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br />*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
+|**scalingPolicy**  <br />*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**streamName**  <br />*optional*|**Example** : `"string"`|string|
+|**streamTags**  <br />*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br />*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -938,7 +959,8 @@ Create a new stream
 
 
 <a name="liststreams"></a>
-### GET /scopes/{scopeName}/streams
+
+### GET /scopes/&#123;scopeName&#125;/streams
 
 #### Description
 List streams within the given scope
@@ -948,9 +970,9 @@ List streams within the given scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Query**|**filter_type**  <br>*optional*|Filter options|enum (showInternalStreams, tag)|
-|**Query**|**filter_value**  <br>*optional*|value to be passed. must match the type passed with it.|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Query**|**filter_type**  <br />*optional*|Filter options|enum (showInternalStreams, tag)|
+|**Query**|**filter_value**  <br />*optional*|value to be passed. must match the type passed with it.|string|
 
 
 #### Responses
@@ -1016,7 +1038,8 @@ List streams within the given scope
 
 
 <a name="getstream"></a>
-### GET /scopes/{scopeName}/streams/{streamName}
+
+### GET /scopes/&#123;scopeName&#125;/streams/&#123;streamName&#125;
 
 #### Description
 Fetch the properties of an existing stream
@@ -1026,8 +1049,8 @@ Fetch the properties of an existing stream
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Path**|**streamName**  <br>*required*|Stream name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Path**|**streamName**  <br />*required*|Stream name|string|
 
 
 #### Responses
@@ -1091,7 +1114,8 @@ Fetch the properties of an existing stream
 
 
 <a name="updatestream"></a>
-### PUT /scopes/{scopeName}/streams/{streamName}
+
+### PUT /scopes/&#123;scopeName&#125;/streams/&#123;streamName&#125;
 
 #### Description
 Update configuration of an existing stream
@@ -1101,20 +1125,21 @@ Update configuration of an existing stream
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Path**|**streamName**  <br>*required*|Stream name|string|
-|**Body**|**UpdateStreamRequest**  <br>*required*|The new stream configuration|[UpdateStreamRequest](#updatestream-updatestreamrequest)|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Path**|**streamName**  <br />*required*|Stream name|string|
+|**Body**|**UpdateStreamRequest**  <br />*required*|The new stream configuration|[UpdateStreamRequest](#updatestream-updatestreamrequest)|
 
 <a name="updatestream-updatestreamrequest"></a>
+
 **UpdateStreamRequest**
 
 |Name|Description|Schema|
 |---|---|---|
-|**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
-|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
-|**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
-|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
-|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
+|**retentionPolicy**  <br />*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br />*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
+|**scalingPolicy**  <br />*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**streamTags**  <br />*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br />*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -1214,7 +1239,8 @@ Update configuration of an existing stream
 
 
 <a name="deletestream"></a>
-### DELETE /scopes/{scopeName}/streams/{streamName}
+
+### DELETE /scopes/&#123;scopeName&#125;/streams/&#123;streamName&#125;
 
 #### Description
 Delete a stream
@@ -1224,8 +1250,8 @@ Delete a stream
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Path**|**streamName**  <br>*required*|Stream name|string|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Path**|**streamName**  <br />*required*|Stream name|string|
 
 
 #### Responses
@@ -1252,7 +1278,8 @@ Delete a stream
 
 
 <a name="getscalingevents"></a>
-### GET /scopes/{scopeName}/streams/{streamName}/scaling-events
+
+### GET /scopes/&#123;scopeName&#125;/streams/&#123;streamName&#125;/scaling-events
 
 #### Description
 Get scaling events for a given datetime period.
@@ -1262,10 +1289,10 @@ Get scaling events for a given datetime period.
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Path**|**streamName**  <br>*required*|Stream name|string|
-|**Query**|**from**  <br>*required*|Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
-|**Query**|**to**  <br>*required*|Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Path**|**streamName**  <br />*required*|Stream name|string|
+|**Query**|**from**  <br />*required*|Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
+|**Query**|**to**  <br />*required*|Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
 
 
 #### Responses
@@ -1316,7 +1343,8 @@ Get scaling events for a given datetime period.
 
 
 <a name="updatestreamstate"></a>
-### PUT /scopes/{scopeName}/streams/{streamName}/state
+
+### PUT /scopes/&#123;scopeName&#125;/streams/&#123;streamName&#125;/state
 
 #### Description
 Updates the current state of the stream
@@ -1326,9 +1354,9 @@ Updates the current state of the stream
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Path**|**streamName**  <br>*required*|Stream name|string|
-|**Body**|**UpdateStreamStateRequest**  <br>*required*|The state info to be updated|[StreamState](#streamstate)|
+|**Path**|**scopeName**  <br />*required*|Scope name|string|
+|**Path**|**streamName**  <br />*required*|Stream name|string|
+|**Body**|**UpdateStreamStateRequest**  <br />*required*|The state info to be updated|[StreamState](#streamstate)|
 
 
 #### Responses
@@ -1384,67 +1412,81 @@ Updates the current state of the stream
 
 
 <a name="definitions"></a>
+
 ## Definitions
 
 <a name="healthdetails"></a>
+
 ### HealthDetails
-*Type* : < string, string > map
+*Type* : &lt; string, string &gt; map
 
 
 <a name="healthresult"></a>
+
 ### HealthResult
 
 |Name|Description|Schema|
 |---|---|---|
-|**children**  <br>*optional*|**Example** : `{<br>  "string" : "[healthresult](#healthresult)"<br>}`|< string, [HealthResult](#healthresult) > map|
-|**details**  <br>*optional*|**Example** : `"[healthdetails](#healthdetails)"`|[HealthDetails](#healthdetails)|
-|**liveness**  <br>*optional*|**Example** : `true`|boolean|
-|**name**  <br>*optional*|**Example** : `"string"`|string|
-|**readiness**  <br>*optional*|**Example** : `true`|boolean|
-|**status**  <br>*optional*|**Example** : `"[healthstatus](#healthstatus)"`|[HealthStatus](#healthstatus)|
+|**children**  <br />*optional*|**Example** : `{"string" : "[healthresult](#healthresult)"}`|< string, [HealthResult](#healthresult) > map|
+|**details**  <br />*optional*|**Example** : `"[healthdetails](#healthdetails)"`|[HealthDetails](#healthdetails)|
+|**liveness**  <br />*optional*|**Example** : `true`|boolean|
+|**name**  <br />*optional*|**Example** : `"string"`|string|
+|**readiness**  <br />*optional*|**Example** : `true`|boolean|
+|**status**  <br />*optional*|**Example** : `"[healthstatus](#healthstatus)"`|[HealthStatus](#healthstatus)|
 
 
 <a name="healthstatus"></a>
+
 ### HealthStatus
 *Type* : enum (UP, STARTING, NEW, UNKNOWN, FAILED, DOWN)
 
 
 <a name="readergroupproperty"></a>
+
 ### ReaderGroupProperty
 
 |Name|Description|Schema|
 |---|---|---|
-|**onlineReaderIds**  <br>*optional*|**Example** : `[ "string" ]`|< string > array|
-|**readerGroupName**  <br>*optional*|**Example** : `"string"`|string|
-|**scopeName**  <br>*optional*|**Example** : `"string"`|string|
-|**streamList**  <br>*optional*|**Example** : `[ "string" ]`|< string > array|
+|**onlineReaderIds**  <br />*optional*|**Example** : `[ "string" ]`|< string > array|
+|**readerGroupName**  <br />*optional*|**Example** : `"string"`|string|
+|**scopeName**  <br />*optional*|**Example** : `"string"`|string|
+|**streamList**  <br />*optional*|**Example** : `[ "string" ]`|< string > array|
 
 
 <a name="readergroupslist"></a>
+
 ### ReaderGroupsList
 
 |Name|Description|Schema|
 |---|---|---|
-|**readerGroups**  <br>*optional*|**Example** : `[ "object" ]`|< [readerGroups](#readergroupslist-readergroups) > array|
+|**readerGroups**  <br />*optional*|**Example** : `[ "object" ]`|< [readerGroups](#readergroupslist-readergroups) > array|
 
 <a name="readergroupslist-readergroups"></a>
+
 **readerGroups**
 
 |Name|Description|Schema|
 |---|---|---|
-|**readerGroupName**  <br>*optional*|**Example** : `"string"`|string|
+|**readerGroupName**  <br />*optional*|**Example** : `"string"`|string|
 
 
 <a name="retentionconfig"></a>
+
 ### RetentionConfig
 
 |Name|Description|Schema|
 |---|---|---|
-|**maxTimeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
-|**maxValue**  <br>*optional*|**Example** : `0`|integer (int64)|
-|**timeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
-|**type**  <br>*optional*|Indicates if retention is by space or time.  <br>**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
-|**value**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**maxTimeBasedRetention**  <br />*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**maxValue**  <br />*optional*|**Example** : `0`|integer (int64)|
+|**timeBasedRetention**  <br />*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**type**  <br />*optional*|Indicates if retention is by space or time.  <br />**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
+|**value**  <br />*optional*|**Example** : `0`|integer (int64)|
+
+
+<a name="rolloversizebytes"></a>
+
+### RolloverSizeBytes
+*Type* : long
 
 
 <a name="rolloversizebytes"></a>
@@ -1453,103 +1495,120 @@ Updates the current state of the stream
 
 
 <a name="scalemetadata"></a>
+
 ### ScaleMetadata
 
 |Name|Description|Schema|
 |---|---|---|
-|**merges**  <br>*optional*|**Example** : `0`|integer (int64)|
-|**segmentList**  <br>*optional*|**Example** : `[ "[segment](#segment)" ]`|< [Segment](#segment) > array|
-|**splits**  <br>*optional*|**Example** : `0`|integer (int64)|
-|**timestamp**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**merges**  <br />*optional*|**Example** : `0`|integer (int64)|
+|**segmentList**  <br />*optional*|**Example** : `[ "[segment](#segment)" ]`|< [Segment](#segment) > array|
+|**splits**  <br />*optional*|**Example** : `0`|integer (int64)|
+|**timestamp**  <br />*optional*|**Example** : `0`|integer (int64)|
 
 
 <a name="scalingconfig"></a>
+
 ### ScalingConfig
 
 |Name|Description|Schema|
 |---|---|---|
-|**minSegments**  <br>*optional*|**Example** : `0`|integer (int32)|
-|**scaleFactor**  <br>*optional*|**Example** : `0`|integer (int32)|
-|**targetRate**  <br>*optional*|**Example** : `0`|integer (int32)|
-|**type**  <br>*optional*|**Example** : `"string"`|enum (FIXED_NUM_SEGMENTS, BY_RATE_IN_KBYTES_PER_SEC, BY_RATE_IN_EVENTS_PER_SEC)|
+|**minSegments**  <br />*optional*|**Example** : `0`|integer (int32)|
+|**scaleFactor**  <br />*optional*|**Example** : `0`|integer (int32)|
+|**targetRate**  <br />*optional*|**Example** : `0`|integer (int32)|
+|**type**  <br />*optional*|**Example** : `"string"`|enum (FIXED_NUM_SEGMENTS, BY_RATE_IN_KBYTES_PER_SEC, BY_RATE_IN_EVENTS_PER_SEC)|
 
 
 <a name="scalingeventlist"></a>
+
 ### ScalingEventList
 
 |Name|Description|Schema|
 |---|---|---|
-|**scalingEvents**  <br>*optional*|**Example** : `[ "[scalemetadata](#scalemetadata)" ]`|< [ScaleMetadata](#scalemetadata) > array|
+|**scalingEvents**  <br />*optional*|**Example** : `[ "[scalemetadata](#scalemetadata)" ]`|< [ScaleMetadata](#scalemetadata) > array|
 
 
 <a name="scopeproperty"></a>
+
 ### ScopeProperty
 
 |Name|Description|Schema|
 |---|---|---|
-|**scopeName**  <br>*optional*|**Example** : `"string"`|string|
+|**scopeName**  <br />*optional*|**Example** : `"string"`|string|
 
 
 <a name="scopeslist"></a>
+
 ### ScopesList
 
 |Name|Description|Schema|
 |---|---|---|
-|**scopes**  <br>*optional*|**Example** : `[ "[scopeproperty](#scopeproperty)" ]`|< [ScopeProperty](#scopeproperty) > array|
+|**scopes**  <br />*optional*|**Example** : `[ "[scopeproperty](#scopeproperty)" ]`|< [ScopeProperty](#scopeproperty) > array|
 
 
 <a name="segment"></a>
+
 ### Segment
 
 |Name|Description|Schema|
 |---|---|---|
-|**keyEnd**  <br>*optional*|**Example** : `0`|integer (double)|
-|**keyStart**  <br>*optional*|**Example** : `0`|integer (double)|
-|**number**  <br>*optional*|**Example** : `0`|integer (int32)|
-|**startTime**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**keyEnd**  <br />*optional*|**Example** : `0`|integer (double)|
+|**keyStart**  <br />*optional*|**Example** : `0`|integer (double)|
+|**number**  <br />*optional*|**Example** : `0`|integer (int32)|
+|**startTime**  <br />*optional*|**Example** : `0`|integer (int64)|
 
 
 <a name="streamproperty"></a>
+
 ### StreamProperty
 
 |Name|Description|Schema|
 |---|---|---|
-|**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
-|**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
-|**scopeName**  <br>*optional*|**Example** : `"string"`|string|
-|**streamName**  <br>*optional*|**Example** : `"string"`|string|
-|**tags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**retentionPolicy**  <br />*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**scalingPolicy**  <br />*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**scopeName**  <br />*optional*|**Example** : `"string"`|string|
+|**streamName**  <br />*optional*|**Example** : `"string"`|string|
+|**tags**  <br />*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 <a name="streamstate"></a>
+
 ### StreamState
 
 |Name|Description|Schema|
 |---|---|---|
-|**streamState**  <br>*optional*|**Example** : `"string"`|enum (SEALED)|
+|**streamState**  <br />*optional*|**Example** : `"string"`|enum (SEALED)|
 
 
 <a name="streamslist"></a>
+
 ### StreamsList
 
 |Name|Description|Schema|
 |---|---|---|
-|**streams**  <br>*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
+|**streams**  <br />*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
 
 
 <a name="tagslist"></a>
+
 ### TagsList
-*Type* : < string > array
+*Type* : &lt; string &gt; array
 
 
 <a name="timebasedretention"></a>
+
 ### TimeBasedRetention
 
 |Name|Description|Schema|
 |---|---|---|
-|**days**  <br>*optional*|**Example** : `0`|integer (int64)|
-|**hours**  <br>*optional*|**Example** : `0`|integer (int64)|
-|**minutes**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**days**  <br />*optional*|**Example** : `0`|integer (int64)|
+|**hours**  <br />*optional*|**Example** : `0`|integer (int64)|
+|**minutes**  <br />*optional*|**Example** : `0`|integer (int64)|
+
+
+<a name="timestampaggregationtimeout"></a>
+
+### TimestampAggregationTimeout
+*Type* : long
 
 
 <a name="timestampaggregationtimeout"></a>

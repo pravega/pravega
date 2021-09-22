@@ -1,3 +1,7 @@
+---
+title: Segment Store Cache Size and Memory Settings
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Segment Store Cache Size and Memory Settings
 
 In a Pravega Cluster, the Segment Store is perhaps the component that requires more effort in terms of memory configuration.
 A production-like cluster requires the memory settings to be defined correctly, or otherwise we could induce unnecessary

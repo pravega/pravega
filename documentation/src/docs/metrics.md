@@ -1,3 +1,7 @@
+---
+title: Pravega Metrics
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Pravega Metrics
 
 * [Metrics Interfaces and Examples Usage](#metrics-interfaces-and-examples-usage)
    - [Metrics Service Provider — Interface StatsProvider](#metrics-service-provider--interface-statsprovider)

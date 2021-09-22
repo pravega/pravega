@@ -1,3 +1,7 @@
+---
+title: Pravega Key Features
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Key Features
 
 This document explains some of the key features of Pravega.  It may be
 advantageous if you are already familiar with the core [Pravega Concepts](pravega-concepts.md).

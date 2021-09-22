@@ -1,3 +1,7 @@
+---
+title: Deploying on DC/OS
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Deploying on DC/OS
 
 Prerequisities: DC/OS cli needs to be installed. To install the cli, follow the instructions here: https://docs.d2iq.com/mesosphere/dcos/1.13/cli/install/
 

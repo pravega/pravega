@@ -1,3 +1,7 @@
+---
+title: Frequently Asked Questions
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Frequently Asked Questions
 
 ### What is Pravega?
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data. See [here](terminology.md) for more definitions of terms related to Pravega.

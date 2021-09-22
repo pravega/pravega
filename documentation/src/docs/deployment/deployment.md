@@ -1,3 +1,7 @@
+---
+title: Pravega Deployment Overview
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Deployment Overview
 
 This guide describes the options for running Pravega for development, testing and in production.
 If you are interested on deploying Pravega in production, we recommend you to have a look to our [Configuration and

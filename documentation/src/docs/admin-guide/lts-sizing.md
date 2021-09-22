@@ -1,3 +1,7 @@
+---
+title: Right-Sizing Long-Term Storage
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Right-Sizing Long-Term Storage
 
 Pravega's design enables users to store stream data virtually without bounds. However, in practical terms, we need
 to understand what will be the storage capacity required in Long-Term Storage, either to provision such a system or

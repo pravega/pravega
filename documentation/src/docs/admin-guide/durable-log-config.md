@@ -1,3 +1,7 @@
+---
+title: Durable Log Configuration
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Durable Log Configuration: Apache Bookkeeper
 
 Pravega guarantees that every acknowledged written event is durably stored and replicated. This is possible 
 thanks to the durable log abstraction that the Segment Store offers, which relies on Apache Bookkeeper.

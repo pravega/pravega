@@ -1,3 +1,7 @@
+---
+title: Join the Pravega Community
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Join the Pravega Community
 
 [Slack Channel](https://pravega-io.slack.com/)
 

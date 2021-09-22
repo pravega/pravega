@@ -1,0 +1,67 @@
+module.exports = {
+    mainSidebar: [
+        'overview',
+        'getting-started',
+        {
+            'Quick start': [
+                'getting-started/quick-start',
+                'getting-started/pravega-on-kubernetes-101',
+            ],
+            'Understanding Pravega': [
+                'pravega-concepts',
+                'terminology',
+                'key-features',
+                'faq',
+                'segment-store-service',
+                'segment-containers',
+                'controller-service',
+                'wire-protocol',
+                'state-synchronizer-design',
+                'reader-group-design',
+                'watermarking',
+            ],
+            'Developing Pravega Applications': [
+                'beginner_dev_guide',
+                'clients-and-streams',
+                'pravega-write-read-methods',
+                'javadoc',
+                'rest/restapis',
+                'connectors',
+                'basic-reader-and-writer',
+                'state-synchronizer',
+                'transactions',
+                'streamcuts',
+            ],
+            'Running Pravega': [
+                'deployment/deployment',
+                'deployment/manual-install',
+                'deployment/docker-swarm',
+                'deployment/dcos-install',
+                'deployment/aws-install',
+                'metrics',
+            ],
+            'Pravega Security': [
+                'auth/auth-plugin',
+                'auth/client-auth',
+                'security/pravega-security-authorization-authentication',
+                'security/pravega-security-configurations',
+                'security/pravega-security-encryption',
+                'security/securing-standalone-mode-cluster',
+                'security/securing-distributed-mode-cluster',
+            ],
+            'Admin Guide': [
+                "admin-guide/cluster-dependencies",
+                "admin-guide/durable-log-config",
+                "admin-guide/lts-sizing",
+                "admin-guide/num-containers",
+                "admin-guide/operators",
+                "admin-guide/segmentstore-memory",
+            ],
+            'Contributing to Pravega': [
+                'contributing',
+                'roadmap',
+                'join-community',
+            ],
+        },
+    ]
+};

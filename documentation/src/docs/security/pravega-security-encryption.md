@@ -1,3 +1,7 @@
+---
+title: Pravega Encryption
+---
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Encryption
 
 ## Encryption of data in flight
 Pravega ensures that all the data in flight can be passed by applying encryption.
