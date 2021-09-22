@@ -46,7 +46,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
