@@ -822,13 +822,7 @@ public class PravegaRequestProcessorTest {
         // Verify segment info can be retrieved.
         processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.TableSegmentInfo(requestId, tableSegmentName, 0, 0, 0, keyLength));
-
-        String streamSegmentName = "testStreamSegment";
-        processor.createSegment(new WireCommands.CreateSegment(++requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
-        // Verify invoking GetTableSegmentInfo on a StreamSegment returns NoSuchSegment
-        processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, streamSegmentName, ""));
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1));
+        
         // Verify invoking GetTableSegmentInfo on a non-existing segment returns NoSuchSegment
         String nonExistingSegment = "nonExistingSegment";
         processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, nonExistingSegment, ""));
