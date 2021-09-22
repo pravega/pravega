@@ -412,7 +412,8 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         factory.rp.process(new WireCommands.NoSuchSegment(requestId, tableNotExists, "", -1));
         AssertExtensions.assertThrows("",
                 () -> result1.join(),
-                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException && ((WireCommandFailedException) Exceptions.unwrap(ex)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)
+                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException
+                        && ((WireCommandFailedException) Exceptions.unwrap(ex)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)
         );
 
         final String exceptionTestTable = "testTable";
