@@ -16,7 +16,6 @@
 package io.pravega.cli.admin;
 
 import io.pravega.cli.admin.serializers.AbstractSerializer;
-import io.pravega.client.stream.Serializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.io.FileNotFoundException;

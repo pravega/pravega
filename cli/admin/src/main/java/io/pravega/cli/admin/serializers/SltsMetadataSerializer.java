@@ -17,13 +17,13 @@ package io.pravega.cli.admin.serializers;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -33,38 +33,64 @@ import java.util.function.Function;
  * An implementation of {@link Serializer} that converts a user-friendly string representing SLTS metadata.
  */
 public class SltsMetadataSerializer extends AbstractSerializer {
+    
+    static final String TRANSACTION_DATA_KEY = "key";
+
+    static final String CHUNK_METADATA_NAME = "name";
+    static final String CHUNK_METADATA_LENGTH = "length";
+    static final String CHUNK_METADATA_NEXT_CHUNK = "nextChunk";
+    static final String CHUNK_METADATA_STATUS = "status";
+
+    static final String SEGMENT_METADATA_NAME = "name";
+    static final String SEGMENT_METADATA_LENGTH = "length";
+    static final String SEGMENT_METADATA_CHUNK_COUNT = "chunkCount";
+    static final String SEGMENT_METADATA_START_OFFSET = "startOffset";
+    static final String SEGMENT_METADATA_STATUS = "status";
+    static final String SEGMENT_METADATA_MAX_ROLLING_LENGTH = "maxRollingLength";
+    static final String SEGMENT_METADATA_FIRST_CHUNK = "firstChunk";
+    static final String SEGMENT_METADATA_LAST_CHUNK = "lastChunk";
+    static final String SEGMENT_METADATA_LAST_MODIFIED = "lastModified";
+    static final String SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET = "firstChunkStartOffset";
+    static final String SEGMENT_METADATA_LAST_CHUNK_START_OFFSET = "lastChunkStartOffset";
+    static final String SEGMENT_METADATA_OWNER_EPOCH = "ownerEpoch";
+
+    static final String READ_INDEX_BLOCK_METADATA_NAME = "name";
+    static final String READ_INDEX_BLOCK_METADATA_CHUNK_NAME = "chunkName";
+    static final String READ_INDEX_BLOCK_METADATA_START_OFFSET = "startOffset";
+    static final String READ_INDEX_BLOCK_METADATA_STATUS = "status";
+
     private static final TransactionData.TransactionDataSerializer SERIALIZER = new TransactionData.TransactionDataSerializer();
 
-    public static final Map<String, Function<ChunkMetadata, Object>> CHUNK_METADATA_FIELD_MAP =
+    private static final Map<String, Function<ChunkMetadata, Object>> CHUNK_METADATA_FIELD_MAP =
             ImmutableMap.<String, Function<ChunkMetadata, Object>>builder()
-                    .put("name", ChunkMetadata::getKey)
-                    .put("length", ChunkMetadata::getLength)
-                    .put("nextChunk", ChunkMetadata::getNextChunk)
-                    .put("status", ChunkMetadata::getStatus)
+                    .put(CHUNK_METADATA_NAME, ChunkMetadata::getKey)
+                    .put(CHUNK_METADATA_LENGTH, ChunkMetadata::getLength)
+                    .put(CHUNK_METADATA_NEXT_CHUNK, ChunkMetadata::getNextChunk)
+                    .put(CHUNK_METADATA_STATUS, ChunkMetadata::getStatus)
                     .build();
 
-    public static final Map<String, Function<SegmentMetadata, Object>> SEGMENT_METADATA_FIELD_MAP =
+    private static final Map<String, Function<SegmentMetadata, Object>> SEGMENT_METADATA_FIELD_MAP =
             ImmutableMap.<String, Function<SegmentMetadata, Object>>builder()
-                    .put("name", SegmentMetadata::getKey)
-                    .put("length", SegmentMetadata::getLength)
-                    .put("chunkCount", SegmentMetadata::getChunkCount)
-                    .put("startOffset", SegmentMetadata::getStartOffset)
-                    .put("status", SegmentMetadata::getStatus)
-                    .put("maxRollingLength", SegmentMetadata::getMaxRollinglength)
-                    .put("firstChunk", SegmentMetadata::getFirstChunk)
-                    .put("lastChunk", SegmentMetadata::getLastChunk)
-                    .put("lastModified", SegmentMetadata::getLastModified)
-                    .put("firstChunkStartOffset", SegmentMetadata::getFirstChunkStartOffset)
-                    .put("lastChunkStartOffset", SegmentMetadata::getLastChunkStartOffset)
-                    .put("ownerEpoch", SegmentMetadata::getOwnerEpoch)
+                    .put(SEGMENT_METADATA_NAME, SegmentMetadata::getKey)
+                    .put(SEGMENT_METADATA_LENGTH, SegmentMetadata::getLength)
+                    .put(SEGMENT_METADATA_CHUNK_COUNT, SegmentMetadata::getChunkCount)
+                    .put(SEGMENT_METADATA_START_OFFSET, SegmentMetadata::getStartOffset)
+                    .put(SEGMENT_METADATA_STATUS, SegmentMetadata::getStatus)
+                    .put(SEGMENT_METADATA_MAX_ROLLING_LENGTH, SegmentMetadata::getMaxRollinglength)
+                    .put(SEGMENT_METADATA_FIRST_CHUNK, SegmentMetadata::getFirstChunk)
+                    .put(SEGMENT_METADATA_LAST_CHUNK, SegmentMetadata::getLastChunk)
+                    .put(SEGMENT_METADATA_LAST_MODIFIED, SegmentMetadata::getLastModified)
+                    .put(SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET, SegmentMetadata::getFirstChunkStartOffset)
+                    .put(SEGMENT_METADATA_LAST_CHUNK_START_OFFSET, SegmentMetadata::getLastChunkStartOffset)
+                    .put(SEGMENT_METADATA_OWNER_EPOCH, SegmentMetadata::getOwnerEpoch)
                     .build();
 
-    public static final Map<String, Function<ReadIndexBlockMetadata, Object>> READ_INDEX_BLOCK_METADATA_FIELD_MAP =
+    private static final Map<String, Function<ReadIndexBlockMetadata, Object>> READ_INDEX_BLOCK_METADATA_FIELD_MAP =
             ImmutableMap.<String, Function<ReadIndexBlockMetadata, Object>>builder()
-                    .put("name", ReadIndexBlockMetadata::getKey)
-                    .put("chunkName", ReadIndexBlockMetadata::getChunkName)
-                    .put("startOffset", ReadIndexBlockMetadata::getStartOffset)
-                    .put("status", ReadIndexBlockMetadata::getStatus)
+                    .put(READ_INDEX_BLOCK_METADATA_NAME, ReadIndexBlockMetadata::getKey)
+                    .put(READ_INDEX_BLOCK_METADATA_CHUNK_NAME, ReadIndexBlockMetadata::getChunkName)
+                    .put(READ_INDEX_BLOCK_METADATA_START_OFFSET, ReadIndexBlockMetadata::getStartOffset)
+                    .put(READ_INDEX_BLOCK_METADATA_STATUS, ReadIndexBlockMetadata::getStatus)
                     .build();
 
     @Override
@@ -82,7 +108,7 @@ public class SltsMetadataSerializer extends AbstractSerializer {
             // The value is handled by checking if a unique field corresponding to any specific implementation of StorageMetadata exists.
             // The correct instance of StorageMetadata is then generated.
             TransactionData transactionData = TransactionData.builder()
-                    .key(getAndRemoveIfExists(data, "key"))
+                    .key(getAndRemoveIfExists(data, TRANSACTION_DATA_KEY))
                     .value(generateStorageMetadataValue(data))
                     .build();
             buf = SERIALIZER.serialize(transactionData).asByteBuffer();
@@ -96,10 +122,10 @@ public class SltsMetadataSerializer extends AbstractSerializer {
     public String deserialize(ByteBuffer serializedValue) {
         StringBuilder stringValueBuilder;
         try {
-            TransactionData data = SERIALIZER.deserialize(new ByteArrayInputStream(serializedValue.array()));
+            TransactionData data = SERIALIZER.deserialize(new ByteArraySegment(serializedValue).getReader());
             stringValueBuilder = new StringBuilder();
 
-            appendField(stringValueBuilder, "key", data.getKey());
+            appendField(stringValueBuilder, TRANSACTION_DATA_KEY, data.getKey());
             handleStorageMetadataValue(stringValueBuilder, data.getValue());
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -138,34 +164,34 @@ public class SltsMetadataSerializer extends AbstractSerializer {
     private StorageMetadata generateStorageMetadataValue(Map<String, String> storageMetadataMap) {
         if (CHUNK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
             return ChunkMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
-                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "length")))
-                    .nextChunk(getAndRemoveIfExists(storageMetadataMap, "nextChunk"))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
+                    .name(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NAME))
+                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_LENGTH)))
+                    .nextChunk(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NEXT_CHUNK))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_STATUS)))
                     .build();
 
         } else if (SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
             return SegmentMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
-                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "length")))
-                    .chunkCount(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "chunkCount")))
-                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "startOffset")))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
-                    .maxRollinglength(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "maxRollingLength")))
-                    .firstChunk(getAndRemoveIfExists(storageMetadataMap, "firstChunk"))
-                    .lastChunk(getAndRemoveIfExists(storageMetadataMap, "lastChunk"))
-                    .lastModified(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "lastModified")))
-                    .firstChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "firstChunkStartOffset")))
-                    .lastChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "lastChunkStartOffset")))
-                    .ownerEpoch(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "ownerEpoch")))
+                    .name(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_NAME))
+                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LENGTH)))
+                    .chunkCount(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_CHUNK_COUNT)))
+                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_START_OFFSET)))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_STATUS)))
+                    .maxRollinglength(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_MAX_ROLLING_LENGTH)))
+                    .firstChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK))
+                    .lastChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK))
+                    .lastModified(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_MODIFIED)))
+                    .firstChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET)))
+                    .lastChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK_START_OFFSET)))
+                    .ownerEpoch(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_OWNER_EPOCH)))
                     .build();
 
         } else if (READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
             return ReadIndexBlockMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, "name"))
-                    .chunkName(getAndRemoveIfExists(storageMetadataMap, "chunkName"))
-                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, "startOffset")))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, "status")))
+                    .name(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_NAME))
+                    .chunkName(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_CHUNK_NAME))
+                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_START_OFFSET)))
+                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_STATUS)))
                     .build();
         }
 

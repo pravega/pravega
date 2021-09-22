@@ -20,6 +20,11 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_ID;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_LENGTH;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_NAME;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_SEALED;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_START_OFFSET;
 import static org.junit.Assert.assertEquals;
 
 public class ContainerMetadataSerializerTest {
@@ -27,11 +32,11 @@ public class ContainerMetadataSerializerTest {
     @Test
     public void testContainerMetadataSerializer() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
-        appendField(userGeneratedMetadataBuilder, "segmentId", "1");
-        appendField(userGeneratedMetadataBuilder, "name", "segment-name");
-        appendField(userGeneratedMetadataBuilder, "sealed", "false");
-        appendField(userGeneratedMetadataBuilder, "startOffset", "0");
-        appendField(userGeneratedMetadataBuilder, "length", "10");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_ID, "1");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_NAME, "segment-name");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_SEALED, "false");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_START_OFFSET, "0");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_LENGTH, "10");
 
         String userString = userGeneratedMetadataBuilder.toString();
         ContainerMetadataSerializer serializer = new ContainerMetadataSerializer();
@@ -42,10 +47,10 @@ public class ContainerMetadataSerializerTest {
     @Test(expected = IllegalArgumentException.class)
     public void testContainerMetadataSerializerArgumentFailure() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
-        appendField(userGeneratedMetadataBuilder, "name", "segment-name");
-        appendField(userGeneratedMetadataBuilder, "sealed", "false");
-        appendField(userGeneratedMetadataBuilder, "startOffset", "0");
-        appendField(userGeneratedMetadataBuilder, "length", "10");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_NAME, "segment-name");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_SEALED, "false");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_START_OFFSET, "0");
+        appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_LENGTH, "10");
 
         String userString = userGeneratedMetadataBuilder.toString();
         ContainerMetadataSerializer serializer = new ContainerMetadataSerializer();

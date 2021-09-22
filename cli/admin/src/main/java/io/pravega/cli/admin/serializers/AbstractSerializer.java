@@ -28,6 +28,11 @@ import java.util.Map;
  */
 public abstract class AbstractSerializer implements Serializer<String> {
 
+    /**
+     * Method to return the name of the metadata being serialized.
+     *
+     * @return A string representing the metadata that is dealt with by this serializer.
+     */
     public abstract String getName();
 
     /**

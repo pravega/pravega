@@ -16,7 +16,9 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.serializers.ContainerKeySerializer;
 import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
+import io.pravega.cli.admin.serializers.SltsKeySerializer;
 import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
@@ -248,7 +250,6 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testSetKeySerializerCommand() throws Exception {
-        String testString = "hello";
         Assert.assertNull(STATE.get().getKeySerializer());
 
         String commandResult = TestUtils.executeCommand("table-segment set-key-serializer dummy", STATE.get());
@@ -257,13 +258,11 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
         commandResult = TestUtils.executeCommand("table-segment set-key-serializer slts_key", STATE.get());
         Assert.assertTrue(commandResult.contains("Key serializer changed to slts_key successfully."));
-        Assert.assertNotNull(STATE.get().getKeySerializer());
-        Assert.assertEquals(testString, STATE.get().getKeySerializer().deserialize(STATE.get().getKeySerializer().serialize(testString)));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof SltsKeySerializer);
 
         commandResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
         Assert.assertTrue(commandResult.contains("Key serializer changed to container_meta_key successfully."));
-        Assert.assertNotNull(STATE.get().getKeySerializer());
-        Assert.assertEquals(testString, STATE.get().getKeySerializer().deserialize(STATE.get().getKeySerializer().serialize(testString)));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
     }
 
     @After

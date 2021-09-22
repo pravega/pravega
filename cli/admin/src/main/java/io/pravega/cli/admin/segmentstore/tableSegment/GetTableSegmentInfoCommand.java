@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -22,9 +23,26 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 public class GetTableSegmentInfoCommand extends TableSegmentCommand {
+
+    private static final String SEGMENT_NAME = "segmentName";
+    private static final String START_OFFSET = "startOffset";
+    private static final String LENGTH = "length";
+    private static final String ENTRY_COUNT = "entryCount";
+    private static final String KEY_LENGTH = "keyLength";
+
+    private static final Map<String, Function<WireCommands.TableSegmentInfo, Object>> SEGMENT_INFO_FIELD_MAP =
+            ImmutableMap.<String, Function<WireCommands.TableSegmentInfo, Object>>builder()
+                    .put(SEGMENT_NAME, WireCommands.TableSegmentInfo::getSegmentName)
+                    .put(START_OFFSET, WireCommands.TableSegmentInfo::getStartOffset)
+                    .put(LENGTH, WireCommands.TableSegmentInfo::getLength)
+                    .put(ENTRY_COUNT, WireCommands.TableSegmentInfo::getEntryCount)
+                    .put(KEY_LENGTH, WireCommands.TableSegmentInfo::getKeyLength)
+                    .build();
 
     /**
      * Creates a new instance of the GetTableSegmentInfoCommand.
@@ -48,7 +66,9 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
         CompletableFuture<WireCommands.TableSegmentInfo> reply = adminSegmentHelper.getTableSegmentInfo(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
 
-        output("GetTableSegmentInfo: %s", reply.join().toString());
+        WireCommands.TableSegmentInfo tableSegmentInfo = reply.join();
+        output("TableSegmentInfo for %s: ", fullyQualifiedTableSegmentName);
+        SEGMENT_INFO_FIELD_MAP.forEach((name, f) -> output("%s = %s", name, f.apply(tableSegmentInfo)));
     }
 
     public static CommandDescriptor descriptor() {
