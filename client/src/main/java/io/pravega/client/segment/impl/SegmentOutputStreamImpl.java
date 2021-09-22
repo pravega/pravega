@@ -194,10 +194,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         /**
-         * @param ex Error that has occurred that needs to be handled by tearing down the connection.
+         * @param throwable Error that has occurred that needs to be handled by tearing down the connection.
          */
-        private void failConnection(Throwable ex) {
-            Throwable throwable = Exceptions.unwrap(ex);
+        private void failConnection(Throwable throwable) {
             ClientConnection oldConnection = null;
             CompletableFuture<Void> oldConnectionSetupCompleted = null;
             boolean failSetupConnection = false;
