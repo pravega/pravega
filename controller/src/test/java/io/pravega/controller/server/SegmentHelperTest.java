@@ -392,6 +392,36 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testGetTableSegmentInfo() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        String tableName = "transactionsInEpoch-0.#.a4fa6f45-b49d-4364-b91e-597c6e9ff78e";
+        CompletableFuture<WireCommands.TableSegmentInfo> result = helper.getTableSegmentInfo(tableName, "", 0L);
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.TableSegmentInfo(requestId, tableName, 0L, 100L, 7L, 10));
+        WireCommands.TableSegmentInfo tableInfo = result.join();
+        assertEquals(7L, tableInfo.getEntryCount());
+        assertEquals(0L, tableInfo.getStartOffset());
+        assertEquals(100L, tableInfo.getLength());
+        assertEquals(10, tableInfo.getKeyLength());
+
+        String tableNotExists = "tableNotExists";
+        CompletableFuture<WireCommands.TableSegmentInfo> result1 = helper.getTableSegmentInfo(tableNotExists, "", 1L);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.NoSuchSegment(requestId, tableNotExists, "", -1));
+        AssertExtensions.assertThrows("",
+                () -> result1.join(),
+                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException && ((WireCommandFailedException) Exceptions.unwrap(ex)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)
+        );
+
+        final String exceptionTestTable = "testTable";
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.getTableSegmentInfo(exceptionTestTable, "", 2L);
+        validateProcessingFailureCFE(factory, futureSupplier);
+        testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test
     public void testGetSegmentAttribute() {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
