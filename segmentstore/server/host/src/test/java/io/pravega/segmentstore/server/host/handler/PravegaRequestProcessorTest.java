@@ -804,6 +804,7 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify createTableSegment calling stack is executed as design.
         processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName, false, keyLength, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, tableSegmentName));
+
         processor.createTableSegment(new WireCommands.CreateTableSegment(++requestId, tableSegmentName, false, keyLength, "", 0));
         order.verify(connection).send(new WireCommands.SegmentAlreadyExists(requestId, tableSegmentName, ""));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
@@ -821,6 +822,11 @@ public class PravegaRequestProcessorTest {
         // Verify segment info can be retrieved.
         processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.TableSegmentInfo(requestId, tableSegmentName, 0, 0, 0, keyLength));
+        
+        // Verify invoking GetTableSegmentInfo on a non-existing segment returns NoSuchSegment
+        String nonExistingSegment = "nonExistingSegment";
+        processor.getTableSegmentInfo(new WireCommands.GetTableSegmentInfo(++requestId, nonExistingSegment, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, nonExistingSegment, "", -1));
 
         // Verify table segment has correct rollover size
         // Verify default value
