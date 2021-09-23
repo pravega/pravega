@@ -51,6 +51,7 @@ import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.tableSegment.ListTableSegmentKeysCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.PutTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.SetKeySerializerCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.SetValueSerializerCommand;
@@ -300,6 +301,7 @@ public abstract class AdminCommand {
                         .put(PutTableSegmentEntryCommand::descriptor, PutTableSegmentEntryCommand::new)
                         .put(SetKeySerializerCommand::descriptor, SetKeySerializerCommand::new)
                         .put(SetValueSerializerCommand::descriptor, SetValueSerializerCommand::new)
+                        .put(ListTableSegmentKeysCommand::descriptor, ListTableSegmentKeysCommand::new)
                         .build());
 
         /**

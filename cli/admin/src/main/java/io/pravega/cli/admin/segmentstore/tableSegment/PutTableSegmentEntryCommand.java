@@ -31,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
 public class PutTableSegmentEntryCommand extends TableSegmentCommand {
 
     /**
-     * Creates a new instance of the PutTableSegmentCommand.
+     * Creates a new instance of the PutTableSegmentEntryCommand.
      *
      * @param args The arguments for the command.
      */

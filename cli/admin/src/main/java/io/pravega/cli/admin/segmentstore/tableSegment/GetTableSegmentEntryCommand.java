@@ -35,7 +35,7 @@ import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringDat
 public class GetTableSegmentEntryCommand extends TableSegmentCommand {
 
     /**
-     * Creates a new instance of the GetTableSegmentCommand.
+     * Creates a new instance of the GetTableSegmentEntryCommand.
      *
      * @param args The arguments for the command.
      */
@@ -63,7 +63,7 @@ public class GetTableSegmentEntryCommand extends TableSegmentCommand {
                 Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
                 super.authHelper.retrieveMasterToken(), 0L);
 
-        ByteBuffer serializedValue = ByteBuffer.wrap(new byte[reply.join().get(0).getValue().readableBytes()]);
+        ByteBuffer serializedValue = getByteBuffer(reply.join().get(0).getValue());
         String value = getCommandArgs().getState().getValueSerializer().deserialize(serializedValue);
         output("For the given key: %s", key);
         userFriendlyOutput(value);

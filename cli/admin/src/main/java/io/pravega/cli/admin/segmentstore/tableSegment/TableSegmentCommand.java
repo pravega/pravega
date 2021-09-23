@@ -16,8 +16,11 @@
 package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.SegmentStoreCommand;
+
+import java.nio.ByteBuffer;
 
 public abstract class TableSegmentCommand extends SegmentStoreCommand {
     static final String COMPONENT = "table-segment";
@@ -27,10 +30,25 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
     }
 
     void ensureSerializersExist() {
-        Preconditions.checkArgument(getCommandArgs().getState().getValueSerializer() != null, "The value serializer has not been set. " +
-                "Use the command \"table-segment set-value-serializer <serializer-name>\" and try again.");
+        ensureKeySerializerExists();
+        ensureValueSerializerExists();
+    }
+
+    void ensureKeySerializerExists() {
         Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null, "The key serializer has not been set. " +
                 "Use the command \"table-segment set-key-serializer <serializer-name>\" and try again.");
+    }
+
+    void ensureValueSerializerExists() {
+        Preconditions.checkArgument(getCommandArgs().getState().getValueSerializer() != null, "The value serializer has not been set. " +
+                "Use the command \"table-segment set-value-serializer <serializer-name>\" and try again.");
+    }
+
+    ByteBuffer getByteBuffer(ByteBuf byteBuf) {
+        final byte[] bytes = new byte[byteBuf.readableBytes()];
+        final int readerIndex = byteBuf.readerIndex();
+        byteBuf.getBytes(readerIndex, bytes);
+        return ByteBuffer.wrap(bytes);
     }
 }
 

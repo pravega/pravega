@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Serializer;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +53,7 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A map containing all the key-value pairs parsed from the string.
      */
     public static Map<String, String> parseStringData(String stringData) {
-        Map<String, String> parsedData = new HashMap<>();
+        Map<String, String> parsedData = new LinkedHashMap<>();
         Arrays.stream(stringData.split(";")).forEachOrdered(kv -> {
             List<String> pair = Arrays.asList(kv.split("="));
             Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in %s", kv));

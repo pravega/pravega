@@ -34,12 +34,12 @@ import java.util.function.Function;
  * An implementation of {@link Serializer} that converts a user-friendly string representing container metadata.
  */
 public class ContainerMetadataSerializer extends AbstractSerializer {
-    
-    static final String SEGMENT_ID = "segmentId";
-    static final String SEGMENT_PROPERTIES_NAME = "name";
-    static final String SEGMENT_PROPERTIES_SEALED = "sealed";
-    static final String SEGMENT_PROPERTIES_START_OFFSET = "startOffset";
-    static final String SEGMENT_PROPERTIES_LENGTH = "length";
+
+    public static final String SEGMENT_ID = "segmentId";
+    public static final String SEGMENT_PROPERTIES_NAME = "name";
+    public static final String SEGMENT_PROPERTIES_SEALED = "sealed";
+    public static final String SEGMENT_PROPERTIES_START_OFFSET = "startOffset";
+    public static final String SEGMENT_PROPERTIES_LENGTH = "length";
 
     private static final Map<String, Function<SegmentProperties, Object>> SEGMENT_PROPERTIES_FIELD_MAP =
             ImmutableMap.<String, Function<SegmentProperties, Object>>builder()

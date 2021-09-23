@@ -57,6 +57,11 @@ import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfo
 import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.LENGTH;
 import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.SEGMENT_NAME;
 import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.START_OFFSET;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_ID;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_LENGTH;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_NAME;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_SEALED;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_START_OFFSET;
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
@@ -281,6 +286,39 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Assert.assertTrue(commandResult.contains(LENGTH));
         Assert.assertTrue(commandResult.contains(ENTRY_COUNT));
         Assert.assertTrue(commandResult.contains(KEY_LENGTH));
+    }
+
+    @Test
+    public void testListTableSegmentKeysCommand() throws Exception {
+        String setKeySerializerResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
+        Assert.assertTrue(setKeySerializerResult.contains("Key serializer changed to container_meta_key successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        int keyCount = 5;
+        String commandResult = TestUtils.executeCommand("table-segment list-keys " + tableSegmentName + " " + keyCount + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("List of at most " + keyCount + " keys in " + tableSegmentName));
+    }
+
+    @Test
+    public void testGetTableSegmentEntryCommand() throws Exception {
+        String setValueSerializerResult = TestUtils.executeCommand("table-segment set-value-serializer container_meta_value", STATE.get());
+        Assert.assertTrue(setValueSerializerResult.contains("Value serializer changed to container_meta_value successfully."));
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String setKeySerializerResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
+        Assert.assertTrue(setKeySerializerResult.contains("Key serializer changed to container_meta_key successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        String commandResult = TestUtils.executeCommand("table-segment get " + tableSegmentName + " " + key + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("container metadata info:"));
+        Assert.assertTrue(commandResult.contains(SEGMENT_ID));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_NAME));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_SEALED));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_START_OFFSET));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_LENGTH));
     }
 
     @After
