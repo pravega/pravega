@@ -269,9 +269,9 @@ public final class ServiceStarter {
         //run checks
         Preconditions.checkState(((com.sun.management.OperatingSystemMXBean) ManagementFactory
                         .getOperatingSystemMXBean()).getTotalPhysicalMemorySize() > (maxDirectMemorySize + xmx),
-                "MaxDirectMemorySize(" + maxDirectMemorySize + "B) along with JVM Xmx value(" + xmx + "B) configured is greater than the available system memory!");
-        Preconditions.checkState(maxDirectMemorySize > (cacheSize + nettyDirectMem),
-                "Cache size(" + cacheSize + "B) along with Netty DirectMemory(" + nettyDirectMem + "B)configured is more than the JVM MaxDirectMemory(" + maxDirectMemorySize + "B) value!!");
+                "MaxDirectMemorySize(" + maxDirectMemorySize + " B) along with JVM Xmx value(" + xmx + " B) configured is greater than the available system memory!");
+        Preconditions.checkState(maxDirectMemorySize > cacheSize,
+                "Cache size(" + cacheSize + " B) configured is more than the JVM MaxDirectMemory(" + maxDirectMemorySize + " B) value!!");
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
