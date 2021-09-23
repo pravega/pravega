@@ -72,7 +72,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        metadataStore.setReadCallback( transactionData -> {
+            Assert.assertFalse("Attempt to read pinned metadata from store", transactionData.getKey().contains("_system/containers"));
+            return CompletableFuture.completedFuture(null);
+        });
+        return metadataStore;
     }
 
     protected ChunkStorage getChunkStorage() throws Exception {

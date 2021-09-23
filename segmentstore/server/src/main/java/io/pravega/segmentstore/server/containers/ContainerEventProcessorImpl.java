@@ -22,6 +22,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -329,22 +330,30 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         //region AutoCloseable implementation
 
         /**
-         * This method stop the service (superclass), auto-unregisters from the existing set of active
+         * This method stops the service (superclass), auto-unregisters from the existing set of active
          * {@link EventProcessor} instances (via onClose callback), and closes the metrics.
          */
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
-                super.close();
+                Services.onStop(super.stopAsync(),
+                        () -> log.info("{}: EventProcessor service shutdown complete.", this.traceObjectId),
+                        this::failureCallback,
+                        this.executor);
                 this.metrics.close();
                 this.onClose.run();
             }
         }
 
+        @VisibleForTesting
+        void failureCallback(Throwable ex) {
+            log.warn("{}: Problem shutting down EventProcessor service.", this.traceObjectId, ex);
+        }
+
         //endregion
 
-        //region Runnable implementation
+        //region AbstractThreadPoolService implementation
 
         @Override
         protected Duration getShutdownTimeout() {
