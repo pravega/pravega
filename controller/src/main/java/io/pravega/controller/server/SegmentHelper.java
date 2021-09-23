@@ -644,17 +644,17 @@ public class SegmentHelper implements AutoCloseable {
                 });
     }
 
-        /**
-         * The method sends a WireCommand to iterate over table entries.
-         *
-         * @param tableName           Qualified table name.
-         * @param suggestedEntryCount Suggested number of {@link TableSegmentEntry} instances to be returned by the Segment Store.
-         * @param state               Last known state of the iterator.
-         * @param delegationToken     The token to be presented to the Segment Store.
-         * @param clientRequestId     Request id.
-         * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
-         * SegmentStore.
-         */
+    /**
+     * The method sends a WireCommand to iterate over table entries.
+     *
+     * @param tableName           Qualified table name.
+     * @param suggestedEntryCount Suggested number of {@link TableSegmentEntry} instances to be returned by the Segment Store.
+     * @param state               Last known state of the iterator.
+     * @param delegationToken     The token to be presented to the Segment Store.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
+     * SegmentStore.
+     */
     public CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final int suggestedEntryCount,
                                                                                final HashTableIteratorItem.State state,
