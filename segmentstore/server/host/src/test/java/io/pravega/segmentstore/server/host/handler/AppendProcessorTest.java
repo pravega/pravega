@@ -187,7 +187,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         CreateTransientSegment createTransientSegment = new CreateTransientSegment(1, writerId, parentSegmentName, "");
         processor.createTransientSegment(createTransientSegment);
 
-        verify(connection).send(new WireCommands.TransientSegmentCreated(1, any()));
+        verify(connection).send(new WireCommands.SegmentCreated(1, any()));
 
         verifyNoMoreInteractions(connection);
     }
@@ -215,7 +215,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
             CreateTransientSegment createTransientSegment = new CreateTransientSegment(i, writerId, parentSegmentName, "");
             processor.createTransientSegment(createTransientSegment);
         }
-        verify(connection, times(transientSegments)).send(any(WireCommands.TransientSegmentCreated.class));
+        verify(connection, times(transientSegments)).send(any(WireCommands.SegmentCreated.class));
         processor.close();
         // For each Transient Segment we created, make sure that the StreamSegmentStore calls deleteStreamSegment on them.
         verify(store, times(transientSegments)).deleteStreamSegment(any(), any());

@@ -60,7 +60,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
-import io.pravega.shared.protocol.netty.WireCommands.TransientSegmentCreated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Arrays;
@@ -277,7 +277,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         store.createStreamSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT)
                 .thenAccept(v -> {
                     transientSegmentNames.add(transientSegmentName);
-                    connection.send(new TransientSegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
+                    connection.send(new SegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
                 })
                 .exceptionally(e -> handleException(createTransientSegment.getWriterId(),
                         createTransientSegment.getRequestId(),
