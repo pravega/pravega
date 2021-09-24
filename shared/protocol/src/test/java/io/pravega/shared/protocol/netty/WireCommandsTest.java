@@ -615,16 +615,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testTransientSegmentCreated() throws IOException {
-        ReplyProcessor rp = mock(ReplyProcessor.class);
-        WireCommands.TransientSegmentCreated cmd = new WireCommands.TransientSegmentCreated(l, testString1);
-        cmd.process(rp);
-        verify(rp, times(1)).transientSegmentCreated(cmd);
-        testCommand(cmd);
-
-    }
-
-    @Test
     public void testCreateTransientSegment() throws IOException {
         RequestProcessor rp = mock(RequestProcessor.class);
         WireCommands.CreateTransientSegment cmd = new WireCommands.CreateTransientSegment(l, new UUID(0, 0), testString1, "");

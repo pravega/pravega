@@ -46,7 +46,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TableRead;
 import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
-import io.pravega.shared.protocol.netty.WireCommands.TransientSegmentCreated;
 
 import org.junit.Test;
 
@@ -96,7 +95,6 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableRead(new TableRead(0, "", null)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
-        assertThrows(IllegalStateException.class, () -> rp.transientSegmentCreated(new TransientSegmentCreated(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
     }
 

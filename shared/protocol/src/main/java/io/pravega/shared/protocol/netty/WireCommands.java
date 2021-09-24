@@ -1212,32 +1212,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransientSegmentCreated implements Reply, WireCommand {
-
-        final WireCommandType type = WireCommandType.TRANSIENT_SEGMENT_CREATED;
-        final long requestId;
-        final String transientSegmentName;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.transientSegmentCreated(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(transientSegmentName);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String transientSegmentName = in.readUTF();
-
-            return new TransientSegmentCreated(requestId, transientSegmentName);
-        }
-    }
-
-    @Data
     public static final class UpdateSegmentPolicy implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
