@@ -730,8 +730,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 return CompletableFuture.completedFuture(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND);
                             } else {
                                 DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
-                                return eventHelper.addIndexAndSubmitTask(deleteEvent,
-                                                            () -> streamMetadataStore.setScopeState(scope, State.SEALING, context, executor))
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
                                                     .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeleted(scope, context)))
                                                     .thenApply(y -> DeleteScopeRecursiveStatus.Status.SUCCESS);
                             }

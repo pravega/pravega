@@ -333,8 +333,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             }
             if (ex instanceof StoreException.DataNotFoundException) {
                 return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex instanceof StoreException.DataNotEmptyException) {
-                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
                 log.error(context.getRequestId(), "DeleteScopeRecursive failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.FAILURE).build();
@@ -981,6 +979,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
+    }
+
+    @Override
+    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor){
+        return null;
     }
 
     @Override

@@ -185,8 +185,6 @@ public class LocalController implements Controller {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to delete scope: " + scopeName);
-                case SCOPE_NOT_EMPTY:
-                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
                 case SCOPE_NOT_FOUND:
                     return false;
                 case SUCCESS:

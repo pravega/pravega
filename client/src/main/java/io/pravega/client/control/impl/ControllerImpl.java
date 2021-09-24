@@ -563,9 +563,6 @@ public class ControllerImpl implements Controller {
                 case FAILURE:
                     log.warn(requestId, "Failed to delete scope recursively: {}", scopeName);
                     throw new ControllerFailureException("Failed to delete scope: " + scopeName);
-                case SCOPE_NOT_EMPTY:
-                    log.warn(requestId, "Cannot delete non empty scope: {}", scopeName);
-                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
                 case SCOPE_NOT_FOUND:
                     log.warn(requestId, "Scope not found: {}", scopeName);
                     return false;

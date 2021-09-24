@@ -31,17 +31,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.*;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -875,6 +865,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -928,6 +919,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -980,6 +972,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1082,6 +1075,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1133,6 +1127,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();

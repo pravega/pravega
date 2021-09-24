@@ -44,6 +44,8 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BY
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
+
+import static io.pravega.controller.store.PravegaTablesStoreHelper.*;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
@@ -59,6 +61,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
 
 /**
  * Pravega Tables stream metadata store.
@@ -127,6 +131,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                 completedTxnGCRef.get()::getLatestBatch, scope::getStreamsInScopeTableName, executor);
 
         return new StreamOperationContext(scope, stream, requestId);
+    }
+
+    //addNewEntry
+    <T> CompletableFuture<T> addEntryToDeletingScope(String scope, ScopeOperationContext context, ScheduledExecutorService executor){
+        storeHelper.addNewEntry(DELETING_SCOPE_NAME, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId());
+        return null;
+//        (String tableName, String key, T val, Function<T, byte[]> toBytes,
+//        long requestId)
     }
 
     @VisibleForTesting 
@@ -326,6 +338,11 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(((PravegaTablesScope) getScope(scopeName, context))
                 .checkReaderGroupExistsInScope(rgName, context), executor);
+    }
+
+    @Override
+    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
+        return null;
     }
 
 

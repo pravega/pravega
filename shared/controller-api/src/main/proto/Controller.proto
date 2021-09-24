@@ -298,7 +298,6 @@ message DeleteScopeRecursiveStatus {
         SUCCESS = 0;
         FAILURE = 1;
         SCOPE_NOT_FOUND = 2;
-        SCOPE_NOT_EMPTY = 3;
     }
     Status status = 1;
 }

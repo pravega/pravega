@@ -51,6 +51,8 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID_FUNCTION;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
+
+import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.SEPARATOR;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
@@ -241,7 +243,7 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         // storeHelper.addEntry(SCOPES_DELETE_TABLE, scopeName, context.getRequestId());
-        storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId());
+//        storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId());
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);
         CompletableFuture<String> kvtsInScopeTableNameFuture = getKVTablesInScopeTableName(context);
@@ -261,7 +263,7 @@ public class PravegaTablesScope implements Scope {
                                     Futures.allOf(deleteTagTablesFut))
                             .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
                                     kvtsInScopeTableName, rgsInScopeTableName));
-                });//.thenCompose(deleted -> storeHelper.removeEntry(SCOPES_DELETE_TABLE, scopeName, context.getRequestId()));
+                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPE_NAME, scopeName, context.getRequestId()));
     }
 
     @Override

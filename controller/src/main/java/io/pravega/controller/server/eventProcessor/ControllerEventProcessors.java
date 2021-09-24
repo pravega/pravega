@@ -41,18 +41,7 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.*;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -90,6 +79,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
+import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
 
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
@@ -173,6 +163,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new DeleteReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
+                new DeleteScopeTask(streamMetadataTasks, streamMetadataStore, executor),
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, bucketStore, executor);
@@ -326,6 +317,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         String scope = config.getScopeName();
         CompletableFuture<Void> future = createScope(scope);
+
         return future.thenCompose(ignore -> CompletableFuture.allOf(createStream(scope, config.getCommitStreamName(),
                                                                                  commitStreamConfig),
                                                                     createStream(scope, config.getAbortStreamName(),

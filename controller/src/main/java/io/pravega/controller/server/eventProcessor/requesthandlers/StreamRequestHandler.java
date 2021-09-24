@@ -47,6 +47,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     private final CreateReaderGroupTask createRGTask;
     private final DeleteReaderGroupTask deleteRGTask;
     private final UpdateReaderGroupTask updateRGTask;
+    private final DeleteScopeTask deleteScopeTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
@@ -58,6 +59,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                                 DeleteReaderGroupTask deleteRGTask,
                                 UpdateReaderGroupTask updateRGTask,
                                 StreamMetadataStore streamMetadataStore,
+                                DeleteScopeTask deleteScopeTask,
                                 ScheduledExecutorService executor) {
         super(streamMetadataStore, executor);
         this.autoScaleTask = autoScaleTask;
@@ -69,6 +71,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.createRGTask = createRGTask;
         this.deleteRGTask = deleteRGTask;
         this.updateRGTask = updateRGTask;
+        this.deleteScopeTask = deleteScopeTask;
     }
     
     @Override
