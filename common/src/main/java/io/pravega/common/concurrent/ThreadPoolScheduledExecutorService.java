@@ -36,6 +36,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Data;
+import lombok.Getter;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
@@ -61,6 +62,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
 
     private static final AtomicLong COUNTER = new AtomicLong(0);
+    @Getter
     private final ThreadPoolExecutor runner;
     private final ScheduledQueue<ScheduledRunnable<?>> queue;
 

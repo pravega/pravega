@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.AbstractTimer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
@@ -24,6 +25,7 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.test.common.SerializedClassRunner;
 import java.time.Duration;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -194,6 +197,28 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
+    }
+
+    @Test
+    public void testTreadPoolMetrics() {
+        @Cleanup("shutdown")
+        ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
+        @Cleanup("shutdown")
+        ScheduledExecutorService storageExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "storage-io", Thread.NORM_PRIORITY);
+
+        @Cleanup
+        SegmentStoreMetrics.ThreadPool pool = new SegmentStoreMetrics.ThreadPool(coreExecutor, storageExecutor);
+        pool.report();
+
+        OpStatsData queueSize = SegmentStoreMetrics.ThreadPool.getQueueSize();
+        OpStatsData activeThreads = SegmentStoreMetrics.ThreadPool.getActiveThreads();
+        OpStatsData storageActiveThreads = SegmentStoreMetrics.ThreadPool.getStorageActiveThreads();
+        OpStatsData storageQueueSize = SegmentStoreMetrics.ThreadPool.getStorageQueueSize();
+
+        assertEquals(1, queueSize.getNumSuccessfulEvents());
+        assertEquals(1, activeThreads.getNumSuccessfulEvents());
+        assertEquals(1, storageActiveThreads.getNumSuccessfulEvents());
+        assertEquals(1, storageQueueSize.getNumSuccessfulEvents());
     }
 
     @Test
