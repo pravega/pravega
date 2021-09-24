@@ -65,17 +65,20 @@ public class SingleThreadEndToEndTest {
         @Cleanup
         StreamManager streamManager = StreamManager.create(setupUtils.getClientConfig());
         streamManager.createScope("scope");
-        streamManager.createStream("scope", "stream",
-                                   StreamConfiguration.builder()
-                                                      .scalingPolicy(ScalingPolicy.fixed(1))
-                                                      .build());
-        
+        streamManager.createStream("scope",
+                                   "stream",
+                                   StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+
         @Cleanup
-        EventStreamWriter<byte[]> writer = setupUtils.getClientFactory().createEventWriter("stream", new ByteArraySerializer(), EventWriterConfig.builder().retryAttempts(2).build());
-        writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE+1]).join();
+        EventStreamWriter<byte[]> writer = setupUtils.getClientFactory()
+            .createEventWriter("stream",
+                               new ByteArraySerializer(),
+                               EventWriterConfig.builder().retryAttempts(2).build());
+        writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join();
         writer.flush();
         assertTrue(streamManager.sealStream("scope", "stream"));
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE+1]).join());
+        AssertExtensions.assertThrows(IllegalStateException.class,
+                                      () -> writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join());
         AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[1]).join());
         writer.flush();
     }
