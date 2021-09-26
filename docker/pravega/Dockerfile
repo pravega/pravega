@@ -24,7 +24,7 @@ RUN echo "${PVG_USER}:x:1000:${PVG_USER}" >> /etc/group
 
 RUN set -x \
     && zypper addrepo http://asdrepo.isus.emc.com:8081/artifactory/atlantic-rpm-build/sles/15sp2/master/master.repo \
-    && zypper install -y curl wget python3 python3-pip jq gzip glibc-locale sudo \
+    && zypper install -y vim curl wget python3 python3-pip jq gzip glibc-locale sudo \
     && ln -fs /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/log/zypp* /var/cache/zypp/* /etc/zypp/repos.d/*
 
