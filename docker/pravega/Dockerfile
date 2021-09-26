@@ -13,16 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk/openjdk11:jre-11.0.11_9-alpine
+FROM asdrepo.isus.emc.com:9042/atlantic/javabase:latest
 
-RUN apk --update --no-cache add \
-    #used in readiness and liveness probes
-    curl \
-    #used in wait_for function
-    python3 \
-    #used in init_kubernetes
-    jq \
-    && ln -sf python3 /usr/bin/python
+# Atlantic javabase defines a 'container' user so we don't run as root
+ENV PVG_USER=container
+ENV PVG_HOME=/opt/pravega
+
+# Add container user
+RUN echo "${PVG_USER}:x:1000:${PVG_USER}" >> /etc/group
+
+RUN set -x \
+    && zypper addrepo http://asdrepo.isus.emc.com:8081/artifactory/atlantic-rpm-build/sles/15sp2/master/master.repo \
+    && zypper install -y curl wget python3 python3-pip jq gzip glibc-locale sudo \
+    && ln -fs /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/log/zypp* /var/cache/zypp/* /etc/zypp/repos.d/*
 
 EXPOSE 9090 9091 10000 12345
 
