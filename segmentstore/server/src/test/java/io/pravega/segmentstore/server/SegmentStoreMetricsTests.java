@@ -25,7 +25,6 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.test.common.SerializedClassRunner;
 import java.time.Duration;
 import java.util.Arrays;
@@ -200,7 +199,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testTreadPoolMetrics() {
+    public void testTreadPoolMetrics() throws InterruptedException {
         @Cleanup("shutdown")
         ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
         @Cleanup("shutdown")
@@ -208,17 +207,12 @@ public class SegmentStoreMetricsTests {
 
         @Cleanup
         SegmentStoreMetrics.ThreadPool pool = new SegmentStoreMetrics.ThreadPool(coreExecutor, storageExecutor);
-        pool.report();
+        Thread.sleep(2000);
 
-        OpStatsData queueSize = pool.getQueueSize();
-        OpStatsData activeThreads = pool.getActiveThreads();
-        OpStatsData storageActiveThreads = pool.getStorageActiveThreads();
-        OpStatsData storageQueueSize = pool.getStorageQueueSize();
-
-        assertEquals(1, queueSize.getNumSuccessfulEvents());
-        assertEquals(1, activeThreads.getNumSuccessfulEvents());
-        assertEquals(1, storageActiveThreads.getNumSuccessfulEvents());
-        assertEquals(1, storageQueueSize.getNumSuccessfulEvents());
+        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.THREAD_POOL_QUEUE_SIZE).count());
+        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count());
+        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE).count());
+        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count());
     }
 
     @Test

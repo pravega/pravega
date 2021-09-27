@@ -63,7 +63,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
 
     private static final AtomicLong COUNTER = new AtomicLong(0);
     @Getter
-    private final ThreadPoolExecutor runner;
+    final ThreadPoolExecutor runner;
     private final ScheduledQueue<ScheduledRunnable<?>> queue;
 
     /**

@@ -20,13 +20,12 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.StatsLogger;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.shared.metrics.Counter;
+import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.Meter;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.OpStatsLogger;
+import io.pravega.shared.metrics.StatsLogger;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -109,27 +108,11 @@ public final class SegmentStoreMetrics {
         public ThreadPool(ScheduledExecutorService executor, ScheduledExecutorService storageExecutor) {
             this.executor = Preconditions.checkNotNull(executor, "executor");
             this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
-            queueSize = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
-            activeThreads = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
-            storageQueueSize = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE);
-            storageActiveThreads = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS);
+            this.queueSize = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
+            this.activeThreads = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
+            this.storageQueueSize = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE);
+            this.storageActiveThreads = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS);
             this.reporter = executor.scheduleWithFixedDelay(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
-        }
-
-        public OpStatsData getQueueSize() {
-            return queueSize.toOpStatsData();
-        }
-
-        public OpStatsData getActiveThreads() {
-            return activeThreads.toOpStatsData();
-        }
-
-        public OpStatsData getStorageQueueSize() {
-            return storageQueueSize.toOpStatsData();
-        }
-
-        public OpStatsData getStorageActiveThreads() {
-            return storageActiveThreads.toOpStatsData();
         }
 
         @Override
@@ -141,7 +124,7 @@ public final class SegmentStoreMetrics {
             this.storageActiveThreads.close();
         }
 
-        public void report() {
+        private void report() {
             ExecutorServiceHelpers.Snapshot s = ExecutorServiceHelpers.getSnapshot(this.executor);
             if (s != null) {
                 this.queueSize.reportSuccessValue(s.getQueueSize());

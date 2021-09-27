@@ -20,8 +20,11 @@ import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -84,5 +87,16 @@ public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of runs (rejected execution)", 0, runCount.get());
         Assert.assertNull("Unexpected exception set (rejected execution)", exceptionHolder.get());
         Assert.assertEquals("Unexpected number of finally runs (rejected execution)", 1, finallyCount.get());
+    }
+
+    @Test
+    public void testSnapshot() {
+        @Cleanup("shutdown")
+        ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
+
+        ExecutorServiceHelpers.Snapshot snapshot = ExecutorServiceHelpers.getSnapshot(coreExecutor);
+        Assert.assertEquals("Unexpected pool size", 30, snapshot.getPoolSize());
+        Assert.assertEquals("Unexpected active thread count", 0, snapshot.getActiveThreadCount());
+        Assert.assertEquals("Unexpected queue size", 0, snapshot.getQueueSize());
     }
 }
