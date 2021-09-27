@@ -35,6 +35,7 @@ WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
 
-RUN chmod +x -R /opt/pravega/scripts/
-
+RUN chown -R container:1000 /opt/pravega/
+RUN chmod +x -R /opt/pravega/
+USER ${PVG_USER}
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
