@@ -37,6 +37,7 @@ public class ContainerMetadataSerializerTest {
         appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_SEALED, "false");
         appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_START_OFFSET, "0");
         appendField(userGeneratedMetadataBuilder, SEGMENT_PROPERTIES_LENGTH, "10");
+        appendField(userGeneratedMetadataBuilder, "80000000-0000-0000-0000-000000000000", "1632728432718");
 
         String userString = userGeneratedMetadataBuilder.toString();
         ContainerMetadataSerializer serializer = new ContainerMetadataSerializer();
