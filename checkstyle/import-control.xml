@@ -9,7 +9,6 @@
     <allow pkg="java"/>
     <allow pkg="javax.management"/>
     <allow pkg="javax.annotation"/>
-    <allow pkg="com.sun"/>
     <allow pkg="org.apache.commons.lang"/>
     <allow pkg="org.slf4j"/>
     <allow pkg="org.junit"/>
@@ -44,5 +43,7 @@
     <allow pkg="io.jsonwebtoken" />
     <allow pkg="io.kubernetes" />
     <allow pkg="edu.umd.cs.findbugs.annotations" />
-
+    <subpackage name="segmentstore.server.host">
+      <allow pkg="com.sun"/>
+    </subpackage>
 </import-control>

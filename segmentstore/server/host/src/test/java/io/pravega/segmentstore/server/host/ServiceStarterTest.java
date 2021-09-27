@@ -21,6 +21,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
@@ -55,7 +56,6 @@ public class ServiceStarterTest {
         serviceStarter = new ServiceStarter(configBuilder.build());
         serviceStarter.start();
     }
-
 
     @After
     public void stopZookeeper() throws Exception {
@@ -105,5 +105,24 @@ public class ServiceStarterTest {
     public void testHealth() {
         Health health = serviceStarter.getHealthServiceManager().getHealthSnapshot();
         Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+    }
+
+    /**
+     * Test for validating the SS memory settings config
+     */
+    @Test
+    public void testMemoryConfig() {
+        //cache more than JVM MaxDirectMemory
+        AssertExtensions.assertThrows("Exception to be thrown for Cache size greater than JVM MaxDirectMemory",
+                () -> ServiceStarter.validateConfig(3013872542L, 1013872542L, 2013872542L, 8013872542L),
+                e -> e instanceof IllegalStateException);
+
+        //MaxDirectMem + Xmx > System Memory
+        AssertExtensions.assertThrows("Exception to be thrown for MaxDirectMemory + Xmx being greater than System memory.",
+                () -> ServiceStarter.validateConfig(3013872542L, 2013872542L, 7013872542L, 8013872542L),
+                e -> e instanceof IllegalStateException);
+        
+        //must not throw exception
+        ServiceStarter.validateConfig(3013872542L, 1013872542L, 5013872542L, 8013872542L);
     }
 }

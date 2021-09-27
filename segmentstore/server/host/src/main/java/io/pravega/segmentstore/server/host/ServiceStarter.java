@@ -265,13 +265,18 @@ public final class ServiceStarter {
                                                                    .getVMOption("MaxDirectMemorySize").getValue());
         maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
         long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
-        log.info("MaxDirectMemorySize is " + maxDirectMemorySize + " Cache size is " + cacheSize + " Xmx value is " + xmx + " Netty DM " + nettyDirectMem);
+        log.info("MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", maxDirectMemorySize, cacheSize, nettyDirectMem);
         //run checks
-        Preconditions.checkState(((com.sun.management.OperatingSystemMXBean) ManagementFactory
-                        .getOperatingSystemMXBean()).getTotalPhysicalMemorySize() > (maxDirectMemorySize + xmx),
-                "MaxDirectMemorySize(" + maxDirectMemorySize + " B) along with JVM Xmx value(" + xmx + " B) configured is greater than the available system memory!");
-        Preconditions.checkState(maxDirectMemorySize > cacheSize,
-                "Cache size(" + cacheSize + " B) configured is more than the JVM MaxDirectMemory(" + maxDirectMemorySize + " B) value!!");
+        validateConfig(cacheSize, xmx, maxDirectMemorySize, ((com.sun.management.OperatingSystemMXBean) ManagementFactory
+                .getOperatingSystemMXBean()).getTotalPhysicalMemorySize());
+    }
+
+    @VisibleForTesting
+    static void validateConfig(long cacheSize, long xmx, long maxDirectMem, long totalMem) {
+        Preconditions.checkState(totalMem > (maxDirectMem + xmx), String.format("MaxDirectMemorySize(%s B) along " +
+                "with JVM Xmx value(%s B) is greater than the available system memory!", maxDirectMem, xmx));
+        Preconditions.checkState(maxDirectMem > cacheSize, String.format("Cache size (%s B) configured is more " +
+                "than the JVM MaxDirectMemory(%s B) value", cacheSize, maxDirectMem));
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
