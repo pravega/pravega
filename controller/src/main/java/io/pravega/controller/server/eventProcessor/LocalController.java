@@ -203,7 +203,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.updateStream(scope, streamName, streamConfig, requestIdGenerator.nextLong()).thenApply(x -> {
-            String scopedStreamName = NameUtils.getScopedStreamName(scope,streamName);
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, streamName);
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update configuration for Stream: " + scopedStreamName + ", config: " + streamConfig);
@@ -232,7 +232,7 @@ public class LocalController implements Controller {
                 case INVALID_RG_NAME:
                     throw new IllegalArgumentException("Failed to create Reader Group: " + scopedRGName + " due to Illegal Reader Group name: " + rgName);
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Failed to create Reader Group: " + scopedRGName + " as Scope: "+ scopeName + " does not exist.");
+                    throw new IllegalArgumentException("Failed to create Reader Group: " + scopedRGName + " as Scope: " + scopeName + " does not exist.");
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
@@ -252,7 +252,7 @@ public class LocalController implements Controller {
                 case INVALID_CONFIG:
                     throw new ReaderGroupConfigRejectedException("Failed to update Reader Group:" + scopedRGName + ", Invalid Reader Group Config: " + config.toString());
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException("Failed to update Reader Group as Reader Group: "+ scopedRGName + " does not exist.");
+                    throw new ReaderGroupNotFoundException("Failed to update Reader Group as Reader Group: " + scopedRGName + " does not exist.");
                 case SUCCESS:
                     return x.getGeneration();
                 default:
@@ -300,12 +300,12 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
         return this.controller.listSubscribers(scope, streamName, requestIdGenerator.nextLong()).thenApply(x -> {
-            String scopedStreamName = NameUtils.getScopedStreamName(scope,streamName);
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, streamName);
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to listSubscribers for stream: " + scopedStreamName);
                 case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Failed to listSubscribers for Stream: "+ scopedStreamName + " as Stream does not exist.");
+                    throw new IllegalArgumentException("Failed to listSubscribers for Stream: " + scopedStreamName + " as Stream does not exist.");
                 case SUCCESS:
                     return new ArrayList<>(x.getSubscribersList());
                 default:
