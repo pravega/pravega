@@ -96,7 +96,6 @@ public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
 
         ExecutorServiceHelpers.Snapshot snapshot = ExecutorServiceHelpers.getSnapshot(coreExecutor);
         Assert.assertEquals("Unexpected pool size", 30, snapshot.getPoolSize());
-        Assert.assertEquals("Unexpected active thread count", 0, snapshot.getActiveThreadCount());
         Assert.assertEquals("Unexpected queue size", 0, snapshot.getQueueSize());
     }
 }
