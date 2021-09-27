@@ -98,10 +98,10 @@ public final class SegmentStoreMetrics {
      * SegmentStore ThreadPool metrics.
      */
     public final static class ThreadPool implements AutoCloseable {
-        private static final OpStatsLogger QUEUE_SIZE = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
-        private static final OpStatsLogger ACTIVE_THREADS = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
-        private static final OpStatsLogger STORAGE_QUEUE_SIZE = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE);
-        private static final OpStatsLogger STORAGE_ACTIVE_THREADS = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS);
+        private final OpStatsLogger queueSize;
+        private final OpStatsLogger activeThreads;
+        private final OpStatsLogger storageQueueSize;
+        private final OpStatsLogger storageActiveThreads;
         private final ScheduledExecutorService executor;
         private final ScheduledExecutorService storageExecutor;
         private final ScheduledFuture<?> reporter;
@@ -109,44 +109,48 @@ public final class SegmentStoreMetrics {
         public ThreadPool(ScheduledExecutorService executor, ScheduledExecutorService storageExecutor) {
             this.executor = Preconditions.checkNotNull(executor, "executor");
             this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
+            queueSize = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
+            activeThreads = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
+            storageQueueSize = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE);
+            storageActiveThreads = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS);
             this.reporter = executor.scheduleWithFixedDelay(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
         }
 
-        public static OpStatsData getQueueSize() {
-            return QUEUE_SIZE.toOpStatsData();
+        public OpStatsData getQueueSize() {
+            return queueSize.toOpStatsData();
         }
 
-        public static OpStatsData getActiveThreads() {
-            return ACTIVE_THREADS.toOpStatsData();
+        public OpStatsData getActiveThreads() {
+            return activeThreads.toOpStatsData();
         }
 
-        public static OpStatsData getStorageQueueSize() {
-            return STORAGE_QUEUE_SIZE.toOpStatsData();
+        public OpStatsData getStorageQueueSize() {
+            return storageQueueSize.toOpStatsData();
         }
 
-        public static OpStatsData getStorageActiveThreads() {
-            return STORAGE_ACTIVE_THREADS.toOpStatsData();
+        public OpStatsData getStorageActiveThreads() {
+            return storageActiveThreads.toOpStatsData();
         }
 
         @Override
         public void close() {
             this.reporter.cancel(true);
-            this.QUEUE_SIZE.close();
-            this.ACTIVE_THREADS.close();
-            this.STORAGE_QUEUE_SIZE.close();
-            this.STORAGE_ACTIVE_THREADS.close();
+            this.queueSize.close();
+            this.activeThreads.close();
+            this.storageQueueSize.close();
+            this.storageActiveThreads.close();
         }
 
         public void report() {
             ExecutorServiceHelpers.Snapshot s = ExecutorServiceHelpers.getSnapshot(this.executor);
             if (s != null) {
-                this.QUEUE_SIZE.reportSuccessValue(s.getQueueSize());
-                this.ACTIVE_THREADS.reportSuccessValue(s.getActiveThreadCount());
+                this.queueSize.reportSuccessValue(s.getQueueSize());
+                this.activeThreads.reportSuccessValue(s.getActiveThreadCount());
             }
             ExecutorServiceHelpers.Snapshot ss = ExecutorServiceHelpers.getSnapshot(this.storageExecutor);
             if (ss != null) {
-                this.STORAGE_QUEUE_SIZE.reportSuccessValue(ss.getQueueSize());
-                this.STORAGE_ACTIVE_THREADS.reportSuccessValue(ss.getActiveThreadCount());
+                this.storageQueueSize.reportSuccessValue(ss.getQueueSize());
+                this.storageActiveThreads.reportSuccessValue(ss.getActiveThreadCount());
             }
         }
     }

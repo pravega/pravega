@@ -210,10 +210,10 @@ public class SegmentStoreMetricsTests {
         SegmentStoreMetrics.ThreadPool pool = new SegmentStoreMetrics.ThreadPool(coreExecutor, storageExecutor);
         pool.report();
 
-        OpStatsData queueSize = SegmentStoreMetrics.ThreadPool.getQueueSize();
-        OpStatsData activeThreads = SegmentStoreMetrics.ThreadPool.getActiveThreads();
-        OpStatsData storageActiveThreads = SegmentStoreMetrics.ThreadPool.getStorageActiveThreads();
-        OpStatsData storageQueueSize = SegmentStoreMetrics.ThreadPool.getStorageQueueSize();
+        OpStatsData queueSize = pool.getQueueSize();
+        OpStatsData activeThreads = pool.getActiveThreads();
+        OpStatsData storageActiveThreads = pool.getStorageActiveThreads();
+        OpStatsData storageQueueSize = pool.getStorageQueueSize();
 
         assertEquals(1, queueSize.getNumSuccessfulEvents());
         assertEquals(1, activeThreads.getNumSuccessfulEvents());
