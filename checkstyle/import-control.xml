@@ -43,6 +43,7 @@
     <allow pkg="io.jsonwebtoken" />
     <allow pkg="io.kubernetes" />
     <allow pkg="edu.umd.cs.findbugs.annotations" />
+    <allow pkg="software.amazon.awssdk" />
     <subpackage name="segmentstore.server.host">
       <allow pkg="com.sun"/>
     </subpackage>
