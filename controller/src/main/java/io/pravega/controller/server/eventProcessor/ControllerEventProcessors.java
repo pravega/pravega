@@ -91,7 +91,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
-import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
 
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
