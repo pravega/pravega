@@ -1180,6 +1180,14 @@ project('test:system') {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
 
+        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2)(?:-.+)/) {
+            systemProperty "bookkeeperOperatorVersion", "INVALID_BOOKKEEPER_OPERATOR_VERSION"
+        }
+
+        if (System.getProperty("pravegaOperatorVersion") ==~ /^(0)\.(1|2|3|4)\.(\d)(?:-.+)/) {
+            systemProperty "pravegaOperatorVersion", "INVALID_PRAVEGA_OPERATOR_VERSION"
+        }
+
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
