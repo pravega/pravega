@@ -188,7 +188,7 @@ public class LocalController implements Controller {
             case INVALID_STREAM_NAME:
                 throw new IllegalArgumentException(String.format("Failed to create stream. Illegal Stream name: %s", streamName));
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException(String.format("Failed to create stream:  Scope does not exist: %s.", scope));
+                throw new IllegalArgumentException(String.format("Failed to create stream: %s as Scope %s does not exist.", streamName, scope));
             case STREAM_EXISTS:
                 return false;
             case SUCCESS:
@@ -267,7 +267,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException(String.format("Failed to get configuration for Reader Group: %s.", scopedRGName));
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException(String.format("Failed to get configuration for Reader Group %s, as Reader Group could not be found:", scopedRGName));
+                    throw new ReaderGroupNotFoundException(String.format("Failed to get configuration for Reader Group %s, as Reader Group could not be found.", scopedRGName));
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
@@ -285,11 +285,11 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException(String.format("Failed to delete Reader Group: %s", scopedRGName));
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException(String.format("Failed to delete Reader Group as Reader Group %s could not be found:: ", scopedRGName));
+                    throw new ReaderGroupNotFoundException(String.format("Failed to delete Reader Group as Reader Group %s could not be found.", scopedRGName));
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException(String.format("Failed to delete Reader Group: %s, due to unknown return status: ", scopedRGName, x.getStatus()));
+                    throw new ControllerFailureException(String.format("Failed to delete Reader Group: %s, due to unknown return status: %s", scopedRGName, x.getStatus()));
             }
         });
     }
