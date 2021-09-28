@@ -25,23 +25,30 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 
 /**
  * Request handler for executing a create operation for a ReaderGroup.
  */
 public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupEvent> {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(UpdateReaderGroupTask.class));
-
+    private static final Predicate<Throwable> UPDATE_RETRY_PREDICATE = e -> {
+        Throwable t = Exceptions.unwrap(e);
+        return t instanceof RetryableException || t instanceof ConnectionFailedException;
+    };
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
@@ -109,14 +116,18 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                        }
                                        return CompletableFuture.completedFuture(null);
                                    })
-                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, 
-                                           readerGroup, rgConfigRecord, context, executor));
+                                   .thenCompose(v -> completeConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
                                }
-                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, 
-                                       rgConfigRecord, context, executor);
+                               // We get here for non-transition updates
+                               return completeConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor);
                            }
                            return CompletableFuture.completedFuture(null);
                        });
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        }), UPDATE_RETRY_PREDICATE, Integer.MAX_VALUE, executor);
+    }
+
+    private CompletableFuture<Void> completeConfigUpdate(String scope, String rgName, VersionedMetadata<ReaderGroupConfigRecord> record, OperationContext context, ScheduledExecutorService executor) {
+        return RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.completeRGConfigUpdate(scope, rgName, record, context, executor),
+                ex -> log.warn("Complete Reader Group config update failed with exception: {}", ex.getMessage()), executor);
     }
 }

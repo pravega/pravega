@@ -139,20 +139,30 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
         log.info(createRGEvent.getRequestId(), "Processing create request for ReaderGroup {}/{}", 
                 createRGEvent.getScope(), createRGEvent.getRgName());
-        return createRGTask.execute(createRGEvent);
+        return createRGTask.execute(createRGEvent).thenAccept(v -> {
+            log.info(createRGEvent.getRequestId(), "Processing of create event for Reader Group {}/{} completed successfully.",
+                    createRGEvent.getScope(), createRGEvent.getRgName());
+        });
     }
 
     @Override
     public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
         log.info(deleteRGEvent.getRequestId(), "Processing delete request for ReaderGroup {}/{}",
                 deleteRGEvent.getScope(), deleteRGEvent.getRgName());
-        return deleteRGTask.execute(deleteRGEvent);
+        return deleteRGTask.execute(deleteRGEvent).thenAccept(v -> {
+            log.info(deleteRGEvent.getRequestId(), "Processing of delete event for Reader Group {}/{} completed successfully.",
+                    deleteRGEvent.getScope(), deleteRGEvent.getRgName());
+        });
     }
 
     @Override
     public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
         log.info(updateRGEvent.getRequestId(), "Processing update request for ReaderGroup {}/{}",
                 updateRGEvent.getScope(), updateRGEvent.getRgName());
-        return updateRGTask.execute(updateRGEvent);
+        return updateRGTask.execute(updateRGEvent)
+                .thenAccept(v -> {
+                    log.info(updateRGEvent.getRequestId(), "Processing of update event for Reader Group {}/{} completed successfully.",
+                            updateRGEvent.getScope(), updateRGEvent.getRgName());
+                });
     }
 }
