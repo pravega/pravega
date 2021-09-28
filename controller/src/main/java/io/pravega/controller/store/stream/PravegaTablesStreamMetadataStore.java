@@ -45,7 +45,7 @@ import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 
-import static io.pravega.controller.store.PravegaTablesStoreHelper.*;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
@@ -133,12 +133,10 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         return new StreamOperationContext(scope, stream, requestId);
     }
 
-    //addNewEntry
-    <T> CompletableFuture<T> addEntryToDeletingScope(String scope, ScopeOperationContext context, ScheduledExecutorService executor){
+    @Override
+    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
         storeHelper.addNewEntry(DELETING_SCOPE_NAME, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId());
         return null;
-//        (String tableName, String key, T val, Function<T, byte[]> toBytes,
-//        long requestId)
     }
 
     @VisibleForTesting 
@@ -339,12 +337,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         return Futures.completeOn(((PravegaTablesScope) getScope(scopeName, context))
                 .checkReaderGroupExistsInScope(rgName, context), executor);
     }
-
-    @Override
-    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
-        return null;
-    }
-
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName, 
