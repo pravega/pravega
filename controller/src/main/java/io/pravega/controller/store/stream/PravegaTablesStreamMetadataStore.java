@@ -63,8 +63,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
-
 /**
  * Pravega Tables stream metadata store.
  */
