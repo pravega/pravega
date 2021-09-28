@@ -200,7 +200,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testTreadPoolMetrics() throws Exception {
+    public void testThreadPoolMetrics() throws Exception {
         @Cleanup("shutdown")
         ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
         @Cleanup("shutdown")
