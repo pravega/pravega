@@ -25,6 +25,7 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
 import java.time.Duration;
 import java.util.Arrays;
@@ -199,7 +200,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testTreadPoolMetrics() throws InterruptedException {
+    public void testTreadPoolMetrics() throws Exception {
         @Cleanup("shutdown")
         ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
         @Cleanup("shutdown")
@@ -207,12 +208,11 @@ public class SegmentStoreMetricsTests {
 
         @Cleanup
         SegmentStoreMetrics.ThreadPool pool = new SegmentStoreMetrics.ThreadPool(coreExecutor, storageExecutor);
-        Thread.sleep(2000);
 
-        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.THREAD_POOL_QUEUE_SIZE).count());
-        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count());
-        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE).count());
-        assertEquals(1, MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count());
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.THREAD_POOL_QUEUE_SIZE).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count() == 1, 2000);
     }
 
     @Test
