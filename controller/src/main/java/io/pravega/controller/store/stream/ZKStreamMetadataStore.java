@@ -61,6 +61,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
      */
     @VisibleForTesting
     static final String SCOPE_ROOT_PATH = "/store";
+    static final String SCOPE_DELETE_PATH = "_system/deletingScopes";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
@@ -132,6 +133,12 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
+        return storeHelper.checkExists(scopePath);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext context, Executor executor) {
+        String scopePath = ZKPaths.makePath(SCOPE_DELETE_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
 

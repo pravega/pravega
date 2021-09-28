@@ -47,6 +47,7 @@ import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -219,6 +220,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         long requestId = getOperationContext(context).getRequestId(); 
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
+                false), executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope,  OperationContext context, Executor executor) {
+        long requestId = getOperationContext(context).getRequestId();
+        return Futures.completeOn(storeHelper.expectingDataNotFound(
+                storeHelper.getEntry(DELETING_SCOPE_NAME, scope, x -> x, requestId).thenApply(v -> true),
                 false), executor);
     }
 

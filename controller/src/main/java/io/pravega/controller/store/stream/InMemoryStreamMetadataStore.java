@@ -63,6 +63,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final HashMap<String, InMemoryScope> scopes = new HashMap<>();
+    @GuardedBy("$lock")
+    private final HashMap<String, InMemoryScope> deletingScopes = new HashMap<>();
     private final AtomicInteger position = new AtomicInteger();
     @GuardedBy("$lock")
     private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
@@ -110,6 +112,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext context, Executor executor) {
+        log.debug("InMemory checking if scope exists");
+        return CompletableFuture.completedFuture(deletingScopes.containsKey(scope));
     }
 
     @Override

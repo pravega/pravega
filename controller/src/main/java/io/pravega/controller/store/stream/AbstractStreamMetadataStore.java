@@ -188,7 +188,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         Futures.completeOn(checkScopeExists(scope, context, executor)
                                 .thenCompose(exists -> {
                                     if (exists) {
-                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope. 
+                                        checkScopeInDeletingTable(scope, context, executor)
+                                                .thenCompose(positive -> {
+                                                    if (positive) {
+                                                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "scope in deleting state"));
+                                                    }
+                                                    // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
+                                                    return getStream(scope, name, context)
+                                                            .create(configuration, createTimestamp, startingSegmentNumber, context);
+                                                });
+                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
                                         return getStream(scope, name, context)
                                                 .create(configuration, createTimestamp, startingSegmentNumber, context);
                                     } else {

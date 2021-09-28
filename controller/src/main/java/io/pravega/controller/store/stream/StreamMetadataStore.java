@@ -123,6 +123,15 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Boolean> checkScopeExists(final String scopeName, OperationContext context, Executor executor);
 
     /**
+     * Api to check if a scope exists in the deleting scope table or not.
+     * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
+     * @return true if scope exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkScopeInDeletingTable(final String scopeName, OperationContext context, Executor executor);
+
+    /**
      * Api to get creation time for the stream. 
      * 
      * @param scopeName       scope name

@@ -20,7 +20,6 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import lombok.AllArgsConstructor;
@@ -35,10 +34,11 @@ public class DeleteScopeEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final long requestId;
-//    private UUID scopeId;
 
     @Override
-    public String getKey() { return this.scope; }
+    public String getKey() {
+        return this.scope;
+    }
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
@@ -69,13 +69,11 @@ public class DeleteScopeEvent implements ControllerEvent {
         private void write00(DeleteScopeEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeLong(e.requestId);
-//            target.writeUUID(e.scopeId);
         }
 
         private void read00(RevisionDataInput source, DeleteScopeEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.requestId(source.readLong());
-//            b.scopeId(source.readUUID());
         }
     }
 
