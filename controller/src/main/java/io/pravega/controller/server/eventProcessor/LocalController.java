@@ -227,7 +227,7 @@ public class LocalController implements Controller {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException(String.format("Failed to create Reader Group: %s", scopedRGName);
+                    throw new ControllerFailureException(String.format("Failed to create Reader Group: %s", scopedRGName));
                 case INVALID_RG_NAME:
                     throw new IllegalArgumentException(String.format("Failed to create Reader Group: %s due to Illegal Reader Group name: %s", scopedRGName, rgName));
                 case SCOPE_NOT_FOUND:
