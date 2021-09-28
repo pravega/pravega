@@ -982,7 +982,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor){
+    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
         return null;
     }
 

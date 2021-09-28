@@ -736,7 +736,7 @@ public class StreamMetadataTasks extends TaskBase {
         return RetryHelper.withRetriesAsync(() ->
                 streamMetadataStore.checkScopeExists(scope, context, executor)
                         .thenCompose(exists -> {
-                            if(!exists){
+                            if (!exists) {
                                 return CompletableFuture.completedFuture(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND);
                             } else {
                                 DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
