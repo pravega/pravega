@@ -1148,13 +1148,18 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
+        systemProperty "pravegaOperatorChartVersion",System.getProperty("pravegaOperatorChartVersion", "latest")
+        systemProperty "bookkeeperOperatorChartVersion",System.getProperty("bookkeeperOperatorChartVersion", "latest")
+        systemProperty "zookeeperOperatorChartVersion",System.getProperty("zookeeperOperatorChartVersion", "latest")
         systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
         systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
         systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
-        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        systemProperty "pravegaOperatorImageName",System.getProperty("pravegaOperatorImageName", "pravega-operator")
+        systemProperty "bookkeeperOperatorImageName",System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
+        systemProperty "zookeeperOperatorImageName",System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
         systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
         systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
+        systemProperty "helmHookImageName",System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
 
         // target versions wrt Upgrade for all operators & clusters
         systemProperty "controllerLabel", System.getProperty("controllerLabel", "pravega-controller");
