@@ -1179,14 +1179,14 @@ project('test:system') {
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
-
         // validating that bookkeeper operator version >= 0.1.3
-        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2)(?:-.+)/) {
+        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2)(-.+)*/) {
+            println 'Bookkeeper operator in invalid version'
             throw new GradleException('Requires Bookkeeper Operator Version >= 0.1.3')
         }
-
         // validating that pravega operator version >= 0.5.0
-        if (System.getProperty("pravegaOperatorVersion") ==~ /^(0)\.(1|2|3|4)\.(\d)(?:-.+)/) {
+        if (System.getProperty("pravegaOperatorVersion") ==~ /^(0)\.(1|2|3|4)\.(\d)(-.+)*/) {
+            println 'Pravega operator in invalid version'
             throw new GradleException('Requires Pravega Operator Version >= 0.5.0')
         }
 
