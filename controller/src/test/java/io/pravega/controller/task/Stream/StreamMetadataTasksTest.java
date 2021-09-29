@@ -90,7 +90,18 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.*;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -692,7 +703,7 @@ public abstract class StreamMetadataTasksTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
                 .build();
         CreateReaderGroupEvent badCreateEvent = buildCreateRGEvent(SCOPE, "rg", rgConf, 1L, System.currentTimeMillis());
-       
+
         requestEventWriter.writeEvent(badCreateEvent);
         AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
