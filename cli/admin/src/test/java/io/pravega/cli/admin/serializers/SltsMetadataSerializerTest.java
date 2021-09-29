@@ -20,14 +20,18 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
+import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.CHUNK_METADATA;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.CHUNK_METADATA_LENGTH;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.CHUNK_METADATA_NAME;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.CHUNK_METADATA_NEXT_CHUNK;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.CHUNK_METADATA_STATUS;
+import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.METADATA_TYPE;
+import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.READ_INDEX_BLOCK_METADATA;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.READ_INDEX_BLOCK_METADATA_CHUNK_NAME;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.READ_INDEX_BLOCK_METADATA_NAME;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.READ_INDEX_BLOCK_METADATA_START_OFFSET;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.READ_INDEX_BLOCK_METADATA_STATUS;
+import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA_CHUNK_COUNT;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA_FIRST_CHUNK;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET;
@@ -41,6 +45,7 @@ import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_ME
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA_START_OFFSET;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.SEGMENT_METADATA_STATUS;
 import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.TRANSACTION_DATA_KEY;
+import static io.pravega.cli.admin.serializers.SltsMetadataSerializer.TRANSACTION_DATA_VERSION;
 import static org.junit.Assert.assertEquals;
 
 public class SltsMetadataSerializerTest {
@@ -49,6 +54,8 @@ public class SltsMetadataSerializerTest {
     public void testSltsChunkMetadataSerializer() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
         appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_KEY, "k");
+        appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_VERSION, "1062");
+        appendField(userGeneratedMetadataBuilder, METADATA_TYPE, CHUNK_METADATA);
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_NAME, "chunk0");
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_LENGTH, "10");
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_NEXT_CHUNK, "chunk1");
@@ -64,6 +71,8 @@ public class SltsMetadataSerializerTest {
     public void testSltsSegmentMetadataSerializer() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
         appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_KEY, "k");
+        appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_VERSION, "1062");
+        appendField(userGeneratedMetadataBuilder, METADATA_TYPE, SEGMENT_METADATA);
         appendField(userGeneratedMetadataBuilder, SEGMENT_METADATA_NAME, "segment-name");
         appendField(userGeneratedMetadataBuilder, SEGMENT_METADATA_LENGTH, "10");
         appendField(userGeneratedMetadataBuilder, SEGMENT_METADATA_CHUNK_COUNT, "5");
@@ -87,6 +96,8 @@ public class SltsMetadataSerializerTest {
     public void testSltsReadIndexBlockMetadataSerializer() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
         appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_KEY, "k");
+        appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_VERSION, "1062");
+        appendField(userGeneratedMetadataBuilder, METADATA_TYPE, READ_INDEX_BLOCK_METADATA);
         appendField(userGeneratedMetadataBuilder, READ_INDEX_BLOCK_METADATA_NAME, "r1");
         appendField(userGeneratedMetadataBuilder, READ_INDEX_BLOCK_METADATA_CHUNK_NAME, "chunk0");
         appendField(userGeneratedMetadataBuilder, READ_INDEX_BLOCK_METADATA_START_OFFSET, "10");
@@ -102,6 +113,8 @@ public class SltsMetadataSerializerTest {
     public void testSltsSerializerArgumentFailure() {
         StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
         appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_KEY, "k");
+        appendField(userGeneratedMetadataBuilder, TRANSACTION_DATA_VERSION, "1062");
+        appendField(userGeneratedMetadataBuilder, METADATA_TYPE, "random_value");
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_NAME, "chunk0");
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_LENGTH, "10");
         appendField(userGeneratedMetadataBuilder, CHUNK_METADATA_STATUS, "0");

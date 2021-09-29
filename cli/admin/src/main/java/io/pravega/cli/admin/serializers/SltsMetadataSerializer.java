@@ -35,6 +35,7 @@ import java.util.function.Function;
 public class SltsMetadataSerializer extends AbstractSerializer {
     
     static final String TRANSACTION_DATA_KEY = "key";
+    static final String TRANSACTION_DATA_VERSION = "version";
 
     static final String CHUNK_METADATA_NAME = "name";
     static final String CHUNK_METADATA_LENGTH = "length";
@@ -58,6 +59,11 @@ public class SltsMetadataSerializer extends AbstractSerializer {
     static final String READ_INDEX_BLOCK_METADATA_CHUNK_NAME = "chunkName";
     static final String READ_INDEX_BLOCK_METADATA_START_OFFSET = "startOffset";
     static final String READ_INDEX_BLOCK_METADATA_STATUS = "status";
+
+    static final String METADATA_TYPE = "metadataType";
+    static final String CHUNK_METADATA = "ChunkMetadata";
+    static final String SEGMENT_METADATA = "SegmentMetadata";
+    static final String READ_INDEX_BLOCK_METADATA = "ReadIndexBlockMetadata";
 
     private static final TransactionData.TransactionDataSerializer SERIALIZER = new TransactionData.TransactionDataSerializer();
 
@@ -109,6 +115,7 @@ public class SltsMetadataSerializer extends AbstractSerializer {
             // The correct instance of StorageMetadata is then generated.
             TransactionData transactionData = TransactionData.builder()
                     .key(getAndRemoveIfExists(data, TRANSACTION_DATA_KEY))
+                    .version(Long.parseLong(getAndRemoveIfExists(data, TRANSACTION_DATA_VERSION)))
                     .value(generateStorageMetadataValue(data))
                     .build();
             buf = SERIALIZER.serialize(transactionData).asByteBuffer();
@@ -126,6 +133,7 @@ public class SltsMetadataSerializer extends AbstractSerializer {
             stringValueBuilder = new StringBuilder();
 
             appendField(stringValueBuilder, TRANSACTION_DATA_KEY, data.getKey());
+            appendField(stringValueBuilder, TRANSACTION_DATA_VERSION, String.valueOf(data.getVersion()));
             handleStorageMetadataValue(stringValueBuilder, data.getValue());
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -141,14 +149,17 @@ public class SltsMetadataSerializer extends AbstractSerializer {
      */
     private void handleStorageMetadataValue(StringBuilder builder, StorageMetadata metadata) {
         if (metadata instanceof ChunkMetadata) {
+            appendField(builder, METADATA_TYPE, CHUNK_METADATA);
             ChunkMetadata chunkMetadata = (ChunkMetadata) metadata;
             CHUNK_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(chunkMetadata))));
 
         } else if (metadata instanceof SegmentMetadata) {
+            appendField(builder, METADATA_TYPE, SEGMENT_METADATA);
             SegmentMetadata segmentMetadata = (SegmentMetadata) metadata;
             SEGMENT_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(segmentMetadata))));
 
         } else if (metadata instanceof ReadIndexBlockMetadata) {
+            appendField(builder, METADATA_TYPE, READ_INDEX_BLOCK_METADATA);
             ReadIndexBlockMetadata readIndexBlockMetadata = (ReadIndexBlockMetadata) metadata;
             READ_INDEX_BLOCK_METADATA_FIELD_MAP.forEach((name, f) -> appendField(builder, name, String.valueOf(f.apply(readIndexBlockMetadata))));
         }
@@ -162,48 +173,43 @@ public class SltsMetadataSerializer extends AbstractSerializer {
      * @throws IllegalArgumentException if any of the queried fields do not correspond to any valid StorageMetadata implementation.
      */
     private StorageMetadata generateStorageMetadataValue(Map<String, String> storageMetadataMap) {
-        if (CHUNK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
-            return ChunkMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NAME))
-                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_LENGTH)))
-                    .nextChunk(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NEXT_CHUNK))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_STATUS)))
-                    .build();
+        String metadataType = getAndRemoveIfExists(storageMetadataMap, METADATA_TYPE);
+        switch (metadataType) {
+            case CHUNK_METADATA:
+                return ChunkMetadata.builder()
+                        .name(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NAME))
+                        .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_LENGTH)))
+                        .nextChunk(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_NEXT_CHUNK))
+                        .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, CHUNK_METADATA_STATUS)))
+                        .build();
 
-        } else if (SEGMENT_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
-            return SegmentMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_NAME))
-                    .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LENGTH)))
-                    .chunkCount(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_CHUNK_COUNT)))
-                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_START_OFFSET)))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_STATUS)))
-                    .maxRollinglength(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_MAX_ROLLING_LENGTH)))
-                    .firstChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK))
-                    .lastChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK))
-                    .lastModified(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_MODIFIED)))
-                    .firstChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET)))
-                    .lastChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK_START_OFFSET)))
-                    .ownerEpoch(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_OWNER_EPOCH)))
-                    .build();
+            case SEGMENT_METADATA:
+                return SegmentMetadata.builder()
+                        .name(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_NAME))
+                        .length(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LENGTH)))
+                        .chunkCount(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_CHUNK_COUNT)))
+                        .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_START_OFFSET)))
+                        .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_STATUS)))
+                        .maxRollinglength(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_MAX_ROLLING_LENGTH)))
+                        .firstChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK))
+                        .lastChunk(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK))
+                        .lastModified(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_MODIFIED)))
+                        .firstChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_FIRST_CHUNK_START_OFFSET)))
+                        .lastChunkStartOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_LAST_CHUNK_START_OFFSET)))
+                        .ownerEpoch(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, SEGMENT_METADATA_OWNER_EPOCH)))
+                        .build();
 
-        } else if (READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().stream().allMatch(storageMetadataMap::containsKey)) {
-            return ReadIndexBlockMetadata.builder()
-                    .name(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_NAME))
-                    .chunkName(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_CHUNK_NAME))
-                    .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_START_OFFSET)))
-                    .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_STATUS)))
-                    .build();
+            case READ_INDEX_BLOCK_METADATA:
+                return ReadIndexBlockMetadata.builder()
+                        .name(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_NAME))
+                        .chunkName(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_CHUNK_NAME))
+                        .startOffset(Long.parseLong(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_START_OFFSET)))
+                        .status(Integer.parseInt(getAndRemoveIfExists(storageMetadataMap, READ_INDEX_BLOCK_METADATA_STATUS)))
+                        .build();
+
+            default:
+                throw new IllegalArgumentException("The metadataType value provided does not correspond to any valid SLTS metadata. " +
+                        "The following are valid values: " + CHUNK_METADATA + ", " + SEGMENT_METADATA + ", " + READ_INDEX_BLOCK_METADATA);
         }
-
-        StringBuilder chunkGuide = new StringBuilder("key;");
-        CHUNK_METADATA_FIELD_MAP.keySet().forEach(s -> chunkGuide.append(s).append(";"));
-        StringBuilder segmentGuide = new StringBuilder("key;");
-        SEGMENT_METADATA_FIELD_MAP.keySet().forEach(s -> segmentGuide.append(s).append(";"));
-        StringBuilder readIndexBlockGuide = new StringBuilder("key;");
-        READ_INDEX_BLOCK_METADATA_FIELD_MAP.keySet().forEach(s -> readIndexBlockGuide.append(s).append(";"));
-        throw new IllegalArgumentException("Values provided do not correspond to any valid SLTS metadata.\nThe following are valid metadata keys for each type:\n" +
-                "ChunkMetadata: " + chunkGuide.toString() + "\n" +
-                "SegmentMetadata: " + segmentGuide.toString() + "\n" +
-                "ReadIndexBlockMetadata: " + readIndexBlockGuide.toString() + "\n");
     }
 }

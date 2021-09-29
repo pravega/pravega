@@ -57,7 +57,9 @@ public abstract class AbstractSerializer implements Serializer<String> {
         Arrays.stream(stringData.split(";")).forEachOrdered(kv -> {
             List<String> pair = Arrays.asList(kv.split("="));
             Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in %s", kv));
-            parsedData.put(pair.get(0), pair.get(1));
+            if (!parsedData.containsKey(pair.get(0))) {
+                parsedData.put(pair.get(0), pair.get(1));
+            }
         });
         return parsedData;
     }
