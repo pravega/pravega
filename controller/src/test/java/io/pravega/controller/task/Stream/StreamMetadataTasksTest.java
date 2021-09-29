@@ -16,10 +16,12 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -88,14 +90,7 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.CommitEvent;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.*;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -681,6 +676,43 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
+    }
+
+    @Test(timeout = 30000)
+    public void readerGroupFailureTests() throws InterruptedException {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        UpdateReaderGroupEvent badUpdateEvent = new UpdateReaderGroupEvent(SCOPE, "rg3", 2L, UUID.randomUUID(), 0L, false, ImmutableSet.of());
+        requestEventWriter.writeEvent(badUpdateEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        String scopedStreamName = "scope/stream";
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
+                .build();
+        CreateReaderGroupEvent badCreateEvent = buildCreateRGEvent(SCOPE, "rg", rgConf, 1L, System.currentTimeMillis());
+       
+        requestEventWriter.writeEvent(badCreateEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        DeleteReaderGroupEvent badDeleteEvent = new DeleteReaderGroupEvent(SCOPE, "rg3", 1L, UUID.randomUUID());
+        requestEventWriter.writeEvent(badDeleteEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+    }
+
+    private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
+                                                      final long requestId, final long createTimestamp) {
+        Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
+                config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                startStreamCuts, endStreamCuts, createTimestamp);
     }
 
     @Test(timeout = 30000)
@@ -3040,6 +3072,19 @@ public abstract class StreamMetadataTasksTest {
                                        requestEventWriter.getEventQueue().add(event);
                                        throw new CompletionException(e);
                                    });
+    }
+
+    private CompletableFuture<Void> processFailingEvent(WriterMock requestEventWriter) throws InterruptedException {
+        ControllerEvent event;
+        try {
+            event = requestEventWriter.getEventQueue().take();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return streamRequestHandler.processEvent(event)
+                .exceptionally(e -> {
+                    throw new CompletionException(e);
+                });
     }
 
     @Data
