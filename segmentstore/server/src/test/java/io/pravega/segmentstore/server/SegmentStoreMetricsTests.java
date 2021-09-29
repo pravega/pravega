@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.AbstractTimer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
@@ -24,6 +25,7 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
 import java.time.Duration;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -194,6 +197,22 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
+    }
+
+    @Test
+    public void testThreadPoolMetrics() throws Exception {
+        @Cleanup("shutdown")
+        ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
+        @Cleanup("shutdown")
+        ScheduledExecutorService storageExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "storage-io", Thread.NORM_PRIORITY);
+
+        @Cleanup
+        SegmentStoreMetrics.ThreadPool pool = new SegmentStoreMetrics.ThreadPool(coreExecutor, storageExecutor);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.THREAD_POOL_QUEUE_SIZE).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE).count() == 1, 2000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getTimer(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS).count() == 1, 2000);
     }
 
     @Test
