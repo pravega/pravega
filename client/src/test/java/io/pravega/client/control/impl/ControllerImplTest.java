@@ -1112,6 +1112,17 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void deleteScopeRecursive(ScopeInfo request, StreamObserver<Controller.DeleteScopeRecursiveStatus> responseObserver) {
+                if (request.getScope().equals("scope1")) {
+                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeRecursiveStatus.Status.SUCCESS).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
                 if (request.getScope().getScope().equals(NON_EXISTENT)) {
                     responseObserver.onNext(Controller.StreamsInScopeResponse
@@ -2173,6 +2184,15 @@ public class ControllerImplTest {
 
         deleteStatus = controllerClient.deleteScope(scope5);
         AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() {
+        CompletableFuture<Boolean> deleteStatus;
+        String scope1 = "scope1";
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope1);
+        assertTrue(deleteStatus.join());
     }
 
     @Test

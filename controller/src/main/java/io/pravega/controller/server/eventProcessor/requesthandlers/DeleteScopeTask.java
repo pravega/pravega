@@ -17,8 +17,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
@@ -34,17 +36,14 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(DeleteScopeTask.class));
 
     private final StreamMetadataStore streamMetadataStore;
-    private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
 
     public DeleteScopeTask(final StreamMetadataTasks streamMetaTasks,
                                  final StreamMetadataStore streamMetaStore,
                                  final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetaStore);
-        Preconditions.checkNotNull(streamMetaTasks);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetaStore;
-        this.streamMetadataTasks = streamMetaTasks;
         this.executor = executor;
     }
 
@@ -54,13 +53,20 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
         log.debug(requestId, "Deleting {} scope", scope);
-        // event should have UUID
-        // UUID of event should be matching with UUID of scope
-        // if not do nothing
-        // if yes then check entry if present in scopes table- StreamMetadataStore.checkScopeExits(scope)
-        streamMetadataStore.checkScopeExists(scope, context, executor);
-        streamMetadataStore.deleteScopeRecursive(scope, context, executor).thenCompose(i -> CompletableFuture.completedFuture(null));
-        return CompletableFuture.completedFuture(null);
+        return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
+            if (!exists) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+            }
+            return CompletableFuture.completedFuture(null);
+        }).thenCompose( v -> streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
+                .thenCompose(exists -> {
+                    if (exists) {
+                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Scope in deletion state"));
+                    }
+                    return CompletableFuture.completedFuture(null);
+            })).thenCompose(v1 -> {
+            streamMetadataStore.deleteScopeRecursive(scope, context, executor);
+            return CompletableFuture.completedFuture(null);
+        });
     }
 }
-
