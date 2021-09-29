@@ -116,18 +116,14 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                        }
                                        return CompletableFuture.completedFuture(null);
                                    })
-                                   .thenCompose(v -> completeConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
+                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
                                }
                                // We get here for non-transition updates
-                               return completeConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor);
+                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor);
                            }
                            return CompletableFuture.completedFuture(null);
                        });
         }), UPDATE_RETRY_PREDICATE, Integer.MAX_VALUE, executor);
     }
 
-    private CompletableFuture<Void> completeConfigUpdate(String scope, String rgName, VersionedMetadata<ReaderGroupConfigRecord> record, OperationContext context, ScheduledExecutorService executor) {
-        return RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.completeRGConfigUpdate(scope, rgName, record, context, executor),
-                ex -> log.warn("Complete Reader Group config update failed with exception: {}", ex.getMessage()), executor);
-    }
 }
