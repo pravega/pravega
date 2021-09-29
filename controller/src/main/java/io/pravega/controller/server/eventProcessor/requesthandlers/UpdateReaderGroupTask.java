@@ -25,8 +25,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;

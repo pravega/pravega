@@ -681,6 +681,8 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
+
+
     }
 
     @Test(timeout = 30000)
