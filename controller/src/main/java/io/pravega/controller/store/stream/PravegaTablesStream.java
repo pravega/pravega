@@ -905,13 +905,14 @@ class PravegaTablesStream extends PersistentStreamBase {
                                  for (int i = 0; i < txnIds.size(); i++) {
                                      VersionedMetadata<ActiveTxnRecord> txn = res.get(i);
                                      ActiveTxnRecord activeTxnRecord = txn.getObject();
-
-                                     VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
-                                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
-                                             activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(),
-                                             activeTxnRecord.getCommitOffsets());
-                                     list.add(vdata);
+                                     if (!ActiveTxnRecord.EMPTY.equals(activeTxnRecord)) {
+                                         VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
+                                                 activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
+                                                 activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
+                                                 activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(),
+                                                 activeTxnRecord.getCommitOffsets());
+                                         list.add(vdata);
+                                     }
                                  }
                                  return list;
                              }));
