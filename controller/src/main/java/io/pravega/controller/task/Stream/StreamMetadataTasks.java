@@ -793,13 +793,15 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenApply(v -> {
                                     State state = stateFuture.join();
                                     StreamConfigurationRecord configProperty = configPropertyFuture.join();
-
                                     // if property is updating and doesn't match our request, it's a subsequent update
                                     if (configProperty.isUpdating()) {
                                         return !configProperty.getStreamConfiguration().equals(newConfig);
                                     } else {
                                         // if update-barrier is not updating, then update is complete if property matches our expectation
                                         // and state is not updating
+                                        if (state.equals(State.SEALED)) {
+                                            return true;
+                                        }
                                         return !(configProperty.getStreamConfiguration().equals(newConfig) &&
                                                 state.equals(State.UPDATING));
                                     }
@@ -1465,6 +1467,9 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         // if truncate-barrier is not updating, then truncate is complete if property
                                         // matches our expectation and state is not updating
+                                        if (state.equals(State.SEALED)) {
+                                            return true;
+                                        }
                                         return !(truncationRecord.getStreamCut().equals(streamCut) && state.equals(State.TRUNCATING));
                                     }
                                 });
