@@ -101,7 +101,7 @@ public class TableMetadataTasks implements AutoCloseable {
         }
         this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()), this.executor, this.eventExecutor, hostId,
+                EventWriterConfig.builder().enableConnectionPooling(true).retryAttempts(Integer.MAX_VALUE).build()), this.executor, this.eventExecutor, hostId,
                 ((AbstractKVTableMetadataStore) this.kvtMetadataStore).getHostTaskIndex());
     }
 
