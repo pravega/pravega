@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.sun.management.HotSpotDiagnosticMXBean;
+import io.netty.util.internal.PlatformDependent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -45,6 +47,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -255,6 +258,28 @@ public final class ServiceStarter {
         });
     }
 
+    @VisibleForTesting
+    static void validateConfig(ServiceBuilderConfig config) {
+        long xmx = Runtime.getRuntime().maxMemory();
+        long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
+        long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+                                                                   .getVMOption("MaxDirectMemorySize").getValue());
+        maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
+        long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
+        log.info("MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", maxDirectMemorySize, cacheSize, nettyDirectMem);
+        //run checks
+        validateConfig(cacheSize, xmx, maxDirectMemorySize, ((com.sun.management.OperatingSystemMXBean) ManagementFactory
+                .getOperatingSystemMXBean()).getTotalPhysicalMemorySize());
+    }
+
+    @VisibleForTesting
+    static void validateConfig(long cacheSize, long xmx, long maxDirectMem, long totalMem) {
+        Preconditions.checkState(totalMem > (maxDirectMem + xmx), String.format("MaxDirectMemorySize(%s B) along " +
+                "with JVM Xmx value(%s B) is greater than the available system memory!", maxDirectMem, xmx));
+        Preconditions.checkState(maxDirectMem > cacheSize, String.format("Cache size (%s B) configured is more " +
+                "than the JVM MaxDirectMemory(%s B) value", cacheSize, maxDirectMem));
+    }
+
     private void attachZKSegmentManager(ServiceBuilder builder) {
         builder.withContainerManager(setup ->
                 new ZKSegmentContainerManager(setup.getContainerRegistry(),
@@ -337,6 +362,7 @@ public final class ServiceStarter {
             // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
             log.info("Segment store configuration:");
             config.forEach((key, value) -> log.info("{} = {}", key, value));
+            validateConfig(config);
             serviceStarter.set(new ServiceStarter(config));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
