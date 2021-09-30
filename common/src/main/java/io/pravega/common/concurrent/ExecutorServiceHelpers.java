@@ -99,6 +99,9 @@ public final class ExecutorServiceHelpers {
         } else if (service instanceof ForkJoinPool) {
             val fjp = (ForkJoinPool) service;
             return new Snapshot(fjp.getQueuedSubmissionCount(), fjp.getActiveThreadCount(), fjp.getPoolSize());
+        } else if (service instanceof ThreadPoolScheduledExecutorService) {
+            val tpse = (ThreadPoolScheduledExecutorService) service;
+            return new Snapshot(tpse.getRunner().getQueue().size(), tpse.getRunner().getActiveCount(), tpse.getRunner().getPoolSize());
         } else {
             return null;
         }
