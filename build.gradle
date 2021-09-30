@@ -1084,16 +1084,22 @@ project('test:system') {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
 
+        environment "dockerRegistryUrl", System.getProperty("dockerRegistryUrl")
+        environment "imagePrefix", System.getProperty("imagePrefix", "pravega")
         environment "tier2Type", System.getProperty("tier2Type", "nfs")
+        environment "pravegaOperatorChartVersion",System.getProperty("pravegaOperatorChartVersion", "latest")
+        environment "bookkeeperOperatorChartVersion",System.getProperty("bookkeeperOperatorChartVersion", "latest")
+        environment "zookeeperOperatorChartVersion",System.getProperty("zookeeperOperatorChartVersion", "latest")
         environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
         environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
         environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
+        environment "pravegaOperatorImageName",System.getProperty("pravegaOperatorImageName", "pravega-operator")
+        environment "bookkeeperOperatorImageName",System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
+        environment "zookeeperOperatorImageName",System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
         // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
         environment "publishedChartName", System.getProperty("publishedChartName", "pravega")
         environment "helmRepository", System.getProperty("helmRepository", "https://charts.pravega.io")
-        // To update config map with desired pravega version
-        environment "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        environment "helmHookImageName",System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
         environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
         environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
