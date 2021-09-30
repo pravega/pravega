@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.sun.management.HotSpotDiagnosticMXBean;
 import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -24,6 +25,8 @@ import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
+import java.lang.management.ManagementFactory;
+import java.util.Properties;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
@@ -41,12 +44,13 @@ public class ServiceStarterTest {
 
     private ServiceStarter serviceStarter;
     private TestingServer zkTestServer;
+    private ServiceBuilderConfig.Builder configBuilder;
 
     @Before
     public void setup() throws Exception {
         zkTestServer = new TestingServerStarter().start();
         String zkUrl = zkTestServer.getConnectString();
-        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+        configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
@@ -121,8 +125,23 @@ public class ServiceStarterTest {
         AssertExtensions.assertThrows("Exception to be thrown for MaxDirectMemory + Xmx being greater than System memory.",
                 () -> ServiceStarter.validateConfig(3013872542L, 2013872542L, 7013872542L, 8013872542L),
                 e -> e instanceof IllegalStateException);
-        
+
         //must not throw exception
         ServiceStarter.validateConfig(3013872542L, 1013872542L, 5013872542L, 8013872542L);
+
+        //testing the parent config method.
+        long xmx = Runtime.getRuntime().maxMemory();
+        Properties props = new Properties();
+        props.setProperty(ServiceConfig.COMPONENT_CODE + "." + ServiceConfig.CACHE_POLICY_MAX_SIZE.getName(), String.valueOf(1013872542L + xmx));
+        AssertExtensions.assertThrows("Exception to be thrown for Cache size greater than JVM MaxDirectMemory",
+                () -> ServiceStarter.validateConfig(this.configBuilder.include(props).build()),
+                e -> e instanceof IllegalStateException);
+
+        long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+                                                                   .getVMOption("MaxDirectMemorySize").getValue());
+        maxDirectMemorySize = maxDirectMemorySize == 0 ? xmx : maxDirectMemorySize;
+        props.setProperty(ServiceConfig.COMPONENT_CODE + "." + ServiceConfig.CACHE_POLICY_MAX_SIZE.getName(), String.valueOf(maxDirectMemorySize - 100000));
+        // must not throw exception . cache < JVM DM
+        ServiceStarter.validateConfig(this.configBuilder.include(props).build());
     }
 }

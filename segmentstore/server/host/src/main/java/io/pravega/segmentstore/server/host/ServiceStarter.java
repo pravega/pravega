@@ -258,7 +258,8 @@ public final class ServiceStarter {
         });
     }
 
-    private static void validateConfig(ServiceBuilderConfig config) {
+    @VisibleForTesting
+    static void validateConfig(ServiceBuilderConfig config) {
         long xmx = Runtime.getRuntime().maxMemory();
         long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
         long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
