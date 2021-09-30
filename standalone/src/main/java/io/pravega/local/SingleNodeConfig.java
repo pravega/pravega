@@ -50,6 +50,7 @@ public class SingleNodeConfig {
     // Metrics configurations
     public final static Property<Boolean> ENABLE_METRICS = Property.named("metrics.enable", false);
     public final static Property<Boolean> ENABLE_INFLUX_REPORTER = Property.named("metrics.influx.enable", false);
+    public final static Property<Boolean> ENABLE_PROMETHEUS_LISTENER = Property.named("metrics.prometheus.listener.enable", false);
     public final static Property<Integer> METRICS_REPORT_INTERVAL = Property.named("metrics.reporting.interval", 60);
 
     // Pravega Admin Gateway configuration
@@ -174,6 +175,12 @@ public class SingleNodeConfig {
     private boolean enableInfluxDB;
 
     /**
+     * Flag to enable Prometheus listener.
+     */
+    @Getter
+    private boolean enablePrometheusListener;
+
+    /**
      * Flag to control the rate of reporting.
      */
     @Getter
@@ -214,6 +221,7 @@ public class SingleNodeConfig {
         this.enableSegmentStoreTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
         this.enableMetrics = properties.getBoolean(ENABLE_METRICS);
         this.enableInfluxDB = properties.getBoolean(ENABLE_INFLUX_REPORTER);
+        this.enablePrometheusListener = properties.getBoolean(ENABLE_PROMETHEUS_LISTENER);
         this.metricsReportInterval = properties.getInt(METRICS_REPORT_INTERVAL);
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);

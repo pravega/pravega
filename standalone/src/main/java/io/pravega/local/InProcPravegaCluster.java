@@ -89,6 +89,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /* Metrics related variables*/
     private boolean enableMetrics;
     private boolean enableInfluxDB;
+    private boolean enablePrometheusListener;
     private int metricsReportInterval;
 
     /*Controller related variables*/
@@ -175,7 +176,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
             this.isInProcHDFS = !this.isInMemStorage;
             return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
-                    enableMetrics, enableInfluxDB, metricsReportInterval,
+                    enableMetrics, enableInfluxDB, enablePrometheusListener, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
@@ -338,6 +339,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
                         .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
+                        .with(MetricsConfig.ENABLE_PROMETHEUS_LISTENER, enablePrometheusListener)
                         .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());

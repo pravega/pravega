@@ -28,6 +28,7 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import java.util.ArrayList;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -41,6 +42,8 @@ class StatsProviderImpl implements StatsProvider {
     @Getter
     private final CompositeMeterRegistry metrics;
     private final MetricsConfig conf;
+
+    private PrometheusListener prometheusListener;
 
     StatsProviderImpl(MetricsConfig conf) {
         this(conf, Metrics.globalRegistry);
@@ -74,6 +77,12 @@ class StatsProviderImpl implements StatsProvider {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
 
+        if (conf.isEnablePrometheusListener()) {
+            PrometheusMeterRegistry promRegistry = new PrometheusMeterRegistry(RegistryConfigUtil.createPrometheusConfig(conf));
+            metrics.add(promRegistry);
+            startPrometheusListener(promRegistry);
+        }
+
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
         init();
@@ -82,7 +91,7 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void startWithoutExporting() {
-
+        stopPrometheusListener();
         for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             metrics.remove(registry);
         }
@@ -94,6 +103,7 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void close() {
+        stopPrometheusListener();
         for (MeterRegistry registry : metrics.getRegistries()) {
             registry.close();
             metrics.remove(registry);
@@ -108,5 +118,19 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public DynamicLogger createDynamicLogger() {
         return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics()));
+    }
+
+    private void startPrometheusListener(PrometheusMeterRegistry promRegistry) {
+        this.prometheusListener = new PrometheusListener(conf.getPrometheusListenerAddress(), conf.getPrometheusListenerPort(), promRegistry);
+        this.prometheusListener.startAsync();
+        this.prometheusListener.awaitRunning();
+    }
+
+    private void stopPrometheusListener() {
+        if (this.prometheusListener != null) {
+            this.prometheusListener.stopAsync();
+            this.prometheusListener.awaitTerminated();
+            this.prometheusListener = null;
+        }
     }
 }

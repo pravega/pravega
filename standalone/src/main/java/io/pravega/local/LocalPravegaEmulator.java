@@ -50,6 +50,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String keyPasswordFile;
     private boolean enableMetrics;
     private boolean enableInfluxDB;
+    private boolean enablePrometheusListener;
     private int metricsReportInterval;
     private boolean enabledAdminGateway;
     private int adminGatewayPort;
@@ -88,6 +89,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwd(passwd)
                     .enableMetrics(enableMetrics)
                     .enableInfluxDB(enableInfluxDB)
+                    .enablePrometheusListener(enablePrometheusListener)
                     .metricsReportInterval(metricsReportInterval)
                     .enableAdminGateway(enabledAdminGateway)
                     .adminGatewayPort(adminGatewayPort)
@@ -97,8 +99,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
                     enableAuth, enableTls, tlsProtocolVersion, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
-                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, metricsReportInterval,
-                    enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
+                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, enablePrometheusListener,
+                    metricsReportInterval, enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
         }
     }
 
@@ -122,6 +124,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .tlsProtocolVersion(conf.getTlsProtocolVersion())
                     .enableMetrics(conf.isEnableMetrics())
                     .enableInfluxDB(conf.isEnableInfluxDB())
+                    .enablePrometheusListener(conf.isEnablePrometheusListener())
                     .metricsReportInterval(conf.getMetricsReportInterval())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
