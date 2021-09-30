@@ -110,7 +110,7 @@ if [ $skipServiceInstallation = false ]; then
 
   #Step 8: Creating Pravega-OP
   echo "Creating Pravega Operator"
-  CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | awk '{print $2}')"
+  CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | head -1 | awk '{print $2}')"
   helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorChartVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --set image.repository=$dockerRegistryUrl/$imagePrefix/$pravegaOperatorImageName --set image.tag=$pravegaOperatorVersion --set hooks.image.repository=$helmHookImageName --wait
   prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
   #kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
