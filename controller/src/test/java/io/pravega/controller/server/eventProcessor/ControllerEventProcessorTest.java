@@ -17,6 +17,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -27,6 +28,7 @@ import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
@@ -34,6 +36,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -67,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -74,6 +78,7 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -355,7 +360,7 @@ public abstract class ControllerEventProcessorTest {
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
     }
 
-    private List<VersionedTransactionData> createAndCommitTransactions(int count) {
+    protected List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
@@ -388,7 +393,7 @@ public abstract class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 
-    private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
+    protected void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(expectedStatus, txnStatus);
     }

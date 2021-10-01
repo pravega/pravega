@@ -239,9 +239,7 @@ class PravegaTablesStream extends PersistentStreamBase {
             future = generateMarksForTransactions(context, writerMarks)
                 .thenCompose(v -> createCompletedTxEntries(completedRecords, context))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch(), context)
-                            .thenCompose(table -> {
-                                return storeHelper.removeEntries(table, txnIdStrings, context.getRequestId());
-                            }))
+                            .thenCompose(table -> storeHelper.removeEntries(table, txnIdStrings, context.getRequestId())))
                     .thenCompose(x -> tryRemoveOlderTransactionsInEpochTables(epoch -> epoch < record.getObject().getEpoch(), 
                             context));
         }
