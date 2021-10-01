@@ -30,18 +30,8 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
     }
 
     void ensureSerializersExist() {
-        ensureKeySerializerExists();
-        ensureValueSerializerExists();
-    }
-
-    void ensureKeySerializerExists() {
-        Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null, "The key serializer has not been set. " +
-                "Use the command \"table-segment set-key-serializer <serializer-name>\" and try again.");
-    }
-
-    void ensureValueSerializerExists() {
-        Preconditions.checkArgument(getCommandArgs().getState().getValueSerializer() != null, "The value serializer has not been set. " +
-                "Use the command \"table-segment set-value-serializer <serializer-name>\" and try again.");
+        Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null && getCommandArgs().getState().getValueSerializer() != null,
+                "The serializers have not been set. Use the command \"table-segment set-serializer <serializer-name>\" and try again.");
     }
 
     ByteBuffer getByteBuffer(ByteBuf byteBuf) {

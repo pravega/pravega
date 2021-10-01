@@ -41,7 +41,7 @@ public class ListTableSegmentKeysCommand extends TableSegmentCommand {
     @Override
     public void execute() {
         ensureArgCount(3);
-        ensureKeySerializerExists();
+        ensureSerializersExist();
 
         final String fullyQualifiedTableSegmentName = getArg(0);
         final int keyCount = getIntArg(1);

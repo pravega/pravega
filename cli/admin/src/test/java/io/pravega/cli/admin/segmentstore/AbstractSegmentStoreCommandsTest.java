@@ -244,37 +244,24 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
-    public void testSetValueSerializerCommand() throws Exception {
+    public void testSetSerializerCommand() throws Exception {
+        Assert.assertNull(STATE.get().getKeySerializer());
         Assert.assertNull(STATE.get().getValueSerializer());
 
-        String commandResult = TestUtils.executeCommand("table-segment set-value-serializer dummy", STATE.get());
-        Assert.assertTrue(commandResult.contains("Value serializer named dummy does not exist."));
+        String commandResult = TestUtils.executeCommand("table-segment set-serializer dummy", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers named dummy do not exist."));
+        Assert.assertNull(STATE.get().getKeySerializer());
         Assert.assertNull(STATE.get().getValueSerializer());
 
-        commandResult = TestUtils.executeCommand("table-segment set-value-serializer slts_value", STATE.get());
-        Assert.assertTrue(commandResult.contains("Value serializer changed to slts_value successfully."));
+        commandResult = TestUtils.executeCommand("table-segment set-serializer slts", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers changed to slts successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof SltsKeySerializer);
         Assert.assertTrue(STATE.get().getValueSerializer() instanceof SltsMetadataSerializer);
 
-        commandResult = TestUtils.executeCommand("table-segment set-value-serializer container_meta_value", STATE.get());
-        Assert.assertTrue(commandResult.contains("Value serializer changed to container_meta_value successfully."));
-        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
-    }
-
-    @Test
-    public void testSetKeySerializerCommand() throws Exception {
-        Assert.assertNull(STATE.get().getKeySerializer());
-
-        String commandResult = TestUtils.executeCommand("table-segment set-key-serializer dummy", STATE.get());
-        Assert.assertTrue(commandResult.contains("Key serializer named dummy does not exist."));
-        Assert.assertNull(STATE.get().getKeySerializer());
-
-        commandResult = TestUtils.executeCommand("table-segment set-key-serializer slts_key", STATE.get());
-        Assert.assertTrue(commandResult.contains("Key serializer changed to slts_key successfully."));
-        Assert.assertTrue(STATE.get().getKeySerializer() instanceof SltsKeySerializer);
-
-        commandResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
-        Assert.assertTrue(commandResult.contains("Key serializer changed to container_meta_key successfully."));
+        commandResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers changed to container_meta successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
     }
 
     @Test
@@ -291,9 +278,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testListTableSegmentKeysCommand() throws Exception {
-        String setKeySerializerResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
-        Assert.assertTrue(setKeySerializerResult.contains("Key serializer changed to container_meta_key successfully."));
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
 
         String tableSegmentName = getMetadataSegmentName(0);
         int keyCount = 5;
@@ -303,13 +291,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testGetTableSegmentEntryCommand() throws Exception {
-        String setValueSerializerResult = TestUtils.executeCommand("table-segment set-value-serializer container_meta_value", STATE.get());
-        Assert.assertTrue(setValueSerializerResult.contains("Value serializer changed to container_meta_value successfully."));
-        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
-
-        String setKeySerializerResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
-        Assert.assertTrue(setKeySerializerResult.contains("Key serializer changed to container_meta_key successfully."));
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
 
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
@@ -324,13 +309,10 @@ public abstract class AbstractSegmentStoreCommandsTest {
     
     @Test
     public void testPutTableSegmentEntryCommand() throws Exception {
-        String setValueSerializerResult = TestUtils.executeCommand("table-segment set-value-serializer container_meta_value", STATE.get());
-        Assert.assertTrue(setValueSerializerResult.contains("Value serializer changed to container_meta_value successfully."));
-        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
-
-        String setKeySerializerResult = TestUtils.executeCommand("table-segment set-key-serializer container_meta_key", STATE.get());
-        Assert.assertTrue(setKeySerializerResult.contains("Key serializer changed to container_meta_key successfully."));
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
 
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
