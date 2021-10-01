@@ -96,5 +96,4 @@ public interface ReplyProcessor {
 
     void errorMessage(WireCommands.ErrorMessage errorMessage);
 
-    void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated);
 }
