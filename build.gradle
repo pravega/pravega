@@ -1456,7 +1456,7 @@ task preparePravegaImage(type: Copy) {
 
 task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
     baseTag = pravegaBaseTag
-    dockerDir = "docker/pravega"
+    dockerDir = preparePravegaImage.destinationDir.absolutePath
     dockerFile = "${dockerDir}/Dockerfile"
 }
 
