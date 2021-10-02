@@ -16,11 +16,8 @@
 FROM asdrepo.isus.emc.com:9042/atlantic/javabase:latest
 
 # Atlantic javabase defines a 'container' user so we don't run as root
-ENV PVG_USER=container
-ENV PVG_HOME=/opt/pravega
 
-# Add container user
-RUN echo "${PVG_USER}:x:1000:${PVG_USER}" >> /etc/group
+RUN echo "container:x:1000:container" >> /etc/group
 
 RUN set -x \
     && zypper addrepo http://asdrepo.isus.emc.com:8081/artifactory/atlantic-rpm-build/sles/15sp2/master/master.repo \
@@ -37,5 +34,5 @@ COPY scripts/ /opt/pravega/scripts/
 
 RUN chown -R container:1000 /opt/pravega/
 RUN chmod +x -R /opt/pravega/
-USER ${PVG_USER}
+USER container
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
