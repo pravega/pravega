@@ -102,10 +102,10 @@ public abstract class ControllerEventProcessorTest {
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
-    private StreamMetadataStore streamStore;
-    private BucketStore bucketStore;
-    private StreamMetadataTasks streamMetadataTasks;
-    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    protected StreamMetadataStore streamStore;
+    protected BucketStore bucketStore;
+    protected StreamMetadataTasks streamMetadataTasks;
+    protected StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
@@ -355,7 +355,7 @@ public abstract class ControllerEventProcessorTest {
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
     }
 
-    private List<VersionedTransactionData> createAndCommitTransactions(int count) {
+    protected List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
@@ -388,7 +388,7 @@ public abstract class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 
-    private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
+    protected void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(expectedStatus, txnStatus);
     }
