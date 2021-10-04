@@ -26,11 +26,17 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
+import io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore;
+import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.stream.*;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.EventHelper;
@@ -43,15 +49,17 @@ import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doReturn;
 
 /**
  * Controller Event ProcessorTests.
@@ -79,15 +87,15 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        String SCOPE = "scope";
-        String STREAM = "stream";
+        String scope = "scope";
+        String stream = "stream";
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
-        streamStore.createScope(SCOPE, null, executor).join();
+        streamStore.createScope(scope, null, executor).join();
         long start = System.currentTimeMillis();
-        streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();
-        streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        streamStore.createStream(scope, stream, configuration1, start, null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         StreamMetadataTasks spyStreamMetadataTasks = spy(streamMetadataTasks);
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
@@ -103,10 +111,10 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
         doReturn(clientRequestId).when(spyStreamMetadataTasks).getRequestId(any());
         spyStreamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, spyStreamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
-        streamStore.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
+        streamStore.startCommitTransactions(scope, stream, 100, null, executor).join();
         //commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
 
-        AssertExtensions.assertFutureThrows("Updating CommittingTxnRecord fails", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)), e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("Updating CommittingTxnRecord fails", commitEventProcessor.processEvent(new CommitEvent(scope, stream, epoch)), e -> Exceptions.unwrap(e) instanceof RuntimeException);
         //verify(storeHelper, times(1)).removeEntries(anyString(), any(), eq(clientRequestId));
 
     }
