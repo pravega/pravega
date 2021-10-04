@@ -32,6 +32,7 @@ import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEvent> {
@@ -139,20 +140,43 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
         log.info(createRGEvent.getRequestId(), "Processing create request for ReaderGroup {}/{}", 
                 createRGEvent.getScope(), createRGEvent.getRgName());
-        return createRGTask.execute(createRGEvent);
+        return createRGTask.execute(createRGEvent).thenAccept(v -> {
+            log.info(createRGEvent.getRequestId(), "Processing of create event for Reader Group {}/{} completed successfully.",
+                    createRGEvent.getScope(), createRGEvent.getRgName());
+        }).exceptionally(ex -> {
+            log.error(createRGEvent.getRequestId(), String.format("Error processing create event for Reader Group %s/%s. Unexpected exception.",
+                    createRGEvent.getScope(), createRGEvent.getRgName()), ex);
+            throw new CompletionException(ex);
+        });
     }
 
     @Override
     public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
         log.info(deleteRGEvent.getRequestId(), "Processing delete request for ReaderGroup {}/{}",
                 deleteRGEvent.getScope(), deleteRGEvent.getRgName());
-        return deleteRGTask.execute(deleteRGEvent);
+        return deleteRGTask.execute(deleteRGEvent)
+                .thenAccept(v -> log.info(deleteRGEvent.getRequestId(), "Processing of delete event for Reader Group {}/{} completed successfully.",
+                    deleteRGEvent.getScope(), deleteRGEvent.getRgName()))
+                .exceptionally(ex -> {
+                    log.error(deleteRGEvent.getRequestId(), String.format("Error processing delete event for Reader Group %s/%s. Unexpected exception.",
+                            deleteRGEvent.getScope(), deleteRGEvent.getRgName()), ex);
+                    throw new CompletionException(ex);
+                });
     }
 
     @Override
     public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
         log.info(updateRGEvent.getRequestId(), "Processing update request for ReaderGroup {}/{}",
                 updateRGEvent.getScope(), updateRGEvent.getRgName());
-        return updateRGTask.execute(updateRGEvent);
+        return updateRGTask.execute(updateRGEvent)
+                .thenAccept(v -> {
+                    log.info(updateRGEvent.getRequestId(), "Processing of update event for Reader Group {}/{} completed successfully.",
+                            updateRGEvent.getScope(), updateRGEvent.getRgName());
+                })
+                .exceptionally(ex -> {
+                    log.error(updateRGEvent.getRequestId(), String.format("Error processing update event for Reader Group %s/%s. Unexpected exception.",
+                            updateRGEvent.getScope(), updateRGEvent.getRgName()), ex);
+                    throw new CompletionException(ex);
+                });
     }
 }

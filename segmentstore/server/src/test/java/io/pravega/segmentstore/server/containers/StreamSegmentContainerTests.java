@@ -262,7 +262,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 5;
+        return 2;
     }
 
     /**
