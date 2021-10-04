@@ -216,7 +216,6 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                                   OperationContext context,
                                                                   Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-        log.debug("completeCommittingTransactions.");
         // create all transaction entries in committing txn list.
         // remove all entries from active txn in epoch.
         // reset CommittingTxnRecord
@@ -990,7 +989,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> orderedPositions, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-        log.debug("Removing TRANSACTIONS FROM COMMIT ORDERER");
         return txnCommitOrderer.removeEntities(getScope(), getName(), orderedPositions);
     }
 

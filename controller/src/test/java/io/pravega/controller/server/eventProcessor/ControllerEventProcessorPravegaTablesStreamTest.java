@@ -44,8 +44,8 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
-import  static org.junit.Assert.assertFalse;
-import  static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import org.mockito.ArgumentMatchers;
 
 import java.time.Duration;
