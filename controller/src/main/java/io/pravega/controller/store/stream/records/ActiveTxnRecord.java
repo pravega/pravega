@@ -39,7 +39,7 @@ import java.util.Optional;
 public class ActiveTxnRecord {
     public static final ActiveTxnRecord EMPTY = ActiveTxnRecord.builder().txCreationTimestamp(Long.MIN_VALUE)
             .leaseExpiryTime(Long.MIN_VALUE).maxExecutionExpiryTime(Long.MIN_VALUE).txnStatus(TxnStatus.UNKNOWN)
-            .writerId(Optional.empty()).commitTime(Optional.empty()).build();
+            .writerId(Optional.empty()).commitTime(Optional.empty()).commitOrder(Optional.empty()).commitOffsets(ImmutableMap.of()).build();
     
     public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
 
