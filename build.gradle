@@ -1087,12 +1087,12 @@ project('test:system') {
         environment "dockerRegistryUrl", System.getProperty("dockerRegistryUrl")
         environment "imagePrefix", System.getProperty("imagePrefix", "pravega")
         environment "tier2Type", System.getProperty("tier2Type", "nfs")
-        environment "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "latest")
-        environment "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "latest")
-        environment "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "latest")
-        environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
-        environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
-        environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
+        environment "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
+        environment "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
+        environment "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
+        environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "0.5.5")
+        environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "0.1.6")
+        environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "0.2.13")
         environment "pravegaOperatorImageName", System.getProperty("pravegaOperatorImageName", "pravega-operator")
         environment "bookkeeperOperatorImageName", System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
         environment "zookeeperOperatorImageName", System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
@@ -1154,12 +1154,12 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "latest")
-        systemProperty "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "latest")
-        systemProperty "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "latest")
-        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
-        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
-        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
+        systemProperty "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
+        systemProperty "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "0.5.5")
+        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "0.1.6")
+        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "0.2.13")
         systemProperty "pravegaOperatorImageName", System.getProperty("pravegaOperatorImageName", "pravega-operator")
         systemProperty "bookkeeperOperatorImageName", System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
         systemProperty "zookeeperOperatorImageName", System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
@@ -1191,12 +1191,12 @@ project('test:system') {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
         // validating that bookkeeper operator version >= 0.1.3
-        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2)(-.+)*/) {
-            throw new InvalidUserDataException('Requires Bookkeeper Operator Version >= 0.1.3')
+        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2|3|4)(-.+)*/) {
+            throw new InvalidUserDataException('Requires Bookkeeper Operator Version >= 0.1.5')
         }
         // validating that pravega operator version >= 0.5.0
-        if (System.getProperty("pravegaOperatorVersion") ==~ /^(0)\.(1|2|3|4)\.(\d)(-.+)*/) {
-            throw new InvalidUserDataException('Requires Pravega Operator Version >= 0.5.0')
+        if (System.getProperty("pravegaOperatorVersion") ==~ /^((0)\.(1|2|3|4)\.(\d)(-.+)*)|((0)\.(5)\.(0|1|2|3)(-.+)*)/) {
+            throw new InvalidUserDataException('Requires Pravega Operator Version >= 0.5.4')
         }
 
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
