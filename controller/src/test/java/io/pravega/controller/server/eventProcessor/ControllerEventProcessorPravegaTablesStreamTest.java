@@ -15,7 +15,6 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -26,17 +25,16 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.State;
-import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.EventHelper;
@@ -46,20 +44,21 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
+import  static org.junit.Assert.assertFalse;
+import  static org.junit.Assert.assertTrue;
 import org.mockito.ArgumentMatchers;
 
 import java.time.Duration;
-import java.util.UUID;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * Controller Event ProcessorTests.
@@ -74,16 +73,13 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
 
     @Test(timeout = 10000)
     public void testTxnPartialCommitRetry() {
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        PravegaTablesStoreHelper storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), executor));
-        StreamMetadataStore streamStore = new PravegaTablesStreamMetadataStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), storeHelper);
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        PravegaTablesStoreHelper storeHelper = spy(new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables(executor), GrpcAuthHelper.getDisabledAuthHelper(), executor));
+        this.streamStore = new PravegaTablesStreamMetadataStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), storeHelper);
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        EventHelper eventHelperMock = EventHelperMock.getEventHelperMock(executor, "1", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
+        EventHelper eventHelperMock = EventHelperMock.getEventHelperMock(executor, "1", ((AbstractStreamMetadataStore) this.streamStore).getHostTaskIndex());
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, this.bucketStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), eventHelperMock);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(this.streamStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
@@ -100,22 +96,35 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
         StreamMetadataTasks spyStreamMetadataTasks = spy(streamMetadataTasks);
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
-
-        final String committingTxnsRecordKey = "committingTxns";
-        long clientRequestId = 123L;
-        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).updateEntry(anyString(), eq(committingTxnsRecordKey), any(), ArgumentMatchers.<Function<String, byte[]>>any(), any(), eq(clientRequestId));
-        ImmutableList.Builder<UUID> txIdList = ImmutableList.builder();
-        txnDataList.stream().forEach(txn -> txIdList.add(txn.getId()));
-        CommittingTransactionsRecord commitTxnsRecord = new CommittingTransactionsRecord(0, txIdList.build());
-        doReturn(CompletableFuture.completedFuture(commitTxnsRecord)).when(storeHelper).getCachedOrLoad(anyString(), eq(committingTxnsRecordKey), ArgumentMatchers.<Function<byte[], String>>any(), anyLong(), eq(clientRequestId));
-        doReturn(clientRequestId).when(spyStreamMetadataTasks).getRequestId(any());
         spyStreamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, spyStreamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
-        streamStore.startCommitTransactions(scope, stream, 100, null, executor).join();
-        //commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
 
+        final String committingTxnsRecordKey = "committingTxns";
+        long failingClientRequestId = 123L;
+        doReturn(failingClientRequestId).when(spyStreamMetadataTasks).getRequestId(any());
+
+        OperationContext context = this.streamStore.createStreamContext(scope, stream, failingClientRequestId);
+        streamStore.startCommitTransactions(scope, stream, 100, context, executor).join();
+
+        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).updateEntry(anyString(), eq(committingTxnsRecordKey), any(), ArgumentMatchers.<Function<String, byte[]>>any(), any(), eq(failingClientRequestId));
         AssertExtensions.assertFutureThrows("Updating CommittingTxnRecord fails", commitEventProcessor.processEvent(new CommitEvent(scope, stream, epoch)), e -> Exceptions.unwrap(e) instanceof RuntimeException);
-        //verify(storeHelper, times(1)).removeEntries(anyString(), any(), eq(clientRequestId));
+        verify(storeHelper, times(1)).removeEntries(anyString(), any(), eq(failingClientRequestId));
+        VersionedMetadata<CommittingTransactionsRecord> versionedCommitRecord = this.streamStore.getVersionedCommittingTransactionsRecord(scope, stream, context, executor).join();
+        CommittingTransactionsRecord commitRecord = versionedCommitRecord.getObject();
+        assertFalse(CommittingTransactionsRecord.EMPTY.equals(commitRecord));
+        for (VersionedTransactionData txnData : txnDataList) {
+            checkTransactionState(scope, stream, txnData.getId(), TxnStatus.COMMITTED);
+        }
 
+        long goodClientRequestId = 4567L;
+        doReturn(goodClientRequestId).when(spyStreamMetadataTasks).getRequestId(any());
+        commitEventProcessor.processEvent(new CommitEvent(scope, stream, epoch)).join();
+        versionedCommitRecord = this.streamStore.getVersionedCommittingTransactionsRecord(scope, stream, context, executor).join();
+        commitRecord = versionedCommitRecord.getObject();
+        assertTrue(CommittingTransactionsRecord.EMPTY.equals(commitRecord));
+
+        for (VersionedTransactionData txnData : txnDataList) {
+            checkTransactionState(scope, stream, txnData.getId(), TxnStatus.COMMITTED);
+        }
     }
 }

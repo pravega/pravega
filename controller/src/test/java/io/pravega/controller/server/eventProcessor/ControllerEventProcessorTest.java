@@ -102,10 +102,10 @@ public abstract class ControllerEventProcessorTest {
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
-    private StreamMetadataStore streamStore;
-    private BucketStore bucketStore;
-    private StreamMetadataTasks streamMetadataTasks;
-    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    protected StreamMetadataStore streamStore;
+    protected BucketStore bucketStore;
+    protected StreamMetadataTasks streamMetadataTasks;
+    protected StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
