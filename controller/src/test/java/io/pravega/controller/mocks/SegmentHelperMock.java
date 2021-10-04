@@ -27,6 +27,8 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -57,7 +59,7 @@ import static org.mockito.Mockito.spy;
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class), mock(ScheduledExecutorService.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig()), mock(ScheduledExecutorService.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
