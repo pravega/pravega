@@ -32,6 +32,12 @@ import java.net.URI;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * A service that responds to Prometheus scrape requests, serving metrics
+ * from a PrometheusMeterRegistry. The listening port and address can be
+ * configured. Scraping clients should fetch from the pseudo standard
+ * "/metrics" route path.
+ */
 @Slf4j
 public class PrometheusListener extends AbstractIdleService {
     private final URI baseUri;
@@ -41,6 +47,12 @@ public class PrometheusListener extends AbstractIdleService {
     private final String objectId;
     private HttpServer httpServer;
 
+    /**
+     * @param address Local address for the network listener, or "0.0.0.0"
+     *                to listen on all addresses.
+     * @param port Local port for the network listener.
+     * @param registry The micrometer registry containing metrics to serve.
+     */
     PrometheusListener(String address, int port, PrometheusMeterRegistry registry) {
         this.objectId = "PrometheusListener";
         this.baseUri = URI.create("http://" + address + ":" + port + "/");
