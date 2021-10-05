@@ -56,7 +56,7 @@ public class PrometheusListenerTest {
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port))
+                .uri(URI.create("http://localhost:" + port + "/metrics"))
                 .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         assertTrue(response.body().lines().anyMatch(x -> Pattern.matches("promtestcounter.*1\\.0", x)));

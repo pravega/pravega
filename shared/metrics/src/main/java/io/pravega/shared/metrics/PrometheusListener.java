@@ -80,7 +80,7 @@ public class PrometheusListener extends AbstractIdleService {
         }
     }
 
-    @Path("/")
+    @Path("/metrics")
     public static class PrometheusResource {
         private final PrometheusMeterRegistry promRegistry;
 
