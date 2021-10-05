@@ -19,8 +19,17 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.SegmentStoreCommand;
+import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public abstract class TableSegmentCommand extends SegmentStoreCommand {
     static final String COMPONENT = "table-segment";
@@ -32,6 +41,35 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
     void ensureSerializersExist() {
         Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null && getCommandArgs().getState().getValueSerializer() != null,
                 "The serializers have not been set. Use the command \"table-segment set-serializer <serializer-name>\" and try again.");
+    }
+
+    String getTableEntry( String tableSegmentName,
+                          String key,
+                          String segmentStoreHost,
+                          AdminSegmentHelper adminSegmentHelper) {
+        ByteArraySegment serializedKey = new ByteArraySegment(getCommandArgs().getState().getKeySerializer().serialize(key));
+
+        CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(tableSegmentName,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
+                Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
+                super.authHelper.retrieveMasterToken(), 0L);
+
+        ByteBuffer serializedValue = getByteBuffer(reply.join().get(0).getValue());
+        return getCommandArgs().getState().getValueSerializer().deserialize(serializedValue);
+    }
+
+    long updateTableEntry(String tableSegmentName,
+                          String key, String value,
+                          String segmentStoreHost,
+                          AdminSegmentHelper adminSegmentHelper) {
+        ByteArraySegment serializedKey = new ByteArraySegment(getCommandArgs().getState().getKeySerializer().serialize(key));
+        ByteArraySegment serializedValue = new ByteArraySegment(getCommandArgs().getState().getValueSerializer().serialize(value));
+        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(serializedKey.getCopy(), serializedValue.getCopy());
+
+        CompletableFuture<List<TableSegmentKeyVersion>> reply = adminSegmentHelper.updateTableEntries(tableSegmentName,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
+                Collections.singletonList(updatedEntry), super.authHelper.retrieveMasterToken(), 0L);
+        return reply.join().get(0).getSegmentVersion();
     }
 
     ByteBuffer getByteBuffer(ByteBuf byteBuf) {

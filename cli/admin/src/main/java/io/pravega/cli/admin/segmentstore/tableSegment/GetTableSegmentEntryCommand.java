@@ -17,18 +17,10 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.tables.impl.TableSegmentEntry;
-import io.pravega.client.tables.impl.TableSegmentKey;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringData;
 
@@ -55,22 +47,14 @@ public class GetTableSegmentEntryCommand extends TableSegmentCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-
-        ByteArraySegment serializedKey = new ByteArraySegment(getCommandArgs().getState().getKeySerializer().serialize(key));
-
-        CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(fullyQualifiedTableSegmentName,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
-                Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
-                super.authHelper.retrieveMasterToken(), 0L);
-
-        ByteBuffer serializedValue = getByteBuffer(reply.join().get(0).getValue());
-        String value = getCommandArgs().getState().getValueSerializer().deserialize(serializedValue);
+        String value = getTableEntry(fullyQualifiedTableSegmentName, key, segmentStoreHost, adminSegmentHelper);
         output("For the given key: %s", key);
         userFriendlyOutput(value);
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get", "Get the value for the given key in the table.",
+        return new CommandDescriptor(COMPONENT, "get", "Get the entry for the given key in the table." +
+                "Use the command \"table-segment set-serializer <serializer-name>\" to use the appropriate serializer before using this command.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get info from."),
                 new ArgDescriptor("key", "The key to be queried."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
