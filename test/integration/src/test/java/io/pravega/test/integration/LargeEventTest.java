@@ -102,7 +102,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private static final int NUM_WRITERS = 2;
     private static final int NUM_READERS = 1;
     private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
-    private static final int MEGABYTE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE / 8;
     private static final int TINY_EVENT_SIZE = 8;
     private static final int CLOSE_WRITE_COUNT = 2;
     private static final String SCOPE_NAME = "scope";
@@ -213,8 +212,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
-        AtomicInteger generation = new AtomicInteger(0);
         int events = 1;
+        AtomicInteger generation = new AtomicInteger(0);
         // Normal Event Write/Read.
         merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS,  events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE));
 
@@ -338,7 +337,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, 0, numEvents, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
         Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
-
 
         // Close the connection after two `send` calls.
         AtomicInteger sendCount = new AtomicInteger(0);
