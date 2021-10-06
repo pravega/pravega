@@ -65,7 +65,7 @@ public class HealthManagerTests {
     public void testHealth() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor();
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
         awaitHealthContributor(service, contributor.getName());
         Assert.assertNotNull(service.getEndpoint().getHealth(contributor.getName()));
@@ -92,7 +92,7 @@ public class HealthManagerTests {
     public void testDetailsEndpoints() throws TimeoutException {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
         // Wait for the health result to be picked up by the HealthServiceUpdater.
         awaitHealthContributor(service, contributor.getName());
@@ -127,7 +127,7 @@ public class HealthManagerTests {
     public void testStatusEndpoints() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
         awaitHealthContributor(service, contributor.getName());
         // Test the 'service level' endpoint.
@@ -143,7 +143,7 @@ public class HealthManagerTests {
     public void testLivenessEndpoints() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
         awaitHealthContributor(service, contributor.getName());
         Assert.assertEquals("The HealthServiceManager should produce an 'alive' result.",
@@ -160,7 +160,7 @@ public class HealthManagerTests {
     public void testReadinessEndpoints() throws TimeoutException {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
         // Wait for the HealthServiceUpdater to update the Health state.
         awaitHealthContributor(service, contributor.getName());
 

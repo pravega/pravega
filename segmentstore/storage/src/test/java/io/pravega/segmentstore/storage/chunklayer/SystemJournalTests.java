@@ -20,9 +20,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
@@ -74,7 +72,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        metadataStore.setReadCallback( transactionData -> {
+            Assert.assertFalse("Attempt to read pinned metadata from store", transactionData.getKey().contains("_system/containers"));
+            return CompletableFuture.completedFuture(null);
+        });
+        return metadataStore;
     }
 
     protected ChunkStorage getChunkStorage() throws Exception {
@@ -506,7 +509,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Hello World", new String(out));
     }
 
-
     /**
      * Tests a scenario when there are multiple fail overs overs.
      * The test adds a few chunks to the system segments and then fails over.
@@ -520,16 +522,19 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val containerId = 42;
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
-        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, null);
+        val policy = new SegmentRollingPolicy(100);
+        val config = getDefaultConfigBuilder(policy)
+                .selfCheckEnabled(true)
+                .build();
+
+        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, config, null);
     }
 
-    private void testSimpleBootstrapWithMultipleFailovers(int containerId, ChunkStorage chunkStorage, Consumer<Long> faultInjection) throws Exception {
+    private void testSimpleBootstrapWithMultipleFailovers(int containerId, ChunkStorage chunkStorage, ChunkedSegmentStorageConfig config, Consumer<Long> faultInjection) throws Exception {
         @Cleanup
         CleanupHelper cleanupHelper = new CleanupHelper();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
-        val policy = new SegmentRollingPolicy(100);
-        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -601,8 +606,13 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val containerId = 42;
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        val policy = new SegmentRollingPolicy(100);
+        val config = getDefaultConfigBuilder(policy)
+                .selfCheckEnabled(true)
+                .build();
+
         try {
-            testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
+            testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, config, epoch -> {
                 val snapShotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, 1);
                 chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
             });
@@ -1093,7 +1103,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
 
-
     /**
      * Test simple chunk truncation.
      * We failover two times to test correct interaction between snapshot and system logs.
@@ -1154,7 +1163,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
-        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService() );
+        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(2, snapshotInfoStore).join();
 
@@ -1214,7 +1223,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash3, systemSegmentName, 20, 20);
     }
-
 
     /**
      * Test concurrent writes to storage system segments by simulating concurrent writes.
@@ -1317,226 +1325,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         for (String systemSegment : segmentStorage.getSystemJournal().getSystemSegments()) {
             TestUtils.checkChunksExistInStorage(segmentStorage.getChunkStorage(), segmentStorage.getMetadataStore(), systemSegment);
         }
-    }
-
-    @Test
-    public void testChunkAddedRecordSerialization() throws Exception {
-        testSystemJournalRecordSerialization(SystemJournal.ChunkAddedRecord.builder()
-                .segmentName("segmentName")
-                .newChunkName("newChunkName")
-                .oldChunkName("oldChunkName")
-                .offset(1)
-                .build());
-
-        // With nullable values
-        testSystemJournalRecordSerialization(SystemJournal.ChunkAddedRecord.builder()
-                .segmentName("segmentName")
-                .newChunkName("newChunkName")
-                .oldChunkName(null)
-                .offset(1)
-                .build());
-    }
-
-    @Test
-    public void testTruncationRecordSerialization() throws Exception {
-        testSystemJournalRecordSerialization(SystemJournal.TruncationRecord.builder()
-                .segmentName("segmentName")
-                .offset(1)
-                .firstChunkName("firstChunkName")
-                .startOffset(2)
-                .build());
-    }
-
-    private void testSystemJournalRecordSerialization(SystemJournal.SystemJournalRecord original) throws Exception {
-        val serializer = new SystemJournal.SystemJournalRecord.SystemJournalRecordSerializer();
-        val bytes = serializer.serialize(original);
-        val obj = serializer.deserialize(bytes);
-        Assert.assertEquals(original, obj);
-    }
-
-    @Test
-    public void testSystemJournalRecordBatchSerialization() throws Exception {
-        ArrayList<SystemJournal.SystemJournalRecord> lst = new ArrayList<SystemJournal.SystemJournalRecord>();
-        testSystemJournalRecordBatchSerialization(
-                SystemJournal.SystemJournalRecordBatch.builder()
-                        .systemJournalRecords(lst)
-                        .build());
-
-        ArrayList<SystemJournal.SystemJournalRecord> lst2 = new ArrayList<SystemJournal.SystemJournalRecord>();
-        lst2.add(SystemJournal.ChunkAddedRecord.builder()
-                .segmentName("segmentName")
-                .newChunkName("newChunkName")
-                .oldChunkName("oldChunkName")
-                .offset(1)
-                .build());
-        lst2.add(SystemJournal.ChunkAddedRecord.builder()
-                .segmentName("segmentName")
-                .newChunkName("newChunkName")
-                .oldChunkName(null)
-                .offset(1)
-                .build());
-        lst2.add(SystemJournal.TruncationRecord.builder()
-                .segmentName("segmentName")
-                .offset(1)
-                .firstChunkName("firstChunkName")
-                .startOffset(2)
-                .build());
-        testSystemJournalRecordBatchSerialization(
-                SystemJournal.SystemJournalRecordBatch.builder()
-                        .systemJournalRecords(lst)
-                        .build());
-    }
-
-    private void testSystemJournalRecordBatchSerialization(SystemJournal.SystemJournalRecordBatch original) throws Exception {
-        val serializer = new SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
-        val bytes = serializer.serialize(original);
-        val obj = serializer.deserialize(bytes);
-        Assert.assertEquals(original, obj);
-    }
-
-    @Test
-    public void testSnapshotRecordSerialization() throws Exception {
-
-        ArrayList<ChunkMetadata> list = new ArrayList<>();
-        list.add(ChunkMetadata.builder()
-                .name("name")
-                .nextChunk("nextChunk")
-                .length(1)
-                .status(2)
-                .build());
-        list.add(ChunkMetadata.builder()
-                .name("name")
-                .length(1)
-                .status(2)
-                .build());
-
-        testSegmentSnapshotRecordSerialization(
-                SystemJournal.SegmentSnapshotRecord.builder()
-                        .segmentMetadata(SegmentMetadata.builder()
-                                .name("name")
-                                .length(1)
-                                .chunkCount(2)
-                                .startOffset(3)
-                                .status(5)
-                                .maxRollinglength(6)
-                                .firstChunk("firstChunk")
-                                .lastChunk("lastChunk")
-                                .lastModified(7)
-                                .firstChunkStartOffset(8)
-                                .lastChunkStartOffset(9)
-                                .ownerEpoch(10)
-                                .build())
-                        .chunkMetadataCollection(list)
-                        .build());
-
-        testSegmentSnapshotRecordSerialization(
-                SystemJournal.SegmentSnapshotRecord.builder()
-                        .segmentMetadata(SegmentMetadata.builder()
-                                .name("name")
-                                .length(1)
-                                .chunkCount(2)
-                                .startOffset(3)
-                                .status(5)
-                                .maxRollinglength(6)
-                                .firstChunk(null)
-                                .lastChunk(null)
-                                .lastModified(7)
-                                .firstChunkStartOffset(8)
-                                .lastChunkStartOffset(9)
-                                .ownerEpoch(10)
-                                .build())
-                        .chunkMetadataCollection(list)
-                        .build());
-    }
-
-    private void testSegmentSnapshotRecordSerialization(SystemJournal.SegmentSnapshotRecord original) throws Exception {
-        val serializer = new SystemJournal.SegmentSnapshotRecord.Serializer();
-        val bytes = serializer.serialize(original);
-        val obj = serializer.deserialize(bytes);
-        Assert.assertEquals(original, obj);
-    }
-
-    @Test
-    public void testSystemSnapshotRecordSerialization() throws Exception {
-
-        ArrayList<ChunkMetadata> list1 = new ArrayList<>();
-        list1.add(ChunkMetadata.builder()
-                .name("name1")
-                .nextChunk("nextChunk1")
-                .length(1)
-                .status(2)
-                .build());
-        list1.add(ChunkMetadata.builder()
-                .name("name12")
-                .length(1)
-                .status(2)
-                .build());
-
-        ArrayList<ChunkMetadata> list2 = new ArrayList<>();
-        list2.add(ChunkMetadata.builder()
-                .name("name2")
-                .nextChunk("nextChunk2")
-                .length(1)
-                .status(3)
-                .build());
-        list2.add(ChunkMetadata.builder()
-                .name("name22")
-                .length(1)
-                .status(3)
-                .build());
-
-        ArrayList<SystemJournal.SegmentSnapshotRecord> segmentlist = new ArrayList<>();
-
-        segmentlist.add(
-                SystemJournal.SegmentSnapshotRecord.builder()
-                        .segmentMetadata(SegmentMetadata.builder()
-                                .name("name1")
-                                .length(1)
-                                .chunkCount(2)
-                                .startOffset(3)
-                                .status(5)
-                                .maxRollinglength(6)
-                                .firstChunk("firstChunk111")
-                                .lastChunk("lastChun111k")
-                                .lastModified(7)
-                                .firstChunkStartOffset(8)
-                                .lastChunkStartOffset(9)
-                                .ownerEpoch(10)
-                                .build())
-                        .chunkMetadataCollection(list1)
-                        .build());
-
-        segmentlist.add(
-                SystemJournal.SegmentSnapshotRecord.builder()
-                        .segmentMetadata(SegmentMetadata.builder()
-                                .name("name2")
-                                .length(1)
-                                .chunkCount(2)
-                                .startOffset(3)
-                                .status(5)
-                                .maxRollinglength(6)
-                                .firstChunk(null)
-                                .lastChunk(null)
-                                .lastModified(7)
-                                .firstChunkStartOffset(8)
-                                .lastChunkStartOffset(9)
-                                .ownerEpoch(10)
-                                .build())
-                        .chunkMetadataCollection(list2)
-                        .build());
-        val systemSnapshot = SystemJournal.SystemSnapshotRecord.builder()
-                .epoch(42)
-                .fileIndex(7)
-                .segmentSnapshotRecords(segmentlist)
-                .build();
-        testSystemSnapshotRecordSerialization(systemSnapshot);
-    }
-
-    private void testSystemSnapshotRecordSerialization(SystemJournal.SystemSnapshotRecord original) throws Exception {
-        val serializer = new SystemJournal.SystemSnapshotRecord.Serializer();
-        val bytes = serializer.serialize(original);
-        val obj = serializer.deserialize(bytes);
-        Assert.assertEquals(original, obj);
     }
 
     /**

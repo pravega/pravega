@@ -22,6 +22,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -29,7 +30,6 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -122,15 +122,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * @return A future that, when completed, contains reference to the Segment to be used by a given
      * {@link ContainerEventProcessor.EventProcessor} based on its name.
      */
-    private static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
+    @VisibleForTesting
+    static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
                                                                                                        MetadataStore metadataStore,
                                                                                                        Duration timeout) {
-        return s -> Futures.exceptionallyComposeExpecting(
-                container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
-                e -> e instanceof StreamSegmentNotExistsException,
-                () -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
-                        SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
-                        .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
+        return s -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
+                SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
+                .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout));
     }
 
     //endregion
@@ -329,22 +327,30 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         //region AutoCloseable implementation
 
         /**
-         * This method stop the service (superclass), auto-unregisters from the existing set of active
+         * This method stops the service (superclass), auto-unregisters from the existing set of active
          * {@link EventProcessor} instances (via onClose callback), and closes the metrics.
          */
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
-                super.close();
+                Services.onStop(super.stopAsync(),
+                        () -> log.info("{}: EventProcessor service shutdown complete.", this.traceObjectId),
+                        this::failureCallback,
+                        this.executor);
                 this.metrics.close();
                 this.onClose.run();
             }
         }
 
+        @VisibleForTesting
+        void failureCallback(Throwable ex) {
+            log.warn("{}: Problem shutting down EventProcessor service.", this.traceObjectId, ex);
+        }
+
         //endregion
 
-        //region Runnable implementation
+        //region AbstractThreadPoolService implementation
 
         @Override
         protected Duration getShutdownTimeout() {

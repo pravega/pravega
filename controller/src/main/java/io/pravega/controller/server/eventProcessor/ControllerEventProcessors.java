@@ -80,10 +80,12 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
@@ -121,6 +123,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final long rebalanceIntervalMillis;
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
+    @Getter
+    private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -139,7 +143,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     @VisibleForTesting
-    ControllerEventProcessors(final String host,
+    public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
@@ -181,6 +185,39 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
     }
 
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected.
+     */
+    public boolean isMetadataServiceConnected() {
+        return  checkpointStore.isHealthy();
+     }
+
+    /**
+     * Get bootstrap completed status.
+     *
+     * @return true if bootstrapCompleted is set to true.
+     */
+    public boolean isBootstrapCompleted() {
+        return this.bootstrapCompleted.get();
+    }
+
+    /**
+     * Get the health status.
+     *
+     * @return true if zookeeper is connected and bootstrap is completed.
+     */
+    @Override
+    public boolean isReady() {
+        boolean isMetaConnected = isMetadataServiceConnected();
+        boolean isBootstrapComplete = isBootstrapCompleted();
+        boolean isSvcRunning = this.isRunning();
+        boolean isReady = isMetaConnected && isBootstrapComplete && isSvcRunning;
+        log.debug("IsReady={} as isMetaConnected={}, isBootstrapComplete={}, isSvcRunning={}", isReady, isMetaConnected, isBootstrapComplete, isSvcRunning);
+        return isReady;
+    }
+
     @Override
     protected void startUp() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
@@ -208,12 +245,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         }
     }
 
-    @Override
-    public boolean isReady() {
-        return isRunning();
-    }
-
-    @Override
+     @Override
     public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> processes) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -343,6 +375,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
                     () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
                     delay, executor), executor);
+            this.bootstrapCompleted.set(true);
+            log.info("Completed bootstrapping event processors.");
         }, executor);
     }
 
@@ -472,7 +506,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.info("Creating commit event processors");
+        log.debug("Creating commit event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
@@ -501,7 +535,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.info("Creating abort event processors");
+        log.debug("Creating abort event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
@@ -529,7 +563,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.info("Creating stream request event processors");
+        log.debug("Creating stream request event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
@@ -557,7 +591,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.info("Creating kvt request event processors");
+        log.debug("Creating kvt request event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
@@ -566,14 +600,15 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 });
 
         // endregion
-        log.info("Awaiting start of commit event processors");
+        log.info("Awaiting start of event processors...");
         commitEventProcessors.awaitRunning();
-        log.info("Awaiting start of abort event processors");
+        log.info("Commit event processor started.");
         abortEventProcessors.awaitRunning();
-        log.info("Awaiting start of stream request event processors");
+        log.info("Abort event processor started.");
         requestEventProcessors.awaitRunning();
-        log.info("Awaiting start of kvt request event processors");
+        log.info("Stream request event processor started.");
         kvtRequestEventProcessors.awaitRunning();
+        log.info("KVT request event processor started.");
     }
 
     private void stopEventProcessors() {

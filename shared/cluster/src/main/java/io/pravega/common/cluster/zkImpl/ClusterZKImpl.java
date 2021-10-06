@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static io.pravega.common.cluster.ClusterListener.EventType.ERROR;
@@ -64,6 +65,8 @@ public class ClusterZKImpl implements Cluster {
 
     private final CuratorFramework client;
 
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
+
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
@@ -73,6 +76,10 @@ public class ClusterZKImpl implements Cluster {
         if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
         }
+        this.isZKConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> this.isZKConnected.set(newState.isConnected()));
     }
 
     /**
@@ -107,6 +114,11 @@ public class ClusterZKImpl implements Cluster {
         Preconditions.checkNotNull(node, "Host is not present in cluster.");
         entryMap.remove(host);
         close(node);
+    }
+
+    @Override
+    public boolean isHealthy() {
+        return isZKConnected.get();
     }
 
     /**

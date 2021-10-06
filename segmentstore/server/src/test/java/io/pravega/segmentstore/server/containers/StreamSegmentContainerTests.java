@@ -45,7 +45,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
@@ -161,6 +160,7 @@ import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -262,7 +262,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 5;
+        return 2;
     }
 
     /**
@@ -2389,7 +2389,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testEventProcessorMultiplePConsumers() throws Exception {
+    public void testEventProcessorMultipleConsumers() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2447,6 +2447,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
         // Close the processor and unregister it.
         processor.close();
+        // Make sure that EventProcessor eventually terminates.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
 
         // Now, re-create the Event Processor with a handler to consume the events.
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
@@ -2467,6 +2469,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for all items to be processed.
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults.size() == allEventsToProcess, 10000);
         Assert.assertArrayEquals(processorResults.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
+        // Just check failure callback.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).failureCallback(new IntentionalException());
+        // Close the processor and unregister it.
+        processor.close();
+        // Make sure that EventProcessor eventually terminates.
+        ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
     }
 
     /**
@@ -2484,6 +2492,25 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         ContainerEventProcessorTests.testEventRejectionOnMaxOutstanding(containerEventProcessor);
+    }
+
+    /**
+     * Tests that call to getOrCreateInternalSegment is idempotent and always provides pinned segments.
+     */
+    @Test(timeout = 30000)
+    public void testPinnedSegmentReload() {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier =
+                ContainerEventProcessorImpl.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
+        long segmentId = segmentSupplier.apply("dummySegment").join().getSegmentId();
+        for (int i = 0; i < 10; i++) {
+            DirectSegmentAccess segment = segmentSupplier.apply("dummySegment").join();
+            assertTrue(segment.getInfo().isPinned());
+            assertEquals(segmentId, segment.getSegmentId());
+        }
     }
 
     /**
@@ -2896,7 +2923,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
+    private CompletableFuture<Void> activateSegment(String segmentName, SegmentContainer container) {
         return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 

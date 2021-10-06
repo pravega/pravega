@@ -82,6 +82,7 @@ public class ServiceBuilder implements AutoCloseable {
     private final ScheduledExecutorService storageExecutor;
     @Getter(AccessLevel.PUBLIC)
     private final ScheduledExecutorService lowPriorityExecutor;
+    @Getter(AccessLevel.PUBLIC)
     private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
@@ -248,10 +249,12 @@ public class ServiceBuilder implements AutoCloseable {
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
 
+
+
     /**
      * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
      */
-    private SegmentContainerRegistry getSegmentContainerRegistry() {
+    public SegmentContainerRegistry getSegmentContainerRegistry() {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry);
     }
 

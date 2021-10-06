@@ -24,12 +24,14 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
+import io.pravega.controller.store.checkpoint.ZKCheckpointStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -50,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -58,16 +61,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.apache.curator.CuratorZookeeperClient;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.listen.Listenable;
+import org.apache.curator.framework.state.ConnectionStateListener;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     @Rule
@@ -89,13 +108,106 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(commitEvent.getKey(), "test/test");
     }
 
+    @Test(timeout = 30000L)
+    public void testIsReady() throws Exception {
+        Controller controller = mock(Controller.class);
+        StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
+        BucketStore bucketStore = mock(BucketStore.class);
+        ConnectionPool connectionPool = mock(ConnectionPool.class);
+        StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
+        ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
+        EventProcessorSystem system = mock(EventProcessorSystem.class);
+        CuratorZookeeperClient curatorZKClientMock = mock(CuratorZookeeperClient.class);
+        CuratorFramework client = mock(CuratorFramework.class);
+        Listenable listen = mock(Listenable.class);
+        doNothing().when(listen).addListener(any(ConnectionStateListener.class));
+        doReturn(listen).when(client).getConnectionStateListenable();
+        doReturn(curatorZKClientMock).when(client).getZookeeperClient();
+        doReturn(true).when(curatorZKClientMock).isConnected();
+        ZKCheckpointStore checkpointStore = (ZKCheckpointStore) CheckpointStoreFactory.createZKStore(client);
+
+        doAnswer(x -> null).when(streamMetadataTasks).initializeStreamWriters(any(), any());
+        doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
+                any(ControllerEventProcessorConfig.class));
+        CompletableFuture<Boolean> createScopeResponseFuture = new CompletableFuture<>();
+        CompletableFuture<Void> createScopeSignalFuture = new CompletableFuture<>();
+        doAnswer(x -> {
+            createScopeSignalFuture.complete(null);
+            return createScopeResponseFuture;
+        }).when(controller).createScope(anyString());
+
+        LinkedBlockingQueue<CompletableFuture<Boolean>> createStreamResponses = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<CompletableFuture<Void>> createStreamSignals = new LinkedBlockingQueue<>();
+        List<CompletableFuture<Boolean>> createStreamResponsesList = new LinkedList<>();
+        List<CompletableFuture<Void>> createStreamSignalsList = new LinkedList<>();
+        for (int i = 0; i < 4; i++) {
+            CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
+            CompletableFuture<Void> signalFuture = new CompletableFuture<>();
+            createStreamResponsesList.add(responseFuture);
+            createStreamResponses.add(responseFuture);
+            createStreamSignalsList.add(signalFuture);
+            createStreamSignals.add(signalFuture);
+        }
+
+        // return a future from latches queue
+        doAnswer(x -> {
+            createStreamSignals.take().complete(null);
+            return createStreamResponses.take();
+        }).when(controller).createStream(anyString(), anyString(), any());
+
+        @Cleanup
+        ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
+                config, controller, checkpointStore, streamStore, bucketStore,
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
+                kvtStore, kvtTasks, system, executorService()));
+
+        //Check isReady() method before invoking bootstrap
+        Assert.assertFalse(processors.getBootstrapCompleted().get());
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertFalse(processors.isRunning());
+        Assert.assertFalse(processors.isReady());
+
+        // call bootstrap on ControllerEventProcessors
+        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
+
+        // wait on create scope being called.
+        createScopeSignalFuture.join();
+        createScopeResponseFuture.complete(true);
+        createStreamSignalsList.get(0).join();
+        createStreamSignalsList.get(1).join();
+        createStreamSignalsList.get(2).join();
+        createStreamSignalsList.get(3).join();
+        createStreamResponsesList.get(0).complete(true);
+        createStreamResponsesList.get(1).complete(true);
+        createStreamResponsesList.get(2).complete(true);
+        createStreamResponsesList.get(3).complete(true);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertFalse(processors.isRunning());
+        Assert.assertFalse(processors.isReady());
+
+        EventProcessorGroup mockEventProcessorGroup = mock(EventProcessorGroup.class);
+        doNothing().when(mockEventProcessorGroup).awaitRunning();
+        doReturn(mockEventProcessorGroup).when(system).createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class));
+
+        processors.startAsync();
+        processors.awaitRunning();
+        Assert.assertTrue(processors.isMetadataServiceConnected());
+        Assert.assertTrue(processors.isBootstrapCompleted());
+        Assert.assertTrue(processors.isRunning());
+        Assert.assertTrue(processors.isReady());
+    }
+
     @Test(timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
-        HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
@@ -107,7 +219,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
-
         when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
 
         @Cleanup
@@ -115,8 +226,11 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
-        //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
+        //check for a case where init is not initialized so that kvtRequestProcessors don't get initialized and will be null
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        Assert.assertFalse(processors.isReady());
+        Assert.assertFalse(processors.isBootstrapCompleted());
+        Assert.assertFalse(processors.isMetadataServiceConnected());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -126,7 +240,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
     
     @Test(timeout = 30000L)
-    public void testBootstrap() {
+    public void testBootstrap() throws Exception {
         Controller controller = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
@@ -189,7 +303,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
-        
+
         // wait on create scope being called.
         createScopeSignalsList.get(0).join();
         
@@ -237,6 +351,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamResponsesList.get(5).complete(true);
         createStreamResponsesList.get(6).complete(true);
         createStreamResponsesList.get(7).complete(true);
+        AssertExtensions.assertEventuallyEquals(true, () -> processors.getBootstrapCompleted().get(), 10000);
     }
     
     @Test(timeout = 10000L)

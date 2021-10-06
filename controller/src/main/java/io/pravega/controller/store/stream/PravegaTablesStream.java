@@ -216,7 +216,6 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                                   OperationContext context,
                                                                   Map<String, TxnWriterMark> writerMarks) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
         // create all transaction entries in committing txn list.
         // remove all entries from active txn in epoch.
         // reset CommittingTxnRecord
@@ -903,13 +902,14 @@ class PravegaTablesStream extends PersistentStreamBase {
                                  for (int i = 0; i < txnIds.size(); i++) {
                                      VersionedMetadata<ActiveTxnRecord> txn = res.get(i);
                                      ActiveTxnRecord activeTxnRecord = txn.getObject();
-
-                                     VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
-                                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
-                                             activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(),
-                                             activeTxnRecord.getCommitOffsets());
-                                     list.add(vdata);
+                                     if (!ActiveTxnRecord.EMPTY.equals(activeTxnRecord)) {
+                                         VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
+                                                 activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
+                                                 activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
+                                                 activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(),
+                                                 activeTxnRecord.getCommitOffsets());
+                                         list.add(vdata);
+                                     }
                                  }
                                  return list;
                              }));
@@ -989,7 +989,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> orderedPositions, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
         return txnCommitOrderer.removeEntities(getScope(), getName(), orderedPositions);
     }
 
@@ -1013,13 +1012,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     private CompletableFuture<Void> tryRemoveOlderTransactionsInEpochTables(Predicate<Integer> epochPredicate, 
                                                                             OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
         return getEpochsWithTransactions(context)
-                .thenCompose(list -> {
-                    return Futures.allOf(list.stream().filter(epochPredicate)
-                                             .map(x -> tryRemoveTransactionsInEpochTable(x, context))
-                                             .collect(Collectors.toList()));
-                });
+                .thenCompose(list -> Futures.allOf(list.stream().filter(epochPredicate)
+                                         .map(x -> tryRemoveTransactionsInEpochTable(x, context))
+                                         .collect(Collectors.toList())));
     }
 
     private CompletableFuture<Void> tryRemoveTransactionsInEpochTable(int epoch, OperationContext context) {

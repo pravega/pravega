@@ -42,7 +42,6 @@ BOOKKEEPER=${BINDIR}/bookkeeper
 SCRIPTS_DIR=${BK_HOME}/scripts
 
 export PATH=$PATH:/opt/bookkeeper/bin
-export JAVA_HOME=/usr/lib/jvm/java-11
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BOOKIE_PORT=${BOOKIE_PORT}
 export SERVICE_PORT=${BOOKIE_PORT}
@@ -72,6 +71,24 @@ create_bookie_dirs() {
           chown -R "${BK_USER}:${BK_USER}" $i
       fi
   done
+}
+
+# Create a Bookie ID if this is a newly added bookkeeper pod
+# or read the Bookie ID if a cookie containing this value already exists
+set_bookieid() {
+  IFS=',' read -ra journal_directories <<< $BK_journalDirectories
+  COOKIE="${journal_directories[0]}/current/VERSION"
+  if [ `find ${COOKIE} | wc -l` -gt 0 ]; then
+    # Reading the Bookie ID value from the existing cookie
+    bkHost=`cat ${COOKIE} | grep bookieHost`
+    IFS=" " read -ra id <<< $bkHost
+    BK_bookieId=${id[1]:1:-1}
+  else
+    # Creating a new Bookie ID following the latest nomenclature
+    BK_bookieId="`hostname -s`-${RANDOM}"
+  fi
+  echo "BookieID = $BK_bookieId"
+  sed -i "s|.*bookieId=.*\$|bookieId=${BK_bookieId}|" ${BK_HOME}/conf/bk_server.conf
 }
 
 wait_for_zookeeper() {
@@ -145,7 +162,10 @@ initialize_cluster() {
 }
 
 format_bookie_data_and_metadata() {
-    if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+    IFS=',' read -ra journal_directories <<< $BK_journalDirectories
+    IFS=',' read -ra ledger_directories <<< $BK_ledgerDirectories
+    IFS=" " eval 'directory_names="${journal_directories[*]} ${ledger_directories[*]}"'
+    if [ `find $directory_names $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       # The container already contains data in BK directories. Examples of when this can happen include:
       #    - A container was restarted, say, in a non-Kubernetes deployment.
       #    - A container running on Kubernetes was updated/evacuated, and
@@ -170,6 +190,9 @@ format_bookie_data_and_metadata() {
 echo "Creating directories for Bookkeeper journal and ledgers"
 create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
+
+echo "Configuring the Bookie ID"
+set_bookieid
 
 echo "Sourcing ${SCRIPTS_DIR}/common.sh"
 source ${SCRIPTS_DIR}/common.sh

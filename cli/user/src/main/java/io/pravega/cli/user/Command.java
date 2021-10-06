@@ -265,6 +265,7 @@ public abstract class Command {
                         .put(ConfigCommand.Set::descriptor, ConfigCommand.Set::new)
                         .put(ScopeCommand.Create::descriptor, ScopeCommand.Create::new)
                         .put(ScopeCommand.Delete::descriptor, ScopeCommand.Delete::new)
+                        .put(ScopeCommand.List::descriptor, ScopeCommand.List::new)
                         .put(StreamCommand.Create::descriptor, StreamCommand.Create::new)
                         .put(StreamCommand.Delete::descriptor, StreamCommand.Delete::new)
                         .put(StreamCommand.List::descriptor, StreamCommand.List::new)

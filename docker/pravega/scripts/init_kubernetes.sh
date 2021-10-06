@@ -55,7 +55,7 @@ init_kubernetes() {
         export PUBLISHED_PORT=""
         local service=$( k8 "${ns}" "services" "${podname}" .kind )
 
-        if [[  "$service" != "Service" ]];
+        if [[  "${service}" != "Service" ]];
         then 
             echo "Failed to get External Service. Exiting..."
             exit 1     

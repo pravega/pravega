@@ -58,6 +58,8 @@ public class ServiceConfig {
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
     public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
     public static final Property<Boolean> REST_LISTENING_ENABLE = Property.named("rest.listener.enable", true);
+    public static final Property<String> REST_KEYSTORE_FILE = Property.named("security.tls.server.keyStore.location", "");
+    public static final Property<String> REST_KEYSTORE_PASSWORD_FILE = Property.named("security.tls.server.keyStore.pwd.location", "");
     public static final Property<Integer> HEALTH_CHECK_INTERVAL_SECONDS = Property.named("health.interval.seconds", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
@@ -67,7 +69,7 @@ public class ServiceConfig {
     // 3. Remove old property from the operator.
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS.name(), "storageImplementation");
     public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.ROLLING_STORAGE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
@@ -253,7 +255,7 @@ public class ServiceConfig {
      * The Type of Storage Implementation to use.
      */
     @Getter
-    private final StorageType storageImplementation;
+    private final String storageImplementation;
 
     /**
      * The Type of Storage layout to use.
@@ -389,7 +391,7 @@ public class ServiceConfig {
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
-        this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
         this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageLayoutType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
@@ -417,8 +419,8 @@ public class ServiceConfig {
                 .port(properties.getInt(REST_LISTENING_PORT))
                 .tlsEnabled(properties.getBoolean(ENABLE_TLS))
                 .tlsProtocolVersion(TLSProtocolVersion.parse(properties.get(TLS_PROTOCOL_VERSION)))
-                .keyFilePath(properties.get(KEY_FILE))
-                .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
+                .keyFilePath(properties.get(REST_KEYSTORE_FILE))
+                .keyFilePasswordPath(properties.get(REST_KEYSTORE_PASSWORD_FILE))
                 .build();
         this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
@@ -462,7 +464,7 @@ public class ServiceConfig {
                         Strings.isNullOrEmpty(zkTrustStorePasswordPath) ? "unspecified" : "specified"))
                 .append(String.format("clusterName: %s, ", clusterName))
                 .append(String.format("dataLogTypeImplementation: %s, ", dataLogTypeImplementation.name()))
-                .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
+                .append(String.format("storageImplementation: %s, ", storageImplementation))
                 .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
                 .append(String.format("enableTls: %b, ", enableTls))
                 .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))

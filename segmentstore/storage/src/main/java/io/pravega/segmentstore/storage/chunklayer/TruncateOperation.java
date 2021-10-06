@@ -83,22 +83,41 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             if (segmentMetadata.getStartOffset() >= offset) {
                                 // Nothing to do
+                                logEnd();
                                 return CompletableFuture.completedFuture(null);
                             }
+                            val oldChunkCount = segmentMetadata.getChunkCount();
                             val oldStartOffset = segmentMetadata.getStartOffset();
                             return updateFirstChunk(txn)
                                     .thenComposeAsync(v -> deleteChunks(txn)
                                             .thenComposeAsync( vvv -> {
-
                                                 txn.update(segmentMetadata);
 
                                                 // Check invariants.
+                                                segmentMetadata.checkInvariants();
                                                 Preconditions.checkState(segmentMetadata.getLength() == oldLength,
                                                         "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
-                                                segmentMetadata.checkInvariants();
+                                                Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
+                                                        "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
+                                                        oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
+                                                if (null != currentMetadata && null != segmentMetadata.getFirstChunk()) {
+                                                    Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()),
+                                                            "First chunk name must match current metadata. Expected = %s Actual = %s", segmentMetadata.getFirstChunk(), currentMetadata.getName());
+                                                    Preconditions.checkState(segmentMetadata.getStartOffset() <= segmentMetadata.getFirstChunkStartOffset() + currentMetadata.getLength(),
+                                                            "segment start offset (%s) must be less than or equal to first chunk start offset (%s)+ first chunk length (%s)",
+                                                            segmentMetadata.getStartOffset(), segmentMetadata.getFirstChunkStartOffset(), currentMetadata.getLength());
+                                                    if (segmentMetadata.getChunkCount() == 1) {
+                                                        Preconditions.checkState(segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset() == currentMetadata.getLength(),
+                                                                "Length of first chunk (%s) must match segment length (%s) - first chunk start offset (%s) when there is only one chunk",
+                                                                currentMetadata.getLength(), segmentMetadata.getLength(), segmentMetadata.getFirstChunkStartOffset());
+                                                    }
+                                                }
 
                                                 // Remove read index block entries.
-                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
+                                                // To avoid possibility of unintentional deadlock, skip this step for storage system segments.
+                                                if (!segmentMetadata.isStorageSystemSegment()) {
+                                                    chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
+                                                }
 
                                                 // Collect garbage.
                                                 return chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete)

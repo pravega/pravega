@@ -50,9 +50,21 @@ public class KeyValueTableConfiguration implements Serializable {
      * The number of bytes for the Secondary Key. This value cannot be changed after the Key-Value Table has been created.
      *
      * @param secondaryKeyLength The number of bytes for the Secondary Key.
-     * @return The number of bytes for the Primary Key.
+     * @return The number of bytes for the Secondary Key.
      */
     private final int secondaryKeyLength;
+
+    /**
+     * The rollover size for table segment in LTS.
+     *
+     * The default value for this field is 0.
+     * If default value is passed down to the server, a non-zero value defined in the server
+     * will be used for the actual rollover size.
+     *
+     * @param rolloverSizeBytes The rollover size for the table segment in LTS.
+     * @return The rollover size for the table segment in LTS.
+     */
+    private final long rolloverSizeBytes;
 
     /**
      * The total number of bytes for the key (includes Primary and Secondary).
@@ -73,7 +85,8 @@ public class KeyValueTableConfiguration implements Serializable {
             Preconditions.checkArgument(this.partitionCount > 0, "partitionCount must be a positive integer. Given %s.", this.partitionCount);
             Preconditions.checkArgument(this.primaryKeyLength > 0, "primaryKeyLength must be a positive integer. Given %s.", this.primaryKeyLength);
             Preconditions.checkArgument(this.secondaryKeyLength >= 0, "secondaryKeyLength must be a non-negative integer. Given %s.", this.secondaryKeyLength);
-            return new KeyValueTableConfiguration(this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength);
+            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
+            return new KeyValueTableConfiguration(this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength, this.rolloverSizeBytes);
         }
     }
 }

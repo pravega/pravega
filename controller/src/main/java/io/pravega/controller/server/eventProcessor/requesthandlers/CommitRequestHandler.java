@@ -267,6 +267,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         if (!txnRecord.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(record -> streamMetadataStore.startRollingTxn(commitContext.scope, commitContext.stream, activeEpoch.getEpoch(),
                     record, commitContext.context, executor));
+
         }
         return future.thenCompose(record -> {
             if (activeEpoch.getEpoch() > record.getObject().getCurrentEpoch()) {
@@ -297,6 +298,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         delegationToken, commitContext.context.getRequestId()))
                 .thenCompose(v -> streamMetadataTasks.getSealedSegmentsSize(commitContext.scope, commitContext.stream, txnEpochDuplicate,
                         delegationToken, commitContext.context.getRequestId()))
+
                 .thenCompose(sealedSegmentsMap -> {
                     log.info(commitContext.context.getRequestId(),
                             "Rolling transaction, created duplicate of active epoch {} for stream {}/{}", 
@@ -322,7 +324,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      * This method creates duplicate segments for transaction epoch. It then merges all transactions from the list into
      * those duplicate segments.
      */
+
     private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(CommitTxnContext commitContext, VersionedMetadata<CommittingTransactionsRecord> txnRecord, List<Long> segmentIds) {
+
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
@@ -330,8 +334,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         CompletableFuture<Void> createSegmentsFuture = Futures.allOf(segmentIds.stream().map(segment -> {
             // Use fixed scaling policy for these segments as they are created, merged into and sealed and are not
             // supposed to auto scale.
-            return streamMetadataTasks.notifyNewSegment(commitContext.scope, commitContext.stream, segment, ScalingPolicy.fixed(1), delegationToken,
-                    commitContext.context.getRequestId());
+            return streamMetadataStore.getConfiguration(commitContext.scope, commitContext.stream, commitContext.context, executor)
+                    .thenCompose(config -> streamMetadataTasks.notifyNewSegment(commitContext.scope, commitContext.stream, segment, ScalingPolicy.fixed(1), delegationToken,
+                    commitContext.context.getRequestId(), config.getRolloverSizeBytes()));
+
         }).collect(Collectors.toList()));
 
         return createSegmentsFuture
@@ -341,9 +347,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             segmentIds, commitContext.scope, commitContext.stream);
                     // now commit transactions into these newly created segments
                     return commitTransactions(commitContext, txnRecord, segmentIds);
-                })
-                .thenAccept(v -> streamMetadataTasks.notifySealedSegments(commitContext.scope, commitContext.stream, segmentIds, delegationToken,
+                }).thenAccept(v -> streamMetadataTasks.notifySealedSegments(commitContext.scope, commitContext.stream, segmentIds, delegationToken,
                         commitContext.context.getRequestId()));
+
     }
 
     /**
@@ -374,6 +380,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         commitContext.stream, executor);
             }
             return CompletableFuture.completedFuture(null);
+
         });
     }
 
@@ -408,4 +415,5 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING));
     }
+
 }

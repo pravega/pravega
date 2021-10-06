@@ -107,4 +107,10 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     public void sizeBasedRetentionStreamTest() {
         // no op
     }
+
+    @Test
+    @Override
+    public void readerGroupFailureTests() {
+        // no op
+    }
 }
