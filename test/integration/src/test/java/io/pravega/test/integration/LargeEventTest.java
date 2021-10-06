@@ -27,6 +27,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -82,6 +83,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -211,9 +213,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
+        AtomicInteger generation = new AtomicInteger(0);
         int events = 1;
         // Normal Event Write/Read.
-        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS,  events * 0, events, LARGE_EVENT_SIZE));
+        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS,  events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE));
 
         log.info("Writing {} new events.", eventsWrittenToPravega.size());
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
@@ -221,7 +224,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
 
         // Large Event Write/Read.
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, TINY_EVENT_SIZE);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, TINY_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         log.info("Writing {} new events.", eventsWrittenToPravega.size());
@@ -239,14 +242,15 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         String readerGroupName = "testSingleWriterMixedEvents";
 
         int writers = 1;
+        AtomicInteger generation = new AtomicInteger(0);
         StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 2;
         // Normal Event Write/Read.
-        merge(eventsWrittenToPravega, generateEventData(writers,  events * 0, events, TINY_EVENT_SIZE));
+        merge(eventsWrittenToPravega, generateEventData(writers,  events * generation.getAndIncrement(), events, TINY_EVENT_SIZE));
         // Add two Large Events
-        merge(eventsWrittenToPravega, generateEventData(writers, events * 1, events, LARGE_EVENT_SIZE));
+        merge(eventsWrittenToPravega, generateEventData(writers, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE));
         // Add two normal events.
         merge(eventsWrittenToPravega, generateEventData(writers, events * 2, events, TINY_EVENT_SIZE));
 
@@ -266,7 +270,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 1;
-        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE));
+        AtomicInteger generation = new AtomicInteger(0);
+        merge(eventsWrittenToPravega, generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE));
 
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
@@ -280,7 +285,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         };
         restart.run();
 
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 1, events, LARGE_EVENT_SIZE);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, data);
@@ -291,7 +296,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         eventsReadFromPravega.clear();
         eventReadCount.set(0);
         // Generate new data.
-        data = generateEventData(NUM_WRITERS, events * 2, events, LARGE_EVENT_SIZE);
+        data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         AtomicInteger sendCount = new AtomicInteger(0);
@@ -330,7 +335,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int numEvents = 1;
-        generateEventData(NUM_WRITERS, 0, numEvents, LARGE_EVENT_SIZE);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, 0, numEvents, LARGE_EVENT_SIZE);
+        merge(eventsWrittenToPravega, data);
         Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
 
 
@@ -376,7 +382,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 1;
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, TINY_EVENT_SIZE);
+        AtomicInteger generation = new AtomicInteger(0);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, TINY_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         Queue<ByteBuffer> reads = new ConcurrentLinkedQueue<>();
@@ -388,7 +395,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         // Wait for the Stream to be sealed.
         store.sealStreamSegment(NameUtils.getQualifiedStreamSegmentName(SCOPE_NAME, streamName, 0), Duration.ofMillis(1000)).join();
         // Try another write -- should fail.
-        data = generateEventData(NUM_WRITERS, events * 1, events, LARGE_EVENT_SIZE);
+        data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
         reads = readWriteCycle(streamName, readerGroupName, data);
         // Only the first data set should have succeeded.
         validateEventReads(reads, eventsWrittenToPravega);
@@ -410,9 +417,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
         createScopeStream(SCOPE_NAME, streamName, config);
 
+        AtomicInteger generation = new AtomicInteger(0);
         // Creates some data to write.
         int events = 1;
-        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, TINY_EVENT_SIZE);
+        int scaleWriters = 1;
+        Map<Integer, List<ByteBuffer>> data = generateEventData(scaleWriters, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         // Perform a basic read-write cycle.
@@ -426,16 +435,18 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 StreamSegments segments = controller.getCurrentSegments(SCOPE_NAME, streamName).get();
                 List<Long> ids = segments.getSegments()
                         .stream()
-                        .map(segment -> segment.getSegmentId())
+                        .map(Segment::getSegmentId)
                         .collect(Collectors.toList());
                 controller.startScale(stream, ids, Map.of(0.0, 0.5, 0.5, 1.0)).get();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         };
 
+        // Reset reads.
+        eventReadCount.set(0);
         // Try to scale the segment after two `send` calls.
         AtomicInteger sendCount = new AtomicInteger(0);
         Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() > CLOSE_WRITE_COUNT;
@@ -443,20 +454,30 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch, scale, predicate);
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
+            // Next set of writes.
+            data = generateEventData(scaleWriters, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
+            merge(eventsWrittenToPravega, data);
             // Start writing events to the stream.
-            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  data);
+
+            val writers = createEventWriters(streamName, scaleWriters, clientFactory,  data);
+            Futures.allOf(writers).get();
+            TestUtils.await(() -> !latch.get(), 200, 2000);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, eventsReadFromPravega);
-            Futures.allOf(writers).get();
             stopReadFlag.set(true);
 
             Futures.allOf(readers).get();
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Failed to scale the stream.", e);
         }
+
+        StreamSegments segments = controller.getCurrentSegments(SCOPE_NAME, streamName).get();
+        Assert.assertEquals("Expected 2 StreamSegments.", 2, segments.getSegments().size());
 
         // This time there are successor segments, so the data should have been accepted.
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
@@ -499,8 +520,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             final EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName,
                     new ByteBufferSerializer(),
                     EventWriterConfig.builder().build());
-            log.debug("Writing Large Event : {}", routingKey);
             for (ByteBuffer buf : data) {
+                log.debug("Writing LargeEvent: [{}/{}]", buf.get(0), buf.get(1));
                 writer.writeEvent(routingKey, buf).thenRun(() -> writeCount.incrementAndGet());
             }
             log.info("Closing writer {}", writer);
@@ -628,7 +649,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         for (val entry : eventsWritten.entrySet()) {
             writesSize += entry.getValue().size();
         }
-        assertEquals("Mismatched number of events written vs. read.", writesSize, eventsRead.size());
         // Expect each writer's first event read to be zero.
         Map<Integer, Integer> writerEventNumber = new HashMap<>();
         for (ByteBuffer read : eventsRead) {
@@ -639,6 +659,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             // The expected event number.
             int writerEvent = writerEventNumber.getOrDefault(writerId, 0);
             ByteBuffer write = events.get(writerEvent);
+            log.debug("Expected Event: [{}/{}], Received Event: [{}/{}]", read.get(0), read.get(1), write.get(0), write.get(1));
             // Make sure the event ordering is valid.
             assertEquals("Received out of order write events.", writerEvent, write.get(1));
             // Increment the next expected event number.
@@ -656,6 +677,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 }
             }
         }
+        assertEquals("Mismatched number of events written vs. read.", writesSize, eventsRead.size());
         log.info("Read/Write validation completed: {} events read matched {} events written. |", eventsRead.size(), writesSize);
     }
 
