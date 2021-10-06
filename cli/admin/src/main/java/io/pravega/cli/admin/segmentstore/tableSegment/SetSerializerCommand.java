@@ -59,6 +59,6 @@ public class SetSerializerCommand extends TableSegmentCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "set-serializer", "Set the serializer for keys and values that are obtained from, and updated to table segments.",
                 new ArgDescriptor("serializer-name", "The required serializer. " +
-                        "Serializer-names for built-in serializers are " + SERIALIZERS.keySet().stream().reduce("", (sList, s) -> sList + ", " + s) + "."));
+                        "Serializer-names for built-in serializers are " + String.join(",", SERIALIZERS.keySet())));
     }
 }

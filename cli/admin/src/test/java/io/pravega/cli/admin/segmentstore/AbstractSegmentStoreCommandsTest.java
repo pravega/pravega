@@ -331,7 +331,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
-    public void testModifyTableSegmentEntryCommand() throws Exception {
+    public void testModifyTableSegmentEntryCommandValidFieldCase() throws Exception {
         String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
         Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
         Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
@@ -343,11 +343,32 @@ public abstract class AbstractSegmentStoreCommandsTest {
         appendField(newFieldValueBuilder, SEGMENT_PROPERTIES_START_OFFSET, "20");
         appendField(newFieldValueBuilder, SEGMENT_PROPERTIES_LENGTH, "30");
         appendField(newFieldValueBuilder, "80000000-0000-0000-0000-000000000000", "1632728432718");
+        appendField(newFieldValueBuilder, "dummy_field", "dummy");
 
         String commandResult = TestUtils.executeCommand("table-segment modify " + tableSegmentName + " localhost " +
                         key + " " + newFieldValueBuilder.toString(),
                 STATE.get());
+        Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
         Assert.assertTrue(commandResult.contains("Successfully modified the following fields in the value for key " + key + " in table " + tableSegmentName));
+    }
+
+    @Test
+    public void testModifyTableSegmentEntryCommandInValidFieldCase() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        StringBuilder newFieldValueBuilder = new StringBuilder();
+        appendField(newFieldValueBuilder, "dummy_field", "dummy");
+
+        String commandResult = TestUtils.executeCommand("table-segment modify " + tableSegmentName + " localhost " +
+                        key + " " + newFieldValueBuilder.toString(),
+                STATE.get());
+        Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
+        Assert.assertTrue(commandResult.contains("No fields provided to modify."));
     }
 
     @After

@@ -38,11 +38,23 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
         super(args);
     }
 
+    /**
+     * Method to check if the serializers are set.
+     */
     void ensureSerializersExist() {
         Preconditions.checkArgument(getCommandArgs().getState().getKeySerializer() != null && getCommandArgs().getState().getValueSerializer() != null,
                 "The serializers have not been set. Use the command \"table-segment set-serializer <serializer-name>\" and try again.");
     }
 
+    /**
+     * Method to get the entry corresponding to the provided key in the table segment.
+     *
+     * @param tableSegmentName   The name of the table segment.
+     * @param key                The key.
+     * @param segmentStoreHost   The address of the segment store instance.
+     * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
+     * @return A string, obtained through deserialization, containing the contents of the queried table segment entry.
+     */
     String getTableEntry( String tableSegmentName,
                           String key,
                           String segmentStoreHost,
@@ -58,6 +70,16 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
         return getCommandArgs().getState().getValueSerializer().deserialize(serializedValue);
     }
 
+    /**
+     * Method to update the entry corresponding to the provided key in the table segment.
+     *
+     * @param tableSegmentName   The name of the table segment.
+     * @param key                The key.
+     * @param value              The entry to be updated in the table segment.
+     * @param segmentStoreHost   The address of the segment store instance.
+     * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}
+     * @return A long indicating the version obtained from updating the provided key in the table segment.
+     */
     long updateTableEntry(String tableSegmentName,
                           String key, String value,
                           String segmentStoreHost,
@@ -72,6 +94,12 @@ public abstract class TableSegmentCommand extends SegmentStoreCommand {
         return reply.join().get(0).getSegmentVersion();
     }
 
+    /**
+     * Method to convert a {@link ByteBuf} to a {@link ByteBuffer}.
+     *
+     * @param byteBuf The {@link ByteBuf} instance.
+     * @return A {@link ByteBuffer} containing the data present in the provided {@link ByteBuf}.
+     */
     ByteBuffer getByteBuffer(ByteBuf byteBuf) {
         final byte[] bytes = new byte[byteBuf.readableBytes()];
         final int readerIndex = byteBuf.readerIndex();

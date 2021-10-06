@@ -20,6 +20,8 @@ import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
@@ -44,10 +46,7 @@ public class ModifyTableSegmentEntry extends TableSegmentCommand {
         final String fullyQualifiedTableSegmentName = getArg(0);
         final String segmentStoreHost = getArg(1);
         final String key = getArg(2);
-
-        StringBuilder updatedValueBuilder = new StringBuilder();
         Map<String, String> newFieldMap = parseStringData(getArg(3));
-        newFieldMap.forEach((f, v) -> appendField(updatedValueBuilder, f, v));
 
         @Cleanup
         CuratorFramework zkClient = createZKClient();
@@ -55,11 +54,31 @@ public class ModifyTableSegmentEntry extends TableSegmentCommand {
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         String currentValue = getTableEntry(fullyQualifiedTableSegmentName, key, segmentStoreHost, adminSegmentHelper);
 
-        String updatedValue = updatedValueBuilder.append(currentValue).toString();
+        List<String> changedFields = new ArrayList<>();
+        Map<String, String> currentValueFieldMap = parseStringData(currentValue);
+        // Make changes to the fields in the entry that exists currently.
+        // If the field name does not exist then the user is notified of the same.
+        newFieldMap.forEach((f, v) -> {
+            if (currentValueFieldMap.containsKey(f)) {
+                currentValueFieldMap.put(f, v);
+                changedFields.add(f);
+            } else {
+                output("%s field does not exist.", f);
+            }
+        });
+        // If no change is made to fields of the current entry then return.
+        if (changedFields.isEmpty()) {
+            output("No fields provided to modify.");
+            return;
+        }
+
+        StringBuilder updatedValueBuilder = new StringBuilder();
+        currentValueFieldMap.forEach((f, v) -> appendField(updatedValueBuilder, f, v));
+        String updatedValue = updatedValueBuilder.toString();
         long version = updateTableEntry(fullyQualifiedTableSegmentName, key, updatedValue, segmentStoreHost, adminSegmentHelper);
-        output("Successfully modified the following fields in the value for key %s in table %s with version %s:",
-                key, fullyQualifiedTableSegmentName, version);
-        newFieldMap.forEach((f, v) -> output("%s =  %s", f, v));
+
+        output("Successfully modified the following fields in the value for key %s in table %s with version %s: %s",
+                key, fullyQualifiedTableSegmentName, version, String.join(",", changedFields));
     }
 
     public static CommandDescriptor descriptor() {
