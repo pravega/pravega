@@ -171,8 +171,6 @@ public class K8SequentialExecutor implements TestExecutor {
                 "pravegaOperatorVersion",
                 "bookkeeperOperatorVersion",
                 "zookeeperOperatorVersion",
-                "desiredPravegaCMVersion",
-                "desiredBookkeeperCMVersion",
                 "publishedChartName",
                 "helmRepository",
                 "controllerLabel",

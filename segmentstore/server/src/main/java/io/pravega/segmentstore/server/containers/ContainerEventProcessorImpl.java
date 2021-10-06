@@ -30,7 +30,6 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -123,15 +122,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * @return A future that, when completed, contains reference to the Segment to be used by a given
      * {@link ContainerEventProcessor.EventProcessor} based on its name.
      */
-    private static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
+    @VisibleForTesting
+    static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
                                                                                                        MetadataStore metadataStore,
                                                                                                        Duration timeout) {
-        return s -> Futures.exceptionallyComposeExpecting(
-                container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
-                e -> e instanceof StreamSegmentNotExistsException,
-                () -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
-                        SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
-                        .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
+        return s -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
+                SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
+                .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout));
     }
 
     //endregion

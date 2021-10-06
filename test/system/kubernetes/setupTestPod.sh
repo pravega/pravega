@@ -83,7 +83,8 @@ if [ $skipServiceInstallation = false ]; then
 
   #Step 6: Creating ZK-OP
   echo "Creating ZK Operator"
-  helm install zkop $publishedChartName/zookeeper-operator --version=$zookeeperOperatorVersion
+  echo "helm install zkop $publishedChartName/zookeeper-operator --version=$zookeeperOperatorChartVersion --set image.repository=$dockerRegistryUrl/$imagePrefix/$zookeeperOperatorImageName --set image.tag=$zookeeperOperatorVersion --set hooks.image.repository=$helmHookImageName"
+  helm install zkop $publishedChartName/zookeeper-operator --version=$zookeeperOperatorChartVersion --set image.repository=$dockerRegistryUrl/$imagePrefix/$zookeeperOperatorImageName --set image.tag=$zookeeperOperatorVersion --set hooks.image.repository=$helmHookImageName
   zkOpName="$(kubectl get pod | grep "zookeeper-operator" | awk '{print $1}')"
   #kubectl wait --timeout=1m --for=condition=Ready pod/$zkOpName
   readyValueZk="$(kubectl get deploy | awk '$1 == "zkop-zookeeper-operator" { print $2 }')"
@@ -96,7 +97,8 @@ if [ $skipServiceInstallation = false ]; then
 
   #Step 7: Creating BK-OP
   echo "Creating BK Operator"
-  helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode.enabled=true --set testmode.version=$desiredBookkeeperCMVersion --wait
+  echo "helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorChartVersion --set testmode.enabled=true --set image.repository=$dockerRegistryUrl/$imagePrefix/$bookkeeperOperatorImageName --set image.tag=$bookkeeperOperatorVersion --set hooks.image.repository=$helmHookImageName"
+  helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorChartVersion --set testmode.enabled=true --set image.repository=$dockerRegistryUrl/$imagePrefix/$bookkeeperOperatorImageName --set image.tag=$bookkeeperOperatorVersion --set hooks.image.repository=$helmHookImageName --wait
 
   bkOpName="$(kubectl get pod | grep "bookkeeper-operator" | awk '{print $1}')"
   #kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName
@@ -110,8 +112,9 @@ if [ $skipServiceInstallation = false ]; then
 
   #Step 8: Creating Pravega-OP
   echo "Creating Pravega Operator"
-  CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | awk '{print $2}')"
-  helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --set testmode.version=$desiredPravegaCMVersion --wait
+  CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | head -1 | awk '{print $2}')"
+  echo "helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorChartVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --set image.repository=$dockerRegistryUrl/$imagePrefix/$pravegaOperatorImageName --set image.tag=$pravegaOperatorVersion --set hooks.image.repository=$helmHookImageName"
+  helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorChartVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --set image.repository=$dockerRegistryUrl/$imagePrefix/$pravegaOperatorImageName --set image.tag=$pravegaOperatorVersion --set hooks.image.repository=$helmHookImageName --wait
   prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
   #kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
   readyValuePr="$(kubectl get deploy | awk '$1 == "prop-pravega-operator" { print $2 }')"
