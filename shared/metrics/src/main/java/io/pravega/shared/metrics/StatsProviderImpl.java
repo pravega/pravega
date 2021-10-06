@@ -104,7 +104,7 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public void close() {
         stopPrometheusListener();
-        for (MeterRegistry registry : metrics.getRegistries()) {
+        for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             registry.close();
             metrics.remove(registry);
         }
