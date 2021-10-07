@@ -575,6 +575,8 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         outputStream1.invokeSealedCallBack();
         // Verify that the inflight event which is written to segment2 due to sealed segment fails incase of a connection failure.
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(writerFuture));
+        // Verify that a flush() does indicate this failure.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> writer.flush());
     }
 
     @Test
