@@ -68,6 +68,11 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
+    public long fetchHead() {
+        return Futures.getThrowingException(meta.fetchCurrentSegmentHead());
+    }
+
+    @Override
     public long fetchTailOffset() {
         return Futures.getThrowingException(meta.fetchCurrentSegmentLength());
     }
