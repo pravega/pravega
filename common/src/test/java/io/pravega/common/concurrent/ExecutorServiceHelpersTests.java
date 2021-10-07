@@ -16,12 +16,17 @@
 package io.pravega.common.concurrent;
 
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -69,7 +74,7 @@ public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
 
         // Scheduling exception
         val closedExecutor = Executors.newSingleThreadExecutor();
-        closedExecutor.shutdown();
+        ExecutorServiceHelpers.shutdown(closedExecutor);
         runCount.set(0);
         exceptionHolder.set(null);
         finallyCount.set(0);
@@ -84,5 +89,21 @@ public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of runs (rejected execution)", 0, runCount.get());
         Assert.assertNull("Unexpected exception set (rejected execution)", exceptionHolder.get());
         Assert.assertEquals("Unexpected number of finally runs (rejected execution)", 1, finallyCount.get());
+    }
+
+    @Test
+    public void testSnapshot() {
+        @Cleanup("shutdown")
+        ScheduledExecutorService coreExecutor = ExecutorServiceHelpers.newScheduledThreadPool(30, "core", Thread.NORM_PRIORITY);
+
+        ExecutorServiceHelpers.Snapshot snapshot = ExecutorServiceHelpers.getSnapshot(coreExecutor);
+        Assert.assertEquals("Unexpected pool size", 30, snapshot.getPoolSize());
+        Assert.assertEquals("Unexpected queue size", 0, snapshot.getQueueSize());
+
+        ScheduledExecutorService inlineExecutor = new InlineExecutor();
+        ExecutorServiceHelpers.Snapshot inlineSnapshot = ExecutorServiceHelpers.getSnapshot(inlineExecutor);
+        Assert.assertNull("Unexpected snapshot", inlineSnapshot);
+
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(1), coreExecutor, inlineExecutor);
     }
 }

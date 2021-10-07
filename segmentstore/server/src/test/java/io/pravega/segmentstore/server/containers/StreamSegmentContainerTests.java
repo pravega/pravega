@@ -160,6 +160,7 @@ import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -261,7 +262,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 5;
+        return 2;
     }
 
     /**
@@ -2491,6 +2492,25 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         ContainerEventProcessorTests.testEventRejectionOnMaxOutstanding(containerEventProcessor);
+    }
+
+    /**
+     * Tests that call to getOrCreateInternalSegment is idempotent and always provides pinned segments.
+     */
+    @Test(timeout = 30000)
+    public void testPinnedSegmentReload() {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier =
+                ContainerEventProcessorImpl.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
+        long segmentId = segmentSupplier.apply("dummySegment").join().getSegmentId();
+        for (int i = 0; i < 10; i++) {
+            DirectSegmentAccess segment = segmentSupplier.apply("dummySegment").join();
+            assertTrue(segment.getInfo().isPinned());
+            assertEquals(segmentId, segment.getSegmentId());
+        }
     }
 
     /**

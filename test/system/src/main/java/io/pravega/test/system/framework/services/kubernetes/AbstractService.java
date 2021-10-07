@@ -224,7 +224,7 @@ public abstract class AbstractService implements Service {
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
     // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=5g", "-Xmx1024m"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=4g", "-Xmx1024m"};
     }
 
     private String[] getControllerJVMOptions() {
@@ -249,6 +249,13 @@ public abstract class AbstractService implements Service {
                 .put("tag", tag)
                 .put("pullPolicy", IMAGE_PULL_POLICY)
                 .build();
+    }
+
+    private Map<String, Object> getBookkeeperImageSpec(String imageName) {
+        return ImmutableMap.<String, Object>builder().put("imageSpec", ImmutableMap.builder()
+                .put("repository", imageName)
+                .put("pullPolicy", IMAGE_PULL_POLICY)
+                .build()).build();
     }
 
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
@@ -334,7 +341,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, BOOKKEEPER_VERSION))
+        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
                 .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
