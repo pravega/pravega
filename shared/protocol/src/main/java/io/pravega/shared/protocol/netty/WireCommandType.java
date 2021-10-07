@@ -72,7 +72,6 @@ public enum WireCommandType {
     SEGMENT_TRUNCATED(39, WireCommands.SegmentTruncated::readFrom),
 
     CREATE_TRANSIENT_SEGMENT(40, WireCommands.CreateTransientSegment::readFrom),
-    TRANSIENT_SEGMENT_CREATED(41, WireCommands.TransientSegmentCreated::readFrom),
 
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),
