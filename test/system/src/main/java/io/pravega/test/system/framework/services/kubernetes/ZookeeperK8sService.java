@@ -116,7 +116,7 @@ public class ZookeeperK8sService extends AbstractService {
                 .build();
     }
 
-    private Map<String, Object> getZookeeperResources(){
+    private Map<String, Object> getZookeeperResources() {
         return ImmutableMap.<String, Object>builder()
                            .put("limits", ImmutableMap.builder()
                                                       .put("cpu", "400m")
