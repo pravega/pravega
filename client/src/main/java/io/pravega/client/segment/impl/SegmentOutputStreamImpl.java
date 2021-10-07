@@ -211,7 +211,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
                 log.info("Handling exception {} for connection {} on writer {}. SetupCompleted: {}, Closed: {}",
                          throwable, connection, writerId, connectionSetupCompleted == null ? null : connectionSetupCompleted.isDone(), closed);
-                if (exception == null) {
+                if (exception == null || throwable instanceof RetriesExhaustedException) {
                     exception = throwable;
                 }
                 connection = null;
@@ -573,6 +573,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (Exception e) {
                 failConnection(e);
                 if (e instanceof RetriesExhaustedException) {
+                    log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
                     //throw an exception to the external world that the flush failed due to RetriesExhaustedException
                     throw Exceptions.sneakyThrow(e);
                 }
@@ -587,6 +588,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
 
+        } else if (state.exception instanceof RetriesExhaustedException) {
+            // All attempts to connect with SSS have failed.
+            // The number of retry attempts is based on EventWriterConfig
+            log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
+            throw Exceptions.sneakyThrow(state.exception);
         }
     }
 

@@ -250,6 +250,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkState(!closed.get());
         synchronized (writeFlushLock) {
             boolean success = false;
+            RuntimeException retriesExhaustedException = null;
             while (!success) {
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters().values()) {
@@ -259,11 +260,22 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         // Segment sealed exception observed during a flush. Re-run flush on all the
                         // available writers.
                         success = false;
-                        log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                        log.warn("Flush on segment {} by event writer {} failed due to {}, it will be retried.",
+                                 writer.getSegmentName(), writerId, e.getMessage());
                         tryWaitForSuccessors();
                         break;
+                    } catch (RetriesExhaustedException e1) {
+                        // Ensure a flush is invoked on all the segment writers before throwing a RetriesExhaustedException.
+                        log.warn("Flush on segment {} by event writer {} failed after all configured retries",
+                                 writer.getSegmentName(), writerId);
+                        retriesExhaustedException = e1;
                     }
                 }
+            }
+            if (retriesExhaustedException != null) {
+                log.error("Flush by writer {} on Stream {} failed after all retries to connect with Pravega exhausted.",
+                          writerId, stream.getScopedName());
+                throw retriesExhaustedException;
             }
         }
     }
