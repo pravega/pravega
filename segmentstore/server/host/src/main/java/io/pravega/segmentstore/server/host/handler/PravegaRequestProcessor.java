@@ -449,7 +449,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(MERGE_TXN_BATCH_ID, AttributeUpdateType.None, 0L),
                 new AttributeUpdate(MERGE_TXN_SEQ_NO_IN_BATCH, AttributeUpdateType.None, 0L),
                 new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, rolloverSizeBytes),
