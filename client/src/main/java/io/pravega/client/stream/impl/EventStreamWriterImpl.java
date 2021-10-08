@@ -182,6 +182,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 log.warn("Write large event on segment {} failed due to {}, it will be retried.", segment, e.getMessage());
                 handleLogSealed(segment);
                 tryWaitForSuccessors();
+                handleMissingLog();
             } catch (AuthenticationException e) {
                 ackFuture.completeExceptionally(e);
                 break;
