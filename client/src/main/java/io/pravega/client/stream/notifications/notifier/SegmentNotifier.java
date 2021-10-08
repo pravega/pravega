@@ -69,7 +69,6 @@ public class SegmentNotifier extends AbstractPollingNotifier<SegmentNotification
         if (state == null ) {
             log.warn("Current state of StateSynchronizer {} is null, will try again.", synchronizer);
         } else {
-
             int newNumberOfSegments = state.getNumberOfSegments();
             log.debug("Number of segments in {} is {}", synchronizer, newNumberOfSegments);
             checkState(newNumberOfSegments > 0, "Number of segments cannot be zero");
