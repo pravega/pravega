@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
@@ -72,11 +71,10 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
-                        streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
+                        return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeTruncation(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
-                                                    "Cannot truncate sealed stream: " + stream);
+                                            throw new IllegalStateException("Cannot truncate sealed stream: " + stream);
                                         }));
                     }
                     return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)

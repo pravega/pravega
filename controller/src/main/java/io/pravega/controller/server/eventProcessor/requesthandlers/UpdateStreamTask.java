@@ -22,7 +22,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
@@ -81,11 +80,10 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
-                        streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeUpdateConfiguration(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
-                                                    "Cannot update sealed stream: " + stream);
+                                            throw new IllegalStateException("Cannot update sealed stream: " + stream);
                                         }));
                     }
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)

@@ -797,11 +797,12 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (configProperty.isUpdating()) {
                                         return !configProperty.getStreamConfiguration().equals(newConfig);
                                     } else {
-                                        // if update-barrier is not updating, then update is complete if property matches our expectation
-                                        // and state is not updating
+                                        // if stream is sealed then update should not be allowed
                                         if (state.equals(State.SEALED)) {
                                             return true;
                                         }
+                                        // if update-barrier is not updating, then update is complete if property matches our expectation
+                                        // and state is not updating
                                         return !(configProperty.getStreamConfiguration().equals(newConfig) &&
                                                 state.equals(State.UPDATING));
                                     }
@@ -1465,11 +1466,12 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (truncationRecord.isUpdating()) {
                                         return !truncationRecord.getStreamCut().equals(streamCut);
                                     } else {
-                                        // if truncate-barrier is not updating, then truncate is complete if property
-                                        // matches our expectation and state is not updating
+                                        // if stream is sealed then truncate should not be allowed
                                         if (state.equals(State.SEALED)) {
                                             return true;
                                         }
+                                        // if truncate-barrier is not updating, then truncate is complete if property
+                                        // matches our expectation and state is not updating
                                         return !(truncationRecord.getStreamCut().equals(streamCut) && state.equals(State.TRUNCATING));
                                     }
                                 });

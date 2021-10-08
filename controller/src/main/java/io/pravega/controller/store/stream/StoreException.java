@@ -178,15 +178,6 @@ public class StoreException extends RuntimeException {
     }
 
     /**
-     * Exception type when you are attempting an illegal operation which should not be retried.
-     */
-    public static class IllegalStreamStateException extends StoreException {
-        public IllegalStreamStateException(String errorMessage, Throwable cause) {
-            super(errorMessage, cause);
-        }
-    }
-
-    /**
      * Exception type when the attempted operation is currently not allowed.
      */
     public static class OperationNotAllowedException extends StoreException {
