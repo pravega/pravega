@@ -26,7 +26,6 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import javax.annotation.concurrent.GuardedBy;
 
-import io.pravega.common.Exceptions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
