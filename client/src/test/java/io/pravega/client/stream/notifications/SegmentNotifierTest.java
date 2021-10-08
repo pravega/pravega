@@ -93,6 +93,30 @@ public class SegmentNotifierTest {
         verify(system, times(1)).removeListeners(SegmentNotification.class.getSimpleName());
     }
 
+    @Test(timeout = 5000)
+    public void segmentNotifierTestWithEmptyState() throws Exception {
+        AtomicBoolean listenerInvoked = new AtomicBoolean();
+        AtomicInteger segmentCount = new AtomicInteger(0);
+
+        when(state.getOnlineReaders()).thenReturn(new HashSet<>(singletonList("reader1")));
+        when(state.getNumberOfSegments()).thenReturn(1, 1, 2 ).thenReturn(2);
+        // simulate a null being returned.
+        when(sync.getState()).thenReturn(null).thenReturn(state);
+
+        Listener<SegmentNotification> listener1 = e -> {
+            log.info("listener 1 invoked");
+            listenerInvoked.set(true);
+            segmentCount.set(e.getNumOfSegments());
+
+        };
+        SegmentNotifier notifier = new SegmentNotifier(system, sync, executor);
+        notifier.registerListener(listener1);
+        verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), eq(0L), anyLong(), any(TimeUnit.class));
+        notifier.pollNow();
+        assertTrue(listenerInvoked.get());
+        assertEquals(1, segmentCount.get());
+    }
+
     @After
     public void cleanup() {
         ExecutorServiceHelpers.shutdown(executor);
