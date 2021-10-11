@@ -60,7 +60,9 @@ public class EndOfDataNotifier extends AbstractPollingNotifier<EndOfDataNotifica
     private void checkAndTriggerEndOfStreamNotification() {
         this.synchronizer.fetchUpdates();
         ReaderGroupState state = this.synchronizer.getState();
-        if (state.isEndOfData()) {
+        if (state == null) {
+            log.warn("Current state of StateSynchronizer {} is null, will try again.", synchronizer);
+        } else if (state.isEndOfData()) {
             notifySystem.notify(new EndOfDataNotification());
         }
     }
