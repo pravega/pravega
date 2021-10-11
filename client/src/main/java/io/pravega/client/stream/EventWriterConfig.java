@@ -100,7 +100,8 @@ public class EventWriterConfig implements Serializable {
     private final boolean automaticallyNoteTime;
 
     /**
-     * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore.
+     * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore. A LargeEvent
+     * is defined as any event containing a number of bytes greater than {@link Serializer.MAX_EVENT_SIZE}.
      *
      * @param enableLargeEvents Enable or disables LargeEvent processing.
      * @return LargeEvent processing is enabled or disabled.
