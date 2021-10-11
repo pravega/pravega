@@ -459,6 +459,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
             val writers = createEventWriters(streamName, scaleWriters, clientFactory,  data);
             Futures.allOf(writers).get();
+            // Wait for the scale event.
             TestUtils.await(() -> !latch.get(), 200, 2000);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
@@ -475,6 +476,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         }
 
         StreamSegments segments = controller.getCurrentSegments(SCOPE_NAME, streamName).get();
+        // Make sure that the scale event has happened.
         Assert.assertEquals("Expected 2 StreamSegments.", 2, segments.getSegments().size());
 
         // This time there are successor segments, so the data should have been accepted.

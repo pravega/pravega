@@ -135,7 +135,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            if (data.remaining() > Serializer.MAX_EVENT_SIZE) {
+            if (config.isEnableLargeEvents() && data.remaining() > Serializer.MAX_EVENT_SIZE) {
                 writeLargeEvent(routingKey, Collections.singletonList(data), ackFuture);
             } else {
                 synchronized (writeSealLock) {
@@ -155,7 +155,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            if (data.stream().mapToInt(m -> m.remaining()).sum() > Serializer.MAX_EVENT_SIZE) {
+            if (config.isEnableLargeEvents() && data.stream().mapToInt(m -> m.remaining()).sum() > Serializer.MAX_EVENT_SIZE) {
                 writeLargeEvent(routingKey, data, ackFuture);
             } else {
                 synchronized (writeSealLock) {
@@ -174,6 +174,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         LargeEventWriter writer = new LargeEventWriter(UUID.randomUUID(), controller, connectionPool);
         while (!success) {
             Segment segment = selector.getSegmentForEvent(routingKey);
+            System.out.println(String.format("Routing: %s, Segment: %s", routingKey, segment));
             try {
                 writer.writeLargeEvent(segment, events, tokenProvider, config);
                 success = true;
@@ -183,7 +184,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 handleLogSealed(segment);
                 tryWaitForSuccessors();
                 // Make sure that the successors are not sealed themselves.
-                if (selector.getSegments().contains(segment)) {
+                if (selector.isStreamSealed()) {
                     ackFuture.completeExceptionally(new SegmentSealedException(segment.toString()));
                     break;
                 }
@@ -255,7 +256,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                                  }
                              }
                              toSeal = sealedSegmentQueue.poll();
-                             log.info("Sealing another segment {} ", toSeal);
+                             if (toSeal != null) {
+                                 log.info("Sealing another segment {} ", toSeal);
+                             }
                          }
                          sealedSegmentQueueEmptyLatch.release();
                      }

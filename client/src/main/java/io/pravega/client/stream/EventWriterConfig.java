@@ -99,6 +99,14 @@ public class EventWriterConfig implements Serializable {
      */
     private final boolean automaticallyNoteTime;
 
+    /**
+     * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore.
+     *
+     * @param enableLargeEvents Enable or disables LargeEvent processing.
+     * @return LargeEvent processing is enabled or disabled.
+     */
+    private final boolean enableLargeEvents;
+
     public static final class EventWriterConfigBuilder {
         private static final long MIN_TRANSACTION_TIMEOUT_TIME_MILLIS = 10000;
         private int initialBackoffMillis = 1;
@@ -109,7 +117,8 @@ public class EventWriterConfig implements Serializable {
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
         private boolean enableConnectionPooling = false;
-        
+        private boolean enableLargeEvents = false;
+
         public EventWriterConfig build() {
             Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME_MILLIS, "Transaction time must be at least 10 seconds.");
             Preconditions.checkArgument(initialBackoffMillis >= 0, "Backoff times must be positive numbers");
@@ -119,7 +128,8 @@ public class EventWriterConfig implements Serializable {
             return new EventWriterConfig(initialBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
                                          enableConnectionPooling,
                                          transactionTimeoutTime,
-                                         automaticallyNoteTime);
+                                         automaticallyNoteTime,
+                                         enableLargeEvents);
         }
     }
 }
