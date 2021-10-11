@@ -123,7 +123,7 @@ public class LargeEventWriterTest {
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE * 2 + 1));
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE));
         buffers.add(ByteBuffer.allocate(5));
-        writer.writeLargeEvent(segment, buffers, tokenProvider, EventWriterConfig.builder().build());
+        writer.writeLargeEvent(segment, buffers, tokenProvider, EventWriterConfig.builder().enableLargeEvents(true).build());
 
         assertEquals(4, written.size());
         assertEquals(Serializer.MAX_EVENT_SIZE, written.get(0).readableBytes());
@@ -169,6 +169,7 @@ public class LargeEventWriterTest {
                                                                    EventWriterConfig.builder()
                                                                        .initialBackoffMillis(1)
                                                                        .backoffMultiple(1)
+                                                                       .enableLargeEvents(true)
                                                                        .retryAttempts(7)
                                                                        .build()));
         assertEquals(8, count.get());
@@ -184,7 +185,7 @@ public class LargeEventWriterTest {
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, connection);
         EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().enableLargeEvents(true).build();
         ArrayList<ByteBuffer> events = new ArrayList<>();
         events.add(ByteBuffer.allocate(1));
         
@@ -231,7 +232,6 @@ public class LargeEventWriterTest {
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, connection);
         EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
-        EventWriterConfig config = EventWriterConfig.builder().initialBackoffMillis(0).build();
         ArrayList<ByteBuffer> events = new ArrayList<>();
         events.add(ByteBuffer.allocate(1));
         
@@ -434,7 +434,7 @@ public class LargeEventWriterTest {
         Segment segment = new Segment(scope, streamName, 0);
         @Cleanup
         InlineExecutor executor = new InlineExecutor();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().enableLargeEvents(true).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController("localhost", 0, connectionFactory, false);

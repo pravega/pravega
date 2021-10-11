@@ -519,7 +519,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             @Cleanup
             final EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName,
                     new ByteBufferSerializer(),
-                    EventWriterConfig.builder().build());
+                    EventWriterConfig.builder().enableLargeEvents(true).build());
             for (ByteBuffer buf : data) {
                 log.debug("Writing LargeEvent: [{}/{}]", buf.get(0), buf.get(1));
                 writer.writeEvent(routingKey, buf).thenRun(() -> writeCount.incrementAndGet());
