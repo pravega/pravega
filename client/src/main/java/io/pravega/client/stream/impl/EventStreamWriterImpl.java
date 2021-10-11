@@ -174,7 +174,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         LargeEventWriter writer = new LargeEventWriter(UUID.randomUUID(), controller, connectionPool);
         while (!success) {
             Segment segment = selector.getSegmentForEvent(routingKey);
-            System.out.println(String.format("Routing: %s, Segment: %s", routingKey, segment));
             try {
                 writer.writeLargeEvent(segment, events, tokenProvider, config);
                 success = true;
