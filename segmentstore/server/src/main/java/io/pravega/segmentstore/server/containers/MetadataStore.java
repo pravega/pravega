@@ -712,7 +712,7 @@ public abstract class MetadataStore implements AutoCloseable {
 
     @Data
     @Builder
-    protected static class SegmentInfo {
+    public static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
         private final SegmentProperties properties;
@@ -774,10 +774,10 @@ public abstract class MetadataStore implements AutoCloseable {
             }
         }
 
-        static class SegmentInfoBuilder implements ObjectBuilder<SegmentInfo> {
+        public static class SegmentInfoBuilder implements ObjectBuilder<SegmentInfo> {
         }
 
-        private static class SegmentInfoSerializer extends VersionedSerializer.WithBuilder<SegmentInfo, SegmentInfo.SegmentInfoBuilder> {
+        public static class SegmentInfoSerializer extends VersionedSerializer.WithBuilder<SegmentInfo, SegmentInfo.SegmentInfoBuilder> {
             @Override
             protected SegmentInfo.SegmentInfoBuilder newBuilder() {
                 return SegmentInfo.builder();
