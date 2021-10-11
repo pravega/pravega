@@ -221,6 +221,12 @@ public class SegmentSelector {
         return new HashMap<>(writers);
     }
 
+    /**
+     * A flag that is used to determine if the stream has been sealed. Note: This flag only returns true if
+     * the seal has been detected as a result of calling {@link #refreshSegmentEventWritersUponSealed}.
+     *
+     * @return Whether the stream seal has been detected for this stream.
+     */
     public boolean isStreamSealed() {
         return sealed.get();
     }
