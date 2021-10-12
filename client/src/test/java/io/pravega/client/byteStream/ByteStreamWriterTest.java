@@ -75,7 +75,7 @@ public class ByteStreamWriterTest {
     public void testWrite() throws Exception {
         @Cleanup
         ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
-        byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7};
+        byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7 };
         int headoffset = 0;
         writer.write(value);
         writer.flush();
