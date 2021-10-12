@@ -80,7 +80,7 @@ public class SingleThreadEndToEndTest {
         assertTrue(streamManager.sealStream("scope", "stream"));
         AssertExtensions.assertThrows(SegmentSealedException.class,
                                       () -> writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join());
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> writer.writeEvent(new byte[1]).join());
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[1]).join());
         writer.flush();
     }
 
