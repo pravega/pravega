@@ -66,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.curator.test.TestingServer;
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -101,7 +102,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     private static final int NUM_WRITERS = 2;
     private static final int NUM_READERS = 1;
-    private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 5;
+    private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 3;
     private static final int TINY_EVENT_SIZE = 8;
     private static final int CLOSE_WRITE_COUNT = 2;
     private static final String SCOPE_NAME = "scope";
@@ -190,11 +191,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     }
 
 
-    @Test
+    @Test(timeout = 30000)
     public void readWriteTest() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventReaderGroup";
         String streamName = "ReadWrite";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        StreamConfiguration config = getStreamConfiguration(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
         int events = 1;
         Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
@@ -203,13 +204,13 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testNormalThenLargeEvent() throws ExecutionException, InterruptedException {
 
         String streamName = "NormalEventLargeEvent";
         String readerGroupName = "testNormalThenLargeEvent";
 
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        StreamConfiguration config = getStreamConfiguration(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 1;
@@ -235,14 +236,14 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testSingleWriterMixedEvents() throws ExecutionException, InterruptedException {
         String streamName = "SingleWriterMixedEvents";
         String readerGroupName = "testSingleWriterMixedEvents";
 
         int writers = 1;
         AtomicInteger generation = new AtomicInteger(0);
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        StreamConfiguration config = getStreamConfiguration(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 2;
@@ -251,7 +252,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         // Add two Large Events
         merge(eventsWrittenToPravega, generateEventData(writers, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE));
         // Add two normal events.
-        merge(eventsWrittenToPravega, generateEventData(writers, events * 2, events, TINY_EVENT_SIZE));
+        merge(eventsWrittenToPravega, generateEventData(writers, events * generation.getAndIncrement(), events, TINY_EVENT_SIZE));
 
         log.info("Writing {} new events.", eventsWrittenToPravega.size());
         eventsReadFromPravega = readWriteCycle(streamName, readerGroupName, eventsWrittenToPravega);
@@ -261,11 +262,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventFailoverReaderGroup";
         String streamName = "SegmentStoreRestart";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        StreamConfiguration config = getStreamConfiguration(NUM_READERS);
         createScopeStream(SCOPE_NAME, streamName, config);
 
         int events = 1;
@@ -299,7 +300,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         merge(eventsWrittenToPravega, data);
 
         AtomicInteger sendCount = new AtomicInteger(0);
-        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() > CLOSE_WRITE_COUNT;
+        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() == CLOSE_WRITE_COUNT;
 
         // Now try the restart *during* a large event write.
         AtomicReference<Boolean> latch = new AtomicReference<>(true);
@@ -325,11 +326,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test
-    public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException {
+    @Test(timeout = 30000)
+    public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException, TimeoutException {
         String readerGroupName = "testLargeEventReconnectReaderGroup";
         String streamName = "ConnectionReconnect";
-        StreamConfiguration config = getStreamConfiguraton(NUM_READERS);
+        StreamConfiguration config = getStreamConfiguration(NUM_READERS);
 
         createScopeStream(SCOPE_NAME, streamName, config);
 
@@ -340,7 +341,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
         // Close the connection after two `send` calls.
         AtomicInteger sendCount = new AtomicInteger(0);
-        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() > CLOSE_WRITE_COUNT;
+        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() == CLOSE_WRITE_COUNT;
 
         AtomicReference<Boolean> latch = new AtomicReference<>(true);
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch, null, predicate);
@@ -352,12 +353,11 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
-            Futures.allOf(writers).get();
+            Futures.allOf(writers).get(1000, TimeUnit.MILLISECONDS);
             stopReadFlag.set(true);
 
-            Futures.allOf(readers).get();
+            Futures.allOf(readers).get(1000, TimeUnit.MILLISECONDS);
 
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
         }
 
@@ -368,7 +368,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     /**
      * Tests that if a Stream is sealed no data will continue to be produced by the {@link io.pravega.client.stream.impl.LargeEventWriter}
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReadWriteStreamSeal() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventStreamSealReaderGroup";
         String streamName = "StreamSeal";
@@ -405,8 +405,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     /**
      * Tests that if a Stream is sealed no data will continue to be produced by the {@link io.pravega.client.stream.impl.LargeEventWriter}
      */
-    @Test
-    public void testReadWriteScaleStreamSeal() throws ExecutionException, InterruptedException {
+    @Test(timeout = 30000)
+    public void testReadWriteScaleStreamSeal() throws ExecutionException, InterruptedException, TimeoutException {
         String readerGroupName = "testLargeEventScaleStreamSealReaderGroup";
         String streamName = "ScaleStreamSeal";
         StreamConfiguration config = StreamConfiguration.builder()
@@ -447,7 +447,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         eventReadCount.set(0);
         // Try to scale the segment after two `send` calls.
         AtomicInteger sendCount = new AtomicInteger(0);
-        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() > CLOSE_WRITE_COUNT;
+        Supplier<Boolean> predicate = () -> sendCount.getAndIncrement() == CLOSE_WRITE_COUNT;
         AtomicReference<Boolean> latch = new AtomicReference<>(true);
         try (ConnectionExporter connectionFactory = new ConnectionExporter(ClientConfig.builder().build(), latch, scale, predicate);
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
@@ -471,8 +471,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
             log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("Failed to scale the stream.", e);
         }
 
         StreamSegments segments = controller.getCurrentSegments(SCOPE_NAME, streamName).get();
@@ -485,7 +483,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     private ConcurrentLinkedQueue<ByteBuffer> readWriteCycle(String streamName, String readerGroupName, Map<Integer, List<ByteBuffer>> writes) throws ExecutionException, InterruptedException {
         // Each read-cycle should clear these objects.
-        stopReadFlag = new AtomicBoolean(false);
+        stopReadFlag.set(false);
         // Reads should be clear, but not writes.
         eventReadCount.set(0);
         // The reads should return all events written, and not just the to be written events (writes).
@@ -529,7 +527,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         }, writerPool);
     }
 
-    private StreamConfiguration getStreamConfiguraton(int readers) {
+    private StreamConfiguration getStreamConfiguration(int readers) {
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(readers);
         return StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
@@ -760,12 +758,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         @Override
         public void send(WireCommand cmd) throws ConnectionFailedException {
             if (this.close.get() && cmd instanceof WireCommands.ConditionalBlockEnd) {
-                if (predicate != null && this.predicate.get()) {
+                if (predicate != null && this.predicate.get() && this.close.compareAndSet(true, false)) {
                     if (callback != null) {
                         callback.run();
                     }
-                    this.close.set(false);
-                    return;
                 }
             }
             connection.send(cmd);
