@@ -73,7 +73,7 @@ public class SingleThreadEndToEndTest {
         EventStreamWriter<byte[]> writer = setupUtils.getClientFactory()
             .createEventWriter("stream",
                                new ByteArraySerializer(),
-                               EventWriterConfig.builder().retryAttempts(2).build());
+                               EventWriterConfig.builder().retryAttempts(2).enableLargeEvents(true).build());
         writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join();
         writer.flush();
         assertTrue(streamManager.sealStream("scope", "stream"));
