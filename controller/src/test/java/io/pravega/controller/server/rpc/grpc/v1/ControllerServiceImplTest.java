@@ -115,7 +115,7 @@ public abstract class ControllerServiceImplTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(10, TimeUnit.MINUTES);
 
     ControllerServiceImpl controllerService;
     RequestTracker requestTracker = new RequestTracker(true);
@@ -835,6 +835,80 @@ public abstract class ControllerServiceImplTest {
         updateStreamStatus = result5.get();
         assertEquals("Seal non-existent stream",
                 UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void updateSealedStreamTest() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+        UpdateStreamStatus updateStreamStatus;
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
+        createStreamStatus = result2.get();
+        Assert.assertEquals("Create stream",
+                CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // Seal the test stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
+        updateStreamStatus = result3.get();
+        assertEquals("Seal stream", UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+
+        // Update the sealed test stream.
+        ResultObserver<UpdateStreamStatus> result4 = new ResultObserver<>();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), result4);
+        updateStreamStatus = result4.get();
+        assertEquals(UpdateStreamStatus.Status.FAILURE, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void truncateSealedStreamTest() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+        UpdateStreamStatus truncateStreamStatus;
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
+        createStreamStatus = result2.get();
+        Assert.assertEquals("Create stream",
+                CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // Seal the test stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
+        UpdateStreamStatus updateStreamStatus = result3.get();
+        assertEquals("Seal stream", UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+
+        // Truncate the sealed test stream
+        ResultObserver<UpdateStreamStatus> result4 = new ResultObserver<>();
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                .setStreamInfo(StreamInfo.newBuilder()
+                        .setScope(SCOPE1)
+                        .setStream(STREAM1)
+                        .build())
+                .putCut(0, 0).putCut(1, 0).putCut(2, 0).putCut(3, 0).build(), result4);
+        truncateStreamStatus = result4.get();
+        assertEquals(UpdateStreamStatus.Status.FAILURE, truncateStreamStatus.getStatus());
     }
 
     @Test
