@@ -262,7 +262,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventFailoverReaderGroup";
         String streamName = "SegmentStoreRestart";
