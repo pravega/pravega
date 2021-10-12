@@ -750,7 +750,6 @@ public class K8sClient {
                 log.error("Exception observed for method {} with response code {}", method, responseCode, e);
                 log.error("ResponseBody: {}", e.getResponseBody());
             }
-
             future.completeExceptionally(e);
         }
 
