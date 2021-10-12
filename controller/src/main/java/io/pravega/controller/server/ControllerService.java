@@ -396,7 +396,11 @@ public class ControllerService {
                   .thenApplyAsync(status -> {
                       reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
                       return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                  }, executor);
+                  }, executor)
+                .exceptionally(ex -> {
+                    reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                });
     }
 
     /**
@@ -417,7 +421,11 @@ public class ControllerService {
                 .thenApplyAsync(status -> {
                     reportTruncateStreamMetrics(scope, stream, status, timer.getElapsed());
                     return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                }, executor);
+                }, executor)
+                .exceptionally(ex -> {
+                    reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                });
     }
 
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName, long requestId) {

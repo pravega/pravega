@@ -29,6 +29,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 
 import java.util.AbstractMap;
@@ -80,10 +81,13 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
+                        // updating the stream should not be allowed since it has been SEALED
+                        // hence, we need to update the configuration in the store with updating flag = false
+                        // and then throw an exception
                         return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeUpdateConfiguration(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw new IllegalStateException("Cannot update sealed stream: " + stream);
+                                            throw new IllegalStateException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }));
                     }
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)

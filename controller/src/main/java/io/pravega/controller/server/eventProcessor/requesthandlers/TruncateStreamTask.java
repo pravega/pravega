@@ -24,6 +24,7 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -71,10 +72,13 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
+                        // truncation should not be allowed since the stream is in SEALED state
+                        // hence, we need complete the truncation by updating the metadata
+                        // and then throw an exception
                         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeTruncation(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw new IllegalStateException("Cannot truncate sealed stream: " + stream);
+                                            throw new IllegalStateException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }));
                     }
                     return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
