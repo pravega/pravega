@@ -105,8 +105,8 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public long fetchHead() {
-        return out.fetchHead();
+    public long fetchHeadOffset() {
+        return out.fetchHeadOffset();
     }
 
     @Override

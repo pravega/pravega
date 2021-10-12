@@ -97,9 +97,9 @@ public abstract class ByteStreamWriter extends OutputStream {
 
     /**
      * This makes a synchronous RPC call to the server to obtain the current head of the stream.
-     * @return The current head
+     * @return The current head offset
      */
-    public abstract long fetchHead();
+    public abstract long fetchHeadOffset();
 
     /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written

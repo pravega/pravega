@@ -34,7 +34,7 @@ public interface SegmentMetadataClient extends AutoCloseable {
      *
      * @return a future containing the head of the current segment.
      */
-    abstract CompletableFuture<Long> fetchCurrentSegmentHead();
+    abstract CompletableFuture<Long> fetchCurrentSegmentHeadOffset();
     
     /**
      * Returns the length of the current segment. i.e. the total length of all data written to the segment.

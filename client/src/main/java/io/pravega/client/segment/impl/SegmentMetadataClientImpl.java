@@ -209,7 +209,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public CompletableFuture<Long> fetchCurrentSegmentHead() {
+    public CompletableFuture<Long> fetchCurrentSegmentHeadOffset() {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(NoSuchSegmentException.class)
