@@ -85,7 +85,6 @@ public class K8SequentialExecutor implements TestExecutor {
                            log.error("Failed to download logs for {}#{}", className, methodName, t1);
                            return null;
                        });
-
                     if (t == null) {
                         log.info("Test {}#{} execution completed with status {}", className, methodName, s);
                         verifyPravegaPodRestart(podStatusBeforeTest, getPravegaPodStatus(client));
