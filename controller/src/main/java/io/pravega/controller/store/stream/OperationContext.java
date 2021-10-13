@@ -15,13 +15,14 @@
  */
 package io.pravega.controller.store.stream;
 
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * Interface for defining an operation context. 
  */
 public interface OperationContext {
-    Random RANDOM_REQUEST_ID_GENERATOR = new Random();
+    // Generator for new request identifiers
+    SecureRandom RANDOM_REQUEST_ID_GENERATOR = new SecureRandom();
 
     long getOperationStartTime();
     
