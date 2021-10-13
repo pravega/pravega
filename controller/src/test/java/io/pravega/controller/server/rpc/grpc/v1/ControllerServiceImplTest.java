@@ -869,7 +869,7 @@ public abstract class ControllerServiceImplTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), result4);
         updateStreamStatus = result4.get();
-        assertEquals(UpdateStreamStatus.Status.FAILURE, updateStreamStatus.getStatus());
+        assertEquals("Update sealed stream", UpdateStreamStatus.Status.STREAM_SEALED, updateStreamStatus.getStatus());
     }
 
     @Test
@@ -908,7 +908,7 @@ public abstract class ControllerServiceImplTest {
                         .build())
                 .putCut(0, 0).putCut(1, 0).putCut(2, 0).putCut(3, 0).build(), result4);
         truncateStreamStatus = result4.get();
-        assertEquals(UpdateStreamStatus.Status.FAILURE, truncateStreamStatus.getStatus());
+        assertEquals("Truncate sealed stream", UpdateStreamStatus.Status.STREAM_SEALED, truncateStreamStatus.getStatus());
     }
 
     @Test

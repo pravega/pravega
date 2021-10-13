@@ -305,7 +305,7 @@ public abstract class RequestHandlersTest {
         wait.complete(null);
 
         AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
-                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.StreamSealedException);
 
         // validate
         VersionedMetadata<StreamConfigurationRecord> versioned = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
@@ -353,7 +353,7 @@ public abstract class RequestHandlersTest {
         wait.complete(null);
 
         AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
-                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.StreamSealedException);
 
         // validate
         VersionedMetadata<StreamTruncationRecord> versioned = streamStore.getTruncationRecord(scope, stream, null, executor).join();

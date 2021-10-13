@@ -386,20 +386,25 @@ public class ControllerService {
      * @param stream stream
      * @param streamConfig stream configuration
      * @param requestId request id
-     * @return Update stream status future. 
+     * @return Update stream status future.
      */
-    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig, 
+    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig,
                                                               long requestId) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Timer timer = new Timer();
         return streamMetadataTasks.updateStream(scope, stream, streamConfig, requestId)
-                  .thenApplyAsync(status -> {
-                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
-                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                  }, executor)
+                .thenApplyAsync(status -> {
+                    reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                }, executor)
                 .exceptionally(ex -> {
-                    reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
-                    return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                    if (Exceptions.unwrap(ex) instanceof StoreException.StreamSealedException) {
+                        reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.STREAM_SEALED, timer.getElapsed());
+                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_SEALED).build();
+                    } else {
+                        reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
+                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                    }
                 });
     }
 
@@ -423,8 +428,13 @@ public class ControllerService {
                     return UpdateStreamStatus.newBuilder().setStatus(status).build();
                 }, executor)
                 .exceptionally(ex -> {
-                    reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
-                    return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                    if (Exceptions.unwrap(ex) instanceof StoreException.StreamSealedException) {
+                        reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.STREAM_SEALED, timer.getElapsed());
+                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_SEALED).build();
+                    } else {
+                        reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
+                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
+                    }
                 });
     }
 

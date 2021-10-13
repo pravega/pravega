@@ -760,7 +760,9 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (state.equals(State.SEALED)) {
-                        throw new IllegalStateException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                        log.error(requestId, "Cannot update sealed stream {}/{}", scope, stream);
+                        throw StoreException.create(StoreException.Type.STREAM_SEALED,
+                                "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                     }
                 })
                 .thenCompose(x -> {
@@ -777,11 +779,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                             context, executor))
                                             // 4. wait for update to complete
                                             .thenCompose(y -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
-                                                    .thenApply(z -> UpdateStreamStatus.Status.SUCCESS))
-                                            .exceptionally(ex -> {
-                                                log.error(requestId, "Cannot update sealed stream {}/{}", scope, stream);
-                                                return UpdateStreamStatus.Status.FAILURE;
-                                            }));
+                                                    .thenApply(z -> UpdateStreamStatus.Status.SUCCESS)));
                                 } else {
                                     log.error(requestId, "Another update in progress for {}/{}",
                                             scope, stream);
@@ -811,7 +809,9 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         // if stream is sealed then update should not be allowed
                                         if (state.equals(State.SEALED)) {
-                                            throw new IllegalStateException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            log.error("Cannot update sealed stream {}/{}", scope, stream);
+                                            throw StoreException.create(StoreException.Type.STREAM_SEALED,
+                                                    "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if update-barrier is not updating, then update is complete if property matches our expectation
                                         // and state is not updating
@@ -1424,7 +1424,9 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (state.equals(State.SEALED)) {
-                        throw new IllegalStateException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                        log.error(requestId,"Cannot truncate sealed stream {}/{}", scope, stream);
+                        throw StoreException.create(StoreException.Type.STREAM_SEALED,
+                                "Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                     }
                 })
                 .thenCompose(x -> eventHelperFuture.thenCompose(eventHelper -> startTruncation(scope, stream, streamCut, context) // 1. get stream cut
@@ -1432,11 +1434,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(truncationStarted -> {
                                     if (truncationStarted) {
                                         return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
-                                                .thenApply(y -> UpdateStreamStatus.Status.SUCCESS)
-                                                .exceptionally(ex -> {
-                                                    log.error(requestId, "Cannot truncate sealed stream {}/{}", scope, stream);
-                                                    return UpdateStreamStatus.Status.FAILURE;
-                                                });
+                                                .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                                     } else {
                                         log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
                                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -1489,7 +1487,9 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         // if stream is sealed then truncate should not be allowed
                                         if (state.equals(State.SEALED)) {
-                                            throw new IllegalStateException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            log.error("Cannot truncate sealed stream {}/{}", scope, stream);
+                                            throw StoreException.create(StoreException.Type.STREAM_SEALED,
+                                                    "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if truncate-barrier is not updating, then truncate is complete if property
                                         // matches our expectation and state is not updating
@@ -1959,6 +1959,8 @@ public class StreamMetadataTasks extends TaskBase {
         log.error(requestId, "Exception updating Stream {}. Cause: {}.", streamFullName, logMessage, cause);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof StoreException.StreamSealedException) {
+            return UpdateStreamStatus.Status.STREAM_SEALED;
         } else if (cause instanceof TimeoutException) {
             throw new CompletionException(cause);
         } else {
