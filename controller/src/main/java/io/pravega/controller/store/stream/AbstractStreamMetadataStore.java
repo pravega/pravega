@@ -1225,7 +1225,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     OperationContext getOperationContext(OperationContext context) {
         // if null context is supplied make sure we create a context with a new request id.
         return context != null ? context : new OperationContext() {
-            private final long requestId = requestIdGenerator.nextLong();
+            private final long requestId = RANDOM_REQUEST_ID_GENERATOR.nextLong();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

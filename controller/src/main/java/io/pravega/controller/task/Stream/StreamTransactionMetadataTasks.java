@@ -726,7 +726,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status, long requestId) {
-        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
+        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId, requestId);
         return TaskStepsRetryHelper.withRetries(() -> writeAbortEvent(event)
                 .handle((r, e) -> {
                     if (e != null) {

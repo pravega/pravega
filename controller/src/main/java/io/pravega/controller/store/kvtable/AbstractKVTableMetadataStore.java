@@ -141,7 +141,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     OperationContext getOperationContext(OperationContext context) {
         return context != null ? context : new OperationContext() {
-            private final long requestId = requestIdGenerator.nextLong();
+            private final long requestId = RANDOM_REQUEST_ID_GENERATOR.nextLong();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

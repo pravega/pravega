@@ -1667,15 +1667,13 @@ public abstract class PersistentStreamBase implements Stream {
             // update record
             if (!previous.getTxnStatus().equals(TxnStatus.COMMITTING)) {
                 future = addTxnToCommitOrder(txId, context)
-                        .thenApply(position -> {
-                            return new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                                    previous.getLeaseExpiryTime(),
-                                    previous.getMaxExecutionExpiryTime(),
-                                    TxnStatus.COMMITTING,
-                                    writerId,
-                                    timestamp,
-                                    position);
-                        });
+                        .thenApply(position -> new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                                previous.getLeaseExpiryTime(),
+                                previous.getMaxExecutionExpiryTime(),
+                                TxnStatus.COMMITTING,
+                                writerId,
+                                timestamp,
+                                position));
             } else {
                 future = CompletableFuture.completedFuture(previous);
             }

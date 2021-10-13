@@ -103,7 +103,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.Iterator;
@@ -120,7 +119,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 
 import org.slf4j.LoggerFactory;
 
@@ -149,7 +147,6 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private final CompletableFuture<EventHelper> eventHelperFuture;
     private final AtomicReference<Supplier<Long>> retentionClock;
-    private final Random requestIdGenerator = new Random();
 
     @GuardedBy("lock")
     private EventHelper eventHelper = null;
@@ -921,7 +918,7 @@ public class StreamMetadataTasks extends TaskBase {
                                              final String delegationToken) {
         Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
 
         return streamMetadataStore.getRetentionSet(scope, stream, context, executor)
                 .thenCompose(retentionSet -> {
@@ -1373,7 +1370,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                 final StreamCutRecord previous,
                                                                 final OperationContext contextOpt, String delegationToken) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
 
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
@@ -1427,7 +1424,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
                                                        OperationContext contextOpt) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
         long requestId = context.getRequestId();
         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                 .thenCompose(property -> {
@@ -2051,6 +2048,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public long getRequestId(OperationContext context) {
-        return context != null ? context.getRequestId() : requestIdGenerator.nextLong();
+        return context != null ? context.getRequestId() : OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong();
     }
 }

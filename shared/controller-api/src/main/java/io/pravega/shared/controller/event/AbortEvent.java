@@ -37,6 +37,7 @@ public class AbortEvent implements ControllerEvent {
     private final String stream;
     private final int epoch;
     private final UUID txid;
+    private final long requestId;
 
     @Override
     public String getKey() {
@@ -67,6 +68,7 @@ public class AbortEvent implements ControllerEvent {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(0).revision(1, this::write01, this::read01);
         }
 
         private void write00(AbortEvent e, RevisionDataOutput target) throws IOException {
@@ -81,6 +83,14 @@ public class AbortEvent implements ControllerEvent {
             b.stream(source.readUTF());
             b.epoch(source.readCompactInt());
             b.txid(source.readUUID());
+        }
+
+        private void write01(AbortEvent e, RevisionDataOutput target) throws IOException {
+            target.writeLong(e.requestId);
+        }
+
+        private void read01(RevisionDataInput source, AbortEventBuilder b) throws IOException {
+            b.requestId(source.readLong());
         }
     }
 
