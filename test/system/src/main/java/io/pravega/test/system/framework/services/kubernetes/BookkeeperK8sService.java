@@ -93,7 +93,7 @@ public class BookkeeperK8sService extends AbstractService {
                 .thenCompose(o -> {
                     Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
                     int currentBookkeeperCount = ((Double) spec.get("replicas")).intValue();
-                    log.debug("Current instance counts : Bookkeeper {} .", currentBookkeeperCount);
+                    log.info("Expected instance counts: Bookkeeper {} . Current instance counts : Bookkeeper {} .", newInstanceCount, currentBookkeeperCount);
                     if (currentBookkeeperCount != newInstanceCount) {
                         final Map<String, Object> patchedSpec = buildPatchedBookkeeperClusterSpec("replicas", newInstanceCount);
                         return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER, NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER, patchedSpec)
