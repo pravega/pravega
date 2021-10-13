@@ -119,9 +119,10 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                     if (activeTxns == null || activeTxns.isEmpty()) {
                         return CompletableFuture.completedFuture(true);
                     } else {
-                        Map<UUID, TxnStatus> pendingTxns = activeTxns.entrySet().stream().map(txn -> new AbstractMap.SimpleEntry<>(txn.getKey(), txn.getValue().getTxnStatus())).collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-                        // log list of committing txns on the Stream
-                        log.debug(context.getRequestId(), "Found pending transactions {} on Stream {}/{}.", pendingTxns, scope, stream);
+                        Map<UUID, TxnStatus> pendingTxns = activeTxns.entrySet().stream().map(txn -> new AbstractMap.SimpleEntry<>(txn.getKey(), txn.getValue().getTxnStatus()))
+                                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+                        // log list of pending txns on the Stream
+                        log.info(context.getRequestId(), "Found pending transactions {} on Stream {}/{}.", pendingTxns, scope, stream);
                         return Futures.allOf(activeTxns.entrySet().stream().map(txIdPair -> {
                             CompletableFuture<Void> voidCompletableFuture;
                             TxnStatus txnStatus = txIdPair.getValue().getTxnStatus();
