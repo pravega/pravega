@@ -63,7 +63,9 @@ public class CommitEvent implements ControllerEvent {
         }
 
         @Override
-        protected void declareVersions() { version(0).revision(0, this::write00, this::read00); }
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
 
         private void write00(CommitEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
