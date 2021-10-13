@@ -1201,7 +1201,7 @@ project('test:system') {
 
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
-        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+        systemProperty "log.level", System.getProperty("log.level", "DEBUG")
 
         if (System.getProperty("configFile") != null) {
             systemProperty "configs", new File(System.getProperty("configFile")).text
@@ -1297,7 +1297,7 @@ project('test:system') {
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
-        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+        systemProperty "log.level", System.getProperty("log.level", "DEBUG")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
     }
