@@ -1424,7 +1424,7 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (state.equals(State.SEALED)) {
-                        log.error(requestId,"Cannot truncate sealed stream {}/{}", scope, stream);
+                        log.error(requestId, "Cannot truncate sealed stream {}/{}", scope, stream);
                         throw StoreException.create(StoreException.Type.STREAM_SEALED,
                                 "Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                     }
