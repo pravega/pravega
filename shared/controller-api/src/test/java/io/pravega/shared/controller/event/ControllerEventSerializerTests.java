@@ -41,7 +41,7 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testAbortEvent() {
-        testClass(() -> new AbortEvent(SCOPE, STREAM, 123, UUID.randomUUID()));
+        testClass(() -> new AbortEvent(SCOPE, STREAM, 123, UUID.randomUUID(), 21L));
     }
 
     @Test
