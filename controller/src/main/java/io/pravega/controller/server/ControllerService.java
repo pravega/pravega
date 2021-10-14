@@ -396,16 +396,7 @@ public class ControllerService {
                 .thenApplyAsync(status -> {
                     reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
                     return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                }, executor)
-                .exceptionally(ex -> {
-                    if (Exceptions.unwrap(ex) instanceof StoreException.StreamSealedException) {
-                        reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.STREAM_SEALED, timer.getElapsed());
-                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_SEALED).build();
-                    } else {
-                        reportUpdateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
-                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
-                    }
-                });
+                }, executor);
     }
 
     /**
@@ -426,16 +417,7 @@ public class ControllerService {
                 .thenApplyAsync(status -> {
                     reportTruncateStreamMetrics(scope, stream, status, timer.getElapsed());
                     return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                }, executor)
-                .exceptionally(ex -> {
-                    if (Exceptions.unwrap(ex) instanceof StoreException.StreamSealedException) {
-                        reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.STREAM_SEALED, timer.getElapsed());
-                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_SEALED).build();
-                    } else {
-                        reportTruncateStreamMetrics(scope, stream, UpdateStreamStatus.Status.FAILURE, timer.getElapsed());
-                        return UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build();
-                    }
-                });
+                }, executor);
     }
 
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName, long requestId) {

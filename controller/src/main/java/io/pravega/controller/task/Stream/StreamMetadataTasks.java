@@ -758,14 +758,11 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getState(scope, stream, true, context, executor)
-                .thenAccept(state -> {
+                .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
                         log.error(requestId, "Cannot update sealed stream {}/{}", scope, stream);
-                        throw StoreException.create(StoreException.Type.STREAM_SEALED,
-                                "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
-                })
-                .thenCompose(x -> {
                     // 1. get configuration
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                             .thenCompose(configProperty -> {
@@ -785,11 +782,11 @@ public class StreamMetadataTasks extends TaskBase {
                                             scope, stream);
                                     return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                                 }
-                            })
-                            .exceptionally(ex -> {
-                                final String message = "Exception updating stream configuration {}";
-                                return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                             });
+                })
+                .exceptionally(ex -> {
+                    final String message = "Exception updating stream configuration {}";
+                    return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                 });
     }
 
@@ -1422,28 +1419,28 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getState(scope, stream, true, context, executor)
-                .thenAccept(state -> {
+                .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
                         log.error(requestId, "Cannot truncate sealed stream {}/{}", scope, stream);
-                        throw StoreException.create(StoreException.Type.STREAM_SEALED,
-                                "Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
+                    // 1. get stream cut
+                    return eventHelperFuture.thenCompose(eventHelper -> startTruncation(scope, stream, streamCut, context) // 1. get stream cut
+                                    // 4. check for truncation to complete
+                                    .thenCompose(truncationStarted -> {
+                                        if (truncationStarted) {
+                                            return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
+                                                    .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
+                                        } else {
+                                            log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
+                                            return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                                        }
+                                    }));
                 })
-                .thenCompose(x -> eventHelperFuture.thenCompose(eventHelper -> startTruncation(scope, stream, streamCut, context) // 1. get stream cut
-                                // 4. check for truncation to complete
-                                .thenCompose(truncationStarted -> {
-                                    if (truncationStarted) {
-                                        return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
-                                                .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
-                                    } else {
-                                        log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
-                                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
-                                    }
-                                }))
-                        .exceptionally(ex -> {
-                            final String message = "Exception thrown in trying to truncate stream";
-                            return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
-                        }));
+                .exceptionally(ex -> {
+                    final String message = "Exception thrown in trying to truncate stream";
+                    return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
+                });
     }
 
     public CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
