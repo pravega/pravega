@@ -71,10 +71,10 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 
-    public static S3Client createS3Client(S3StorageConfig config) {
+     static S3Client createS3Client(S3StorageConfig config) {
         S3ClientBuilder builder = S3Client.builder()
                 .credentialsProvider(getCredentialsProvider(config, false))
-                .region(Region.US_EAST_1);
+                .region(Region.of(config.getRegion()));
         if (config.isShouldOverrideUri()) {
             builder = builder.endpointOverride(URI.create(config.getS3Config()));
         }
@@ -83,7 +83,6 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
 
     private static AwsCredentialsProvider getCredentialsProvider(S3StorageConfig config, boolean useSession) {
         if (useSession) {
-            //return roleCredentialsProvider("", "");
             throw new UnsupportedOperationException("AwsCredentialsProvider is not supported yet");
         } else {
             AwsBasicCredentials credentials = AwsBasicCredentials.create(config.getAccessKey(), config.getSecretKey());

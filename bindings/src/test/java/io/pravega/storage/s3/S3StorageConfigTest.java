@@ -32,5 +32,7 @@ public class S3StorageConfigTest {
         S3StorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
+        assertEquals("us-east-1", config.getRegion());
+        assertEquals(false, config.isShouldOverrideUri());
     }
 }

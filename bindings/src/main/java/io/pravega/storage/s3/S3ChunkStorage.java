@@ -77,18 +77,18 @@ public class S3ChunkStorage extends BaseChunkStorage {
     //region members
     private final S3StorageConfig config;
     private final S3Client client;
-    private final boolean shouldClose;
+    private final boolean shouldCloseClient;
     private final AtomicBoolean closed;
 
     //endregion
 
     //region constructor
-    public S3ChunkStorage(S3Client client, S3StorageConfig config, Executor executor, boolean shouldClose) {
+    public S3ChunkStorage(S3Client client, S3StorageConfig config, Executor executor, boolean shouldCloseClient) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
-        this.shouldClose = shouldClose;
+        this.shouldCloseClient = shouldCloseClient;
     }
     //endregion
 
@@ -338,7 +338,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
     @Override
     @SneakyThrows
     public void close() {
-        if (shouldClose && !this.closed.getAndSet(true)) {
+        if (shouldCloseClient && !this.closed.getAndSet(true)) {
             this.client.close();
         }
         super.close();

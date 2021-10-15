@@ -22,6 +22,7 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.regions.Region;
 
 /**
  * Configuration for the ExtendedS3 Storage component.
@@ -33,7 +34,7 @@ public class S3StorageConfig {
     public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
     public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
     public static final Property<String> SECRET_KEY = Property.named("connect.config.secret.key", "");
-
+    public static final Property<String> REGION = Property.named("connect.config.region", Region.US_EAST_1.toString());
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
@@ -50,6 +51,12 @@ public class S3StorageConfig {
      */
     @Getter
     private final String s3Config;
+
+    /**
+     *  The S3 region to use
+     */
+    @Getter
+    private final String region;
 
     /**
      *  The S3 access key id - this is equivalent to the user
@@ -96,6 +103,7 @@ public class S3StorageConfig {
     private S3StorageConfig(TypedProperties properties) throws ConfigurationException {
         this.shouldOverrideUri = properties.getBoolean(OVERRIDE_CONFIGURI);
         this.s3Config = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri");
+        this.region = Preconditions.checkNotNull(properties.get(REGION), "region");
         this.accessKey = Preconditions.checkNotNull(properties.get(ACCESS_KEY), "accessKey");
         this.secretKey = Preconditions.checkNotNull(properties.get(SECRET_KEY), "secretKey");
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
