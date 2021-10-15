@@ -17,6 +17,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
@@ -337,8 +338,71 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 "write succeeded when exception was expected.",
                 chunkedSegmentStorage.write(h1, 10, new ByteArrayInputStream(new byte[10]), 10, null),
                 ex -> clazz.equals(ex.getClass()));
+    }
 
-        //verify(spyChunkStorage, times(1)).doDelete(any());
+    @Test
+    public void testStorageFullDuringWrite() throws Exception {
+        String testSegmentName = "test";
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        // Step 1: Create segment and write some data.
+        val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
+
+        Assert.assertEquals(h1.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h1.isReadOnly());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+
+        // Step 2: Inject fault.
+        Exception exceptionToThrow = new ChunkStorageFullException("Test");
+        val clazz = StorageFullException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+
+        AssertExtensions.assertFutureThrows(
+                "write succeeded when exception was expected.",
+                chunkedSegmentStorage.write(h1, 10, new ByteArrayInputStream(new byte[10]), 10, null),
+                ex -> clazz.equals(ex.getClass()));
+    }
+
+    @Test
+    public void testStorageFullDuringConcat() throws Exception {
+        String testSegmentName = "test";
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        // Step 1: Create segment and write some data.
+        val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
+        val h2 = chunkedSegmentStorage.create("source", null).get();
+        Assert.assertEquals(h1.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h1.isReadOnly());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.seal(h2, null).get();
+        // Step 2: Inject fault.
+        Exception exceptionToThrow = new ChunkStorageFullException("Test");
+        val clazz = StorageFullException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+
+        AssertExtensions.assertFutureThrows(
+                "write succeeded when exception was expected.",
+                chunkedSegmentStorage.concat(h1, 10, "source", null),
+                ex -> clazz.equals(ex.getClass()));
     }
 
     @Test

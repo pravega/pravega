@@ -36,21 +36,25 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> MIN_SIZE_LIMIT_FOR_CONCAT = Property.named("concat.size.bytes.min", 0L);
     public static final Property<Long> MAX_SIZE_LIMIT_FOR_CONCAT = Property.named("concat.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Integer> MAX_BUFFER_SIZE_FOR_APPENDS = Property.named("appends.buffer.size.bytes.max", 1024 * 1024);
+
     public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
     public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
+
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
+
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
-    public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE = Property.named("garbage.collection.txn.batch.size.max", 5000);
+
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
@@ -58,8 +62,13 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_PER_SNAPSHOT_UPDATE_COUNT = Property.named("journal.snapshot.update.count.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
-    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
 
+    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
+    public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+
+    public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
+    public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
+    public static final Property<Integer> SAFE_SIZE_CHECK_FREQUENCY = Property.named("safe.size.check.frequency.seconds", 60);
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
@@ -89,6 +98,9 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
+            .maxSafeStorageSize(Long.MAX_VALUE)
+            .safeStorageSizeCheckEnabled(true)
+            .safeStorageSizeCheckFrequencyInSeconds(60)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -248,6 +260,25 @@ public class ChunkedSegmentStorageConfig {
     final private boolean selfCheckEnabled;
 
     /**
+     * Maximum storage size in bytes below which operations are considered safe.
+     * Above this value any non-critical writes are not allowed.
+     */
+    @Getter
+    final private long maxSafeStorageSize;
+
+    /**
+     * When enabled, SLTS will periodically check storage usage stats.
+     */
+    @Getter
+    final private boolean safeStorageSizeCheckEnabled;
+
+    /**
+     * Frequency in seconds of how often storage size checks is performed.
+     */
+    @Getter
+    final private int safeStorageSizeCheckFrequencyInSeconds;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -279,6 +310,9 @@ public class ChunkedSegmentStorageConfig {
         this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
         this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
+        this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
+        this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
+        this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
     }
 
     /**
