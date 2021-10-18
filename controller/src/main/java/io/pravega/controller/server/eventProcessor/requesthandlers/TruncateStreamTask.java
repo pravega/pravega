@@ -78,7 +78,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeTruncation(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw new UnsupportedOperationException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            throw new UnsupportedOperationException("Cannot truncate a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }));
                     }
                     return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)

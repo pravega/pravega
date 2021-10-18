@@ -88,7 +88,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                         return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeUpdateConfiguration(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw new UnsupportedOperationException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            throw new UnsupportedOperationException("Cannot update a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }));
                     }
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)

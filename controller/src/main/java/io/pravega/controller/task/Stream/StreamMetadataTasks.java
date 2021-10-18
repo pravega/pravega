@@ -760,7 +760,7 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
-                        log.error(requestId, "Cannot update sealed stream {}/{}", scope, stream);
+                        log.error(requestId, "Cannot update a sealed stream {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
                     // 1. get configuration
@@ -806,8 +806,8 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         // if stream is sealed then update should not be allowed
                                         if (state.equals(State.SEALED)) {
-                                            log.error("Cannot update sealed stream {}/{}", scope, stream);
-                                            throw new UnsupportedOperationException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            log.error("Cannot update a sealed stream {}/{}", scope, stream);
+                                            throw new UnsupportedOperationException("Cannot update a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if update-barrier is not updating, then update is complete if property matches our expectation
                                         // and state is not updating
@@ -1420,7 +1420,7 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
-                        log.error(requestId, "Cannot truncate sealed stream {}/{}", scope, stream);
+                        log.error(requestId, "Cannot truncate a sealed stream {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
                     // 1. get stream cut
@@ -1483,8 +1483,8 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         // if stream is sealed then truncate should not be allowed
                                         if (state.equals(State.SEALED)) {
-                                            log.error("Cannot truncate sealed stream {}/{}", scope, stream);
-                                            throw new UnsupportedOperationException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            log.error("Cannot truncate a sealed stream {}/{}", scope, stream);
+                                            throw new UnsupportedOperationException("Cannot truncate a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if truncate-barrier is not updating, then truncate is complete if property
                                         // matches our expectation and state is not updating
