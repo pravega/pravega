@@ -40,7 +40,6 @@ public class StoreException extends RuntimeException {
         ILLEGAL_STATE,
         OPERATION_NOT_ALLOWED,
         CONNECTION_ERROR,
-        STREAM_SEALED,
         UNKNOWN
     }
 
@@ -114,9 +113,6 @@ public class StoreException extends RuntimeException {
                 break;
             case CONNECTION_ERROR:
                 exception = new StoreConnectionException(errorMessage, cause);
-                break;
-            case STREAM_SEALED:
-                exception = new StreamSealedException(errorMessage, cause);
                 break;
             case UNKNOWN:
                 exception = new UnknownException(errorMessage, cause);
@@ -195,15 +191,6 @@ public class StoreException extends RuntimeException {
      */
     public static class StoreConnectionException extends StoreException implements RetryableException {
         private StoreConnectionException(String errorMessage, Throwable cause) {
-            super(errorMessage, cause);
-        }
-    }
-
-    /**
-     * Exception type when the attempted operation is on a sealed stream.
-     */
-    public static class StreamSealedException extends StoreException {
-        private StreamSealedException(String errorMessage, Throwable cause) {
             super(errorMessage, cause);
         }
     }

@@ -807,8 +807,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         // if stream is sealed then update should not be allowed
                                         if (state.equals(State.SEALED)) {
                                             log.error("Cannot update sealed stream {}/{}", scope, stream);
-                                            throw StoreException.create(StoreException.Type.STREAM_SEALED,
-                                                    "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            throw new UnsupportedOperationException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if update-barrier is not updating, then update is complete if property matches our expectation
                                         // and state is not updating
@@ -1485,8 +1484,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         // if stream is sealed then truncate should not be allowed
                                         if (state.equals(State.SEALED)) {
                                             log.error("Cannot truncate sealed stream {}/{}", scope, stream);
-                                            throw StoreException.create(StoreException.Type.STREAM_SEALED,
-                                                    "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            throw new UnsupportedOperationException("Cannot truncate sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }
                                         // if truncate-barrier is not updating, then truncate is complete if property
                                         // matches our expectation and state is not updating
@@ -1956,7 +1954,7 @@ public class StreamMetadataTasks extends TaskBase {
         log.error(requestId, "Exception updating Stream {}. Cause: {}.", streamFullName, logMessage, cause);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (cause instanceof StoreException.StreamSealedException) {
+        } else if (cause instanceof UnsupportedOperationException) {
             return UpdateStreamStatus.Status.STREAM_SEALED;
         } else if (cause instanceof TimeoutException) {
             throw new CompletionException(cause);

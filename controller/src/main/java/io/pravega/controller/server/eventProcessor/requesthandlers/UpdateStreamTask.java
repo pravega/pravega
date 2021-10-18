@@ -22,7 +22,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
@@ -40,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -88,8 +88,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                         return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeUpdateConfiguration(scope, stream, versionedMetadata, context, executor)
                                         .thenAccept(v -> {
-                                            throw StoreException.create(StoreException.Type.STREAM_SEALED,
-                                                    "Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                            throw new UnsupportedOperationException("Cannot update sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
                                         }));
                     }
                     return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
