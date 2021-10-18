@@ -190,7 +190,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     }
 
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void readWriteTest() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventReaderGroup";
         String streamName = "ReadWrite";
@@ -203,7 +203,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testNormalThenLargeEvent() throws ExecutionException, InterruptedException {
 
         String streamName = "NormalEventLargeEvent";
@@ -235,7 +235,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testSingleWriterMixedEvents() throws ExecutionException, InterruptedException {
         String streamName = "SingleWriterMixedEvents";
         String readerGroupName = "testSingleWriterMixedEvents";
@@ -261,7 +261,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventFailoverReaderGroup";
         String streamName = "SegmentStoreRestart";
@@ -324,7 +324,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWriteWithConnectionReconnect() throws ExecutionException, InterruptedException, TimeoutException {
         String readerGroupName = "testLargeEventReconnectReaderGroup";
         String streamName = "ConnectionReconnect";
@@ -366,7 +366,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     /**
      * Tests that if a Stream is sealed no data will continue to be produced by the {@link io.pravega.client.stream.impl.LargeEventWriter}
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWriteStreamSeal() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventStreamSealReaderGroup";
         String streamName = "StreamSeal";
@@ -403,7 +403,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     /**
      * Tests that if a Stream is sealed no data will continue to be produced by the {@link io.pravega.client.stream.impl.LargeEventWriter}
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWriteScaleStreamSeal() throws ExecutionException, InterruptedException, TimeoutException {
         String readerGroupName = "testLargeEventScaleStreamSealReaderGroup";
         String streamName = "ScaleStreamSeal";
