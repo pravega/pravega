@@ -66,7 +66,6 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.curator.test.TestingServer;
-import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -102,7 +101,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
     private static final int NUM_WRITERS = 2;
     private static final int NUM_READERS = 1;
-    private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 2;
+    private static final int LARGE_EVENT_SIZE = Serializer.MAX_EVENT_SIZE * 3;
     private static final int TINY_EVENT_SIZE = 8;
     private static final int CLOSE_WRITE_COUNT = 2;
     private static final String SCOPE_NAME = "scope";
@@ -262,7 +261,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         validateCleanUp(streamName);
     }
 
-    @Test(timeout = 30000)
+    @Test
     public void testReadWriteWithSegmentStoreRestart() throws ExecutionException, InterruptedException {
         String readerGroupName = "testLargeEventFailoverReaderGroup";
         String streamName = "SegmentStoreRestart";
@@ -309,16 +308,15 @@ public class LargeEventTest extends LeakDetectorTestSuite {
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
             // Start writing events to the stream.
             val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  data);
+            Futures.allOf(writers).get();
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, eventsReadFromPravega);
-            Futures.allOf(writers).get();
             stopReadFlag.set(true);
 
             Futures.allOf(readers).get();
 
-            log.info("Deleting ReaderGroup: {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
         }
         validateEventReads(eventsReadFromPravega, eventsWrittenToPravega);
@@ -353,10 +351,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.
             val readers = createEventReaders(NUM_READERS, clientFactory, readerGroupName, reads);
-            Futures.allOf(writers).get(1000, TimeUnit.MILLISECONDS);
+            Futures.allOf(writers).get();
             stopReadFlag.set(true);
 
-            Futures.allOf(readers).get(1000, TimeUnit.MILLISECONDS);
+            Futures.allOf(readers).get();
 
             readerGroupManager.deleteReaderGroup(readerGroupName);
         }
@@ -418,8 +416,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         AtomicInteger generation = new AtomicInteger(0);
         // Creates some data to write.
         int events = 1;
-        int scaleWriters = 1;
-        Map<Integer, List<ByteBuffer>> data = generateEventData(scaleWriters, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
+        Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
         merge(eventsWrittenToPravega, data);
 
         // Perform a basic read-write cycle.
@@ -453,12 +450,14 @@ public class LargeEventTest extends LeakDetectorTestSuite {
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_NAME, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE_NAME, controller, clientFactory)) {
             // Next set of writes.
-            data = generateEventData(scaleWriters, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
+            data = generateEventData(NUM_WRITERS, events * generation.getAndIncrement(), events, LARGE_EVENT_SIZE);
             merge(eventsWrittenToPravega, data);
             // Start writing events to the stream.
 
-            val writers = createEventWriters(streamName, scaleWriters, clientFactory,  data);
+
+            val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  data);
             Futures.allOf(writers).get();
+
             // Wait for the scale event.
             TestUtils.await(() -> !latch.get(), 200, 2000);
             // Create a ReaderGroup.
@@ -676,7 +675,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             }
         }
         assertEquals("Mismatched number of events written vs. read.", writesSize, eventsRead.size());
-        log.info("Read/Write validation completed: {} events read matched {} events written. |", eventsRead.size(), writesSize);
+        log.info("Read/Write validation completed: {} events read matched {} events written.", eventsRead.size(), writesSize);
     }
 
     void merge(Map<Integer, List<ByteBuffer>> sink, Map<Integer, List<ByteBuffer>> source) {
@@ -711,24 +710,13 @@ public class LargeEventTest extends LeakDetectorTestSuite {
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-            CompletableFuture<ClientConnection> conn = super.establishConnection(endpoint, rp);
-            ClientConnection connection = null;
-            try {
-                connection = conn.get();
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-                Assert.fail("Exception occurred while waiting for the ClientConnection.");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                Assert.fail("Exception occurred while waiting for the ClientConnection");
-            }
-            // If no callback is provided default to closing the connection. This callback will be called *once* mid write.
-            if (callback == null) {
-                ClientConnection c = connection;
-                callback = () -> c.close();
-            }
-
-            return CompletableFuture.completedFuture(new ConnectionSendIntercept(connection, latch, callback, predicate));
+            return super.establishConnection(endpoint, rp).thenApply(connection -> {
+                if (callback == null) {
+                    ClientConnection c = connection;
+                    callback = () -> c.close();
+                }
+                return new ConnectionSendIntercept(connection, latch, callback, predicate);
+            });
         }
 
         @Override
@@ -761,10 +749,13 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 if (predicate != null && this.predicate.get() && this.close.compareAndSet(true, false)) {
                     if (callback != null) {
                         callback.run();
+                        return;
                     }
                 }
+                connection.send(cmd);
+            } else {
+                connection.send(cmd);
             }
-            connection.send(cmd);
         }
 
         @Override
