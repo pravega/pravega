@@ -454,7 +454,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             merge(eventsWrittenToPravega, data);
             // Start writing events to the stream.
 
-
             val writers = createEventWriters(streamName, NUM_WRITERS, clientFactory,  data);
             Futures.allOf(writers).get();
 
