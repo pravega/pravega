@@ -115,7 +115,7 @@ public abstract class ControllerServiceImplTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.MINUTES);
+    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
     RequestTracker requestTracker = new RequestTracker(true);

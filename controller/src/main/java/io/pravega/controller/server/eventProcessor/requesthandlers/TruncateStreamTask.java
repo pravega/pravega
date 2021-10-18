@@ -73,7 +73,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                 .thenCompose(versionedState -> {
                     if (versionedState.getObject().equals(State.SEALED)) {
                         // truncation should not be allowed since the stream is in SEALED state
-                        // hence, we need complete the truncation by updating the metadata
+                        // hence, we need to complete the truncation by updating the metadata
                         // and then throw an exception
                         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                                 .thenCompose(versionedMetadata -> streamMetadataStore.completeTruncation(scope, stream, versionedMetadata, context, executor)
