@@ -669,7 +669,7 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case STREAM_SEALED:
                 log.warn(requestId, "Stream is sealed: {}", streamName);
-                throw new IllegalStateException("Stream is sealed: " + streamConfig);
+                throw new UnsupportedOperationException("Stream is sealed: " + streamConfig);
             case SUCCESS:
                 log.info(requestId, "Successfully updated stream: {}", streamName);
                 return true;
@@ -803,6 +803,9 @@ public class ControllerImpl implements Controller {
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}/{}", scope, stream);
                     throw new IllegalArgumentException("Stream does not exist: " + stream);
+                case STREAM_SEALED:
+                    log.warn(requestId, "Stream is sealed: {}/{}", scope, stream);
+                    throw new UnsupportedOperationException("Stream is sealed: " + stream);
                 case SUCCESS:
                     log.info(requestId, "Successfully updated stream: {}/{}", scope, stream);
                     return true;
