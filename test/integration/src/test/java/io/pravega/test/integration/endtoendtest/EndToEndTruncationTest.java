@@ -286,7 +286,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(4))
                 .build();
-        String streamName = "testTruncation";
+        String streamName = "testTruncateOnSealedStream";
         @Cleanup
         StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
         String scope = "test";
