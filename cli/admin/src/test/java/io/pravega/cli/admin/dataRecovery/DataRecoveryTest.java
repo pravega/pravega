@@ -58,6 +58,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.awt.print.Book;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -112,7 +113,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-
         this.storageFactory = new FileSystemStorageFactory(adapterConfig, executorService());
     }
 
@@ -136,7 +136,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
+        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testDataRecoveryCommand";
 
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
@@ -177,7 +179,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Start a new segment store and controller
         this.factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(), pravegaRunner.getBookKeeperRunner().getZkClient().get(),
                 executorService());
-        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.factory);
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
         log.info("Started a controller and segment store.");
         // Create the client with new controller.
         try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
@@ -198,7 +200,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
+        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testListSegmentsCommand";
 
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
@@ -235,6 +239,50 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         long lines = Files.lines(path).count();
         AssertExtensions.assertGreaterThan("There should be at least one segment.", 1, lines);
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
+    }
+
+    @Test
+    public void testDurableLogRepairCommand() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        @Cleanup
+
+        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testDataRecoveryCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute the command for list segments
+        TestUtils.executeCommand("storage durableLog-repair 0", STATE.get());
     }
 
     /**
@@ -427,14 +475,16 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         @Getter
         private ControllerRunner controllerRunner;
 
-        PravegaRunner(int instanceId, int bookieCount, int containerCount, StorageFactory storageFactory) throws Exception {
+        PravegaRunner(int bookieCount, int containerCount) {
             this.containerCount = containerCount;
             this.bookieCount = bookieCount;
-            startBookKeeperRunner(instanceId);
-            restartControllerAndSegmentStore(storageFactory, null);
         }
 
-        private void restartControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
+        void startBookKeeperRunner(int instanceId) throws Exception {
+            this.bookKeeperRunner = new BookKeeperRunner(instanceId, this.bookieCount);
+        }
+
+        void startControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
                 throws DurableDataLogException {
             this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
             log.info("bk port to be connected = {}", this.bookKeeperRunner.bkPort);
@@ -451,10 +501,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         private void shutDownBookKeeperRunner() throws Exception {
             this.bookKeeperRunner.close();
-        }
-
-        private void startBookKeeperRunner(int instanceId) throws Exception {
-            this.bookKeeperRunner = new BookKeeperRunner(instanceId, this.bookieCount);
         }
 
         @Override

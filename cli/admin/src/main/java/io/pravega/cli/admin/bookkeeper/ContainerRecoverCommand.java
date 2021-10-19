@@ -58,10 +58,12 @@ public class ContainerRecoverCommand extends ContainerCommand {
         @Cleanup
         val log = context.logFactory.createDebugLogWrapper(containerId);
         val bkLog = log.asReadOnly();
+        log.fetchMetadata().isEnabled();
 
         val recoveryState = new RecoveryState();
         val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
                 recoveryState::newOperation,
+                op -> true,
                 op -> recoveryState.operationComplete(op, null),
                 recoveryState::operationComplete);
 

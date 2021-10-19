@@ -39,6 +39,9 @@ import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -113,7 +116,9 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         }
 
         try {
-            super.recoverOperation(dataFrameRecord, metadataUpdater);
+            if (this.callbacks.allowOperationRecovery.apply(dataFrameRecord.getItem())) {
+                super.recoverOperation(dataFrameRecord, metadataUpdater);
+            }
         } catch (Throwable ex) {
             if (this.callbacks.operationFailed != null) {
                 Callbacks.invokeSafely(this.callbacks.operationFailed, dataFrameRecord.getItem(), ex, null);
@@ -140,6 +145,11 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
          * Invoked before attempting to recover an operation. Args: Operation, DataFrameEntries making up that operation.
          */
         private final BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> beginRecoverOperation;
+
+        /**
+         * Invoked before doing the actual recovery of an operation to decide whether to do it or not. Args: Operation.
+         */
+        private final Function<Operation, Boolean> allowOperationRecovery;
 
         /**
          * Invoked when an operation was successfully recovered.
