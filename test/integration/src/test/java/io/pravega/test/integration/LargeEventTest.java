@@ -748,7 +748,6 @@ public class LargeEventTest extends LeakDetectorTestSuite {
                 if (predicate != null && this.predicate.get() && this.close.compareAndSet(true, false)) {
                     if (callback != null) {
                         callback.run();
-                        return;
                     }
                 }
                 connection.send(cmd);
