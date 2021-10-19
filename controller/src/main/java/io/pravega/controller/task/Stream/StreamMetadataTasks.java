@@ -1640,9 +1640,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isScopeDeleted(String scope, OperationContext context) {
-        return streamMetadataStore.checkScopeExists(scope, context, executor)
-                .thenApply(x -> !x);
+        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
+                .thenApply(x -> x);
     }
+
 
     /**
      * Helper method to perform scale operation against an scale request.
