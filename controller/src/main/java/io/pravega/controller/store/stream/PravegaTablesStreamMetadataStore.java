@@ -215,7 +215,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scope,  OperationContext context, Executor executor) {
-        long requestId = getOperationContext(context).getRequestId(); 
+        long requestId = getOperationContext(context).getRequestId();
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
                 false), executor);

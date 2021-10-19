@@ -95,7 +95,7 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
-        return null;
+        return Futures.failedFuture(new NotImplementedException("DeleteScopeRecursive not implemented for ZK scope"));
     }
 
     /**
