@@ -24,7 +24,7 @@ import static org.junit.Assert.assertEquals;
 public class S3StorageConfigTest {
 
     @Test
-    public void testConstructS3Config() {
+    public void testDefaultS3Config() {
         ConfigBuilder<S3StorageConfig> builder = S3StorageConfig.builder();
         builder.with(Property.named("configUri"), "http://127.0.0.1:9020")
                 .with(Property.named("bucket"), "testBucket")
@@ -34,5 +34,26 @@ public class S3StorageConfigTest {
         assertEquals("testPrefix/", config.getPrefix());
         assertEquals("us-east-1", config.getRegion());
         assertEquals(false, config.isShouldOverrideUri());
+    }
+
+    @Test
+    public void testConstructS3Config() {
+        ConfigBuilder<S3StorageConfig> builder = S3StorageConfig.builder();
+        builder.with(Property.named("connect.config.uri"), "http://example.com")
+                .with(Property.named("bucket"), "testBucket")
+                .with(Property.named("prefix"), "testPrefix")
+                .with(Property.named("connect.config.region"), "my-region")
+                .with(Property.named("connect.config.access.key"), "key")
+                .with(Property.named("connect.config.secret.key"), "secret")
+                .with(Property.named("connect.config.uri.override"), true);
+        S3StorageConfig config = builder.build();
+        assertEquals("testBucket", config.getBucket());
+        assertEquals("testPrefix/", config.getPrefix());
+        assertEquals("my-region", config.getRegion());
+        assertEquals(true, config.isShouldOverrideUri());
+        assertEquals("http://example.com", config.getS3Config());
+        assertEquals( "my-region", config.getRegion());
+        assertEquals( "key", config.getAccessKey());
+        assertEquals( "secret", config.getSecretKey());
     }
 }

@@ -84,11 +84,14 @@ public class S3StorageConfig {
     private final String prefix;
 
     /**
-     *
+     * Whether to use if-none-match header or not.
      */
     @Getter
     private final boolean useNoneMatch;
 
+    /**
+     * Whether to use end point other than default.
+     */
     @Getter
     private final boolean shouldOverrideUri;
     //endregion

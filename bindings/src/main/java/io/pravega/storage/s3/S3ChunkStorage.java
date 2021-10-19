@@ -15,7 +15,6 @@
  */
 package io.pravega.storage.s3;
 
-
 import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkAlreadyExistsException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
@@ -62,7 +61,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This implementation works under the assumption that is only created once and never modified.
  * The concat operation is implemented as multi part copy.
  */
-
 @Slf4j
 public class S3ChunkStorage extends BaseChunkStorage {
 
@@ -151,7 +149,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) {
-        throw  new UnsupportedOperationException("S3ChunkStorage does not support writing to already existing objects.");
+        throw new UnsupportedOperationException("S3ChunkStorage does not support writing to already existing objects.");
     }
 
     @Override
@@ -185,7 +183,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
                             .build()).contentLength();
 
                     Preconditions.checkState(objectSize >= chunks[i].getLength(),
-                            "length of object should be equal or greater. Length on LTS={} provided={}",
+                            "Length of object should be equal or greater. Length on LTS={} provided={}",
                             objectSize, chunks[i].getLength());
 
                     UploadPartCopyRequest copyRequest = UploadPartCopyRequest.builder()
@@ -215,10 +213,10 @@ public class S3ChunkStorage extends BaseChunkStorage {
                     .parts(completedParts)
                     .build();
             client.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
-                            .bucket(config.getBucket())
-                            .key(targetPath)
-                            .multipartUpload(completedRequest)
-                            .uploadId(uploadId)
+                    .bucket(config.getBucket())
+                    .key(targetPath)
+                    .multipartUpload(completedRequest)
+                    .uploadId(uploadId)
                     .build());
             isCompleted = true;
         } catch (RuntimeException e) {
@@ -276,7 +274,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreate(String chunkName) {
-        throw  new UnsupportedOperationException("S3ChunkStorage does not support creating object without content.");
+        throw new UnsupportedOperationException("S3ChunkStorage does not support creating object without content.");
     }
 
     @Override
@@ -351,7 +349,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
         return String.format("bytes=%d-%d", fromOffset, fromOffset + length - 1);
     }
 
-    private ChunkStorageException convertException(String chunkName, String message, Exception e)  {
+    private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
             return (ChunkStorageException) e;
@@ -361,11 +359,11 @@ public class S3ChunkStorage extends BaseChunkStorage {
             String errorCode = Strings.nullToEmpty(s3Exception.awsErrorDetails().errorCode());
 
             if (errorCode.equals(NO_SUCH_KEY)) {
-                retValue =  new ChunkNotFoundException(chunkName, message, e);
+                retValue = new ChunkNotFoundException(chunkName, message, e);
             }
 
             if (errorCode.equals(PRECONDITION_FAILED)) {
-                retValue =  new ChunkAlreadyExistsException(chunkName, message, e);
+                retValue = new ChunkAlreadyExistsException(chunkName, message, e);
             }
 
             if (errorCode.equals(INVALID_RANGE)
@@ -376,7 +374,7 @@ public class S3ChunkStorage extends BaseChunkStorage {
             }
 
             if (errorCode.equals(ACCESS_DENIED)) {
-                retValue =  new ChunkStorageException(chunkName, String.format("Access denied for chunk %s - %s.", chunkName, message), e);
+                retValue = new ChunkStorageException(chunkName, String.format("Access denied for chunk %s - %s.", chunkName, message), e);
             }
         }
 

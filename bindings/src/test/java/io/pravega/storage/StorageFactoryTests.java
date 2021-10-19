@@ -103,6 +103,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -152,6 +157,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -185,6 +195,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Storage storage1 = ((S3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof S3ChunkStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -228,6 +243,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test

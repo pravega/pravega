@@ -21,7 +21,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.sts.StsClient;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
@@ -30,8 +29,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,7 +70,7 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
 
      static S3Client createS3Client(S3StorageConfig config) {
         S3ClientBuilder builder = S3Client.builder()
-                .credentialsProvider(getCredentialsProvider(config, false))
+                .credentialsProvider(getCredentialsProvider(config))
                 .region(Region.of(config.getRegion()));
         if (config.isShouldOverrideUri()) {
             builder = builder.endpointOverride(URI.create(config.getS3Config()));
@@ -81,28 +78,8 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
         return builder.build();
     }
 
-    private static AwsCredentialsProvider getCredentialsProvider(S3StorageConfig config, boolean useSession) {
-        if (useSession) {
-            throw new UnsupportedOperationException("AwsCredentialsProvider is not supported yet");
-        } else {
-            AwsBasicCredentials credentials = AwsBasicCredentials.create(config.getAccessKey(), config.getSecretKey());
-            return StaticCredentialsProvider.create(credentials);
-        }
-    }
-
-    private static AwsCredentialsProvider roleCredentialsProvider(String roleArn, String roleSessionName) {
-        AssumeRoleRequest assumeRoleRequest = AssumeRoleRequest.builder()
-                .roleArn(roleArn)
-                .roleSessionName(roleSessionName)
-                .build();
-
-        StsClient stsClient = StsClient.builder().build();
-
-        return StsAssumeRoleCredentialsProvider
-                .builder()
-                .stsClient(stsClient).refreshRequest(assumeRoleRequest)
-                .asyncCredentialUpdateEnabled(true)
-                .build();
-
+    private static AwsCredentialsProvider getCredentialsProvider(S3StorageConfig config) {
+        AwsBasicCredentials credentials = AwsBasicCredentials.create(config.getAccessKey(), config.getSecretKey());
+        return StaticCredentialsProvider.create(credentials);
     }
 }

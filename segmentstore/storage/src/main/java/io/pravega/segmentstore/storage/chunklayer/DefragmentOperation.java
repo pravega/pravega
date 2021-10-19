@@ -224,7 +224,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         final CompletableFuture<Integer> f;
 
         if (!useAppend.get() && chunkedSegmentStorage.getChunkStorage().supportsConcat()) {
-            for (int i = 0; i < chunksToConcat.size()-1; i++) {
+            for (int i = 0; i < chunksToConcat.size() - 1; i++) {
                 Preconditions.checkState(concatArgs[i].getLength() < chunkedSegmentStorage.getConfig().getMaxSizeLimitForConcat(),
                         "ConcatArgument out of bound. {}", concatArgs[i]);
                 Preconditions.checkState( concatArgs[i].getLength() > chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat(),

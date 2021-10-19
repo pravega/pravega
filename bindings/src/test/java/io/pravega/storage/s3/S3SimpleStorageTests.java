@@ -81,8 +81,8 @@ public class S3SimpleStorageTests extends SimpleStorageTests {
         @Override
         protected ChunkedSegmentStorageConfig getDefaultConfig() {
             return ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                    .minSizeLimitForConcat( 5 * 1024 * 1024)
-                    .maxSizeLimitForConcat( 5 * 1024 * 1024 * 1024)
+                    .minSizeLimitForConcat(5 * 1024 * 1024)
+                    .maxSizeLimitForConcat(5 * 1024 * 1024 * 1024)
                     .build();
         }
     }
