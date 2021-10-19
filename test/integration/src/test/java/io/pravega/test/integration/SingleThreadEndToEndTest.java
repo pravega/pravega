@@ -16,6 +16,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -73,11 +74,11 @@ public class SingleThreadEndToEndTest {
         EventStreamWriter<byte[]> writer = setupUtils.getClientFactory()
             .createEventWriter("stream",
                                new ByteArraySerializer(),
-                               EventWriterConfig.builder().retryAttempts(2).build());
+                               EventWriterConfig.builder().retryAttempts(2).enableLargeEvents(true).build());
         writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join();
         writer.flush();
         assertTrue(streamManager.sealStream("scope", "stream"));
-        AssertExtensions.assertThrows(IllegalStateException.class,
+        AssertExtensions.assertThrows(SegmentSealedException.class,
                                       () -> writer.writeEvent(new byte[Serializer.MAX_EVENT_SIZE + 1]).join());
         AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.writeEvent(new byte[1]).join());
         writer.flush();

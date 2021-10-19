@@ -15,6 +15,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -31,6 +32,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
@@ -56,7 +58,10 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -71,6 +76,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 
 public class LargeEventWriterTest {
@@ -117,7 +123,7 @@ public class LargeEventWriterTest {
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE * 2 + 1));
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE));
         buffers.add(ByteBuffer.allocate(5));
-        writer.writeLargeEvent(segment, buffers, tokenProvider, EventWriterConfig.builder().build());
+        writer.writeLargeEvent(segment, buffers, tokenProvider, EventWriterConfig.builder().enableLargeEvents(true).build());
 
         assertEquals(4, written.size());
         assertEquals(Serializer.MAX_EVENT_SIZE, written.get(0).readableBytes());
@@ -163,6 +169,7 @@ public class LargeEventWriterTest {
                                                                    EventWriterConfig.builder()
                                                                        .initialBackoffMillis(1)
                                                                        .backoffMultiple(1)
+                                                                       .enableLargeEvents(true)
                                                                        .retryAttempts(7)
                                                                        .build()));
         assertEquals(8, count.get());
@@ -178,7 +185,7 @@ public class LargeEventWriterTest {
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, connection);
         EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().enableLargeEvents(true).build();
         ArrayList<ByteBuffer> events = new ArrayList<>();
         events.add(ByteBuffer.allocate(1));
         
@@ -225,7 +232,6 @@ public class LargeEventWriterTest {
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, connection);
         EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
-        EventWriterConfig config = EventWriterConfig.builder().initialBackoffMillis(0).build();
         ArrayList<ByteBuffer> events = new ArrayList<>();
         events.add(ByteBuffer.allocate(1));
         
@@ -428,7 +434,7 @@ public class LargeEventWriterTest {
         Segment segment = new Segment(scope, streamName, 0);
         @Cleanup
         InlineExecutor executor = new InlineExecutor();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().enableLargeEvents(true).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController("localhost", 0, connectionFactory, false);
@@ -486,10 +492,10 @@ public class LargeEventWriterTest {
         Segment segment = new Segment(scope, streamName, 0);
         @Cleanup
         InlineExecutor executor = new InlineExecutor();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().enableLargeEvents(true).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory, false);
+        MockController controller = spy(new MockController("localhost", 0, connectionFactory, false));
         controller.createScope(scope).join();
         controller.createStream(scope, streamName, StreamConfiguration.builder().build());
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
@@ -497,7 +503,7 @@ public class LargeEventWriterTest {
         connectionFactory.provideConnection(location, connection);
 
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
-        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
+        Mockito.when(streamFactory.createOutputStreamForSegment(any(), any(), any(), any())).thenReturn(outputStream);
 
         AtomicBoolean failed = new AtomicBoolean(false);
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -519,7 +525,19 @@ public class LargeEventWriterTest {
                 return null;
             }
         }).when(connection).send(any(CreateTransientSegment.class));
-       
+
+        Mockito.doAnswer(new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                List<Long> predecessors = Arrays.asList(0L);
+
+                return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(
+                        ImmutableMap.of(new SegmentWithRange(new Segment(scope, streamName, NameUtils.computeSegmentId(1, 1)), 0.0, 0.5), predecessors,
+                                 new SegmentWithRange(new Segment(scope, streamName, NameUtils.computeSegmentId(2, 1)), 0.5, 1.0), predecessors),
+                        ""));
+            }
+        }).when(controller).getSuccessors(segment);
+
         answerRequest(connectionFactory,
                       connection,
                       location,
@@ -553,7 +571,7 @@ public class LargeEventWriterTest {
         order.verify(connection).close();
         order.verifyNoMoreInteractions();
     }
-    
+
     @Test(timeout = 5000)
     public void testPipelining() throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");

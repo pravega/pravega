@@ -135,7 +135,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            if (data.remaining() > Serializer.MAX_EVENT_SIZE) {
+            if (config.isEnableLargeEvents() && data.remaining() > Serializer.MAX_EVENT_SIZE) {
                 writeLargeEvent(routingKey, Collections.singletonList(data), ackFuture);
             } else {
                 synchronized (writeSealLock) {
@@ -155,7 +155,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            if (data.stream().mapToInt(m -> m.remaining()).sum() > Serializer.MAX_EVENT_SIZE) {
+            if (config.isEnableLargeEvents() && data.stream().mapToInt(m -> m.remaining()).sum() > Serializer.MAX_EVENT_SIZE) {
                 writeLargeEvent(routingKey, data, ackFuture);
             } else {
                 synchronized (writeSealLock) {
@@ -182,6 +182,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 log.warn("Write large event on segment {} failed due to {}, it will be retried.", segment, e.getMessage());
                 handleLogSealed(segment);
                 tryWaitForSuccessors();
+                // Make sure that the successors are not sealed themselves.
+                if (selector.isStreamSealed()) {
+                    ackFuture.completeExceptionally(new SegmentSealedException(segment.toString()));
+                    break;
+                }
                 handleMissingLog();
             } catch (AuthenticationException e) {
                 ackFuture.completeExceptionally(e);
@@ -207,7 +212,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
 
     /**
-     * If a log sealed is encountered, we need to 1. Find the new segments to write to. 2. For each outstanding
+     * If a log sealed is encountered, we need to: 1. Find the new segments to write to. 2. For each outstanding
      * message find which new segment it should go to and send it there. 
      */
     private void handleLogSealed(Segment segment) {
@@ -250,7 +255,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                                  }
                              }
                              toSeal = sealedSegmentQueue.poll();
-                             log.info("Sealing another segment {} ", toSeal);
+                             if (toSeal != null) {
+                                 log.info("Sealing another segment {} ", toSeal);
+                             }
                          }
                          sealedSegmentQueueEmptyLatch.release();
                      }
