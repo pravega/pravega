@@ -838,6 +838,80 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void updateSealedStreamTest() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+        UpdateStreamStatus updateStreamStatus;
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
+        createStreamStatus = result2.get();
+        Assert.assertEquals("Create stream",
+                CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // Seal the test stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
+        updateStreamStatus = result3.get();
+        assertEquals("Seal stream", UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+
+        // Update the sealed test stream.
+        ResultObserver<UpdateStreamStatus> result4 = new ResultObserver<>();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), result4);
+        updateStreamStatus = result4.get();
+        assertEquals("Update sealed stream", UpdateStreamStatus.Status.STREAM_SEALED, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void truncateSealedStreamTest() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+        UpdateStreamStatus truncateStreamStatus;
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
+        createStreamStatus = result2.get();
+        Assert.assertEquals("Create stream",
+                CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // Seal the test stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
+        UpdateStreamStatus updateStreamStatus = result3.get();
+        assertEquals("Seal stream", UpdateStreamStatus.Status.SUCCESS, updateStreamStatus.getStatus());
+
+        // Truncate the sealed test stream
+        ResultObserver<UpdateStreamStatus> result4 = new ResultObserver<>();
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                .setStreamInfo(StreamInfo.newBuilder()
+                        .setScope(SCOPE1)
+                        .setStream(STREAM1)
+                        .build())
+                .putCut(0, 0).putCut(1, 0).putCut(2, 0).putCut(3, 0).build(), result4);
+        truncateStreamStatus = result4.get();
+        assertEquals("Truncate sealed stream", UpdateStreamStatus.Status.STREAM_SEALED, truncateStreamStatus.getStatus());
+    }
+
+    @Test
     public void getCurrentSegmentsTest() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 

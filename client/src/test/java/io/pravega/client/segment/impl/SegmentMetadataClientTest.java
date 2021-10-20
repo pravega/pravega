@@ -75,7 +75,9 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
+        long head = client.fetchCurrentSegmentHeadOffset().join();
         long length = client.fetchCurrentSegmentLength().join();
+        assertEquals(121, head);
         assertEquals(123, length);
     }
     
@@ -278,7 +280,6 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
-
         long length = client.fetchCurrentSegmentLength().join();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));

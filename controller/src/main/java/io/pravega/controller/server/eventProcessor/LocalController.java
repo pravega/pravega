@@ -211,6 +211,8 @@ public class LocalController implements Controller {
                 throw new IllegalArgumentException(String.format("Failed to update Stream %s as Scope %s does not exist.", scope, streamName));
             case STREAM_NOT_FOUND:
                 throw new IllegalArgumentException(String.format("Failed to update Stream: %s as Stream does not exist under Scope: %s", streamName, scope));
+            case STREAM_SEALED:
+                throw new UnsupportedOperationException(String.format("Failed to update Stream: %s as Stream is sealed", streamName));
             case SUCCESS:
                 return true;
             default:
@@ -354,6 +356,8 @@ public class LocalController implements Controller {
                 throw new IllegalArgumentException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
                 throw new IllegalArgumentException("Stream does not exist: " + stream + " in scope: " + scope);
+            case STREAM_SEALED:
+                throw new UnsupportedOperationException("Failed to update Stream: " + stream + " as stream is sealed");
             case SUCCESS:
                 return true;
             default:
