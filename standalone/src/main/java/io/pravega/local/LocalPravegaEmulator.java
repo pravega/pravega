@@ -50,7 +50,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String keyPasswordFile;
     private boolean enableMetrics;
     private boolean enableInfluxDB;
-    private boolean enablePrometheusListener;
+    private boolean enablePrometheus;
     private int metricsReportInterval;
     private boolean enabledAdminGateway;
     private int adminGatewayPort;
@@ -89,7 +89,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwd(passwd)
                     .enableMetrics(enableMetrics)
                     .enableInfluxDB(enableInfluxDB)
-                    .enablePrometheusListener(enablePrometheusListener)
+                    .enablePrometheus(enablePrometheus)
                     .metricsReportInterval(metricsReportInterval)
                     .enableAdminGateway(enabledAdminGateway)
                     .adminGatewayPort(adminGatewayPort)
@@ -99,7 +99,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
                     enableAuth, enableTls, tlsProtocolVersion, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
-                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, enablePrometheusListener,
+                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, enablePrometheus,
                     metricsReportInterval, enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
         }
     }
@@ -124,7 +124,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .tlsProtocolVersion(conf.getTlsProtocolVersion())
                     .enableMetrics(conf.isEnableMetrics())
                     .enableInfluxDB(conf.isEnableInfluxDB())
-                    .enablePrometheusListener(conf.isEnablePrometheusListener())
+                    .enablePrometheus(conf.isEnablePrometheus())
                     .metricsReportInterval(conf.getMetricsReportInterval())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())

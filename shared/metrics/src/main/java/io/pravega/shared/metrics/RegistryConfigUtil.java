@@ -125,7 +125,7 @@ public class RegistryConfigUtil {
      * @return     instance of PrometheusConfig to be used by Prometheus register.
      */
     public static PrometheusConfig createPrometheusConfig(MetricsConfig conf) {
-        log.info("Configuring stats with prometheus at {}:{}", conf.getPrometheusListenerAddress(), conf.getPrometheusListenerPort());
+        log.info("Configuring stats with prometheus");
         return new PrometheusConfig() {
             @Override
             public Duration step() {

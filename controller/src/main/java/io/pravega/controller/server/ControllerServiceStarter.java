@@ -47,6 +47,7 @@ import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.shared.health.HealthServiceManager;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.controller.server.health.ClusterListenerHealthContributor;
 import io.pravega.controller.server.health.EventProcessorHealthContributor;
@@ -377,14 +378,16 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(serviceConfig.getRestServerConfig().get(),
-                        Set.of(new StreamMetadataResourceImpl(this.localController,
-                                        controllerService,
-                                        grpcServer.getAuthHandlerManager(),
-                                        connectionFactory,
-                                        clientConfig),
-                                new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
-                                new PingImpl()));
+                List<Object> resources = new ArrayList<>();
+                resources.add(new StreamMetadataResourceImpl(this.localController,
+                                controllerService,
+                                grpcServer.getAuthHandlerManager(),
+                                connectionFactory,
+                                clientConfig));
+                resources.add(new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()));
+                resources.add(new PingImpl());
+                MetricsProvider.getMetricsProvider().prometheusResource().ifPresent(resources::add);
+                restServer = new RESTServer(serviceConfig.getRestServerConfig().get(), Set.copyOf(resources));
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

@@ -42,9 +42,7 @@ public class MetricsConfig {
     public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDB.retention", "", "influxDBRetention");
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("statsD.reporter.enable", false, "enableStatsDReporter");
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("influxDB.reporter.enable", false, "enableInfluxDBReporter");
-    public final static Property<Boolean> ENABLE_PROMETHEUS_LISTENER = Property.named("prometheus.listener.enable", false);
-    public final static Property<String> PROMETHEUS_ADDRESS = Property.named("prometheus.listener.address", "0.0.0.0");
-    public final static Property<Integer> PROMETHEUS_PORT = Property.named("prometheus.listener.port", 7717);
+    public final static Property<Boolean> ENABLE_PROMETHEUS = Property.named("prometheus.enable", false);
     public static final String COMPONENT_CODE = "metrics";
 
     //endregion
@@ -137,22 +135,10 @@ public class MetricsConfig {
     private final boolean enableInfluxDBReporter;
 
     /**
-     * The status of enable Prometheus listener.
+     * The status of enabling Prometheus.
      */
     @Getter
-    private final boolean enablePrometheusListener;
-
-    /**
-     * The bind address for the Prometheus listener.
-     */
-    @Getter
-    private final String prometheusListenerAddress;
-
-    /**
-     * The port for the Prometheus listener.
-     */
-    @Getter
-    private final int prometheusListenerPort;
+    private final boolean enablePrometheus;
 
     //endregion
 
@@ -178,9 +164,7 @@ public class MetricsConfig {
         this.influxDBRetention = properties.get(INFLUXDB_RETENTION_POLICY);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsDReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
-        this.enablePrometheusListener = properties.getBoolean(ENABLE_PROMETHEUS_LISTENER);
-        this.prometheusListenerAddress = properties.get(PROMETHEUS_ADDRESS);
-        this.prometheusListenerPort = properties.getInt(PROMETHEUS_PORT);
+        this.enablePrometheus = properties.getBoolean(ENABLE_PROMETHEUS);
     }
 
     /**
