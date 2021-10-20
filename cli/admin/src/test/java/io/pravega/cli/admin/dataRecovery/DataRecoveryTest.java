@@ -59,6 +59,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.awt.print.Book;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -282,6 +283,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Execute the command for list segments
+        // FIXME: Need a way to pass multiple input values to the command execution
+        System.setIn(new ByteArrayInputStream(("yes" + System.lineSeparator()).getBytes()));
+        //System.setIn(new ByteArrayInputStream("delete".getBytes()));
         TestUtils.executeCommand("storage durableLog-repair 0", STATE.get());
     }
 
