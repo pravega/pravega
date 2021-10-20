@@ -46,7 +46,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TableRead;
 import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
-
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;

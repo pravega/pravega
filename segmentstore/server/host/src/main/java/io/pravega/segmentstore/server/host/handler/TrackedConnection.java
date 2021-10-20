@@ -17,18 +17,14 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.protocol.netty.WireCommand;
-
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Tracks outstanding data for a single connection and pauses or resumes reading from it as appropriate.
  */
 @RequiredArgsConstructor
-@Slf4j
 public class TrackedConnection implements AutoCloseable {
     /**
      * The {@link ServerConnection} to manage.
@@ -41,6 +37,7 @@ public class TrackedConnection implements AutoCloseable {
     @NonNull
     private final ConnectionTracker connectionTracker;
     private final AtomicLong outstandingBytes = new AtomicLong();
+
     /**
      * To be used only in tests. Creates a new tracker.
      *
