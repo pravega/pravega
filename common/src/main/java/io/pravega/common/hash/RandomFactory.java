@@ -42,7 +42,16 @@ public class RandomFactory {
     public static Random create() {
         return new Random(SEED_GENERATOR.nextLong());
     }
-    
+
+    /**
+     * Returns a new random number generator.
+     * @return a new random number generator.
+     */
+    @Synchronized
+    public static SecureRandom createSecure() {
+        return new SecureRandom();
+    }
+
     /**
      * Returns a good seed for a random number generator.
      * @return a good seed for a random number generator.

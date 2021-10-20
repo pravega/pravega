@@ -38,6 +38,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
@@ -918,7 +919,7 @@ public class StreamMetadataTasks extends TaskBase {
                                              final String delegationToken) {
         Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong());
 
         return streamMetadataStore.getRetentionSet(scope, stream, context, executor)
                 .thenCompose(retentionSet -> {
@@ -1370,7 +1371,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                 final StreamCutRecord previous,
                                                                 final OperationContext contextOpt, String delegationToken) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong());
 
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
@@ -1424,7 +1425,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
                                                        OperationContext contextOpt) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong());
         long requestId = context.getRequestId();
         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                 .thenCompose(property -> {
@@ -2048,6 +2049,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public long getRequestId(OperationContext context) {
-        return context != null ? context.getRequestId() : OperationContext.RANDOM_REQUEST_ID_GENERATOR.nextLong();
+        return context != null ? context.getRequestId() : ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong();
     }
 }

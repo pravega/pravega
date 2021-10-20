@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -1225,7 +1226,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     OperationContext getOperationContext(OperationContext context) {
         // if null context is supplied make sure we create a context with a new request id.
         return context != null ? context : new OperationContext() {
-            private final long requestId = RANDOM_REQUEST_ID_GENERATOR.nextLong();
+            private final long requestId = ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

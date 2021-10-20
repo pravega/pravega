@@ -277,9 +277,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 
-            log.info("starting background periodic service for retention");
             retentionService.startAsync();
             retentionService.awaitRunning();
+            log.info("Started background periodic service for retention.");
             RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
             healthServiceManager.register(retentionServiceHC);
 
@@ -289,9 +289,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
-            log.info("starting background periodic service for watermarking");
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
+            log.info("Started background periodic service for watermarking.");
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
             healthServiceManager.register(watermarkingServiceHC);
 
@@ -334,7 +334,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         kvtMetadataTasks, eventExecutor);
 
                 // Bootstrap and start it asynchronously.
-                log.info("Starting event processors");
                 eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks,
                         streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
@@ -354,22 +353,18 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 }
 
                 controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor, failoverSweepers);
-
-                log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
                 ClusterListenerHealthContributor clusterListenerHC = new ClusterListenerHealthContributor("clusterListener", controllerClusterListener);
                 healthServiceManager.register(clusterListenerHC);
             }
 
             // Start the Health Service.
-            log.info("Starting health manager");
             healthServiceManager.start();
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
-                log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();
                 GRPCServerHealthContributor grpcServerHC = new GRPCServerHealthContributor("GRPCServer", grpcServer);
                 healthServiceManager.register(grpcServerHC);
@@ -386,13 +381,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                                 new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
                                 new PingImpl()));
                 restServer.startAsync();
-                log.info("Awaiting start of REST server");
                 restServer.awaitRunning();
             }
 
             // Wait for controller event processors to start.
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
-                log.info("Awaiting start of controller event processors");
                 // if store client has failed because of session expiration, there are two possibilities where 
                 // controllerEventProcessors.awaitRunning may be stuck forever -
                 // 1. stream creation is retried indefinitely and cannot complete because of zk session expiration
@@ -404,7 +397,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Wait for controller cluster listeners to start.
             if (serviceConfig.isControllerClusterListenerEnabled()) {
-                log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
             }
         } catch (Exception e) {

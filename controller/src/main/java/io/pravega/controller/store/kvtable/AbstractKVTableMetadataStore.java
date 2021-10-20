@@ -21,6 +21,7 @@ import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
@@ -141,7 +142,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     OperationContext getOperationContext(OperationContext context) {
         return context != null ? context : new OperationContext() {
-            private final long requestId = RANDOM_REQUEST_ID_GENERATOR.nextLong();
+            private final long requestId = ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

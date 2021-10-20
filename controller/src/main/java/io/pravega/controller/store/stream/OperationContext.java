@@ -21,8 +21,6 @@ import java.security.SecureRandom;
  * Interface for defining an operation context. 
  */
 public interface OperationContext {
-    // Generator for new request identifiers
-    SecureRandom RANDOM_REQUEST_ID_GENERATOR = new SecureRandom();
 
     long getOperationStartTime();
     

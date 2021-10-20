@@ -350,7 +350,7 @@ public class ControllerService {
         Preconditions.checkArgument(createTimestamp >= 0);
         Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
                 String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
-
+        log.info(requestId, "createStream called for stream {}/{}.", scope, stream);
         Timer timer = new Timer();
         try {
             NameUtils.validateStreamName(stream);
