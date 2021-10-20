@@ -1862,14 +1862,14 @@ public class ContainerMetadataUpdateTransactionTests {
         // until the caller performs its intended duties.
         CompletableFuture<Void> deletion;
 
-        // This future is made visible to allow the caller to ensure that it does make progress until the
+        // This future is made visible to allow the caller to ensure that it does not make progress until the
         // getAllStreamSegmentIds call is complete.
         final CompletableFuture<Void> getAllStreamSegmentIdsFuture = new CompletableFuture<>();
 
         /**
          * Creates a new instance of the StreamSegmentContainerMetadata.
          *
-         * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+         * @param streamSegmentContainerId The ID of the StreamSegmentContainer.
          * @param maxActiveSegmentCount    The maximum number of segments that can be registered in this metadata at any given time.
          */
         public InstrumentedContainerMetadata(int streamSegmentContainerId, int maxActiveSegmentCount, CompletableFuture<Void> deletion) {
@@ -1884,7 +1884,7 @@ public class ContainerMetadataUpdateTransactionTests {
         @Override
         public Collection<Long> getAllStreamSegmentIds() {
             Collection<Long> ids = super.getAllStreamSegmentIds();
-            // Complete to future to signal this event has happened.
+            // Complete the future to signal this event has happened.
             getAllStreamSegmentIdsFuture.complete(null);
 
             return ids;
