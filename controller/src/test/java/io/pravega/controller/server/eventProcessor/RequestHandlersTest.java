@@ -270,6 +270,98 @@ public abstract class RequestHandlersTest {
         streamStore2.close();
     }
 
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void updateSealedStream() throws Exception {
+        String stream = "updateSealed";
+        StreamMetadataStore streamStore = getStore();
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        UpdateStreamTask requestHandler = new UpdateStreamTask(streamMetadataTasks, streamStoreSpied, bucketStore, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
+
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore.completeUpdateConfiguration(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStoreSpied).completeUpdateConfiguration(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        signal.join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
+                e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
+
+        // validate
+        VersionedMetadata<StreamConfigurationRecord> versioned = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+        streamStore.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void truncateSealedStream() throws Exception {
+        String stream = "truncateSealed";
+        StreamMetadataStore streamStore = getStore();
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        TruncateStreamTask requestHandler = new TruncateStreamTask(streamMetadataTasks, streamStoreSpied, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        Map<Long, Long> map = new HashMap<>();
+        map.put(0L, 100L);
+
+        streamStore.startTruncation(scope, stream, map, null, executor).join();
+
+        TruncateStreamEvent event = new TruncateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore.completeTruncation(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStoreSpied).completeTruncation(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        signal.join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
+                e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
+
+        // validate
+        VersionedMetadata<StreamTruncationRecord> versioned = streamStore.getTruncationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+        streamStore.close();
+    }
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
