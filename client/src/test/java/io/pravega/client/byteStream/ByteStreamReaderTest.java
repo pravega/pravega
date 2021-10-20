@@ -66,6 +66,7 @@ public class ByteStreamReaderTest {
         @Cleanup
         ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        int headOffset = 0;
         writer.write(value);
         writer.flush();
         @Cleanup
@@ -73,8 +74,14 @@ public class ByteStreamReaderTest {
         for (int i = 0; i < 10; i++) {
             assertEquals(i, reader.read());
         }
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length, reader.fetchTailOffset());
+        headOffset = 3;
+        writer.truncateDataBefore(headOffset);
         writer.write(value);
         writer.flush();
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length * 2, reader.fetchTailOffset());
         byte[] read = new byte[5];
         assertEquals(5, reader.read(read));
         assertArrayEquals(new byte[] { 0, 1, 2, 3, 4 }, read);
