@@ -134,7 +134,7 @@ class StatsProviderImpl implements StatsProvider {
         return Optional.of(new PrometheusResource(this.prometheusRegistry));
     }
 
-    @Path("/metrics")
+    @Path("/prometheus")
     public static class PrometheusResource {
         private final PrometheusMeterRegistry promRegistry;
 
