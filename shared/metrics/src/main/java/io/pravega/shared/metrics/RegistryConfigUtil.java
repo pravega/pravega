@@ -121,8 +121,8 @@ public class RegistryConfigUtil {
     /**
      * Create PrometheusConfig for Prometheus Register.
      *
-     * @param conf the metric config from Pravega.
-     * @return     instance of PrometheusConfig to be used by Prometheus register.
+     * @param conf The metric config from Pravega.
+     * @return     An instance of PrometheusConfig to be used by Prometheus register.
      */
     public static PrometheusConfig createPrometheusConfig(MetricsConfig conf) {
         log.info("Configuring stats with prometheus");
