@@ -337,7 +337,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String stream = request.getStreamInfo().getStream();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(REQUEST_ID_GENERATOR.nextLong(),
                 CREATE_STREAM, scope, stream);
-
+        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
         StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isRGStreamWritesWithReadPermEnabled);
         AuthHandler.Permissions requiredPermission = streamAuthParams.requiredPermissionForWrites();
 

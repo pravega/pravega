@@ -350,7 +350,6 @@ public class ControllerService {
         Preconditions.checkArgument(createTimestamp >= 0);
         Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
                 String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
-        log.info(requestId, "createStream called for stream {}/{}.", scope, stream);
         Timer timer = new Timer();
         try {
             NameUtils.validateStreamName(stream);
@@ -393,10 +392,10 @@ public class ControllerService {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Timer timer = new Timer();
         return streamMetadataTasks.updateStream(scope, stream, streamConfig, requestId)
-                .thenApplyAsync(status -> {
-                    reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
-                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                }, executor);
+                  .thenApplyAsync(status -> {
+                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
+                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                  }, executor);
     }
 
     /**
