@@ -30,6 +30,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -74,13 +75,18 @@ public class ByteStreamWriterTest {
     public void testWrite() throws Exception {
         @Cleanup
         ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
-        byte[] value = new byte[] { 1, 2, 3, 4, 5 };
+        byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7 };
+        int headoffset = 0;
         writer.write(value);
         writer.flush();
+        assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length, writer.fetchTailOffset());
         writer.write(value);
         writer.write(value);
+        headoffset = 5;
+        writer.truncateDataBefore(headoffset);
         writer.flush();
+        assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 3, writer.fetchTailOffset());
     }
 
