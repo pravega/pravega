@@ -52,7 +52,8 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 
-import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
+
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.SEPARATOR;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
@@ -261,7 +262,7 @@ public class PravegaTablesScope implements Scope {
                                     Futures.allOf(deleteTagTablesFut))
                             .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
                                     kvtsInScopeTableName, rgsInScopeTableName));
-                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPE_NAME, scopeName, context.getRequestId()));
+                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPES_TABLE, scopeName, context.getRequestId()));
     }
 
     @Override

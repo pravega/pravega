@@ -39,16 +39,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
-import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
-import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
-import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
-import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
-
-import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
-import static io.pravega.shared.NameUtils.getQualifiedTableName;
-import static io.pravega.shared.NameUtils.DELETING_SCOPE_NAME;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -62,6 +52,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
+import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Tables stream metadata store.
@@ -133,12 +132,10 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
-        storeHelper.createTable(DELETING_SCOPE_NAME, context.getRequestId()).thenCompose(v -> {
-                storeHelper.addNewEntry(DELETING_SCOPE_NAME, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId());
-            return CompletableFuture.completedFuture(null);
-        });
-        return CompletableFuture.completedFuture(null);
+    public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
+        return Futures.toVoid(storeHelper.createTable(DELETING_SCOPES_TABLE, context.getRequestId()).thenCompose(
+                v -> storeHelper.addNewEntry(DELETING_SCOPES_TABLE, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId()))
+        );
     }
 
     @VisibleForTesting 
@@ -228,7 +225,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope,  OperationContext context, Executor executor) {
         long requestId = getOperationContext(context).getRequestId();
         return Futures.completeOn(storeHelper.expectingDataNotFound(
-                storeHelper.getEntry(DELETING_SCOPE_NAME, scope, x -> x, requestId).thenApply(v -> true),
+                storeHelper.getEntry(DELETING_SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
                 false), executor);
     }
 

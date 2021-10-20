@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -289,6 +290,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                              final String rgName,
                                                              OperationContext context, Executor executor) {
         return Futures.completeOn(((InMemoryScope) getScope(scopeName, context)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
+        return CompletableFuture.completedFuture(null);
     }
 
     // endregion

@@ -189,8 +189,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 .thenCompose(exists -> {
                                     if (exists) {
                                         checkScopeInDeletingTable(scope, context, executor)
-                                                .thenCompose(positive -> {
-                                                    if (positive) {
+                                                .thenCompose(exist -> {
+                                                    if (exist) {
                                                         return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "scope in deleting state"));
                                                     }
                                                     // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
@@ -988,11 +988,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
-    }
-
-    @Override
-    public <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
-        return null;
     }
 
     @Override

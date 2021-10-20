@@ -43,6 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -212,6 +213,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, OperationContext context, Executor executor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
         throw new UnsupportedOperationException();
     }
 

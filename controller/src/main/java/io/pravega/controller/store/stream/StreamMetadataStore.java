@@ -1616,5 +1616,5 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
                                              Executor executor);
 
-    <T> CompletableFuture<T> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor);
 }
