@@ -15,8 +15,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import java.security.SecureRandom;
-
 /**
  * Interface for defining an operation context. 
  */
