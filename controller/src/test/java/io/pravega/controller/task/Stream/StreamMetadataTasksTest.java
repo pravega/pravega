@@ -142,6 +142,7 @@ import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -2829,7 +2830,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
         assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
 
-        // start next update with different configuration. 
+        // start next update with different configuration.
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         streamMetadataTasks.updateStream(SCOPE, test, configuration3, 0L);
         Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
@@ -2837,8 +2838,31 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
         // we should still get complete for previous configuration we attempted to update
         assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
-        
+
         assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration3, null).get());
+
+        // test update on a sealed stream
+        String testStream = "testUpdateSealed";
+        streamStorePartialMock.createStream(SCOPE, testStream, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, testStream, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        final StreamConfiguration configuration4 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+        streamMetadataTasks.updateStream(SCOPE, testStream, configuration4, 0L);
+
+        // wait till configuration is updated
+        configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, testStream, null,
+                executor).join().getObject().isUpdating();
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE,
+                testStream, null, executor).join();
+        assertTrue(configurationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, testStream, configurationRecord, null, executor).join();
+
+        streamStorePartialMock.setState(SCOPE, testStream, State.SEALED, null, executor).join();
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                streamMetadataTasks.isUpdated(SCOPE, testStream, configuration4, null),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
         // end region
     }
     
@@ -2886,6 +2910,30 @@ public abstract class StreamMetadataTasksTest {
         // we should still get complete for previous configuration we attempted to update
         assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
         assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
+        
+        // test truncate on a sealed stream
+        String testStream = "testTruncateSealed";
+        streamStorePartialMock.createStream(SCOPE, testStream, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, testStream, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+
+        // region truncate
+        map = Collections.singletonMap(0L, 1L);
+        streamMetadataTasks.truncateStream(SCOPE, testStream, map, 0L);
+
+        truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, testStream, null,
+                executor).join().getObject().isUpdating();
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, testStream,
+                null, executor).join();
+        assertTrue(truncationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeTruncation(SCOPE, testStream, truncationRecord, null, executor).join();
+
+        streamStorePartialMock.setState(SCOPE, testStream, State.SEALED, null, executor).join();
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                streamMetadataTasks.isTruncated(SCOPE, testStream, map, null),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
         // end region
     }
 
