@@ -44,10 +44,9 @@ public class RandomFactory {
     }
 
     /**
-     * Returns a new random number generator.
-     * @return a new random number generator.
+     * Returns a new secure random number generator.
+     * @return a new secure random number generator.
      */
-    @Synchronized
     public static SecureRandom createSecure() {
         return new SecureRandom();
     }
