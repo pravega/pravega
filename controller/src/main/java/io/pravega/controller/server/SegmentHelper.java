@@ -284,7 +284,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         List<CompletableFuture<Reply>> segmentMergeFutures = new ArrayList<>();
         for (int seqNo = 1; seqNo <= txnSegmentNames.size(); seqNo++) {
-            long requestId = connection.getFlow().asLong() + seqNo;
+            long requestId = connection.getFlow().getNextSequenceNumber();
             segmentMergeFutures.add(sendRequest(connection, clientRequestId,
                     new WireCommands.MergeSegments(requestId, qualifiedNameTarget, txnSegmentNames.get(seqNo - 1), delegationToken,
                             batchId, seqNo, seqNo == txnSegmentNames.size())));
@@ -295,8 +295,7 @@ public class SegmentHelper implements AutoCloseable {
                     if (reply instanceof WireCommands.NoSuchSegment) {
                         WireCommands.NoSuchSegment replyNoSuchSegment = (WireCommands.NoSuchSegment) reply;
                         if (replyNoSuchSegment.getSegment().equals(qualifiedNameTarget)) {
-                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found for Stream {}/{}", replyNoSuchSegment.getSegment(), scope, stream);
-
+                            log.info(clientRequestId, "Commit Transaction: Source segment {} not found for Stream {}/{}", replyNoSuchSegment.getSegment(), scope, stream);
                             throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
                                     "Source Stream Segment not found when attempting to merge transaction segments for Stream:"
                                             + getScopedStreamName(scope, stream));
