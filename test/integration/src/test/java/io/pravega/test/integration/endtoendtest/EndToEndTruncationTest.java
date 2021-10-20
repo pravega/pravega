@@ -282,6 +282,34 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 50000)
+    public void testTruncateOnSealedStream() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(4))
+                .build();
+        String streamName = "testTruncateOnSealedStream";
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
+        String scope = "test";
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, config);
+
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+
+        // Seal Stream.
+        assertTrue(controller.sealStream(scope, streamName).get());
+
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(computeSegmentId(2, 1), 0L);
+        streamCutPositions.put(computeSegmentId(3, 1), 0L);
+        streamCutPositions.put(computeSegmentId(4, 1), 0L);
+
+        // Attempt to truncate a sealed stream should complete exceptionally.
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                controller.truncateStream(scope, streamName, streamCutPositions),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
+    }
+
+    @Test(timeout = 50000)
     public void testWriteOnSealedStream() throws Exception {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
