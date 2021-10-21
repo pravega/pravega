@@ -141,7 +141,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             ledger = Ledgers.openFence(metadata.getLedgerId(), this.bookKeeper, this.config);
         }
 
-        checkLogIdProperty(ledger);
+        //checkLogIdProperty(ledger);
         long lastEntryId = ledger.getLastAddConfirmed();
         if (lastEntryId < address.getEntryId()) {
             // This ledger is empty.

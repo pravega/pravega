@@ -39,6 +39,8 @@ import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
+
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,7 +95,9 @@ class BookKeeperLog implements DurableDataLog {
     private static final long REPORT_INTERVAL = 1000;
     @Getter
     private final int logId;
+    @Getter
     private final String logNodePath;
+    @Getter
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
     private final BookKeeperConfig config;
@@ -746,7 +750,7 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
     @VisibleForTesting
-    LogMetadata loadMetadata() throws DataLogInitializationException {
+    public LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);

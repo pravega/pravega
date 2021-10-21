@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
@@ -43,6 +44,7 @@ import lombok.val;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * Wrapper for a BookKeeperLog which only exposes methods that should be used for debugging/admin tools.
@@ -234,6 +236,11 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         return changed;
+    }
+
+    public Stat forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws Exception {
+        byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
+        return this.log.getZkClient().setData().forPath(this.log.getLogNodePath(), serializedMetadata);
     }
 
     private void initialize() throws DurableDataLogException {

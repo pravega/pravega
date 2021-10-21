@@ -105,9 +105,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         } catch (Exception ex) {
             outputError("Backup of original log failed.");
             ex.printStackTrace();
-            originalDataLog.close();
+            /*originalDataLog.close();
             bkLog.close();
-            backupDataLog.close();
+            backupDataLog.close();*/
             throw ex;
             // TODO: In case of failure, cleanup the backup log file
         }
@@ -122,7 +122,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         // Get user input of operations to skip, replace, or delete.
-        List<LogEditOperation> durableLogEdits = Collections.singletonList(new LogEditOperation(LogEditType.DELETE_OPERATION, 0, 0, null));//getDurableLogEditesFromUser();
+        List<LogEditOperation> durableLogEdits = Collections.singletonList(
+                new LogEditOperation(LogEditType.DELETE_OPERATION, 0, 10, null));//getDurableLogEditesFromUser();
 
         // Operations need to be sorted and they should impact on disjoint operations (e.g., we cannot allow 2 edits on
         // the same operation id)
@@ -164,9 +165,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             ex.printStackTrace();
             // TODO: In case of failure, cleanup the backup log file
         } finally {
-            originalDataLog.close();
+            /*originalDataLog.close();
             bkLog.close();
-            backupDataLog.close();
+            backupDataLog.close();*/
         }
 
         // In case that edits have been applied successfully, replace the metadata of the original DurableLog with the
@@ -175,6 +176,36 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             outputInfo("Edited DurableLog created successfully. Replacing metadata of original DurableLog.");
         } else {
             outputError("There have been errors while creating the edited version of the DurableLog.");
+        }
+
+        // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
+        val editedLogWrapper = dataLogFactory.createDebugLogWrapper(Integer.MAX_VALUE - 1);
+        originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
+
+        val noopCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
+                (op, list) -> {
+                    System.out.println(op);
+                },
+                op -> false,
+                null,
+                null);
+
+        val originalDataLog2 = dataLogFactory.createDebugLogWrapper(containerId);
+        val bkLog2 = originalDataLog.asReadOnly();
+
+        @Cleanup
+        val rp3 = DebugRecoveryProcessor.create(containerId, bkLog2,
+                containerConfig, readIndexConfig, this.executorService, noopCallbacks);
+        try {
+            output("Number of operations backed up from original log: " + rp3.performRecovery());
+        } catch (Exception ex) {
+            outputError("Backup of original log failed.");
+            ex.printStackTrace();
+            /*originalDataLog.close();
+            bkLog.close();
+            backupDataLog.close();*/
+            throw ex;
+            // TODO: In case of failure, cleanup the backup log file
         }
     }
 
@@ -303,8 +334,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             long editFinalOpId = durableLogEdits.get(0).getFinalOperationId();
             return editInitialOpId == op.getSequenceNumber()
                     || (editType.equals(LogEditType.DELETE_OPERATION)
-                        && editInitialOpId > op.getSequenceNumber()
-                        && editFinalOpId < op.getSequenceNumber());
+                        && editInitialOpId <= op.getSequenceNumber()
+                        && editFinalOpId > op.getSequenceNumber());
         }
     }
 
