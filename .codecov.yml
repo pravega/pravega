@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -7,17 +7,27 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+codecov:
+  require_ci_to_pass: yes
+  max_report_age: off
+  notify:
+    wait_for_ci: yes
+
 coverage:
   status:
     project:
       default:
-        against: parent
-        target: auto
         threshold: 0.5%
-        branches:
-          - master
+    patch:
+      default:
+        target: 80%
   ignore:
     - "**/generated/**"
     - "standalone"
     - "test"
-    - "**/host/admin"

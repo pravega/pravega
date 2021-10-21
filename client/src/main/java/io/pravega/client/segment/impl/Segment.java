@@ -1,21 +1,25 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import java.io.ObjectStreamException;
+import io.pravega.shared.NameUtils;
 import java.io.Serializable;
 import java.util.List;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
 import lombok.NonNull;
 
@@ -29,6 +33,7 @@ public class Segment implements Comparable<Segment>, Serializable {
     @NonNull
     private final String streamName;
     private final long segmentId;
+    private transient final String scopedName;
 
     /**
      * Creates a new instance of Segment class.
@@ -41,14 +46,20 @@ public class Segment implements Comparable<Segment>, Serializable {
         this.scope = scope;
         this.streamName = streamName;
         this.segmentId = id;
+        // Cache the scoped name for performance reasons, as it is checked on the read path.
+        this.scopedName = NameUtils.getQualifiedStreamSegmentName(scope, streamName, id);
     }
 
     public String getScopedStreamName() {
-        return StreamSegmentNameUtils.getScopedStreamName(scope, streamName);
+        return NameUtils.getScopedStreamName(scope, streamName);
     }
 
     public String getScopedName() {
-        return StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
+        return NameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
+    }
+
+    public String getKVTScopedName() {
+        return NameUtils.getQualifiedTableSegmentName(scope, streamName, segmentId);
     }
 
     public Stream getStream() {
@@ -67,11 +78,11 @@ public class Segment implements Comparable<Segment>, Serializable {
      * @return Segment name.
      */
     public static Segment fromScopedName(String qualifiedName) {
-        if (StreamSegmentNameUtils.isTransactionSegment(qualifiedName)) {
-            String originalSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(qualifiedName);
+        if (NameUtils.isTransactionSegment(qualifiedName)) {
+            String originalSegmentName = NameUtils.getParentStreamSegmentName(qualifiedName);
             return fromScopedName(originalSegmentName);
         } else {
-            List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
+            List<String> tokens = NameUtils.extractSegmentTokens(qualifiedName);
             if (tokens.size() == 2) { // scope not present
                 String scope = null;
                 String streamName = tokens.get(0);
@@ -98,7 +109,7 @@ public class Segment implements Comparable<Segment>, Serializable {
         return result;
     }
     
-    private Object writeReplace() throws ObjectStreamException {
+    private Object writeReplace() {
         return new SerializedForm(getScopedName());
     }
     
@@ -106,7 +117,7 @@ public class Segment implements Comparable<Segment>, Serializable {
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;
         private final String value;
-        Object readResolve() throws ObjectStreamException {
+        Object readResolve() {
             return Segment.fromScopedName(value);
         }
     }

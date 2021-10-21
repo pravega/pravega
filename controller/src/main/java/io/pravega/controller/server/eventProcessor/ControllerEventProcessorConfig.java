@@ -1,16 +1,23 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.controller.eventProcessor.CheckpointConfig;
+import java.time.Duration;
 
 /**
  * Configuration of controller event processors.
@@ -122,4 +129,39 @@ public interface ControllerEventProcessorConfig {
      * @return Checkpoint configuration for request stream event processors.
      */
     CheckpointConfig getRequestStreamCheckpointConfig();
+    
+    /**
+     * Fetches rebalance interval set for event processors.
+     *
+     * @return period in milliseconds.
+     */
+    long getRebalanceIntervalMillis();
+
+    /**
+     * Fetches name of the request stream.
+     *
+     * @return Name of the request stream.
+     */
+    String getKvtStreamName();
+
+    /**
+     * Fetches name of the reader group processing events from request stream.
+     *
+     * @return Name of the reader group processing events from request stream.
+     */
+    String getKvtReaderGroupName();
+
+    /**
+     * Fetches scaling policy for stream used to store kvtable requests.
+     *
+     * @return Request kvtable scaling policy.
+     */
+    ScalingPolicy getKvtStreamScalingPolicy();
+
+    /**
+     * Gets a value indicating the amount of time to await a shutdown.
+     *
+     * @return Shutdown timeout.
+     */
+    Duration getShutdownTimeout();
 }

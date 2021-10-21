@@ -1,184 +1,127 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
-import com.codahale.metrics.MetricRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.pravega.common.Exceptions;
-import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalCause;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-
+import io.pravega.common.util.SimpleCache;
+import io.pravega.shared.MetricsNames;
+import java.time.Duration;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.MetricsNames.metricKey;
+
 @Slf4j
-public class DynamicLoggerImpl implements DynamicLogger {
-    private final long cacheSize;
-    private final long cacheEvictionDuration;
-
-    private final MetricRegistry metrics;
+class DynamicLoggerImpl implements DynamicLogger {
+    private final MeterRegistry metrics;
     private final StatsLogger underlying;
-    private final Cache<String, Counter> countersCache;
-    private final Cache<String, Gauge> gaugesCache;
-    private final Cache<String, Meter> metersCache;
+    private final SimpleCache<String, Counter> countersCache;
+    private final SimpleCache<String, Gauge> gaugesCache;
+    private final SimpleCache<String, Meter> metersCache;
 
-    public DynamicLoggerImpl(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
-        Preconditions.checkNotNull(metricsConfig, "metricsConfig");
-        Preconditions.checkNotNull(metrics, "metrics");
-        Preconditions.checkNotNull(statsLogger, "statsLogger");
+    DynamicLoggerImpl(@NonNull MetricsConfig metricsConfig, @NonNull MeterRegistry metrics, @NonNull StatsLogger statsLogger) {
         this.metrics = metrics;
         this.underlying = statsLogger;
-        this.cacheSize = metricsConfig.getDynamicCacheSize();
-        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMs();
 
-        countersCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
-                removalListener(new RemovalListener<String, Counter>() {
-                    @Override
-                    public void onRemoval(RemovalNotification<String, Counter> removal) {
-                        Counter counter = removal.getValue();
-                        if (removal.getCause() != RemovalCause.REPLACED) {
-                            Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
-                            metrics.remove(counter.getName());
-                            log.debug("Removed Counter: {}.", counter.getName());
-                        }
-                    }
-                }).
-                build();
-
-        gaugesCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
-                removalListener(new RemovalListener<String, Gauge>() {
-                    @Override
-                    public void onRemoval(RemovalNotification<String, Gauge> removal) {
-                        Gauge gauge = removal.getValue();
-                        if (removal.getCause() != RemovalCause.REPLACED) {
-                            Exceptions.checkNotNullOrEmpty(gauge.getName(), "gauge");
-                            metrics.remove(gauge.getName());
-                            log.debug("Removed Gauge: {}.", gauge.getName());
-                        }
-                    }
-                }).
-                build();
-
-        metersCache = CacheBuilder.newBuilder().
-            maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
-            removalListener(new RemovalListener<String, Meter>() {
-                @Override
-                public void onRemoval(RemovalNotification<String, Meter> removal) {
-                    Meter meter = removal.getValue();
-                    if (removal.getCause() != RemovalCause.REPLACED) {
-                        Exceptions.checkNotNullOrEmpty(meter.getName(), "meter");
-                        metrics.remove(meter.getName());
-                        log.debug("Removed Meter: {}.", meter.getName());
-                    }
-                }
-            }).
-            build();
+        int cacheSize = metricsConfig.getDynamicCacheSize();
+        Duration cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMinutes();
+        this.countersCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);
+        this.gaugesCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);
+        this.metersCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);
     }
 
     @Override
-    public void incCounterValue(String name, long delta) {
+    public void incCounterValue(String name, long delta, String... tags) {
+        getCounter(name, tags).add(delta);
+    }
+
+    @Override
+    public void updateCounterValue(String name, long value, String... tags) {
+        Counter c = getCounter(name, tags);
+        c.clear();
+        c.add(value);
+    }
+
+    private Counter getCounter(String name, String... tags) {
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        Counter counter = this.countersCache.get(keys.getCacheKey());
+        if (counter == null) {
+            counter = this.underlying.createCounter(keys.getRegistryKey(), tags);
+            this.countersCache.putIfAbsent(keys.getCacheKey(), counter);
+        }
+        return counter;
+    }
+
+    @Override
+    public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        Preconditions.checkNotNull(delta);
-        String counterName = name + ".Counter";
-        try {
-            Counter counter = countersCache.get(counterName, new Callable<Counter>() {
-                @Override
-                public Counter call() throws Exception {
-                    return underlying.createCounter(counterName);
-                }
-            });
-            counter.add(delta);
-        } catch (ExecutionException e) {
-            log.error("Error while countersCache create counter", e);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        Gauge gauge = this.gaugesCache.get(keys.getCacheKey());
+        if (gauge == null) {
+            gauge = this.underlying.registerGauge(keys.getRegistryKey(), value::doubleValue, tags);
+            this.gaugesCache.putIfAbsent(keys.getCacheKey(), gauge);
         }
+        gauge.setSupplier(value::doubleValue);
     }
 
     @Override
-    public void updateCounterValue(String name, long value) {
+    public void recordMeterEvents(String name, long number, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        String counterName = name + ".Counter";
-
-        Counter counter = countersCache.getIfPresent(counterName);
-        if (counter != null) {
-            counter.clear();
-        } else {
-            counter = underlying.createCounter(counterName);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        Meter meter = this.metersCache.get(keys.getCacheKey());
+        if (meter == null) {
+            meter = this.underlying.createMeter(keys.getRegistryKey(), tags);
+            this.metersCache.putIfAbsent(keys.getCacheKey(), meter);
         }
-        counter.add(value);
-        countersCache.put(name, counter);
+
+        meter.recordEvents(number);
     }
 
     @Override
-    public void freezeCounter(String name) {
-        String counterName = name + ".Counter";
-        countersCache.invalidate(counterName);
-        metrics.remove(counterName);
+    public void freezeCounter(String name, String... tags) {
+        freeze(this.countersCache, name, tags);
     }
 
     @Override
-    public <T extends Number> void reportGaugeValue(String name, T value) {
+    public void freezeGaugeValue(String name, String... tags) {
+        freeze(this.gaugesCache, name, tags);
+    }
+
+    @Override
+    public void freezeMeter(String name, String... tags) {
+        freeze(this.metersCache, name, tags);
+    }
+
+    private <T extends Metric> void freeze(SimpleCache<String, T> cache, String name, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        Preconditions.checkNotNull(value);
-        Gauge newGauge = null;
-        String gaugeName = name + ".Gauge";
-
-        if (value instanceof Float) {
-            newGauge = underlying.registerGauge(gaugeName, value::floatValue);
-        } else if (value instanceof Double) {
-            newGauge = underlying.registerGauge(gaugeName, value::doubleValue);
-        } else if (value instanceof Byte) {
-            newGauge = underlying.registerGauge(gaugeName, value::byteValue);
-        } else if (value instanceof Short) {
-            newGauge = underlying.registerGauge(gaugeName, value::shortValue);
-        } else if (value instanceof Integer) {
-            newGauge = underlying.registerGauge(gaugeName, value::intValue);
-        } else if (value instanceof Long) {
-            newGauge = underlying.registerGauge(gaugeName, value::longValue);
-        }
-
-        if (null == newGauge) {
-            log.error("Unsupported Number type: {}.", value.getClass().getName());
-        } else {
-            gaugesCache.put(gaugeName, newGauge);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        T metric = cache.remove(keys.getCacheKey());
+        if (metric != null) {
+            metric.close();
+            unregister(metric);
         }
     }
 
-    @Override
-    public void freezeGaugeValue(String name) {
-        String gaugeName = name + ".Gauge";
-        gaugesCache.invalidate(gaugeName);
-        metrics.remove(gaugeName);
+    private void unregister(String cacheKey, Metric m) {
+        unregister(m);
     }
 
-    @Override
-    public void recordMeterEvents(String name, long number) {
-        Exceptions.checkNotNullOrEmpty(name, "name");
-        Preconditions.checkNotNull(number);
-        String meterName = name + ".Meter";
-        try {
-            Meter meter = metersCache.get(meterName, new Callable<Meter>() {
-                @Override
-                public Meter call() throws Exception {
-                    return underlying.createMeter(meterName);
-                }
-            });
-            meter.recordEvents(number);
-        } catch (ExecutionException e) {
-            log.error("Error while metersCache create meter", e);
-        }
+    private void unregister(Metric m) {
+        this.metrics.remove(m.getId());
+        log.trace("Closed Metric: {}.", m.getId());
     }
 }

@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
-<configuration scan="true">
+<configuration scan="true" scanPeriod="30 seconds">
     <appender name="consoleAppender" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>
@@ -18,16 +24,14 @@ You may obtain a copy of the License at
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${log.dir:-.}/${log.name:-pravega}.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- daily rollover. Make sure the path matches the one in the file element or else
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- hourly rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
-            <fileNamePattern>${log.dir:-.}/${log.name:-pravega}_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>10MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <!-- keep 30 days' worth of history -->
-            <maxHistory>30</maxHistory>
+            <fileNamePattern>${log.dir:-.}/%d{YYYY-MM-dd, aux}/${log.name:-pravega}_%d{yyyy-MM-dd_HH}.%i.log.gz</fileNamePattern>
+            <!-- each file should be at most 10MB, keep 720 (1 month) files worth of history, but at most 10GB -->
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>720</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
 
         <encoder>
@@ -36,8 +40,11 @@ You may obtain a copy of the License at
         </encoder>
     </appender>
 
+    <appender name="Metrics" class="io.pravega.shared.metrics.MetricsLogAppender"/>
+
     <root level="${log.level:-INFO}">
         <appender-ref ref="consoleAppender"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="Metrics"/>
     </root>
 </configuration>

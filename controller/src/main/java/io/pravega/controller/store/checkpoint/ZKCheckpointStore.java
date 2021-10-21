@@ -1,27 +1,25 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.checkpoint;
 
-import io.pravega.common.util.Retry;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Lombok;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -30,19 +28,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * Zookeeper based checkpoint store.
  */
 @Slf4j
-class ZKCheckpointStore implements CheckpointStore {
+public class ZKCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
     private final Serializer<Position> positionSerializer;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
+    private final AtomicBoolean isZKConnected = new AtomicBoolean(false);
 
     ZKCheckpointStore(CuratorFramework client) {
         this.client = client;
@@ -58,6 +65,12 @@ class ZKCheckpointStore implements CheckpointStore {
             }
         };
         this.groupDataSerializer = new JavaSerializer<>();
+        this.isZKConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    this.isZKConnected.set(newState.isConnected());
+                });
     }
 
     @Data
@@ -72,6 +85,16 @@ class ZKCheckpointStore implements CheckpointStore {
         private final List<String> readerIds;
     }
 
+    /**
+     * Get the zookeeper health status.
+     *
+     * @return true if zookeeper is connected.
+     */
+    @Override
+    public boolean isHealthy() {
+        return isZKConnected.get();
+     }
+
     @Override
     public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {
         updateNode(getReaderPath(process, readerGroup, readerId), positionSerializer.serialize(position).array());
@@ -81,6 +104,8 @@ class ZKCheckpointStore implements CheckpointStore {
     public Map<String, Position> getPositions(String process, String readerGroup) throws CheckpointStoreException {
         Map<String, Position> map = new HashMap<>();
         String path = getReaderGroupPath(process, readerGroup);
+        ReaderGroupData rgData = groupDataSerializer.deserialize(ByteBuffer.wrap(getData(path)));
+        rgData.getReaderIds().forEach(x -> map.put(x, null));
         for (String child : getChildren(path)) {
             Position position = null;
             byte[] data = getData(path + "/" + child);
@@ -143,6 +168,29 @@ class ZKCheckpointStore implements CheckpointStore {
         }
         removeEmptyNode(path);
     }
+    
+    @Override
+    public Map<String, Position> removeProcessFromGroup(String process, String readerGroup) throws CheckpointStoreException {
+        String path = getReaderGroupPath(process, readerGroup);
+
+        try {
+            updateReaderGroupData(path, groupData ->
+                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
+            Map<String, Position> result = getPositions(process, readerGroup);
+            for (String readerId : result.keySet()) {
+                removeReader(process, readerGroup, readerId);
+            }
+            removeReaderGroup(process, readerGroup);
+            return result;
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
+                | KeeperException.SessionExpiredException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
+    }
 
     @Override
     public List<String> getReaderGroups(String process) throws CheckpointStoreException {
@@ -157,12 +205,12 @@ class ZKCheckpointStore implements CheckpointStore {
 
             updateReaderGroupData(path, groupData -> {
                 if (groupData.getState() == ReaderGroupData.State.Sealed) {
-                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
+                    throw Exceptions.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
                             "ReaderGroup is sealed"));
                 }
                 List<String> list = groupData.getReaderIds();
                 if (list.contains(readerId)) {
-                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
+                    throw Exceptions.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
                             "Duplicate readerId"));
                 }
 

@@ -1,35 +1,41 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -54,7 +60,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
     private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
                                    Storage storage, CacheManager cacheManager, OperationCallbacks callbacks) {
-        super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage), null));
+        super(metadata, durableDataLog, new MemoryStateUpdater(new NoOpInMemoryLog(), readIndexFactory.createReadIndex(metadata, storage)));
         this.readIndexFactory = readIndexFactory;
         this.storage = storage;
         this.callbacks = callbacks;
@@ -88,9 +94,10 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         Preconditions.checkNotNull(callbacks, callbacks);
 
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
-        CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)), executor);
+        CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)),
+                new NoOpCache(), executor);
         cacheManager.startAsync().awaitRunning();
-        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), cacheManager, executor);
+        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, cacheManager, executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
         return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks);
     }
@@ -100,7 +107,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     //region RecoveryProcessor Overrides
 
     @Override
-    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws ServiceHaltException {
         if (this.callbacks.beginRecoverOperation != null) {
             Callbacks.invokeSafely(this.callbacks.beginRecoverOperation, dataFrameRecord.getItem(), dataFrameRecord.getFrameEntries(), null);
         }
@@ -147,50 +154,27 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
     //endregion
 
-    //region NoOpCache
+    //region NoOpInMemoryLog
 
-    private static class NoOpCacheFactory implements CacheFactory {
+    private static class NoOpInMemoryLog extends AbstractDrainingQueue<Operation> {
         @Override
-        public Cache getCache(String id) {
-            return new NoOpCache();
+        protected void addInternal(Operation item) {
+
         }
 
         @Override
-        public void close() {
-            // Nothing to do.
+        protected int sizeInternal() {
+            return 0;
         }
-    }
 
-    private static class NoOpCache implements Cache {
         @Override
-        public String getId() {
+        protected Operation peekInternal() {
             return null;
         }
 
         @Override
-        public void insert(Key key, byte[] data) {
-            // Nothing to do.
-        }
-
-        @Override
-        public void insert(Key key, ByteArraySegment data) {
-            // Nothing to do.
-        }
-
-        @Override
-        public byte[] get(Key key) {
-            // This should not be invoked from within a DebugRecoveryProcessor.
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void remove(Key key) {
-            // Nothing to do.
-        }
-
-        @Override
-        public void close() {
-            // Nothing to do.
+        protected Queue<Operation> fetch(int maxCount) {
+            return new ArrayDeque<>(0);
         }
     }
 

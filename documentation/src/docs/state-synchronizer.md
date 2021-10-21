@@ -1,11 +1,17 @@
 <!--
-Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Working with Pravega: State Synchronizer
 
@@ -19,7 +25,7 @@ we explore with this document.
 
 Instructions for running the sample applications can be found in the[ Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
 Concepts](pravega-concepts.md)) before continuing reading this page.
@@ -44,7 +50,7 @@ concurrently read and write the shared state in a consistent fashion. 
 Before we dive into the details about how to use State Synchronizer, let's take
 a quick look at an example application that uses State Synchronizer.  We have
 provided a simple yet illustrative example of using State
-Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/v0.3.0/pravega-client-examples/src/main/java/io/pravega/example/statesynchronizer)
+Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/v0.5.0/pravega-client-examples/src/main/java/io/pravega/example/statesynchronizer)
 
 The example uses State Synchronizer to build an implementation of Java's Map
 data structure called SharedMap.  We use that primitive SharedMap data structure
@@ -296,22 +302,22 @@ subclasses of StateUpdate to perform state change (write) operations.
   * @param scope - the Scope to use to create the Stream used by the StateSynchronizer.
   * @param name - the name of the Stream to be used by the StateSynchronizer.
   */
- public SharedMap(ClientFactory clientFactory, StreamManager streamManager, String scope, String name){
-     streamManager.createScope(scope);
+public SharedMap(ClientFactory clientFactory, StreamManager streamManager, String scope, String name){
+    streamManager.createScope(scope);
 
-     StreamConfiguration streamConfig = StreamConfiguration.builder().scope(scope).streamName(name)
-             .scalingPolicy(ScalingPolicy.fixed(1))
-             .build();
+    StreamConfiguration streamConfig = StreamConfiguration.builder().scope(scope).streamName(name)
+            .scalingPolicy(ScalingPolicy.fixed(1))
+            .build();
 
-     streamManager.createStream(scope, name, streamConfig);
+    streamManager.createStream(scope, name, streamConfig);
 
-     this.stateSynchronizer = clientFactory.createStateSynchronizer(name,
-                                             new JavaSerializer<StateUpdate<K,V>>(),
-                                             new JavaSerializer<CreateState<K,V>>(),
-                                             SynchronizerConfig.builder().build());
+    this.stateSynchronizer = clientFactory.createStateSynchronizer(name,
+                                            new JavaSerializer<StateUpdate<K,V>>(),
+                                            new JavaSerializer<CreateState<K,V>>(),
+                                            SynchronizerConfig.builder().build());
 
-     stateSynchronizer.initialize(new CreateState<K,V>(new ConcurrentHashMap<K,V>()));
- }
+    stateSynchronizer.initialize(new CreateState<K,V>(new ConcurrentHashMap<K,V>()));
+}
 ```
 
 A SharedMap object is created by defining the scope and stream (almost always
@@ -370,7 +376,7 @@ StateSynchronizer programming in a bit more detail:
  */
 public V put(K key, V value){
     final AtomicReference<V> oldValue = new AtomicReference<V>(null);
-     stateSynchronizer.updateState((state, updates) -> {
+    stateSynchronizer.updateState((state, updates) -> {
         oldValue.set(state.get(key));
         updates.add(new Put<K,V>(key,value));
     });
@@ -412,4 +418,3 @@ Stream.
 As a result of the compact() operation, a new initial sate (Initial2) is written
 to the stream.  Now, all the data from Change3 and older is no longer relevant
 and can be garbage collected out of the Stream.
-

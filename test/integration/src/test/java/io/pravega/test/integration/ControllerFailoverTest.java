@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -14,6 +20,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -21,6 +28,7 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -38,6 +46,7 @@ public class ControllerFailoverTest {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
+    private ServiceBuilder serviceBuilder;
 
     @Before
     public void setup() throws Exception {
@@ -45,10 +54,12 @@ public class ControllerFailoverTest {
         zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SSS
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        server = new PravegaConnectionListener(false, servicePort, store);
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
     }
 
@@ -56,6 +67,9 @@ public class ControllerFailoverTest {
     public void cleanup() throws Exception {
         if (server != null) {
             server.close();
+        }
+        if (serviceBuilder != null) {
+            serviceBuilder.close();
         }
         if (zkTestServer != null) {
             zkTestServer.close();
@@ -67,6 +81,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
+        @Cleanup
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, -1);
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
@@ -77,6 +92,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
+        @Cleanup
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
@@ -95,6 +111,7 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitRunning();
 
         URI controllerURI = URI.create("tcp://localhost:" + controllerPort);
+        @Cleanup
         StreamManager streamManager = StreamManager.create( ClientConfig.builder().controllerURI(controllerURI).build());
 
         // Create scope
@@ -102,8 +119,6 @@ public class ControllerFailoverTest {
 
         // Create stream
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         streamManager.createStream(SCOPE, STREAM, streamConfiguration);
@@ -124,6 +139,7 @@ public class ControllerFailoverTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
+        @Cleanup
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
         controllerWrapper.awaitRunning();

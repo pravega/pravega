@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -15,9 +21,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.util.Config;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -84,7 +92,7 @@ public class TxnSweeper implements FailoverSweeper {
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
         return hostsOwningTxns.thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
-            log.info("Failed hosts {} have orphaned tasks", index);
+            log.info("Failed hosts {} have orphaned tasks.", index);
             return Futures.allOf(index.stream().map(this::handleFailedProcess).collect(Collectors.toList()));
         }, executor);
     }
@@ -169,7 +177,7 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over committing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return transactionMetadataTasks.writeCommitEvent(scope, stream, epoch, txnId, TxnStatus.COMMITTING)
+        return transactionMetadataTasks.writeCommitEvent(new CommitEvent(scope, stream, epoch))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
@@ -178,7 +186,7 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over aborting transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return transactionMetadataTasks.writeAbortEvent(scope, stream, epoch, txnId, TxnStatus.ABORTING)
+        return transactionMetadataTasks.writeAbortEvent(new AbortEvent(scope, stream, epoch, txnId))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
@@ -187,8 +195,8 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
-                transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
-                        .thenApplyAsync(status -> null, executor), executor);
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
+                .thenCompose(txnData -> transactionMetadataTasks.pingTxn(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, 0L))
+                .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 }

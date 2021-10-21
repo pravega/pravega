@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream;
 
@@ -26,6 +32,12 @@ public interface Transaction<Type> {
         COMMITTING,
         COMMITTED,
         ABORTING,
+        ABORTED
+    }
+
+    enum PingStatus {
+        OPEN,
+        COMMITTED,
         ABORTED
     }
 
@@ -74,6 +86,15 @@ public interface Transaction<Type> {
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void commit() throws TxnFailedException;
+    
+    /**
+     * Commits the transaction similar to {@link #commit()}, but also notes an associated timestamp.
+     * Similar to {@link EventStreamWriter#noteTime(long)}.
+     * 
+     * @param timestamp A timestamp associated with this transaction.
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
+     */
+    void commit(long timestamp) throws TxnFailedException;
 
     /**
      * Drops the transaction, causing all events written to it to be deleted.

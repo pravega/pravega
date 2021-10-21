@@ -1,6 +1,6 @@
 /*
  * Pravega Controller APIs
- * List of admin REST APIs for the pravega controller service.
+ * List of admin REST APIs for the Pravega controller service.
  *
  * OpenAPI spec version: 0.0.1
  * 
@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.TagsList;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
@@ -38,6 +39,15 @@ public class StreamProperty   {
 
   @JsonProperty("retentionPolicy")
   private RetentionConfig retentionPolicy = null;
+
+  @JsonProperty("tags")
+  private TagsList tags = null;
+
+  @JsonProperty("timestampAggregationTimeout")
+  private Long timestampAggregationTimeout = null;
+
+  @JsonProperty("rolloverSizeBytes")
+  private Long rolloverSizeBytes = null;
 
   public StreamProperty scopeName(String scopeName) {
     this.scopeName = scopeName;
@@ -115,6 +125,63 @@ public class StreamProperty   {
     this.retentionPolicy = retentionPolicy;
   }
 
+  public StreamProperty tags(TagsList tags) {
+    this.tags = tags;
+    return this;
+  }
+
+  /**
+   * Get tags
+   * @return tags
+   **/
+  @JsonProperty("tags")
+  @ApiModelProperty(value = "")
+  public TagsList getTags() {
+    return tags;
+  }
+
+  public void setTags(TagsList tags) {
+    this.tags = tags;
+  }
+
+  public StreamProperty timestampAggregationTimeout(Long timestampAggregationTimeout) {
+    this.timestampAggregationTimeout = timestampAggregationTimeout;
+    return this;
+  }
+
+  /**
+   * Get timestampAggregationTimeout
+   * @return timestampAggregationTimeout
+   **/
+  @JsonProperty("timestampAggregationTimeout")
+  @ApiModelProperty(value = "")
+  public Long getTimestampAggregationTimeout() {
+    return timestampAggregationTimeout;
+  }
+
+  public void setTimestampAggregationTimeout(Long timestampAggregationTimeout) {
+    this.timestampAggregationTimeout = timestampAggregationTimeout;
+  }
+
+  public StreamProperty rolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+    return this;
+  }
+
+  /**
+   * Get rolloverSizeBytes
+   * @return rolloverSizeBytes
+   **/
+  @JsonProperty("rolloverSizeBytes")
+  @ApiModelProperty(value = "")
+  public Long getRolloverSizeBytes() {
+    return rolloverSizeBytes;
+  }
+
+  public void setRolloverSizeBytes(Long rolloverSizeBytes) {
+    this.rolloverSizeBytes = rolloverSizeBytes;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -128,12 +195,15 @@ public class StreamProperty   {
     return Objects.equals(this.scopeName, streamProperty.scopeName) &&
         Objects.equals(this.streamName, streamProperty.streamName) &&
         Objects.equals(this.scalingPolicy, streamProperty.scalingPolicy) &&
-        Objects.equals(this.retentionPolicy, streamProperty.retentionPolicy);
+        Objects.equals(this.retentionPolicy, streamProperty.retentionPolicy) &&
+        Objects.equals(this.tags, streamProperty.tags) &&
+        Objects.equals(this.timestampAggregationTimeout, streamProperty.timestampAggregationTimeout) &&
+        Objects.equals(this.rolloverSizeBytes, streamProperty.rolloverSizeBytes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scopeName, streamName, scalingPolicy, retentionPolicy);
+    return Objects.hash(scopeName, streamName, scalingPolicy, retentionPolicy, tags, timestampAggregationTimeout, rolloverSizeBytes);
   }
 
 
@@ -146,6 +216,9 @@ public class StreamProperty   {
     sb.append("    streamName: ").append(toIndentedString(streamName)).append("\n");
     sb.append("    scalingPolicy: ").append(toIndentedString(scalingPolicy)).append("\n");
     sb.append("    retentionPolicy: ").append(toIndentedString(retentionPolicy)).append("\n");
+    sb.append("    tags: ").append(toIndentedString(tags)).append("\n");
+    sb.append("    timestampAggregationTimeout: ").append(toIndentedString(timestampAggregationTimeout)).append("\n");
+    sb.append("    rolloverSizeBytes: ").append(toIndentedString(rolloverSizeBytes)).append("\n");
     sb.append("}");
     return sb.toString();
   }

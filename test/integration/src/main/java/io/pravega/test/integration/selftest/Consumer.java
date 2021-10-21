@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -32,6 +38,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -43,6 +50,7 @@ public class Consumer extends Actor {
     //region Members
 
     private static final int CATCHUP_READ_COUNT = 10000;
+    @Getter
     private final String logId;
     private final String streamName;
     private final TestState testState;
@@ -66,13 +74,12 @@ public class Consumer extends Actor {
      *
      * @param streamName     The name of the Stream to monitor.
      * @param config          Test Configuration.
-     * @param dataSource      Data Source.
      * @param testState       A TestState representing the current state of the test. This will be used for reporting purposes.
      * @param store           A StoreAdapter to execute operations on.
      * @param executorService The Executor Service to use for async tasks.
      */
-    Consumer(String streamName, TestConfig config, ProducerDataSource dataSource, TestState testState, StoreAdapter store, ScheduledExecutorService executorService) {
-        super(config, dataSource, store, executorService);
+    Consumer(String streamName, TestConfig config, TestState testState, StoreAdapter store, ScheduledExecutorService executorService) {
+        super(config, store, executorService);
 
         Preconditions.checkArgument(canUseStoreAdapter(store), "StoreAdapter does not support all required features; cannot create a consumer for it.");
         this.logId = String.format("Consumer[%s]", streamName);
@@ -98,11 +105,6 @@ public class Consumer extends Actor {
                 processTailReads(),
                 processCatchupReads(),
                 processStorageReads());
-    }
-
-    @Override
-    protected String getLogId() {
-        return this.logId;
     }
 
     //endregion

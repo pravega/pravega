@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -27,9 +33,7 @@ public interface SegmentOutputStream extends AutoCloseable {
     public abstract String getSegmentName();
     
     /**
-     * Writes the provided data to the SegmentOutputStream. If
-     * {@link PendingEvent#getExpectedOffset()} the data will be written only if the
-     * SegmentOutputStream is currently of expectedLength.
+     * Writes the provided data to the SegmentOutputStream.
      * 
      * The associated callback will be invoked when the operation is complete.
      * 
@@ -56,8 +60,15 @@ public interface SegmentOutputStream extends AutoCloseable {
      * This is invoked by the segmentSealed callback to fetch the unackedEvents to be resent to the right
      * SegmentOutputStreams.
      *
-     * Returns a List of all the events that have been passed to write but have not yet been
+     * @return List of all the events that have been passed to write but have not yet been
      * acknowledged as written. The iteration order in the List is from oldest to newest.
      */
     public abstract List<PendingEvent> getUnackedEventsOnSeal();
+    
+    /**
+     * This returns the write offset of a segment that was most recently observed from an Ack.
+     * This may not be the same as the current write offset. 
+     * If no acks have been observed on this segment it returns -1. 
+     */
+    public abstract long getLastObservedWriteOffset();
 }

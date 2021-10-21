@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
@@ -194,7 +201,15 @@ public class StorageReadManager implements AutoCloseable {
     private CompletableFuture<SegmentHandle> getHandle() {
         synchronized (this.lock) {
             if (this.handle == null) {
-                this.handle = storage.openRead(this.segmentName);
+                this.handle = storage.openRead(this.segmentName)
+                        .whenComplete((h, ex) -> {
+                            if (ex != null) {
+                                synchronized (this.lock) {
+                                    log.debug("{}: storage.openRead failed for {}. Resetting handle. {}", this.traceObjectId, this.segmentName, ex);
+                                    this.handle = null;
+                                }
+                            }
+                        });
             }
 
             return this.handle;
@@ -369,7 +384,7 @@ public class StorageReadManager implements AutoCloseable {
                 // Get the source Request's result, slice it and return the sub-segment that this request maps to.
                 Result sourceResult = source.resultFuture.join();
                 int offset = (int) (this.getOffset() - source.getOffset());
-                this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
+                this.resultFuture.complete(new Result(sourceResult.getData().slice(offset, getLength()), true));
             } catch (Throwable ex) {
                 if (Exceptions.mustRethrow(ex)) {
                     throw ex;
@@ -384,6 +399,9 @@ public class StorageReadManager implements AutoCloseable {
          *
          * @param data The result to complete with.
          */
+
+        // NOTE: https://github.com/spotbugs/spotbugs/issues/811
+        @SuppressFBWarnings
         private void complete(ByteArraySegment data) {
             Preconditions.checkState(!isDone(), "This Request is already completed.");
             this.resultFuture.complete(new Result(data, false));

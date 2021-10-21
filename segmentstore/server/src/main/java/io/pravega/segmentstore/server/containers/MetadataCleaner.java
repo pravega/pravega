@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -13,12 +19,11 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,7 +31,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -40,7 +45,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
 
     private final ContainerConfig config;
     private final EvictableMetadata metadata;
-    private final AsyncMap<String, SegmentState> stateStore;
+    private final MetadataStore metadataStore;
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
     private final CancellationToken stopToken;
@@ -57,22 +62,20 @@ class MetadataCleaner extends AbstractThreadPoolService {
      *
      * @param config          Container Configuration to use.
      * @param metadata        An EvictableMetadata to operate on.
-     * @param stateStore      SegmentStateStore to serialize SegmentState in.
+     * @param metadataStore   SegmentStateStore to serialize SegmentState in.
      * @param cleanupCallback A callback to invoke every time cleanup happened.
      * @param traceObjectId   An identifier to use for logging purposes. This will be included at the beginning of all
      *                        log calls initiated by this Service.
      * @param executor        The Executor to use for async callbacks and operations.
      */
-    MetadataCleaner(ContainerConfig config, EvictableMetadata metadata, AsyncMap<String, SegmentState> stateStore,
-                    Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
+    MetadataCleaner(@NonNull ContainerConfig config, @NonNull EvictableMetadata metadata, @NonNull MetadataStore metadataStore,
+                    @NonNull Consumer<Collection<SegmentMetadata>> cleanupCallback, @NonNull ScheduledExecutorService executor,
+                    String traceObjectId) {
         super(traceObjectId, executor);
-        Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(stateStore, "stateStore");
-        Preconditions.checkNotNull(cleanupCallback, "cleanupCallback");
 
         this.config = config;
         this.metadata = metadata;
-        this.stateStore = stateStore;
+        this.metadataStore = metadataStore;
         this.cleanupCallback = cleanupCallback;
         this.lastIterationSequenceNumber = new AtomicLong(metadata.getOperationSequenceNumber());
         this.stopToken = new CancellationToken();
@@ -102,6 +105,24 @@ class MetadataCleaner extends AbstractThreadPoolService {
     }
 
     //endregion
+
+    /**
+     * Persists the metadata of all active Segments from the Container's metadata into the {@link MetadataStore}.
+     * This method does not evict or otherwise perform any cleanup tasks on the Container or its Metadata, nor does it
+     * interfere with the regular operation of {@link #runOnce()}.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, indicates that the operation completed.
+     */
+    CompletableFuture<Void> persistAll(Duration timeout) {
+        val tasks = this.metadata.getAllStreamSegmentIds().stream()
+                .map(this.metadata::getStreamSegmentMetadata)
+                .filter(Objects::nonNull)
+                .filter(sm -> !sm.isDeleted() && !sm.isMerged())
+                .map(sm -> this.metadataStore.updateSegmentInfo(sm, timeout))
+                .collect(Collectors.toList());
+        return Futures.allOf(tasks);
+    }
 
     /**
      * Executes one iteration of the MetadataCleaner. This ensures that there cannot be more than one concurrent executions of
@@ -144,8 +165,8 @@ class MetadataCleaner extends AbstractThreadPoolService {
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         val cleanupTasks = cleanupCandidates
                 .stream()
-                .filter(sm -> !sm.isDeleted() || !sm.isMerged())
-                .map(sm -> this.stateStore.put(sm.getName(), new SegmentState(sm.getId(), sm), this.config.getSegmentMetadataExpiration()))
+                .filter(sm -> !sm.isDeleted() && !sm.isMerged())
+                .map(sm -> this.metadataStore.updateSegmentInfo(sm, this.config.getSegmentMetadataExpiration()))
                 .collect(Collectors.toList());
 
         return Futures
@@ -153,7 +174,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 .thenRunAsync(() -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, lastSeqNo);
                     this.cleanupCallback.accept(evictedSegments);
-                    int evictedAttributes = this.metadata.cleanupExtendedAttributes(0, lastSeqNo);
+                    int evictedAttributes = this.metadata.cleanupExtendedAttributes(this.config.getMaxCachedExtendedAttributeCount(), lastSeqNo);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size(), evictedAttributes);
                 }, this.executor);
     }

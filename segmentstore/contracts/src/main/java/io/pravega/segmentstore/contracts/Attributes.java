@@ -1,16 +1,21 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -23,7 +28,23 @@ import java.util.stream.Collectors;
  * MetadataCheckpoints or the Segment's State, thus its value will not be reloaded into memory upon a failover or
  * segment eviction + re-activation.
  */
-public final class Attributes {
+public class Attributes {
+    /**
+     * When used as an Attribute Value for a Boolean-like attribute, indicates a value equivalent to {@link Boolean#TRUE}.
+     */
+    public static final long BOOLEAN_TRUE = 1L;
+
+    /**
+     * When used as an Attribute Value for a Boolean-like attribute, indicates a value equivalent to {@link Boolean#FALSE}.
+     */
+    public static final long BOOLEAN_FALSE = 0L;
+
+    /**
+     * The Attribute ID at which Table Attributes can begin at. Everything with an ID smaller than this is a general
+     * Attribute.
+     */
+    public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024 * 1024; // Powers of 2 make UUID.toString look readable.
+
     /**
      * Defines an attribute value that denotes a missing value.
      */
@@ -32,42 +53,87 @@ public final class Attributes {
     /**
      * Prefix (Most Significant Bits) of the Id of all Core Attributes.
      */
-    private static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
+    public static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
 
     /**
      * Defines an attribute that can be used to denote Segment creation time.
      */
-    public static final UUID CREATION_TIME = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 0);
+    public static final AttributeId CREATION_TIME = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 0);
 
     /**
      * Defines an attribute that can be used to keep track of the number of events in a Segment.
      */
-    public static final UUID EVENT_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 1);
+    public static final AttributeId EVENT_COUNT = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 1);
 
     /**
      * Defines an attribute that is used to keep scale policy type for stream segment.
      */
-    public static final UUID SCALE_POLICY_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 2);
+    public static final AttributeId SCALE_POLICY_TYPE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 2);
 
     /**
      * Defines an attribute that is used to keep scale policy rate for stream segment.
      */
-    public static final UUID SCALE_POLICY_RATE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 3);
+    public static final AttributeId SCALE_POLICY_RATE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 3);
 
     /**
      * Defines an attribute that is used to set the value after which a Segment needs to be rolled over in Storage.
      */
-    public static final UUID ROLLOVER_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 4);
+    public static final AttributeId ROLLOVER_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 4);
 
     /**
-     * Defines an attribute that is used to store the offset within the Attribute sub-segment where the last Snapshot begins.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Location.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
+    private static final AttributeId RETIRED_1 = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 5);
 
     /**
-     * Defines an attribute that is used to store the length (in bytes) of the last Attribute Snapshot.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Length.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_LENGTH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
+    private static final AttributeId RETIRED_2 = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 6);
+
+    /**
+     * Defines an attribute that is used to keep a pointer (offset) to the Attribute Segment BTree Index Root Information.
+     */
+    public static final AttributeId ATTRIBUTE_SEGMENT_ROOT_POINTER = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 7);
+
+    /**
+     * Defines an attribute that is used to track the Sequence Number of the last Operation that was persisted into
+     * the Attribute Index.
+     */
+    public static final AttributeId ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 8);
+
+    /**
+     * Defines an attribute that is used to store the Segment's Type ({@link SegmentType#getValue()}.
+     * This attribute cannot be modified once set on the Segment.
+     */
+    public static final AttributeId ATTRIBUTE_SEGMENT_TYPE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 9);
+
+    /**
+     * Defines an attribute that is used to store SLTS snapshot id.
+     */
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 10);
+
+    /**
+     * Defines an attribute that is used to store SLTS snapshot epoch.
+     */
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 11);
+
+    /**
+     * Defines an attribute that is used to store the Segment's Extended Attribute Id Length.
+     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
+     */
+    public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 12);
+
+    /**
+     * Determines whether the given attribute cannot be modified once originally set on the Segment.
+     *
+     * @param attributeId The Attribute Id to check.
+     * @return True if immutable, false otherwise.
+     */
+    public static boolean isUnmodifiable(AttributeId attributeId) {
+        return attributeId == ATTRIBUTE_SEGMENT_TYPE || attributeId == ATTRIBUTE_ID_LENGTH;
+    }
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
@@ -75,8 +141,8 @@ public final class Attributes {
      * @param attributeId The Attribute Id to check.
      * @return True if Core Attribute, false otherwise.
      */
-    public static boolean isCoreAttribute(UUID attributeId) {
-        return attributeId.getMostSignificantBits() == CORE_ATTRIBUTE_ID_PREFIX;
+    public static boolean isCoreAttribute(AttributeId attributeId) {
+        return attributeId.isUUID() && attributeId.getBitGroup(0) == CORE_ATTRIBUTE_ID_PREFIX;
     }
 
     /**
@@ -86,7 +152,7 @@ public final class Attributes {
      * @param attributes The Map of Attribute Ids to Values to filter from.
      * @return A new Map containing only Core Attribute Ids and Values (from the original map).
      */
-    public static Map<UUID, Long> getCoreNonNullAttributes(Map<UUID, Long> attributes) {
+    public static Map<AttributeId, Long> getCoreNonNullAttributes(Map<AttributeId, Long> attributes) {
         return attributes.entrySet().stream()
                          .filter(e -> Attributes.isCoreAttribute(e.getKey()) && e.getValue() != NULL_ATTRIBUTE_VALUE)
                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.function;
 
@@ -52,6 +58,24 @@ public final class Callbacks {
 
         try {
             consumer.accept(argument);
+        } catch (Exception ex) {
+            if (failureHandler != null) {
+                invokeSafely(failureHandler, ex, null);
+            }
+        }
+    }
+
+    /**
+     * Invokes the given {@link RunnableWithException} and catches any exceptions that it may throw.
+     *
+     * @param runnable       The {@link RunnableWithException} to invoke.
+     * @param failureHandler An optional callback to invoke if the {@link RunnableWithException} threw any exceptions.
+     */
+    public static void invokeSafely(RunnableWithException runnable, Consumer<Throwable> failureHandler) {
+        Preconditions.checkNotNull(runnable, "runnable");
+
+        try {
+            runnable.run();
         } catch (Exception ex) {
             if (failureHandler != null) {
                 invokeSafely(failureHandler, ex, null);

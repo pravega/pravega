@@ -1,20 +1,25 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -22,10 +27,14 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
+import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -120,8 +129,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return this.entries.getMaxAppendSize();
+    public WriteSettings getWriteSettings() {
+        return new WriteSettings(this.entries.getMaxAppendSize(), Duration.ofMinutes(1), Integer.MAX_VALUE);
     }
 
     @Override
@@ -139,8 +148,17 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+    public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+        // No-op (because getQueueStatistics() doesn't return anything interesting).
+    }
+
+    @Override
+    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ensurePreconditions();
+        if (data.getLength() > getWriteSettings().getMaxWriteLength()) {
+            return Futures.failedFuture(new WriteTooLongException(data.getLength(), getWriteSettings().getMaxWriteLength()));
+        }
+
         CompletableFuture<LogAddress> result;
         try {
             Entry entry = new Entry(data);
@@ -252,7 +270,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region EntryCollection
 
     static class EntryCollection {
-        private final SequencedItemList<Entry> entries;
+        private final LinkedList<Entry> entries;
         private final AtomicReference<String> writeLock;
         private final AtomicLong epoch;
         private final AtomicBoolean enabled;
@@ -263,7 +281,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         EntryCollection(int maxAppendSize) {
-            this.entries = new SequencedItemList<>();
+            this.entries = new LinkedList<>();
             this.writeLock = new AtomicReference<>();
             this.epoch = new AtomicLong();
             this.maxAppendSize = maxAppendSize;
@@ -286,7 +304,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
         public void add(Entry entry, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
             ensureEnabled();
-            this.entries.add(entry);
+            synchronized (this.entries) {
+                this.entries.add(entry);
+            }
         }
 
         int getMaxAppendSize() {
@@ -294,18 +314,31 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         Entry getLast() {
-            return this.entries.getLast();
+            synchronized (this.entries) {
+                return this.entries.peekLast();
+            }
         }
 
         void truncate(long upToSequence, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
             ensureEnabled();
-            this.entries.truncate(upToSequence);
+            synchronized (this.entries) {
+                while (!this.entries.isEmpty()) {
+                    Entry first = this.entries.peekFirst();
+                    if (first.getSequenceNumber() <= upToSequence) {
+                        this.entries.removeFirst();
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         Iterator<Entry> iterator() {
             ensureEnabled();
-            return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
+            synchronized (this.entries) {
+                return new LinkedList<>(this.entries).iterator();
+            }
         }
 
         long acquireLock(String clientId) throws DataLogDisabledException {
@@ -344,14 +377,13 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //region Entry
 
-    static class Entry implements SequencedItemList.Element {
+    static class Entry {
         @Getter
         long sequenceNumber = -1;
         final byte[] data;
 
-        Entry(ArrayView inputData) {
-            this.data = new byte[inputData.getLength()];
-            System.arraycopy(inputData.array(), inputData.arrayOffset(), this.data, 0, this.data.length);
+        Entry(CompositeArrayView inputData) {
+            this.data = inputData.getCopy();
         }
 
         @Override

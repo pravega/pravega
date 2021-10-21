@@ -1,17 +1,23 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-
 import java.time.Duration;
 
 /**
@@ -61,4 +67,14 @@ public interface AsyncReadResultHandler {
      * @return The timeout.
      */
     Duration getRequestContentTimeout();
+
+    /**
+     * Gets a value indicating the maximum number of bytes to process at any time. See {@link ReadResult#getMaxReadAtOnce()}.
+     *
+     * @return The maximum number of bytes to process at any time. Default value is {@link Integer#MAX_VALUE}, which
+     * means the underlying read result has absolute freedom in choosing the read size.
+     */
+    default int getMaxReadAtOnce() {
+        return Integer.MAX_VALUE;
+    }
 }

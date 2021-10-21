@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,6 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 plugins.withId('maven') {
     uploadArchives {
@@ -21,15 +26,7 @@ plugins.withId('maven') {
                         snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
                             authentication(userName: publishUsername, password: publishPassword)
                         }
-                    }
-                    else if (publishUrl == "jcenterSnapshot") {
-                        repository(url: "https://oss.jfrog.org/artifactory/oss-snapshot-local/") {
-                            if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
-                                authentication(userName: publishUsername, password: publishPassword)
-                            }
-                        }
-                    }
-                    else {
+                    } else {
                         repository(url: publishUrl) {
                             // Only configure credentials if they are provided (allows publishing to the filesystem)
                             if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
@@ -42,7 +39,7 @@ plugins.withId('maven') {
                 pom.artifactId = "pravega" + project.path.replace(':', '-')
                 pom.project {
                     name "Pravega"
-                    url "http://pravega.io"
+                    url "https://pravega.io"
                     description "Streaming Storage Platform"
                     scm {
                         url 'https://github.com/pravega/pravega/tree/master'

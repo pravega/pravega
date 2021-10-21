@@ -1,28 +1,35 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
@@ -31,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -61,7 +69,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier.
         AtomicInteger currentIndex = new AtomicInteger();
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             int idx = currentIndex.getAndIncrement();
             if (idx >= entries.size()) {
                 return null;
@@ -99,13 +107,13 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier.
         AtomicInteger currentIndex = new AtomicInteger();
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             int idx = currentIndex.getAndIncrement();
             if (idx >= entries.size()) {
                 return null;
             }
 
-            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
+            Supplier<BufferView> entryContentsSupplier = () -> new ByteArraySegment(entries.get(idx));
             return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
         };
 
@@ -131,14 +139,14 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
      * Tests the AsyncReadResultProcessor when it encounters read failures.
      */
     @Test
-    public void testReadFailures() throws Exception {
+    public void testReadFailures() {
         // Pre-generate some entries.
         final int totalLength = 1000;
         final Semaphore barrier = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
-            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
+            Supplier<BufferView> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
@@ -165,6 +173,40 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
+    }
+
+    /**
+     * Tests the {@link AsyncReadResultProcessor#processAll} method.
+     */
+    @Test
+    public void testProcessAll() throws Exception {
+        // Pre-generate some entries.
+        ArrayList<byte[]> entries = new ArrayList<>();
+        int totalLength = generateEntries(entries);
+
+        // Setup an entry provider supplier.
+        AtomicInteger currentIndex = new AtomicInteger();
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
+            int idx = currentIndex.getAndIncrement();
+            if (idx == entries.size() - 1) {
+                // Future read result.
+                Supplier<BufferView> entryContentsSupplier = () -> new ByteArraySegment(entries.get(idx));
+                return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
+            } else if (idx >= entries.size()) {
+                return null;
+            }
+
+            // Normal read.
+            return new CacheReadResultEntry(offset, entries.get(idx), 0, entries.get(idx).length);
+        };
+
+        // Fetch all the data and compare with expected.
+        @Cleanup
+        StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
+        val result = AsyncReadResultProcessor.processAll(rr, executorService(), TIMEOUT);
+        val actualData = result.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).getReader();
+        val expectedData = new SequenceInputStream(Iterators.asEnumeration(entries.stream().map(ByteArrayInputStream::new).iterator()));
+        AssertExtensions.assertStreamEquals("Unexpected data read back.", expectedData, actualData, totalLength);
     }
 
     private int generateEntries(ArrayList<byte[]> entries) {
@@ -199,9 +241,8 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         public boolean processEntry(ReadResultEntry e) {
             try {
                 Assert.assertTrue("Received Entry that is not ready to serve data yet.", Futures.isSuccessful(e.getContent()));
-                ReadResultEntryContents c = e.getContent().join();
-                byte[] data = new byte[c.getLength()];
-                StreamHelpers.readAll(c.getData(), data, 0, data.length);
+                BufferView c = e.getContent().join();
+                byte[] data = c.getCopy();
                 int idx = readEntryCount.getAndIncrement();
                 AssertExtensions.assertLessThan("Read too many entries.", entries.size(), idx);
                 byte[] expected = entries.get(idx);
@@ -235,25 +276,18 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
     }
 
     private static class TestFutureReadResultEntry extends FutureReadResultEntry {
-        private final Supplier<ReadResultEntryContents> resultSupplier;
+        private final Supplier<BufferView> resultSupplier;
         private final Executor executor;
 
-        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
+        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<BufferView> resultSupplier, Executor executor) {
             super(streamSegmentOffset, requestedReadLength);
             this.resultSupplier = resultSupplier;
             this.executor = executor;
         }
 
         @Override
-        public void complete(ReadResultEntryContents contents) {
+        public void complete(BufferView contents) {
             super.complete(contents);
-        }
-
-        /**
-         * Cancels this pending read result entry.
-         */
-        public void cancel() {
-            fail(new CancellationException());
         }
 
         @Override

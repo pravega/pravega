@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -32,6 +38,8 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
+    void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
+
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
@@ -39,6 +47,8 @@ public interface ReplyProcessor {
     void dataAppended(WireCommands.DataAppended dataAppended);
     
     void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended);
+
+    void storageFlushed(WireCommands.StorageFlushed storageFlushed);
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
@@ -69,4 +79,24 @@ public interface ReplyProcessor {
     void processingFailure(Exception error);
 
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
+
+    void tableSegmentInfo(WireCommands.TableSegmentInfo info);
+
+    void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated);
+
+    void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);
+
+    void tableRead(WireCommands.TableRead tableRead);
+
+    void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
+
+    void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
+
+    void tableKeysRead(WireCommands.TableKeysRead tableKeysRead);
+
+    void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead);
+
+    void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead);
+
+    void errorMessage(WireCommands.ErrorMessage errorMessage);
 }

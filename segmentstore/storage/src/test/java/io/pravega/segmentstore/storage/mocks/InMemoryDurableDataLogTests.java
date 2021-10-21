@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.mocks;
 
@@ -13,10 +19,14 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import lombok.Cleanup;
+import lombok.val;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,6 +53,34 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             this.factory.close();
             this.factory = null;
         }
+    }
+
+    @Test
+    public void testWriteSettings() {
+        @Cleanup
+        val log = createDurableDataLog();
+        val ws = log.getWriteSettings();
+        Assert.assertEquals(1024 * 1024 - 8 * 1024, ws.getMaxWriteLength());
+        Assert.assertEquals(Integer.MAX_VALUE, ws.getMaxOutstandingBytes());
+    }
+
+    @Override
+    @Test
+    public void testRegisterQueueStateListener() {
+        @Cleanup
+        val log = createDurableDataLog();
+
+        // Following should have no effect.
+        log.registerQueueStateChangeListener(new ThrottleSourceListener() {
+            @Override
+            public void notifyThrottleSourceChanged() {
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+        });
     }
 
     @Override

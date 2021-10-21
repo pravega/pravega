@@ -1,16 +1,45 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.ClientFactory;
+
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
@@ -26,41 +55,24 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
-public class BoundedStreamReaderTest {
+public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
 
     private static final String SCOPE = "testScope";
     private static final String STREAM1 = "testStream1";
@@ -79,18 +91,23 @@ public class BoundedStreamReaderTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
+        super.before();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -104,11 +121,11 @@ public class BoundedStreamReaderTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+        super.after();
     }
 
     @Test(timeout = 60000)
@@ -118,7 +135,7 @@ public class BoundedStreamReaderTest {
         createStream(STREAM2);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
@@ -165,12 +182,47 @@ public class BoundedStreamReaderTest {
     }
 
     @Test(timeout = 60000)
+    public void testReaderGroupWithSameBounds() throws Exception {
+        createScope(SCOPE);
+        createStream(STREAM1);
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
+                                                                            EventWriterConfig.builder().build());
+        // 1. Prep the stream with data.
+        // Write events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+
+        // 2. Create a StreamCut Pointing to offset 30L
+        StreamCut streamCut = getStreamCut(STREAM1, 30L, 0);
+
+        // 3. Create a ReaderGroup where the lower and upper bound are the same.
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        groupManager.createReaderGroup("group", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM1), streamCut, streamCut)
+                .build());
+
+        // 4. Create a reader
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
+                                                                      ReaderConfig.builder().build());
+
+        // 5. Verify if configuration is enforced.
+        Assert.assertNull("Null is expected", reader.readNextEvent(1000).getEvent());
+    }
+
+    @Test(timeout = 60000)
     public void testBoundedStreamWithScaleTest() throws Exception {
         createScope(SCOPE);
         createStream(STREAM1);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
@@ -194,7 +246,7 @@ public class BoundedStreamReaderTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
 
-        ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+        ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                 .stream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
@@ -213,7 +265,7 @@ public class BoundedStreamReaderTest {
         //The following read should not return events 3, 4 due to the endStreamCut configuration.
         Assert.assertNull("Null is expected", reader1.readNextEvent(2000).getEvent());
 
-        final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+        final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                                              .stream(Stream.of(SCOPE, STREAM1),
                                                                      getStreamCut(STREAM1, 60L, 0),
                                                                      //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
@@ -226,6 +278,8 @@ public class BoundedStreamReaderTest {
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
                 ReaderConfig.builder().build());
+        assertNull(reader2.readNextEvent(100).getEvent());
+        readerGroup.initiateCheckpoint("c1", executorService());
         readAndVerify(reader2, 3, 4, 5);
         Assert.assertNull("Null is expected", reader2.readNextEvent(2000).getEvent());
     }
@@ -236,7 +290,7 @@ public class BoundedStreamReaderTest {
         createStream(STREAM3);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM3, serializer,
                 EventWriterConfig.builder().build());
@@ -309,9 +363,9 @@ public class BoundedStreamReaderTest {
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {
         ArrayList<String> results = new ArrayList<>(index.length);
         for (int i = 0; i < index.length; i++) {
-            String event = reader.readNextEvent(15000).getEvent();
+            String event = reader.readNextEvent(1000).getEvent();
             while (event == null) { //try until a non null event is read.
-                event = reader.readNextEvent(15000).getEvent();
+                event = reader.readNextEvent(1000).getEvent();
             }
             results.add(event);
         }
@@ -319,23 +373,22 @@ public class BoundedStreamReaderTest {
     }
 
     private void createScope(final String scopeName) throws InterruptedException, ExecutionException {
-        controllerWrapper.getControllerService().createScope(scopeName).get();
+        controllerWrapper.getControllerService().createScope(scopeName, 0L).get();
     }
 
     private void createStream(String streamName) throws Exception {
         Controller controller = controllerWrapper.getController();
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controller.createStream(config).get();
+        val f1 = controller.createStream(SCOPE, streamName, config);
+        f1.get();
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executor).getFuture().get());
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executorService()).getFuture().get());
     }
 
     private void truncateStream(final String streamName, final StreamCut streamCut) throws Exception {

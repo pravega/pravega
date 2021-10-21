@@ -3,7 +3,7 @@
 
 <a name="overview"></a>
 ## Overview
-List of admin REST APIs for the pravega controller service.
+List of admin REST APIs for the Pravega controller service.
 
 
 ### Version information
@@ -23,6 +23,7 @@ List of admin REST APIs for the pravega controller service.
 
 ### Tags
 
+* Health : Health check related APIs
 * ReaderGroups : Reader group related APIs
 * Scopes : Scope related APIs
 * Streams : Stream related APIs
@@ -32,6 +33,474 @@ List of admin REST APIs for the pravega controller service.
 
 <a name="paths"></a>
 ## Paths
+
+<a name="gethealth"></a>
+### GET /health
+
+#### Description
+Return the Health of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The Health result of the Controller.|[HealthResult](#healthresult)|
+|**500**|Internal server error while fetching the Health.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{
+  "name" : "string",
+  "status" : { },
+  "readiness" : true,
+  "liveness" : true,
+  "details" : { },
+  "children" : {
+    "string" : "[healthresult](#healthresult)"
+  }
+}
+```
+
+
+<a name="getdetails"></a>
+### GET /health/details
+
+#### Description
+Fetch the details of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The list of details.|[HealthDetails](#healthdetails)|
+|**500**|Internal server error while fetching the health details of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/details
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributordetails"></a>
+### GET /health/details/{id}
+
+#### Description
+Fetch the details of a specific health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The list of details for the health contributor with a given id.|[HealthDetails](#healthdetails)|
+|**404**|The health details for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the health details for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/details/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getliveness"></a>
+### GET /health/liveness
+
+#### Description
+Fetch the liveness state of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The alive status.|boolean|
+|**500**|Internal server error while fetching the liveness state of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/liveness
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getcontributorliveness"></a>
+### GET /health/liveness/{id}
+
+#### Description
+Fetch the liveness state of the specified health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The alive status for the specified health contributor.|boolean|
+|**404**|The liveness status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the liveness state for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/liveness/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getreadiness"></a>
+### GET /health/readiness
+
+#### Description
+Fetch the ready state of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The ready status.|boolean|
+|**500**|Internal server error while fetching the ready state of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/readiness
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getcontributorreadiness"></a>
+### GET /health/readiness/{id}
+
+#### Description
+Fetch the ready state of the health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The readiness status for the health contributor with given id.|boolean|
+|**404**|The readiness status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the ready state for a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/readiness/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+true
+```
+
+
+<a name="getstatus"></a>
+### GET /health/status
+
+#### Description
+Fetch the status of the Controller service.
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The health status of the Controller.|[HealthStatus](#healthstatus)|
+|**500**|Internal server error while fetching the health status of the Controller.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/status
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributorstatus"></a>
+### GET /health/status/{id}
+
+#### Description
+Fetch the status of a specific health contributor.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The health status of the Controller.|[HealthStatus](#healthstatus)|
+|**404**|The health status for the contributor with given id was not found.|No Content|
+|**500**|Internal server error while fetching the health status of a given health contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/status/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{ }
+```
+
+
+<a name="getcontributorhealth"></a>
+### GET /health/{id}
+
+#### Description
+Return the Health of a health contributor with a given id.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**id**  <br>*required*|The id of an existing health contributor.|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|The Health result of the Controller.|[HealthResult](#healthresult)|
+|**404**|A health provider for the given id could not be found.|No Content|
+|**500**|Internal server error while fetching the health for a given contributor.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* Health
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/health/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```json
+{
+  "name" : "string",
+  "status" : { },
+  "readiness" : true,
+  "liveness" : true,
+  "details" : { },
+  "children" : {
+    "string" : "[healthresult](#healthresult)"
+  }
+}
+```
+
 
 <a name="createscope"></a>
 ### POST /scopes
@@ -88,7 +557,6 @@ Create a new scope
 
 ##### Request body
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -99,7 +567,6 @@ json :
 
 ##### Response 201
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -110,7 +577,7 @@ json :
 ### GET /scopes
 
 #### Description
-List all available scopes in pravega
+List all available scopes in Pravega
 
 
 #### Responses
@@ -143,7 +610,6 @@ List all available scopes in pravega
 
 ##### Response 200
 ```json
-json :
 {
   "scopes" : [ {
     "scopeName" : "string"
@@ -197,7 +663,6 @@ Retrieve details of an existing scope
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -286,7 +751,6 @@ List reader groups within the given scope
 
 ##### Response 200
 ```json
-json :
 {
   "readerGroups" : [ "object" ]
 }
@@ -339,7 +803,6 @@ Fetch the properties of an existing reader group
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "readerGroupName" : "string",
@@ -369,8 +832,11 @@ Create a new stream
 |Name|Description|Schema|
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -408,7 +874,6 @@ Create a new stream
 
 ##### Request body
 ```json
-json :
 {
   "streamName" : "string",
   "scalingPolicy" : {
@@ -419,8 +884,22 @@ json :
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
-  }
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
+  },
+  "streamTags" : { },
+  "timestampAggregationTimeout" : { },
+  "rolloverSizeBytes" : { }
 }
 ```
 
@@ -429,7 +908,6 @@ json :
 
 ##### Response 201
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -441,8 +919,20 @@ json :
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
-  }
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
+  },
+  "tags" : { }
 }
 ```
 
@@ -459,7 +949,8 @@ List streams within the given scope
 |Type|Name|Description|Schema|
 |---|---|---|---|
 |**Path**|**scopeName**  <br>*required*|Scope name|string|
-|**Query**|**showInternalStreams**  <br>*optional*|Optional flag whether to display system created streams. If not specified only user created streams will be returned|string|
+|**Query**|**filter_type**  <br>*optional*|Filter options|enum (showInternalStreams, tag)|
+|**Query**|**filter_value**  <br>*optional*|value to be passed. must match the type passed with it.|string|
 
 
 #### Responses
@@ -489,20 +980,10 @@ List streams within the given scope
 ```
 
 
-##### Request query
-```json
-json :
-{
-  "showInternalStreams" : "string"
-}
-```
-
-
 #### Example HTTP response
 
 ##### Response 200
 ```json
-json :
 {
   "streams" : [ {
     "scopeName" : "string",
@@ -515,8 +996,20 @@ json :
     },
     "retentionPolicy" : {
       "type" : "string",
-      "value" : 0
-    }
+      "value" : 0,
+      "timeBasedRetention" : {
+        "days" : 0,
+        "hours" : 0,
+        "minutes" : 0
+      },
+      "maxValue" : 0,
+      "maxTimeBasedRetention" : {
+        "days" : 0,
+        "hours" : 0,
+        "minutes" : 0
+      }
+    },
+    "tags" : { }
   } ]
 }
 ```
@@ -568,7 +1061,6 @@ Fetch the properties of an existing stream
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -580,8 +1072,20 @@ json :
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
-  }
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
+  },
+  "tags" : { }
 }
 ```
 
@@ -607,7 +1111,10 @@ Update configuration of an existing stream
 |Name|Description|Schema|
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
+|**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -644,7 +1151,6 @@ Update configuration of an existing stream
 
 ##### Request body
 ```json
-json :
 {
   "scalingPolicy" : {
     "type" : "string",
@@ -654,8 +1160,22 @@ json :
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
-  }
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
+  },
+  "streamTags" : { },
+  "timestampAggregationTimeout" : { },
+  "rolloverSizeBytes" : { }
 }
 ```
 
@@ -664,7 +1184,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -676,8 +1195,20 @@ json :
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
-  }
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
+  },
+  "tags" : { }
 }
 ```
 
@@ -760,17 +1291,7 @@ Get scaling events for a given datetime period.
 
 ##### Request path
 ```
-/scopes/string/streams/string/scaling-events
-```
-
-
-##### Request query
-```json
-json :
-{
-  "from" : 0,
-  "to" : 0
-}
+/scopes/string/streams/string/scaling-events?from=0&to=0
 ```
 
 
@@ -778,7 +1299,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "scalingEvents" : [ {
     "timestamp" : 0,
@@ -787,7 +1307,9 @@ json :
       "startTime" : 0,
       "keyStart" : 0,
       "keyEnd" : 0
-    } ]
+    } ],
+    "splits" : 0,
+    "merges" : 0
   } ]
 }
 ```
@@ -843,7 +1365,6 @@ Updates the current state of the stream
 
 ##### Request body
 ```json
-json :
 {
   "streamState" : "string"
 }
@@ -854,7 +1375,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "streamState" : "string"
 }
@@ -865,6 +1385,29 @@ json :
 
 <a name="definitions"></a>
 ## Definitions
+
+<a name="healthdetails"></a>
+### HealthDetails
+*Type* : < string, string > map
+
+
+<a name="healthresult"></a>
+### HealthResult
+
+|Name|Description|Schema|
+|---|---|---|
+|**children**  <br>*optional*|**Example** : `{<br>  "string" : "[healthresult](#healthresult)"<br>}`|< string, [HealthResult](#healthresult) > map|
+|**details**  <br>*optional*|**Example** : `"[healthdetails](#healthdetails)"`|[HealthDetails](#healthdetails)|
+|**liveness**  <br>*optional*|**Example** : `true`|boolean|
+|**name**  <br>*optional*|**Example** : `"string"`|string|
+|**readiness**  <br>*optional*|**Example** : `true`|boolean|
+|**status**  <br>*optional*|**Example** : `"[healthstatus](#healthstatus)"`|[HealthStatus](#healthstatus)|
+
+
+<a name="healthstatus"></a>
+### HealthStatus
+*Type* : enum (UP, STARTING, NEW, UNKNOWN, FAILED, DOWN)
+
 
 <a name="readergroupproperty"></a>
 ### ReaderGroupProperty
@@ -897,8 +1440,16 @@ json :
 
 |Name|Description|Schema|
 |---|---|---|
-|**type**  <br>*optional*|**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
+|**maxTimeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**maxValue**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**timeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**type**  <br>*optional*|Indicates if retention is by space or time.  <br>**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
 |**value**  <br>*optional*|**Example** : `0`|integer (int64)|
+
+
+<a name="rolloversizebytes"></a>
+### RolloverSizeBytes
+*Type* : long
 
 
 <a name="scalemetadata"></a>
@@ -906,7 +1457,9 @@ json :
 
 |Name|Description|Schema|
 |---|---|---|
+|**merges**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**segmentList**  <br>*optional*|**Example** : `[ "[segment](#segment)" ]`|< [Segment](#segment) > array|
+|**splits**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**timestamp**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
@@ -965,6 +1518,7 @@ json :
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**scopeName**  <br>*optional*|**Example** : `"string"`|string|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
+|**tags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
 
 
 <a name="streamstate"></a>
@@ -981,6 +1535,26 @@ json :
 |Name|Description|Schema|
 |---|---|---|
 |**streams**  <br>*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
+
+
+<a name="tagslist"></a>
+### TagsList
+*Type* : < string > array
+
+
+<a name="timebasedretention"></a>
+### TimeBasedRetention
+
+|Name|Description|Schema|
+|---|---|---|
+|**days**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**hours**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**minutes**  <br>*optional*|**Example** : `0`|integer (int64)|
+
+
+<a name="timestampaggregationtimeout"></a>
+### TimestampAggregationTimeout
+*Type* : long
 
 
 

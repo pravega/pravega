@@ -1,27 +1,38 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -43,6 +54,7 @@ public class ControllerStreamMetadataTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
+    private ServiceBuilder serviceBuilder;
     private StreamConfiguration streamConfiguration = null;
 
     @Before
@@ -57,11 +69,12 @@ public class ControllerStreamMetadataTest {
             this.zkTestServer = new TestingServerStarter().start();
 
             // 2. Start Pravega service.
-            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
 
-            this.server = new PravegaConnectionListener(false, servicePort, store);
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
 
             // 3. Start controller
@@ -70,8 +83,6 @@ public class ControllerStreamMetadataTest {
             this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
-                    .scope(SCOPE)
-                    .streamName(STREAM)
                     .scalingPolicy(ScalingPolicy.fixed(1))
                     .build();
         } catch (Exception e) {
@@ -91,6 +102,10 @@ public class ControllerStreamMetadataTest {
                 this.server.close();
                 this.server = null;
             }
+            if (this.serviceBuilder != null) {
+                this.serviceBuilder.close();
+                this.serviceBuilder = null;
+            }
             if (this.zkTestServer != null) {
                 this.zkTestServer.close();
                 this.zkTestServer = null;
@@ -109,13 +124,13 @@ public class ControllerStreamMetadataTest {
         assertTrue(controller.deleteScope(SCOPE).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        assertFalse(Futures.await(controller.createStream(streamConfiguration)));
+        assertFalse(Futures.await(controller.createStream(SCOPE, STREAM, streamConfiguration)));
 
         // Again create the scope.
         assertTrue(controller.createScope(SCOPE).join());
 
         // Try creating the stream again. It should succeed now, since the scope exists.
-        assertTrue(controller.createStream(streamConfiguration).join());
+        assertTrue(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
         assertFalse(Futures.await(controller.deleteScope(SCOPE)));
@@ -124,7 +139,7 @@ public class ControllerStreamMetadataTest {
         assertFalse(controller.createScope(SCOPE).join());
 
         // Try creating already existing stream.
-        assertFalse(controller.createStream(streamConfiguration).join());
+        assertFalse(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
 
         // Delete test stream. This operation should fail, since it is not yet SEALED.
         assertFalse(Futures.await(controller.deleteStream(SCOPE, STREAM)));
@@ -148,17 +163,19 @@ public class ControllerStreamMetadataTest {
         assertFalse(Futures.await(controller.createScope("abc/def")));
 
         // Try creating stream with invalid characters. It should fail.
-        assertFalse(Futures.await(controller.createStream(StreamConfiguration.builder()
-                                                                             .scope(SCOPE)
-                                                                             .streamName("abc/def")
+        assertFalse(Futures.await(controller.createStream(SCOPE, "abc/def", StreamConfiguration.builder()
                                                                              .scalingPolicy(ScalingPolicy.fixed(1))
                                                                              .build())));
     }
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
+        ClientConfig config = ClientConfig.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        ConnectionPool cp = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
+        
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
 
         // Create and delete scope
         assertTrue(streamManager.createScope(SCOPE));

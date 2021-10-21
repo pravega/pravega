@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -13,13 +19,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.RawClient;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -27,8 +33,11 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -37,26 +46,36 @@ import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
+import io.pravega.segmentstore.server.host.handler.TrackedConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -65,41 +84,44 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
-public class AppendTest {
-    private Level originalLevel;
-    private ServiceBuilder serviceBuilder;
+@Slf4j
+public class AppendTest extends LeakDetectorTestSuite {
+    private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.builder()
+                                                                              .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
+                                                                              .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
+                                                                              .build());
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
-    @Before
-    public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize();
+    @BeforeClass
+    public static void setup() throws Exception {
+        SERVICE_BUILDER.initialize();
     }
 
-    @After
-    public void teardown() {
-        this.serviceBuilder.close();
-        ResourceLeakDetector.setLevel(originalLevel);
+    @AfterClass
+    public static void teardown() {
+        SERVICE_BUILDER.close();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSetupOnNonExistentSegment() throws Exception {
-        String segment = "123";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        String segment = "testSetupOnNonExistentSegment";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
@@ -109,16 +131,16 @@ public class AppendTest {
         assertEquals(segment, setup.getSegment());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void sendReceivingAppend() throws Exception {
-        String segment = "123";
+        String segment = "sendReceivingAppend";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, ""));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
@@ -128,7 +150,32 @@ public class AppendTest {
         assertEquals(uuid, setup.getWriterId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      new Append(segment, uuid, data.readableBytes(), data, null));
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data), 1L));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(data.readableBytes(), ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+    }
+    
+    @Test(timeout = 10000)
+    public void sendLargeAppend() throws Exception {
+        String segment = "sendLargeAppend";
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data), 1L));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
@@ -136,13 +183,13 @@ public class AppendTest {
 
     @Test(timeout = 10000)
     public void testMultipleAppends() throws Exception {
-        String segment = "123";
+        String segment = "testMultipleAppends";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, ""));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
@@ -153,13 +200,13 @@ public class AppendTest {
 
         data.retain();
         DataAppended ack = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 1, data, null));
+                new Append(segment, uuid, 1, new Event(data), 1L));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(1, ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
 
         DataAppended ack2 = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 2, data, null));
+                new Append(segment, uuid, 2, new Event(data), 1L));
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
@@ -168,13 +215,15 @@ public class AppendTest {
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
+        log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();
-        for (int i = 0; encodedReply == null && i < 50; i++) {
+        for (int i = 0; encodedReply == null && i < 500; i++) {
             channel.runPendingTasks();
             Thread.sleep(10);
             encodedReply = channel.readOutbound();
         }
         if (encodedReply == null) {
+            log.error("Error while try waiting for a response from Segment Store");
             throw new IllegalStateException("No reply to request: " + request);
         }
         WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
@@ -186,81 +235,97 @@ public class AppendTest {
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh), null));
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
+                                               .store(store)
+                                               .connection(new TrackedConnection(lsh))
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
+                                               .build());
         return channel;
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "scope";
-        String stream = "stream";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        String stream = "appendThroughSegmentClient";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProviderFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), ack));
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "scope";
-        String stream = "stream";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        String stream = "appendThroughConditionalClient";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "appendThroughStreamingClient";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -274,15 +339,66 @@ public class AppendTest {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test(timeout = 40000)
+
+    @Test(timeout = 100000)
+    public void appendALotOfData() {
+        String endpoint = "localhost";
+        String scope = "Scope";
+        String streamName = "appendALotOfData";
+        int port = TestUtils.getAvailableListenPort();
+        long heapSize = Runtime.getRuntime().maxMemory();
+        long messageSize = Math.min(1024 * 1024, heapSize / 20000);
+        ByteBuffer payload = ByteBuffer.allocate((int) messageSize);
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup("shutdown")
+        InlineExecutor tokenExpiryExecutor = new InlineExecutor();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor);
+        server.startListening();
+        ClientConfig config = ClientConfig.builder().build();
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(config);
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(config, clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
+        @Cleanup
+        StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionPool);
+        streamManager.createScope(scope);
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, config);
+        streamManager.createStream("Scope", streamName,
+                                   StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+        @Cleanup
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(),
+                                                                                 EventWriterConfig.builder().build());
+        @Cleanup
+        RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionPool);
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 100; j++) {
+                producer.writeEvent(payload.slice());
+            }
+            producer.flush();
+            long requestId = rawClient.getFlow().getNextSequenceNumber();
+            String scopedName = new Segment(scope, streamName, 0).getScopedName();
+            WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, scopedName,
+                                                                                    i * 100L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
+            Reply reply = rawClient.sendRequest(requestId, request).join();
+            assertFalse(reply.toString(), reply.isFailure());
+        }
+        producer.close();
+    }
+
+
+    @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "miniBenchmark";
         int port = TestUtils.getAvailableListenPort();
-        String testString = "Hello world\n";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        byte[] testPayload = new byte[1000];
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -291,26 +407,33 @@ public class AppendTest {
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        long blockingTime = timeWrites(testString, 200, producer, true);
-        long nonBlockingTime = timeWrites(testString, 1000, producer, false);
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
+        long blockingTime = timeWrites(testPayload, 3000, producer, true);
+        long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
-        assertTrue(blockingTime < 15000);
-        assertTrue(nonBlockingTime < 15000);
+        assertTrue(blockingTime < 10000);
+        assertTrue(nonBlockingTime < 10000);
     }
 
-    private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
+    private long timeWrites(byte[] testPayload, int number, EventStreamWriter<ByteBuffer> producer, boolean synchronous)
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
+        AtomicLong maxLatency = new AtomicLong(0);
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
+            Timer latencyTimer = new Timer();
+            CompletableFuture<Void> ack = producer.writeEvent(ByteBuffer.wrap(testPayload));
+            ack.thenRun(() -> {
+                long elapsed = latencyTimer.getElapsedNanos();
+                maxLatency.getAndUpdate(l -> Math.max(elapsed, l));
+            });
             if (synchronous) {
                 ack.get(5, TimeUnit.SECONDS);
             }
         }
         producer.flush();
+        System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
-    
+
 }

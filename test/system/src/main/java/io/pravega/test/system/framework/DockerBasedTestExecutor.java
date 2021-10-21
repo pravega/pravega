@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework;
 
@@ -29,10 +35,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Assert;
 
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
@@ -44,18 +50,24 @@ public class DockerBasedTestExecutor implements TestExecutor {
 
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
+    private static final String LOG_LEVEL = System.getProperty("log.level", "DEBUG");
     private final AtomicReference<String> id = new AtomicReference<String>();
     private final String masterIp = Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     private final DockerClient client = DefaultDockerClient.builder().uri("http://" + masterIp
-             + ":" + DOCKER_CLIENT_PORT).build();
+            + ":" + DOCKER_CLIENT_PORT).build();
     private final String expectedDockerApiVersion = "1.22";
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
+
+    @After
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(executorService);
+    }
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         try {
-            final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
+            final String dockerApiVersion = Exceptions.handleInterruptedCall(() -> client.version().apiVersion());
             if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
                 throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Docker API doesnt match." +
                         "Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
@@ -76,7 +88,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
         }).thenCompose(v2 -> waitForJobCompletion())
                 .<Void>thenApply(v1 -> {
                     try {
-                        if (Exceptions.handleInterrupted(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
+                        if (Exceptions.handleInterruptedCall(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
@@ -112,7 +124,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
     private boolean isTestRunning() {
         boolean value = false;
         try {
-            if (Exceptions.handleInterrupted(() -> client.inspectContainer(this.id.get()).state().running())) {
+            if (Exceptions.handleInterruptedCall(() -> client.inspectContainer(this.id.get()).state().running())) {
                 value = true;
             }
         } catch (DockerException e) {
@@ -126,7 +138,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
         try {
             Exceptions.handleInterrupted(() -> client.pull(IMAGE));
 
-            ContainerCreation containerCreation = Exceptions.handleInterrupted(() -> client.
+            ContainerCreation containerCreation = Exceptions.handleInterruptedCall(() -> client.
                     createContainer(setContainerConfig(methodName, className), containerName));
             assertFalse(containerCreation.id().toString().equals(null));
 
@@ -141,7 +153,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                         "to the container.Test failure", e);
             }
 
-            String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.
+            String networkId = Exceptions.handleInterruptedCall(() -> client.listNetworks(DockerClient.ListNetworksParam.
                     byNetworkName(DOCKER_NETWORK)).get(0).id());
             //Container should be connect to the user-defined overlay network to communicate with all the services deployed.
             Exceptions.handleInterrupted(() -> client.connectToNetwork(id.get(), networkId));
@@ -172,7 +184,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                 .user("root")
                 .workingDir("/data")
                 .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType",
-                        "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
+                        "LOCAL") + " -Dlog.level=" + LOG_LEVEL +  " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
                         "SingleJUnitTestRunner " + className + "#" + methodName + " > server.log 2>&1")
                 .labels(labels)
                 .build();

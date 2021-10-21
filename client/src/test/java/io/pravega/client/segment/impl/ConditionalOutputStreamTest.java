@@ -1,18 +1,29 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -22,8 +33,12 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+
+import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -36,13 +51,18 @@ import static org.mockito.ArgumentMatchers.any;
 
 public class ConditionalOutputStreamTest {
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     public void testWrite() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory);
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -55,9 +75,9 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (argument.getExpectedOffset() == 0 || argument.getExpectedOffset() == 2) {
-                    processor.process(new WireCommands.DataAppended(argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 } else { 
-                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber()));
+                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), argument.getRequestId()));
                 }
                 return null;
             }
@@ -67,25 +87,35 @@ public class ConditionalOutputStreamTest {
         assertTrue(cOut.write(data, 2));
         assertFalse(cOut.write(data, 3));
     }
-    
-    @Test
-    public void testClose() throws SegmentSealedException {
+
+    @Test(timeout = 10000)
+    public void testClose() {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory);
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
         cOut.close();
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> cOut.write(ByteBuffer.allocate(0), 0));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> cOut.write(ByteBufferUtils.EMPTY, 0));
     }
-    
-    @Test
+
+    @Test(timeout = 10000)
     public void testRetries() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory);
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -101,7 +131,7 @@ public class ConditionalOutputStreamTest {
                 if (count.getAndIncrement() < 2) {
                     processor.connectionDropped();
                 } else {
-                    processor.process(new WireCommands.DataAppended(argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 }                
                 return null;
             }
@@ -123,16 +153,22 @@ public class ConditionalOutputStreamTest {
             }
         }).when(mock).send(any(SetupAppend.class));
     }
-    
+
     @Test(timeout = 10000)
-    public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
+    public void testSegmentSealed() throws ConnectionFailedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory);
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
-        
+
+        String mockClientReplyStackTrace = "SomeException";
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, mock);
@@ -142,11 +178,162 @@ public class ConditionalOutputStreamTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
-                processor.process(new WireCommands.SegmentIsSealed(argument.getEventNumber(), segment.getScopedName()));
+                processor.process(new WireCommands.SegmentIsSealed(argument.getRequestId(), segment.getScopedName(), mockClientReplyStackTrace,
+                                                                   argument.getEventNumber()));
                 return null;
             }
         }).when(mock).send(any(ConditionalAppend.class));
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> cOut.write(data, 0));
+    }
+
+    @SneakyThrows
+    @Test(timeout = 10000)
+    public void testRetriesOnTokenExpiry() {
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        final AtomicLong retryCounter = new AtomicLong(0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+
+                if (retryCounter.getAndIncrement() < 2) {
+                    processor.process(new WireCommands.AuthTokenCheckFailed(argument.getRequestId(), "SomeException",
+                            WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                } else {
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(),
+                            argument.getWriterId(), argument.getEventNumber(), 0, -1));
+                }
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        assertTrue(objectUnderTest.write(data, 0));
+        assertEquals(3, retryCounter.get());
+    }
+    
+    @SneakyThrows
+    @Test(timeout = 10000)
+    public void testRetriesOnInvalidEventNumber() {
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        final AtomicLong retryCounter = new AtomicLong(0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+
+                if (retryCounter.getAndIncrement() < 2) {
+                    processor.process(new WireCommands.InvalidEventNumber(argument.getWriterId(), argument.getRequestId(), ""));
+                } else {
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(),
+                            argument.getWriterId(), argument.getEventNumber(), 0, -1));
+                }
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        assertTrue(objectUnderTest.write(data, 0));
+        assertEquals(3, retryCounter.get());
+    }
+
+    @Test(timeout = 10000)
+    public void testNonExpiryTokenCheckFailure() throws ConnectionFailedException {
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+                processor.process(new WireCommands.AuthTokenCheckFailed(argument.getRequestId(), "SomeException",
+                                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        AssertExtensions.assertThrows(AuthenticationException.class, () -> objectUnderTest.write(data, 0));
+    }
+
+    @Test
+    public void handleUnexpectedReplythrowsAppropriateTokenExceptions() {
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStreamImpl objectUnderTest = (ConditionalOutputStreamImpl) factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED), "test"),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.UNSPECIFIED), "test"),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("TokenExpiredException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED), "test"),
+                e -> e instanceof TokenExpiredException);
+        
+        AssertExtensions.assertThrows("InvalidEventNumber wasn't treated as a connection failure",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.InvalidEventNumber(UUID.randomUUID(), 1, "SomeException"), "test"),
+                e -> e instanceof ConnectionFailedException);
+        
+        AssertExtensions.assertThrows("Hello wasn't treated as a connection failure",
+                                      () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.Hello(1, 1), "test"),
+                                      e -> e instanceof ConnectionFailedException);
     }
     
     /**
@@ -154,11 +341,15 @@ public class ConditionalOutputStreamTest {
      */
     @Test(timeout = 10000)
     public void testOnlyOneWriteAtATime() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController("localhost", 0, connectionFactory);
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
@@ -171,9 +362,10 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (replies.take()) {                    
-                    processor.process(new WireCommands.DataAppended(argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 } else {
-                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber()));
+                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(),
+                                                                              argument.getRequestId()));
                 }
                 return null;
             }

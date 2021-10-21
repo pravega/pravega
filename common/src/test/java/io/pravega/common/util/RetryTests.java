@@ -1,30 +1,37 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Test methods for Retry utilities
@@ -106,6 +113,7 @@ public class RetryTests {
 
     @Test
     public void retryFutureTests() {
+        @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
@@ -163,18 +171,14 @@ public class RetryTests {
     }
 
     @Test
-    public void retryFutureInExecutorTests() {
+    public void retryFutureInExecutorTests() throws ExecutionException {
+        @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
         begin = Instant.now();
         final CompletableFuture<Void> result1 = retryFutureInExecutor(uniformDelay, 1, maxLoops, maxDelay, true, executorService);
-        try {
-            Exceptions.handleInterrupted(() -> result1.get());
-        } catch (ExecutionException e) {
-            log.debug("Exception not expected", e);
-            fail("Exception observed in retryInExecutor");
-        }
+        Exceptions.handleInterrupted(() -> result1.get());
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
         log.debug("Expected duration = {}", expectedDurationUniform);
@@ -199,12 +203,7 @@ public class RetryTests {
         // 3. exponential backoff
         begin = Instant.now();
         final CompletableFuture<Void> result3 = retryFutureInExecutor(exponentialInitialDelay, multiplier, maxLoops, maxDelay, true, executorService);
-        try {
-            Exceptions.handleInterrupted(() -> result3.get());
-        } catch (ExecutionException e) {
-            log.debug("Exception not expected", e);
-            fail("Exception observed in retryInExecutor");
-        }
+        Exceptions.handleInterrupted(() -> result3.get());
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
         log.debug("Expected duration = {}", expectedDurationExponential);
@@ -246,15 +245,28 @@ public class RetryTests {
     @Test
     public void retryIndefiniteTest() throws ExecutionException, InterruptedException {
         AtomicInteger i = new AtomicInteger(0);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         Retry.indefinitelyWithExpBackoff(10, 10, 10, e -> i.getAndIncrement())
                 .runAsync(() -> CompletableFuture.runAsync(() -> {
                     if (i.get() < 10) {
                         throw new RuntimeException("test");
                     }
-                }), Executors.newSingleThreadScheduledExecutor()).get();
+                }), pool).get();
         assert i.get() == 10;
     }
 
+    @Test
+    public void testNoRetry() {
+        AtomicInteger attempts = new AtomicInteger(0);
+        AssertExtensions.assertThrows("",
+                () -> Retry.NO_RETRY.run(() -> {
+                    attempts.incrementAndGet();
+                    throw new IntentionalException();
+                }),
+                ex -> ex instanceof IntentionalException);
+        Assert.assertEquals(1, attempts.get());
+    }
 
     private int retry(long delay,
                       int multiplier,

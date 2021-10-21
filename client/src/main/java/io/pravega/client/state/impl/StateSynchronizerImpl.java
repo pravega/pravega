@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state.impl;
 
@@ -17,6 +23,7 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.common.util.Retry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,11 +36,14 @@ import lombok.ToString;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static java.lang.String.format;
+
 @Slf4j
 @ToString(of = { "segment", "currentState" })
 public class StateSynchronizerImpl<StateT extends Revisioned>
         implements StateSynchronizer<StateT> {
 
+    private static final Retry.RetryWithBackoff RETRY_INDEFINITELY = Retry.withExpBackoff(1, 1, Integer.MAX_VALUE);
     private final RevisionedStreamClient<UpdateOrInit<StateT>> client;
     @GuardedBy("$lock")
     private StateT currentState;
@@ -81,40 +91,41 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 log.trace("Found entry {} ", entry.getValue());
                 if (entry.getValue().isInit()) {
                     InitialUpdate<StateT> init = entry.getValue().getInit();
-                    if (isNewer(entry.getKey())) {
-                        updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
-                    }
+                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
             }
         } catch (TruncatedDataException e) {
-            log.warn("{} encountered truncation on segment {}", this, segment);
-            handleTruncation();
+            log.info("{} encountered truncation on segment {}, Details: {}", this, segment, e.getMessage());
+            RETRY_INDEFINITELY
+                 .retryingOn(TruncatedDataException.class)
+                 .throwingOn(RuntimeException.class)
+                 .run(() -> handleTruncation());
         }
     }
     
-    private void handleTruncation() {
-        log.info(this + " Encountered truncation");
+    private Void handleTruncation() {
         Revision revision = getRevisionToReadFrom(false);
-        log.trace("Fetching updates after {} ", revision);
+        log.info("{} encountered truncation, attempting to read from revision {}", this, revision);
         boolean foundInit = false;
         val iter = client.readFrom(revision);
+        Revision currentRevision = null;
         while (!foundInit && iter.hasNext()) {
             Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
+            currentRevision = entry.getKey();
             if (entry.getValue().isInit()) {
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
-                if (isNewer(entry.getKey())) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
-                    foundInit = true;
-                }
+                foundInit = true;
+                updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
             }
         }
         if (!foundInit) {
-            throw new IllegalStateException("Data was truncated but there is not init after the truncation point.");
+            throw new IllegalStateException(format("Data was truncated but there is no Init state after the truncation point. Last read revision is %s", currentRevision));
         }
         fetchUpdates();
+        return null;
     }
 
     private void applyUpdates(Revision readRevision, List<? extends Update<StateT>> updates) {
@@ -199,6 +210,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision oldMark = client.getMark();
             if (oldMark == null || oldMark.compareTo(newMark) < 0) {
                 client.compareAndSetMark(oldMark, newMark);
+                log.info("Compacted state is written at {} the oldMark is {}", newMark, oldMark);
+            }
+            if (oldMark != null) {
+                client.truncateToRevision(oldMark);
             }
         }
     }
@@ -217,16 +232,18 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision revision = state.getRevision();
             UpdateOrInit<StateT> toWrite = generator.apply(state);
             if (toWrite == null) {
+                log.debug("Conditional write to segment {} completed as there is nothing to update after revision {}", segment, revision);
                 break;
             }
             Revision newRevision = client.writeConditionally(revision, toWrite);
-            log.trace("Conditionally write returned {} ", newRevision);
+            log.trace("Conditional write returned {} ", newRevision);
             if (newRevision == null) {
                 fetchUpdates();
             } else {
                 if (!toWrite.isInit()) {
                     applyUpdates(newRevision, toWrite.getUpdates());
                 }
+                log.debug("Conditional write to segment {} completed with revision {}", segment, newRevision);
                 break;
             }
         }
@@ -234,7 +251,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Synchronized
     private boolean isNewer(Revision revision) {
-        return currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        boolean result = currentState == null || currentState.getRevision().compareTo(revision) < 0;
+        if (!result ) {
+            log.debug("In memory state {} is newer than the provided revision {}", currentState.getRevision(), revision);
+        }
+        return result;
     }
 
     @Synchronized
@@ -247,9 +268,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void close() {
-        log.info("Closing stateSynchronizer ", this);
+        log.info("Closing stateSynchronizer {}", this);
         client.close();
     }
-
-
 }

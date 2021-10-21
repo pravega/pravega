@@ -1,44 +1,42 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.base.Preconditions;
-import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.
  */
 @Slf4j
-public class StreamSegmentService implements StreamSegmentStore {
-    //region Members
-
-    private final SegmentContainerRegistry segmentContainerRegistry;
-    private final SegmentToContainerMapper segmentToContainerMapper;
-
-    //endregion
+public class StreamSegmentService extends SegmentContainerCollection implements StreamSegmentStore {
 
     //region Constructor
 
@@ -49,8 +47,7 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @param segmentToContainerMapper The SegmentToContainerMapper to use to map StreamSegments to Containers.
      */
     public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        this.segmentContainerRegistry = Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
-        this.segmentToContainerMapper = Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
+        super(segmentContainerRegistry, segmentToContainerMapper);
     }
 
     //endregion
@@ -58,23 +55,23 @@ public class StreamSegmentService implements StreamSegmentStore {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, data, attributeUpdates, timeout),
-                "append", streamSegmentName, data.length, attributeUpdates);
+                "append", streamSegmentName, data.getLength(), attributeUpdates);
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, offset, data, attributeUpdates, timeout),
-                "appendWithOffset", streamSegmentName, offset, data.length, attributeUpdates);
+                "appendWithOffset", streamSegmentName, offset, data.getLength(), attributeUpdates);
     }
 
     @Override
-    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout),
@@ -82,11 +79,19 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+    public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.getAttributes(streamSegmentName, attributeIds, cache, timeout),
                 "getAttributes", streamSegmentName, attributeIds);
+    }
+
+    @Override
+    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.flushToStorage(timeout),
+                "flushToStorage");
     }
 
     @Override
@@ -98,27 +103,37 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.getStreamSegmentInfo(streamSegmentName, waitForPendingOps, timeout),
-                "getStreamSegmentInfo", streamSegmentName, waitForPendingOps);
+                container -> container.getStreamSegmentInfo(streamSegmentName, timeout),
+                "getStreamSegmentInfo", streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.createStreamSegment(streamSegmentName, attributes, timeout),
-                "createStreamSegment", streamSegmentName, attributes);
+                container -> container.createStreamSegment(streamSegmentName, segmentType, attributes, timeout),
+                "createStreamSegment", streamSegmentName, segmentType, attributes);
     }
 
     @Override
-    public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         return invoke(
                 sourceStreamSegment,
                 container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, timeout),
-                "mergeTransaction", targetStreamSegment, sourceStreamSegment);
+                "mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
+    }
+
+    @Override
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          AttributeUpdateCollection attributes, Duration timeout) {
+        return invoke(
+                sourceStreamSegment,
+                container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, attributes, timeout),
+                "mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
     }
 
     @Override
@@ -143,40 +158,6 @@ public class StreamSegmentService implements StreamSegmentStore {
                 streamSegmentName,
                 container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),
                 "truncateStreamSegment", streamSegmentName);
-    }
-
-    //endregion
-
-    //region Helpers
-
-    /**
-     * Executes the given Function on the SegmentContainer that the given Segment maps to.
-     *
-     * @param streamSegmentName The name of the StreamSegment to fetch the Container for.
-     * @param toInvoke          A Function that will be invoked on the Container.
-     * @param methodName        The name of the calling method (for logging purposes).
-     * @param logArgs           (Optional) A vararg array of items to be logged.
-     * @param <T>               Resulting type.
-     * @return Either the result of toInvoke or a CompletableFuture completed exceptionally with a ContainerNotFoundException
-     * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
-     */
-    private <T> CompletableFuture<T> invoke(String streamSegmentName, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
-                                            String methodName, Object... logArgs) {
-        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
-        SegmentContainer container;
-        try {
-            int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
-            container = this.segmentContainerRegistry.getContainer(containerId);
-        } catch (ContainerNotFoundException ex) {
-            return Futures.failedFuture(ex);
-        }
-
-        CompletableFuture<T> resultFuture = toInvoke.apply(container);
-        if (log.isTraceEnabled()) {
-            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
-        }
-
-        return resultFuture;
     }
 
     //endregion

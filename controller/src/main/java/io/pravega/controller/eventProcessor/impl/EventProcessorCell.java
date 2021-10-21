@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
@@ -32,6 +38,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This is an internal class that embeds the following.
@@ -52,10 +59,13 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final EventStreamReader<T> reader;
     private final EventStreamWriter<T> selfWriter;
     private final CheckpointStore checkpointStore;
+    @Getter(AccessLevel.PACKAGE)
     private final String process;
     private final String readerGroupName;
+    @Getter(AccessLevel.PACKAGE)
     private final String readerId;
     private final String objectId;
+    private final AtomicReference<Position> lastCheckpoint;
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -109,7 +119,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                     handleException(e);
                 }
             }
-
         }
 
         @Override
@@ -129,11 +138,11 @@ class EventProcessorCell<T extends ControllerEvent> {
 
                 // First close the reader, which implicitly notifies reader position to the reader group
                 log.info("Closing reader for {}", objectId);
-                reader.close();
-
-                // Next, clean up the reader and its position from checkpoint store
-                log.info("Cleaning up checkpoint store for {}", objectId);
-                checkpointStore.removeReader(process, readerGroupName, readerId);
+                try {
+                    reader.closeAt(getCheckpoint());
+                } catch (Exception e) {
+                    log.info("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
+                }
             }
         }
 
@@ -241,9 +250,10 @@ class EventProcessorCell<T extends ControllerEvent> {
         this.process = process;
         this.readerGroupName = eventProcessorConfig.getConfig().getReaderGroupName();
         this.readerId = readerId;
-        this.objectId = String.format("EventProcessor[%s:%s]", this.readerGroupName, index);
+        this.objectId = String.format("EventProcessor[%s:%d:%s]", this.readerGroupName, index, readerId);
         this.actor = createEventProcessor(eventProcessorConfig);
         this.delegate = new Delegate(eventProcessorConfig);
+        this.lastCheckpoint = new AtomicReference<>();
     }
 
     final void startAsync() {
@@ -259,6 +269,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
             delegate.stopAsync();
+            log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "stopAsync", traceId);
         }
@@ -281,16 +292,23 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     final void awaitTerminated() {
         delegate.awaitTerminated();
+        log.info("Event processor cell {} Terminated", this.objectId);
     }
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
         EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
-        eventProcessor.checkpointer = (Position position) ->
-        checkpointStore.setPosition(process, readerGroupName, readerId, position);
+        eventProcessor.checkpointer = (Position position) -> {
+            checkpointStore.setPosition(process, readerGroupName, readerId, position);
+            lastCheckpoint.set(position);
+        };
         eventProcessor.selfWriter = selfWriter::writeEvent;
         return eventProcessor;
     }
 
+    Position getCheckpoint() {
+        return lastCheckpoint.get();    
+    }
+    
     @Override
     public String toString() {
         return String.format("%s[%s]", objectId, this.delegate.state());

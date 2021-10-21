@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.store;
 
@@ -14,9 +20,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerManager;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -33,17 +42,22 @@ import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
+import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -59,13 +73,16 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilder implements AutoCloseable {
     //region Members
 
-    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(45);
     private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService coreExecutor;
     private final ScheduledExecutorService storageExecutor;
+    @Getter(AccessLevel.PUBLIC)
+    private final ScheduledExecutorService lowPriorityExecutor;
+    @Getter(AccessLevel.PUBLIC)
     private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
@@ -75,13 +92,12 @@ public class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<SegmentContainerFactory> containerFactory;
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
-    private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
+    private final AtomicReference<TableStore> tableStoreService;
     private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
     private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
     private Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator;
-    private Function<ComponentSetup, CacheFactory> cacheFactoryCreator;
     private Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator;
 
     //endregion
@@ -104,23 +120,30 @@ public class ServiceBuilder implements AutoCloseable {
         this.containerFactory = new AtomicReference<>();
         this.containerRegistry = new AtomicReference<>();
         this.containerManager = new AtomicReference<>();
-        this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
+        this.tableStoreService = new AtomicReference<>();
 
         // Setup default creators - we cannot use the ServiceBuilder unless all of these are setup.
         this.dataLogFactoryCreator = notConfiguredCreator(DurableDataLogFactory.class);
         this.storageFactoryCreator = notConfiguredCreator(StorageFactory.class);
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
-        this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
 
         // Setup Thread Pools.
-        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "core");
-        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage-io");
-        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
+        String instancePrefix = getInstanceIdPrefix(serviceConfig);
+        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core", Thread.NORM_PRIORITY);
+        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
+                instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
+        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
 
         this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
+    }
+
+    private String getInstanceIdPrefix(ServiceConfig serviceConfig) {
+        String id = serviceConfig.getInstanceId();
+        return id == null || id.isEmpty() ? "" : id + "-";
     }
 
     //endregion
@@ -133,10 +156,10 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.containerRegistry);
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
-        closeComponent(this.cacheFactory);
         this.cacheManager.close();
         this.threadPoolMetrics.close();
-        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
+        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor,
+                this.lowPriorityExecutor);
     }
 
     //endregion
@@ -183,19 +206,6 @@ public class ServiceBuilder implements AutoCloseable {
     }
 
     /**
-     * Attaches the given CacheFactory creator to this ServiceBuilder. The given Function will only not be invoked
-     * right away; it will be called when needed.
-     *
-     * @param cacheFactoryCreator The Function to attach.
-     * @return This ServiceBuilder.
-     */
-    public ServiceBuilder withCacheFactory(Function<ComponentSetup, CacheFactory> cacheFactoryCreator) {
-        Preconditions.checkNotNull(cacheFactoryCreator, "cacheFactoryCreator");
-        this.cacheFactoryCreator = cacheFactoryCreator;
-        return this;
-    }
-
-    /**
      * Attaches the given StreamSegmentStore creator to this ServiceBuilder. The given Function will not be invoked
      * right away; it will be called when needed.
      *
@@ -214,9 +224,18 @@ public class ServiceBuilder implements AutoCloseable {
 
     /**
      * Creates a new instance of StreamSegmentStore using the components generated by this class.
+     * @return The new instance of StreamSegmentStore using the components generated by this class.
      */
     public StreamSegmentStore createStreamSegmentService() {
         return getSingleton(this.streamSegmentService, this.streamSegmentStoreCreator);
+    }
+
+    /**
+     * Creates a new instance of TableStore using the components generated by this class.
+     * @return The new instance of TableStore using the components generated by this class.
+     */
+    public TableStore createTableStoreService() {
+        return getSingleton(this.tableStoreService, setup -> new TableService(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()));
     }
 
     /**
@@ -230,10 +249,12 @@ public class ServiceBuilder implements AutoCloseable {
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
 
+
+
     /**
      * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
      */
-    private SegmentContainerRegistry getSegmentContainerRegistry() {
+    public SegmentContainerRegistry getSegmentContainerRegistry() {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry);
     }
 
@@ -242,7 +263,7 @@ public class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-        return new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        return new SegmentToContainerMapper(serviceConfig.getContainerCount(), serviceConfig.isEnableAdminGateway());
     }
 
     protected WriterFactory createWriterFactory() {
@@ -251,15 +272,13 @@ public class ServiceBuilder implements AutoCloseable {
     }
 
     protected ReadIndexFactory createReadIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerReadIndexFactory(readIndexConfig, this.cacheManager, this.coreExecutor);
     }
 
     protected AttributeIndexFactory createAttributeIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
-        return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {
@@ -274,7 +293,13 @@ public class ServiceBuilder implements AutoCloseable {
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
         return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
-                writerFactory, storageFactory, this.coreExecutor);
+                writerFactory, storageFactory, this::createContainerExtensions, this.coreExecutor);
+    }
+
+    private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
+            SegmentContainer container, ScheduledExecutorService executor) {
+        TableExtensionConfig config = this.serviceBuilderConfig.getConfig(TableExtensionConfig::builder);
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(config, container, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -320,7 +345,7 @@ public class ServiceBuilder implements AutoCloseable {
             try {
                 t.close();
             } catch (Exception ex) {
-                log.error("Error while closing ServiceBuilder: {}.", ex);
+                log.error("Error while closing ServiceBuilder: ", ex);
             }
 
             target.set(null);
@@ -336,6 +361,7 @@ public class ServiceBuilder implements AutoCloseable {
      * be lost when the object is garbage collected or the process terminates.
      *
      * @param builderConfig The ServiceBuilderConfig to use.
+     * @return The new instance of the ServiceBuilder.
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig) {
         return newInMemoryBuilder(builderConfig, ExecutorServiceHelpers::newScheduledThreadPool);
@@ -348,18 +374,20 @@ public class ServiceBuilder implements AutoCloseable {
      * @param builderConfig   The ServiceBuilderConfig to use.
      * @param executorBuilder A Function that, given a thread count and a pool name, creates a ScheduledExecutorService
      *                        with the given number of threads that have the given name as prefix.
+     * @return The new instance of the ServiceBuilder.
      */
     @VisibleForTesting
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig, ExecutorBuilder executorBuilder) {
-        ServiceConfig serviceConfig = builderConfig.getConfig(ServiceConfig::builder);
+        ServiceConfig serviceConfig = builderConfig.getConfigBuilder(ServiceConfig::builder)
+            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
+            .build();
         ServiceBuilder builder;
         if (serviceConfig.isReadOnlySegmentStore()) {
             // Only components required for ReadOnly SegmentStore.
             builder = new ReadOnlyServiceBuilder(builderConfig, serviceConfig, executorBuilder);
         } else {
             // Components that are required for general SegmentStore.
-            builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder)
-                    .withCacheFactory(setup -> new InMemoryCacheFactory());
+            builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder);
         }
 
         // Components that are required for all types of SegmentStore.
@@ -376,7 +404,7 @@ public class ServiceBuilder implements AutoCloseable {
     @FunctionalInterface
     @VisibleForTesting
     public interface ExecutorBuilder {
-        ScheduledExecutorService apply(int threadPoolSize, String name);
+        ScheduledExecutorService apply(int threadPoolSize, String name, Integer threadPriority);
     }
 
     //endregion
@@ -397,7 +425,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         @Override
         protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT);
+            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
         }
 
         @Override
@@ -436,10 +464,10 @@ public class ServiceBuilder implements AutoCloseable {
     /**
      * Setup helper for a ServiceBuilder component.
      */
-    public static class ComponentSetup {
+    public static class ComponentSetup implements ConfigSetup {
         private final ServiceBuilder builder;
 
-        private ComponentSetup(ServiceBuilder builder) {
+        public ComponentSetup(ServiceBuilder builder) {
             this.builder = builder;
         }
 
@@ -449,12 +477,14 @@ public class ServiceBuilder implements AutoCloseable {
          * @param builderConstructor A Supplier that creates a ConfigBuilder for the desired configuration type.
          * @param <T>                The type of the Configuration to instantiate.
          */
+        @Override
         public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
             return this.builder.serviceBuilderConfig.getConfig(builderConstructor);
         }
 
         /**
          * Gets a pointer to the SegmentContainerRegistry for this ServiceBuilder.
+         * @return The pointer to the SegmentContainerRegistry.
          */
         public SegmentContainerRegistry getContainerRegistry() {
             return this.builder.getSegmentContainerRegistry();
@@ -462,6 +492,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         /**
          * Gets a pointer to the SegmentToContainerMapper for this ServiceBuilder.
+         * @return The pointer to the SegmentToContainerMapper.
          */
         public SegmentToContainerMapper getSegmentToContainerMapper() {
             return this.builder.segmentToContainerMapper;
@@ -469,6 +500,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         /**
          * Gets a pointer to the Core Executor Service for this ServiceBuilder.
+         * @return The pointer to the Core Executor Service.
          */
         public ScheduledExecutorService getCoreExecutor() {
             return this.builder.coreExecutor;
@@ -476,11 +508,27 @@ public class ServiceBuilder implements AutoCloseable {
 
         /**
          * Gets a pointer to the Executor Service for this ServiceBuilder that is used for Storage access.
+         * @return The pointer to the Executor Service.
          */
         public ScheduledExecutorService getStorageExecutor() {
             return this.builder.storageExecutor;
         }
     }
 
+    /**
+     * Setup helper for a ServiceBuilder component.
+     */
+    public static class ConfigSetupHelper implements ConfigSetup {
+        private final ServiceBuilderConfig builderConfig;
+
+        public ConfigSetupHelper(ServiceBuilderConfig builderConfig) {
+            this.builderConfig = builderConfig;
+        }
+
+        @Override
+        public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
+            return this.builderConfig.getConfig(builderConstructor);
+        }
+    }
     //endregion
 }

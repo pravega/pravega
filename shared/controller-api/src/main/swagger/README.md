@@ -1,11 +1,17 @@
 <!--
-Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 Instructions to generate Server REST API stubs
 
@@ -19,7 +25,7 @@ All REST API modifications should be done by updating the swagger/Controller.yam
 This can be done manually or by using the online editor at http://editor.swagger.io.
 
 ## Download Swagger codegen
-Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.3/swagger-codegen-cli-2.2.3.jar
+Download swagger-codegen-cli from maven - https://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.3/swagger-codegen-cli-2.2.3.jar
 
 ## Generate the API stubs using Swagger Codegen
 ```
@@ -39,9 +45,10 @@ In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED
 
 ## Generate documentation
 ### Download Swagger2Markup CLI
-https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.1/swagger2markup-cli-1.3.1.jar
+https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.3/swagger2markup-cli-1.3.3.jar
 
 ### Generate and save the markup documentation
 ```
-java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -f <pravega root>/documentation/src/docs/rest/restapis
+java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.3.jar  convert
+ -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -f <pravega root>/documentation/src/docs/rest/restapis
 ```

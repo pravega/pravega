@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -7,10 +7,16 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 version: '2'
 services:
   zookeeper:
-    image: jplock/zookeeper:3.5.2-alpha
+    image: zookeeper:3.6.1
     ports:
       - "2181:2181"
 
@@ -18,6 +24,7 @@ services:
     image: pravega/bookkeeper
     ports:
       - "3181:3181"
+    restart: always
     environment:
       ZK_URL: zookeeper:2181
       bookiePort: 3181
@@ -28,6 +35,7 @@ services:
       image: pravega/bookkeeper
       ports:
         - "3182:3182"
+      restart: always
       environment:
         ZK_URL: zookeeper:2181
         bookiePort: 3182
@@ -38,6 +46,7 @@ services:
       image: pravega/bookkeeper
       ports:
         - "3183:3183"
+      restart: always
       environment:
         ZK_URL: zookeeper:2181
         bookiePort: 3183
@@ -52,11 +61,11 @@ services:
     command: controller
     environment:
       WAIT_FOR: zookeeper:2181
-      REST_SERVER_PORT: 10080
-      CONTROLLER_SERVER_PORT: 9090
       ZK_URL: zookeeper:2181
+      REST_SERVER_PORT: 10080
       JAVA_OPTS: |
-        -Dconfig.controller.metricenableCSVReporter=false
+        -Dcontroller.service.rpc.listener.port=9090
+        -Dcontroller.service.rest.listener.port=10080
         -Xmx512m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
@@ -83,8 +92,10 @@ services:
       ZK_URL: zookeeper:2181
       CONTROLLER_URL: tcp://${HOST_IP}:9090
       JAVA_OPTS: |
-        -Dmetrics.enableCSVReporter=false
-        -Dpravegaservice.publishedIPAddress=${HOST_IP}
+        -Dpravegaservice.service.published.host.nameOrIp=${HOST_IP}
+        -Dbookkeeper.ensemble.size=2
+        -Dbookkeeper.ack.quorum.size=2
+        -Dbookkeeper.write.quorum.size=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError

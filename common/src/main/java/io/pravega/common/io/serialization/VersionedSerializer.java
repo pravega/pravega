@@ -1,33 +1,39 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Map;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
@@ -51,9 +57,10 @@ import lombok.val;
  * * Are incremental on top of the previous ones, can be added on the fly, and can be used to make format changes
  * without breaking backward or forward compatibility.
  * * Older code will read as many revisions as it knows about, so even if newer code encodes B revisions, older code that
- * only knows about A < B revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
- * knows about B revisions will be able to handle A < B revisions by reading as much as is available.
- * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions > A.
+ * only knows about {@literal A < B} revisions will only read the first A revisions, ignoring the rest. Similarly,
+ * newer code that knows about B revisions will be able to handle {@literal A < B} revisions by reading
+ * as much as is available.
+ * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions &gt; A.
  * * Once published, the format for a Version-Revision should never change, otherwise existing (older) code will not be
  * able to process that serialization.
  *
@@ -71,8 +78,8 @@ import lombok.val;
  * ** RevisionDataOutput has a requiresExplicitLength() to aid in determining which kind of OutputStream is being used.
  * ** RevisionDataOutput has a number of methods that can be used in calculating the length of Strings and other complex
  * structures.
- * ** Consider serializing to a FixedByteArrayOutputStream or EnhancedByteArrayOutputStream if you want to make use
- * of the RandomOutput features (automatic length measurement).
+ * ** Consider serializing to a {@link ByteBufferOutputStream} if you want to make use of the RandomOutput features
+ * (such as automatic length measurement).
  * *** Consider using {@code ByteArraySegment serialize(T object)} if you want the VersionedSerializer to do this for you.
  * Be mindful that this will create a new buffer for the serialization, which might affect performance.
  *
@@ -124,7 +131,7 @@ public abstract class VersionedSerializer<T> {
      * @throws IOException If an IO Exception occurred.
      */
     public ByteArraySegment serialize(T object) throws IOException {
-        val result = new EnhancedByteArrayOutputStream();
+        val result = new ByteBufferOutputStream();
         serialize(result, object);
         return result.getData();
     }
@@ -262,7 +269,7 @@ public abstract class VersionedSerializer<T> {
          */
         @SuppressWarnings("unchecked")
         SingleType() {
-            this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
+            this.versions = new FormatVersion[Byte.MAX_VALUE];
             declareVersions();
             Preconditions.checkArgument(this.versions[getWriteVersion()] != null, "Write version %s is not defined.", getWriteVersion());
         }
@@ -321,15 +328,13 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void serializeContents(OutputStream stream, TargetType o) throws IOException {
-            DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-
             val writeVersion = this.versions[getWriteVersion()];
-            dataOutput.writeByte(writeVersion.getVersion());
-            dataOutput.writeByte(writeVersion.getRevisions().size());
+            stream.write(writeVersion.getVersion());
+            stream.write(writeVersion.getRevisions().size());
 
             // Write each Revision for this Version, in turn.
             for (val r : writeVersion.getRevisions()) {
-                dataOutput.writeByte(r.getRevision());
+                stream.write(r.getRevision());
                 try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
                     r.getWriter().accept(o, revisionOutput);
                 }
@@ -380,17 +385,16 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void deserializeContents(InputStream stream, ReaderType target) throws IOException {
-            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-            byte version = dataInput.readByte();
+            byte version = readByte(stream);
             val readVersion = this.versions[version];
             ensureCondition(readVersion != null, "Unsupported version %d.", version);
 
-            byte revisionCount = dataInput.readByte();
+            byte revisionCount = readByte(stream);
             ensureCondition(revisionCount >= 0, "Data corruption: negative revision count.");
 
             int revisionIndex = 0;
             for (int i = 0; i < revisionCount; i++) {
-                byte revision = dataInput.readByte();
+                byte revision = readByte(stream);
                 val rd = readVersion.get(revisionIndex++);
                 try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
                     if (rd != null) {
@@ -400,6 +404,15 @@ public abstract class VersionedSerializer<T> {
                         rd.getReader().accept(revisionInput, target);
                     }
                 }
+            }
+        }
+
+        private byte readByte(InputStream in) throws IOException {
+            int ch = in.read();
+            if (ch < 0) {
+                throw new EOFException();
+            } else {
+                return (byte) ch;
             }
         }
     }
@@ -416,17 +429,17 @@ public abstract class VersionedSerializer<T> {
      *
      * Example:
      * * <pre>
-     * {@code
+     * <code>
      * class Segment { ... }
      *
-     * class SegmentSerializer extends VersionedSerializer.Direct<Segment> {
+     * class SegmentSerializer extends VersionedSerializer.Direct{@code <Segment>} {
      *    // This is the version we'll be serializing now. We have already introduced read support for Version 1, but
      *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
      *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
-     *    @Override
+     *    {@literal @}Override
      *    protected byte getWriteVersion() { return 0; }
      *
-     *    @Override
+     *    {@literal @}Override
      *    protected void declareVersions() {
      *      // We define all supported versions and their revisions here.
      *      version(0).revision(0, this::write00, this::read00)
@@ -453,7 +466,7 @@ public abstract class VersionedSerializer<T> {
      *    private void read10(RevisionDataInput input, Segment target) throws IOException { ... }
      * }
      * }
-     * </pre>
+     * </code></pre>
      *
      * @param <TargetType> Type of the object to serialize from and deserialize into.
      */
@@ -474,23 +487,23 @@ public abstract class VersionedSerializer<T> {
      *
      * Example:
      * <pre>
-     * {@code
+     *
      * class Attribute {
      *    private final Long value;
      *    private final Long lastUsed;
      *
      *    // Attribute class is immutable; it has a builder that helps create new instances (this can be generated with Lombok).
-     *    static class AttributeBuilder implements ObjectBuilder<Attribute> { ... }
+     *    static class AttributeBuilder implements ObjectBuilder{@code <Attribute>} { ... }
      * }
      *
-     * class AttributeSerializer extends VersionedSerializer.WithBuilder<Attribute, Attribute.AttributeBuilder> {
-     *    @Override
+     * class AttributeSerializer extends VersionedSerializer.WithBuilder{@code <Attribute, Attribute.AttributeBuilder>} {
+     *    {@literal @}Override
      *    protected byte getWriteVersion() { return 0; } // Version we're serializing at.
      *
-     *    @Override
+     *    {@literal @}Override
      *    protected Attribute.AttributeBuilder newBuilder() { return Attribute.builder(); }
      *
-     *    @Override
+     *    {@literal @}Override
      *    protected void declareVersions() {
      *        version(0).revision(0, this::write00, this::read00);
      *    }
@@ -499,7 +512,7 @@ public abstract class VersionedSerializer<T> {
      *
      *    private void read00(RevisionDataInput input, Attribute.AttributeBuilder target) throws IOException { ... }
      * }
-     * }
+     *
      * </pre>
      *
      * @param <TargetType> Type of the object to serialize from.
@@ -553,11 +566,11 @@ public abstract class VersionedSerializer<T> {
         /**
          * Deserializes data from the given ArrayView and creates a new object with the result.
          *
-         * @param data The ArrayView to deserialize from.
+         * @param data The BufferView to deserialize from.
          * @return A new instance of TargetType with the deserialized data.
          * @throws IOException If an IO Exception occurred.
          */
-        public TargetType deserialize(ArrayView data) throws IOException {
+        public TargetType deserialize(BufferView data) throws IOException {
             return deserialize(data.getReader());
         }
 
@@ -591,26 +604,26 @@ public abstract class VersionedSerializer<T> {
      *
      * Example:
      * <pre>
-     * {@code
+     * <code>
      * class BaseType { ... }
      *
      * class SubType1 extends BaseType {
-     *     static class SubType1Builder implements ObjectBuilder<SubType1> { ... }
-     *     static class SubType1Serializer extends VersionedSerializer.WithBuilder<SubType1, SubType1Builder> { ... }
+     *     static class SubType1Builder implements ObjectBuilder{@code <SubType1>} { ... }
+     *     static class SubType1Serializer extends VersionedSerializer.WithBuilder{@code <SubType1, SubType1Builder>} { ... }
      * }
      *
      * class SubType11 extends SubType1 {
-     *     static class SubType11Builder implements ObjectBuilder<SubType11> { ... }
-     *     static class SubType11Serializer extends VersionedSerializer.WithBuilder<SubType11, SubType11Builder> { ... }
+     *     static class SubType11Builder implements ObjectBuilder{@code <SubType11>} { ... }
+     *     static class SubType11Serializer extends VersionedSerializer.WithBuilder{@code <SubType11, SubType11Builder>} { ... }
      * }
      *
      * class SubType2 extends BaseType {
-     *     static class SubType2Builder implements ObjectBuilder<SubType2> { ... }
-     *     static class SubType2Serializer extends VersionedSerializer.WithBuilder<SubType2, SubType2Builder> { ... }
+     *     static class SubType2Builder implements ObjectBuilder{@code <SubType2>} { ... }
+     *     static class SubType2Serializer extends VersionedSerializer.WithBuilder{@code <SubType2, SubType2Builder>} { ... }
      * }
      *
-     * class BaseTypeSerializer extends VersionedSerializer.MultiType<BaseType> {
-     *    @Override
+     * class BaseTypeSerializer extends VersionedSerializer.MultiType{@code <BaseType>} {
+     *    {@literal @}Override
      *    protected void declareSerializers(Builder b) {
      *        // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring) and not necessarily
      *        // sequential or contiguous.
@@ -619,8 +632,7 @@ public abstract class VersionedSerializer<T> {
      *         .serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
      *    }
      * }
-     * }
-     * </pre>
+     * </code></pre>
      *
      * @param <BaseType> The base type that all other types will derive from.
      */

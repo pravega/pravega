@@ -1,14 +1,24 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -18,6 +28,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,6 +63,7 @@ public class SegmentSelector {
     @GuardedBy("$lock")
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
     private final EventWriterConfig config;
+    private final DelegationTokenProvider tokenProvider;
 
     /**
      * Selects which segment an event should be written to.
@@ -59,7 +71,7 @@ public class SegmentSelector {
      * @param routingKey The key that should be used to select from the segment that the event
      *            should go to.
      * @return The SegmentOutputStream for the segment that has been selected or null if
-     *         {@link #refreshSegmentEventWriters()} needs to be called.
+     *         {@link #refreshSegmentEventWriters(Consumer)} needs to be called.
      */
     @Synchronized
     public SegmentOutputStream getSegmentOutputStreamForKey(String routingKey) {
@@ -80,19 +92,30 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
-    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
-            segmentSealedCallback) {
+    /**
+     * Refresh segment writers corresponding to the successors of the sealed segment and return inflight event list of the sealed segment.
+     * The segment writer for sealed segment is not removed.
+     * @param sealedSegment The sealed segment.
+     * @param segmentSealedCallback Sealed segment callback.
+     * @return List of pending events.
+     */
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment> segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), t -> {
                     log.error("Error while fetching successors for segment: {}", sealedSegment, t);
+                    // Remove all writers and fail all pending writes
+                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString(), t);
+                    removeAllWriters().forEach(event -> event.getAckFuture().completeExceptionally(e));
                     return null;
                 });
 
         if (successors == null) {
-            // Stream is deleted, complete all pending writes exceptionally.
-            log.error("Stream is deleted, all pending writes will be completed exceptionally");
-            removeAllWriters().forEach(event -> event.getAckFuture()
-                    .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
+            return Collections.emptyList();
+        } else if (successors.getSegmentToPredecessor().isEmpty()) {
+            log.warn("Stream {} is sealed since no successor segments found for segment {} ", sealedSegment.getStream(), sealedSegment);
+            Exception e = new IllegalStateException("Writes cannot proceed since the stream is sealed");
+            removeAllWriters().forEach(pendingEvent -> pendingEvent.getAckFuture()
+                                                                   .completeExceptionally(e));
             return Collections.emptyList();
         } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
@@ -113,11 +136,23 @@ public class SegmentSelector {
                 segmentSealedCallBack);
     }
 
+    /**
+     * Remove a segment writer.
+     * @param segment The segment whose writer should be removed.
+     */
     @Synchronized
-    private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
+    void removeSegmentWriter(Segment segment) {
+        writers.remove(segment);
+    }
+
+    @Synchronized
+    private List<PendingEvent> updateSegments(StreamSegments newStreamSegments, Consumer<Segment>
             segmentSealedCallBack) {
-        currentSegments = newSteamSegments;
-        createMissingWriters(segmentSealedCallBack, newSteamSegments.getDelegationToken());
+        Preconditions.checkState(newStreamSegments.getNumberOfSegments() > 0,
+                "Writers cannot proceed writing since the stream %s is sealed", stream);
+        currentSegments = newStreamSegments;
+        createMissingWriters(segmentSealedCallBack);
+
         List<PendingEvent> toResend = new ArrayList<>();
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
@@ -140,10 +175,10 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
-        currentSegments = currentSegments.withReplacementRange(successors);
-        createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
+        currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
+        createMissingWriters(segmentSealedCallback);
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
-        return writers.remove(sealedSegment).getUnackedEventsOnSeal();
+        return writers.get(sealedSegment).getUnackedEventsOnSeal();
     }
 
     @Synchronized
@@ -158,11 +193,12 @@ public class SegmentSelector {
         return pendingEvents;
     }
 
-    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
+    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 log.debug("Creating writer for segment {}", segment);
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config, delegationToken);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
+                        segmentSealedCallBack, config, tokenProvider);
                 writers.put(segment, out);
             }
         }
@@ -177,8 +213,8 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    public List<SegmentOutputStream> getWriters() {
-        return new ArrayList<>(writers.values());
+    public Map<Segment, SegmentOutputStream> getWriters() {
+        return new HashMap<>(writers);
     }
 
 }

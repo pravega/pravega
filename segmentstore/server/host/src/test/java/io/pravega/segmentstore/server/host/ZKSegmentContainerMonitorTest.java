@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -20,7 +27,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -38,6 +44,7 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -55,6 +62,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     private final static int TEST_TIMEOUT = 60000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
+    private final static int MAX_PARALLEL_CONTAINER_STARTS = 2;
     private static final int PORT = TestUtils.getAvailableListenPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
@@ -135,9 +143,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(startupFuture);
 
         // Now modify the ZK entry.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Container finished starting.
         startupFuture.complete(containerHandle);
@@ -150,7 +158,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         // Now modify the ZK entry. Remove container 2 and add 1.
         HashMap<Host, Set<Integer>> newMapping = new HashMap<>();
         newMapping.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(1));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(newMapping));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(newMapping).toBytes());
 
         // Verify that stop is called and only the newly added container is in running state.
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -184,9 +192,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(startupFuture);
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify it's not yet started.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -196,7 +204,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         currentData.clear();
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
         Thread.sleep(2000);
@@ -220,9 +228,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(failedFuture);
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify that it does not start.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -256,9 +264,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenThrow(new RuntimeException());
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify that it does not start.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -314,12 +322,12 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
     private ZKSegmentContainerMonitor createContainerMonitor(
             SegmentContainerRegistry registry, CuratorFramework zkClient) {
-        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
+        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, MAX_PARALLEL_CONTAINER_STARTS, executorService());
     }
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
-        zkClient.create().creatingParentsIfNeeded().forPath(PATH, SerializationUtils.serialize(mapping));
+        zkClient.create().creatingParentsIfNeeded().forPath(PATH, HostContainerMap.createHostContainerMap(mapping).toBytes());
     }
 
     private SegmentContainerRegistry createMockContainerRegistry() {
@@ -333,7 +341,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     }
 
     @SuppressWarnings("unchecked")
-    private HashMap<Host, Set<Integer>> deserialize(CuratorFramework zkClient, String path) throws Exception {
-        return (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
+    private Map<Host, Set<Integer>> deserialize(CuratorFramework zkClient, String path) throws Exception {
+        return HostContainerMap.fromBytes(zkClient.getData().forPath(path)).getHostContainerMap();
     }
 }

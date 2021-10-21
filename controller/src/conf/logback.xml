@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+Copyright Pravega Authors.
 
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
-<configuration scan="true">
+<configuration scan="true" scanPeriod="30 seconds">
     <appender name="consoleAppender" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>
@@ -17,19 +23,16 @@
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>controller-server.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <file>logs/controller-server.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- daily rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
-            <fileNamePattern>controller_server_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>10MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <!-- keep 30 days' worth of history -->
+            <fileNamePattern>logs/%d{YYYY-MM-dd, aux}/controller_server_%d{yyyy-MM-dd_HH}.%i.log.gz</fileNamePattern>
+            <!-- each file should be at most 10MB, keep 30 files worth of history, but at most 10GB -->
+            <maxFileSize>10MB</maxFileSize>
             <maxHistory>30</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
-
         <encoder>
             <charset>UTF-8</charset>
             <pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>

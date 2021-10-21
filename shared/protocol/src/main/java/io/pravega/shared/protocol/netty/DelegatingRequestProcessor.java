@@ -1,20 +1,26 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
-import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
+import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -95,4 +101,48 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
         getNextRequestProcessor().keepAlive(keepAlive);
     }
 
+    @Override
+    public void getTableSegmentInfo(WireCommands.GetTableSegmentInfo request) {
+        getNextRequestProcessor().getTableSegmentInfo(request);
+    }
+
+    @Override
+    public void createTableSegment(WireCommands.CreateTableSegment createTableSegment) {
+        getNextRequestProcessor().createTableSegment(createTableSegment);
+    }
+
+    @Override
+    public void deleteTableSegment(WireCommands.DeleteTableSegment deleteSegment) {
+        getNextRequestProcessor().deleteTableSegment(deleteSegment);
+    }
+
+    @Override
+    public void updateTableEntries(WireCommands.UpdateTableEntries tableEntries) {
+        getNextRequestProcessor().updateTableEntries(tableEntries);
+    }
+
+    @Override
+    public void removeTableKeys(WireCommands.RemoveTableKeys tableKeys) {
+        getNextRequestProcessor().removeTableKeys(tableKeys);
+    }
+
+    @Override
+    public void readTable(WireCommands.ReadTable readTable) {
+        getNextRequestProcessor().readTable(readTable);
+    }
+
+    @Override
+    public void readTableKeys(WireCommands.ReadTableKeys readTableKeys) {
+        getNextRequestProcessor().readTableKeys(readTableKeys);
+    }
+
+    @Override
+    public void readTableEntries(WireCommands.ReadTableEntries readTableEntries) {
+        getNextRequestProcessor().readTableEntries(readTableEntries);
+    }
+
+    @Override
+    public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
+        getNextRequestProcessor().readTableEntriesDelta(readTableEntriesDelta);
+    }
 }

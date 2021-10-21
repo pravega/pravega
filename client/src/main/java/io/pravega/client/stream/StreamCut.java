@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -27,15 +34,25 @@ public interface StreamCut extends Serializable {
      */
     public static final StreamCut UNBOUNDED = new StreamCut() {
         private static final long serialVersionUID = 1L;
-        
+
         @Override
         public ByteBuffer toBytes() {
-            return ByteBuffer.allocate(0);
+            return ByteBufferUtils.EMPTY;
         }
-        
+
+        @Override
+        public String asText() {
+            return toString();
+        }
+
         @Override
         public StreamCutInternal asImpl() {
             return null;
+        }
+
+        @Override
+        public String toString() {
+            return "UNBOUNDED";
         }
         
         private Object readResolve() {
@@ -52,12 +69,34 @@ public interface StreamCut extends Serializable {
     
     /**
      * Serializes the cut to a compact byte array.
+     *
+     * @return  A serialized version of this streamcut.
      */
     ByteBuffer toBytes();
-    
+
+    /**
+     * Obtains the compact base64 string representation of StreamCut.
+     *
+     * @return Base64 representation of the StreamCut.
+     */
+    String asText();
+
+    /**
+     * Obtains the a StreamCut object from its Base64 representation obtained via {@link StreamCut#asText()}.
+     *
+     * @param base64String Base64 representation of StreamCut obtained using {@link StreamCut#asText()}
+     * @return The StreamCut object
+     */
+    static StreamCut from(String base64String) {
+        if (base64String.equals(UNBOUNDED.asText())) {
+            return UNBOUNDED;
+        }
+        return StreamCutInternal.from(base64String);
+    }
+
     /**
      * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
-     * 
+     *
      * @param cut A serialized position.
      * @return The StreamCut object.
      */
@@ -67,4 +106,5 @@ public interface StreamCut extends Serializable {
         }
         return StreamCutInternal.fromBytes(cut);
     }
+
 }

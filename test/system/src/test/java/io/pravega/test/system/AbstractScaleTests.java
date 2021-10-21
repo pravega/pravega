@@ -1,21 +1,26 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Utils;
@@ -30,22 +35,32 @@ import lombok.extern.slf4j.Slf4j;
  * Abstract scale tests. This contains all the common methods used for auto scale related tests.
  */
 @Slf4j
-abstract class AbstractScaleTests {
-    protected final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    @Getter(lazy = true)
-    private final URI controllerURI = createControllerURI();
-    @Getter(lazy = true)
-    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-    @Getter(lazy = true)
-    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
-            ControllerImplConfig.builder().clientConfig(
-                    ClientConfig.builder().controllerURI(getControllerURI()).build())
-                                .build(), getConnectionFactory().getInternalExecutor()));
-    @Getter(lazy = true)
-    private final ControllerImpl controller = new ControllerImpl(
-            ControllerImplConfig.builder().clientConfig(
-                    ClientConfig.builder().controllerURI(getControllerURI()).build()
-            ).build(), getConnectionFactory().getInternalExecutor());
+abstract class AbstractScaleTests extends AbstractReadWriteTest {
+
+    final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    @Getter
+    private final URI controllerURI;
+    @Getter
+    private final ConnectionFactory connectionFactory;
+    @Getter
+    private final ClientFactoryImpl clientFactory;
+    @Getter
+    private final ControllerImpl controller;
+
+    public AbstractScaleTests() {
+        controllerURI = createControllerURI();
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+        connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        controller = createController(clientConfig);
+        clientFactory = new ClientFactoryImpl(SCOPE, getController(), connectionFactory);
+    }
+
+    private ControllerImpl createController(final ClientConfig clientConfig) {
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                                      .clientConfig(clientConfig)
+                                                      .build(),
+                                  getConnectionFactory().getInternalExecutor());
+    }
 
     private URI createControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
@@ -69,5 +84,4 @@ abstract class AbstractScaleTests {
     class ScaleOperationNotDoneException extends RuntimeException {
         private static final long serialVersionUID = 1L;
     }
-
 }

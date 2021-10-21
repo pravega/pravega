@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -30,7 +36,6 @@ abstract class Actor extends AbstractService implements AutoCloseable {
 
     private static final Duration INITIAL_DELAY = Duration.ofMillis(500);
     protected final TestConfig config;
-    protected final ProducerDataSource dataSource;
     protected final StoreAdapter store;
     protected final ScheduledExecutorService executorService;
     private CompletableFuture<Void> runTask;
@@ -45,18 +50,15 @@ abstract class Actor extends AbstractService implements AutoCloseable {
      * Creates a new instance of the Actor class.
      *
      * @param config          Test Configuration.
-     * @param dataSource      Data Source.
      * @param store           A StoreAdapter to execute operations on.
      * @param executorService The Executor Service to use for async tasks.
      */
-    Actor(TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executorService) {
+    Actor(TestConfig config, StoreAdapter store, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(dataSource, "dataSource");
         Preconditions.checkNotNull(store, "store");
         Preconditions.checkNotNull(executorService, "executorService");
 
         this.config = config;
-        this.dataSource = dataSource;
         this.store = store;
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
@@ -98,8 +100,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
             Throwable failureCause = this.stopException.get();
             if (this.runTask != null) {
                 try {
-                    // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
-                    // make sure we stop any long-running tasks.
+                    // Wait for the main task to complete before shutting down.
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable ex) {
                     ex = Exceptions.unwrap(ex);

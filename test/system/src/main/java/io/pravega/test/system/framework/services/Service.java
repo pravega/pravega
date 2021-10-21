@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services;
 
@@ -54,7 +60,7 @@ public interface Service {
     /**
      * Get the list of Host:port URIs where the service is running.
      *
-     *  @return List<URI> list of Host:port where the service is running.
+     *  @return List of {@link URI}s where the service is running.
      */
     public List<URI> getServiceDetails();
 
@@ -66,6 +72,7 @@ public interface Service {
      *
      * An instance count of zero would suspend the service.
      * @param instanceCount new instance count for the service.
+     * @return A future representing the status of scale service operation.
      *
      */
     public CompletableFuture<Void> scaleService(final int instanceCount);

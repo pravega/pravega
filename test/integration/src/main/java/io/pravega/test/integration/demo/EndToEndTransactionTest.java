@@ -1,21 +1,31 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -23,6 +33,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +58,8 @@ public class EndToEndTransactionTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int port = Config.SERVICE_PORT;
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store,
+                serviceBuilder.createTableStoreService(), serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]));
         server.startListening();
 
         Thread.sleep(1000);
@@ -68,25 +80,27 @@ public class EndToEndTransactionTest {
         ScalingPolicy policy = ScalingPolicy.fixed(5);
         StreamConfiguration streamConfig =
                 StreamConfiguration.builder()
-                        .scope(testScope)
-                        .streamName(testStream)
                         .scalingPolicy(policy)
                         .build();
 
-        if (!controller.createStream(streamConfig).get()) {
+        if (!controller.createStream(testScope, testStream, streamConfig).get()) {
             log.error("FAILURE: Error creating test stream");
             return;
         }
 
         final long txnTimeout = 4000;
 
+        ClientConfig config = ClientConfig.builder().build();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(testScope, controller, new ConnectionPoolImpl(config, connectionFactory));
 
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(
+        TransactionalEventStreamWriter<String> producer = clientFactory.createTransactionalEventWriter(
+                "writer",
                 testStream,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(txnTimeout).build());
 
         // region Successful commit tests

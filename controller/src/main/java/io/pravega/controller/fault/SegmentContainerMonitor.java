@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.fault;
 
@@ -16,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Class used to monitor the pravega host cluster for failures and ensure the segment containers owned by them are
@@ -34,6 +42,8 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
+
+    private final AtomicBoolean zkConnected = new AtomicBoolean(false);
 
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
@@ -55,9 +65,11 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         segmentMonitorLeader = new SegmentMonitorLeader(hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
 
-        //Listen for any zookeeper connectivity error and relinquish leadership.
+        this.zkConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
+                    this.zkConnected.set(newState.isConnected());
                     switch (newState) {
                         case LOST:
                             log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
@@ -81,6 +93,10 @@ public class SegmentContainerMonitor extends AbstractIdleService {
                     }
                 }
         );
+    }
+
+    public boolean isZKConnected() {
+        return zkConnected.get();
     }
 
     /**

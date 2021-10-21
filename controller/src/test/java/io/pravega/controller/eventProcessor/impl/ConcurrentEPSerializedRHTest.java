@@ -1,30 +1,39 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +44,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertTrue;
 
 public class ConcurrentEPSerializedRHTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private LinkedBlockingQueue<ControllerEvent> requestStream = new LinkedBlockingQueue<>();
     private List<ControllerEvent> history = Collections.synchronizedList(new ArrayList<>());
@@ -62,14 +73,15 @@ public class ConcurrentEPSerializedRHTest {
         writer.write(request3).join();
 
         // process throwing retryable exception. Verify that event is written back and checkpoint has moved forward
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
         TestRequestHandler2 requestHandler = new TestRequestHandler2(executor);
         ConcurrentEventProcessor<TestBase, TestRequestHandler2> processor = new ConcurrentEventProcessor<>(
                 requestHandler, 1, executor, null, writer, 1, TimeUnit.SECONDS);
 
         CompletableFuture.runAsync(() -> {
             while (!stop.get()) {
-                ControllerEvent take = Exceptions.handleInterrupted(() -> requestStream.take());
+                ControllerEvent take = Exceptions.handleInterruptedCall(() -> requestStream.take());
                 processor.process((TestBase) take, null);
                 Exceptions.handleInterrupted(() -> Thread.sleep(100));
             }

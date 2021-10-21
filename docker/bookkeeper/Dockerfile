@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -7,34 +7,53 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
-FROM java:8
-MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
+#
+# Note: This file contains source code copied from the Apache BookKeeper
+#       project (http://bookkeeper.apache.org). Specifically, it contains
+#       source code copied from file `Dockerfile`, revisions `a14c8bf` and
+#       `a00f60d`:
+# - github.com/apache/bookkeeper/blob/branch-4.7/docker/Dockerfile
+# - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
+#
 
-RUN apt-get update \
-&&  apt-get install -y wget unzip \
-&&  mkdir -p /opt \
-&&  cd /opt
+FROM apache/bookkeeper:4.14.1
 
-ENV BOOKKEEPER_VERSION=4.5.0 \
-    ZOOKEEPER_VERSION=3.5.3-beta
+ARG BK_VERSION=4.14.1
+ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
+ENV JAVA_HOME=/usr/lib/jvm/java-11
 
-RUN wget http://central.maven.org/maven2/org/apache/bookkeeper/bookkeeper-server/$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bookkeeper
+RUN set -x \
+    && yum install -y iproute wget \
+    && cd /opt \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.asc" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.sha512" \
+    && sha512sum -c ${DISTRO_NAME}.tar.gz.sha512 \
+    && wget https://dist.apache.org/repos/dist/release/bookkeeper/KEYS \
+    && gpg --import KEYS \
+    && gpg --batch --verify "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz" \
+    && tar -xzf "$DISTRO_NAME.tar.gz" \
+    && cp -r bookkeeper-all-${BK_VERSION}/* /opt/bookkeeper/ \
+    && rm -rf "bookkeeper-all-${BK_VERSION}" "$DISTRO_NAME.tar.gz" "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz.sha512" \
+    && yum clean all
 
-# zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
-RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zookeeper
-
-ENV bookiePort 3181
-
-EXPOSE $bookiePort
-
-# all execute-able bin, download from apache BK and ZK
 WORKDIR /opt/bookkeeper
 
-# After container up, Following instructions to build bookie cluster
+COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
+
+# For backwards compatibility with older operator versions
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
-ENTRYPOINT /opt/bookkeeper/entrypoint.sh
+
+RUN chmod +x -R /opt/bookkeeper/scripts/
+
+ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
+CMD ["bookie"]
+
+HEALTHCHECK --interval=10s --timeout=60s CMD /bin/bash /opt/bookkeeper/scripts/healthcheck.sh

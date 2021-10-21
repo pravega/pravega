@@ -1,15 +1,23 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework;
 
+import feign.Response;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
@@ -18,19 +26,16 @@ import io.pravega.test.system.framework.metronome.model.v1.Artifact;
 import io.pravega.test.system.framework.metronome.model.v1.Job;
 import io.pravega.test.system.framework.metronome.model.v1.Restart;
 import io.pravega.test.system.framework.metronome.model.v1.Run;
-import feign.Response;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
@@ -40,7 +45,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -60,6 +65,8 @@ public class RemoteSequential implements TestExecutor {
             if (response.status() != CREATED.code()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
+            } else {
+                log.info("Created job succeeded with: " + response.toString());
             }
         }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
@@ -112,10 +119,10 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry")+"/java:8 java" +
+        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry") + "/java:8 java" +
                 " -DmasterIP=" + LoginClient.MESOS_MASTER +
                 " -DskipServiceInstallation=" + Utils.isSkipServiceInstallationEnabled() +
-                " -cp /data/pravega-test-system-"+System.getProperty("testVersion")+".jar io.pravega.test.system.SingleJUnitTestRunner " +
+                " -cp /data/pravega-test-system-" + System.getProperty("testVersion") + ".jar io.pravega.test.system.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 

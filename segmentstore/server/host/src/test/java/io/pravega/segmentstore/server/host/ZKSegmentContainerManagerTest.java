@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.test.common.AssertExtensions;
@@ -26,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -51,6 +57,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
     private final static int TEST_TIMEOUT = 60000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
+    private final static int MAX_PARALLEL_CONTAINER_STARTS = 2;
     private static final int PORT = TestUtils.getAvailableListenPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
@@ -158,13 +165,13 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
     }
 
     private ZKSegmentContainerManager createContainerManager(SegmentContainerRegistry registry, CuratorFramework zkClient) {
-        return new ZKSegmentContainerManager(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
+        return new ZKSegmentContainerManager(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, MAX_PARALLEL_CONTAINER_STARTS, executorService());
     }
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
         mapping.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(1));
-        zkClient.create().creatingParentsIfNeeded().forPath(PATH, SerializationUtils.serialize(mapping));
+        zkClient.create().creatingParentsIfNeeded().forPath(PATH, HostContainerMap.createHostContainerMap(mapping).toBytes());
     }
 
     private SegmentContainerRegistry createMockContainerRegistry() {

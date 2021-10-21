@@ -1,23 +1,29 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -95,10 +101,10 @@ public final class StreamSegmentStorageReader {
         }
 
         @Override
-        public CompletableReadResultEntry apply(Long readOffset, Integer readLength) {
+        public CompletableReadResultEntry apply(Long readOffset, Integer readLength, Boolean makeCopyIgnored) {
             if (readOffset < this.segmentInfo.getStartOffset()) {
                 // We attempted to read from a truncated portion of the Segment.
-                return new TruncatedReadResultEntry(readOffset, readLength, this.segmentInfo.getStartOffset());
+                return new TruncatedReadResultEntry(readOffset, readLength, this.segmentInfo.getStartOffset(), this.segmentInfo.getName());
             } else if (readOffset >= this.segmentInfo.getLength()) {
                 // We've reached the end of a Sealed Segment.
                 return new EndOfStreamSegmentReadResultEntry(readOffset, readLength);
@@ -114,7 +120,7 @@ public final class StreamSegmentStorageReader {
             }
         }
 
-        private void fetchContents(long segmentOffset, int readLength, Consumer<ReadResultEntryContents> successCallback,
+        private void fetchContents(long segmentOffset, int readLength, Consumer<BufferView> successCallback,
                                    Consumer<Throwable> failureCallback, Duration timeout) {
             try {
                 byte[] readBuffer = new byte[readLength];
@@ -136,8 +142,8 @@ public final class StreamSegmentStorageReader {
             }
         }
 
-        private ReadResultEntryContents toReadResultEntry(byte[] readBuffer, int size) {
-            return new ReadResultEntryContents(new ByteArrayInputStream(readBuffer, 0, size), size);
+        private BufferView toReadResultEntry(byte[] readBuffer, int size) {
+            return new ByteArraySegment(readBuffer, 0, size);
         }
 
         private CompletableFuture<SegmentHandle> getHandle() {

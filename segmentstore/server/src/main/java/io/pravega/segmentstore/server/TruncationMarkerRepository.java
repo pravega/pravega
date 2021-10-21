@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
@@ -58,6 +64,7 @@ public interface TruncationMarkerRepository {
      * setValidTruncationPoint().
      *
      * @param operationSequenceNumber The Sequence number to query.
+     * @return true if the given Operation Sequence Number is a valid Truncation Point, false otherwise.
      */
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
@@ -65,6 +72,7 @@ public interface TruncationMarkerRepository {
      * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
      *
      * @param operationSequenceNumber The Sequence number to query.
+     * @return The highest Truncation Point.
      */
     long getClosestValidTruncationPoint(long operationSequenceNumber);
 }

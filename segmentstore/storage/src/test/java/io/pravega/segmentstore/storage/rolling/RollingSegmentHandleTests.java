@@ -1,21 +1,29 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.rolling;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Data;
 import lombok.val;
 import org.junit.Assert;
@@ -27,7 +35,7 @@ import org.junit.Test;
 public class RollingSegmentHandleTests {
     private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(1234);
     private static final String SEGMENT_NAME = "Segment";
-    private static final String HEADER_NAME = StreamSegmentNameUtils.getHeaderSegmentName(SEGMENT_NAME);
+    private static final String HEADER_NAME = NameUtils.getHeaderSegmentName(SEGMENT_NAME);
 
     /**
      * Tests various features of the RollingSegmentHandle.
@@ -168,6 +176,45 @@ public class RollingSegmentHandleTests {
                 "addChunks allowed an incontiguous list of SegmentChunks to be added.",
                 () -> h.addChunks(secondBadList),
                 ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testExcludeInexistentChunks() {
+        val initialChunkCount = 10;
+        val headerHandle = new TestHandle(HEADER_NAME, true);
+        val h = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
+
+        val chunkList = IntStream.range(0, initialChunkCount)
+                .mapToObj(i -> new SegmentChunk(String.format("s%s", i), i * 10L))
+                .collect(Collectors.toList());
+        chunkList.forEach(c -> c.setLength(10L));
+        h.addChunks(chunkList);
+
+        // We mark the first 4 chunks as inexistent ...
+        val truncateCount = 4;
+        for (int i = 0; i < truncateCount; i++) {
+            chunkList.get(i).markInexistent();
+        }
+
+        // And the 6th one.
+        chunkList.get(truncateCount + 1).markInexistent();
+
+        // We trim away the chunks.
+        h.excludeInexistentChunks();
+
+        // ... and expect that only the Chunks up to truncateIndex are gone.
+        Assert.assertEquals(initialChunkCount - truncateCount, h.chunks().size());
+        for (int i = truncateCount; i < initialChunkCount; i++) {
+            Assert.assertEquals(chunkList.get(i), h.chunks().get(i - truncateCount));
+        }
+        val serialization = HandleSerializer.serialize(h);
+        h.setHeaderLength(serialization.getLength());
+
+        // Test serialization/deserialization.
+        val h2 = HandleSerializer.deserialize(serialization.getCopy(), h.getHeaderHandle());
+        Assert.assertEquals(h.getHeaderLength(), h2.getHeaderLength());
+        AssertExtensions.assertListEquals("", h.chunks(), h2.chunks(),
+                (c1, c2) -> c1.getName().equals(c2.getName()) && c1.getStartOffset() == c2.getStartOffset());
     }
 
     /**

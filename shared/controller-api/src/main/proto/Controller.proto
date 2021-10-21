@@ -1,11 +1,18 @@
+
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
  syntax = "proto3";
 package io.pravega.controller.stream.api.grpc.v1;
@@ -23,21 +30,44 @@ service ControllerService {
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getEpochSegments(GetEpochSegmentsRequest) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsBetween(StreamCutRange) returns (StreamCutRangeResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc isStreamCutValid(StreamCut) returns (StreamCutValidityResponse);
     rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc listScopes(ScopesRequest) returns (ScopesResponse);
+    rpc checkScopeExists(ScopeInfo) returns (ExistsResponse);
+    rpc checkStreamExists(StreamInfo) returns (ExistsResponse);
+    rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
+    rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
+    rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
+    rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
+    rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
+    rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc getKeyValueTableConfiguration(KeyValueTableInfo) returns (KeyValueTableConfigResponse);
+    rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
+    rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
+    rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
+    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupResponse);
+    rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
+    rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
+    rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
+    rpc getStreamConfiguration(StreamInfo) returns (StreamConfig);
+    rpc listStreamsInScopeForTag(StreamsInScopeWithTagRequest) returns (StreamsInScopeResponse);
 }
 
 message ServerRequest {
@@ -45,6 +75,133 @@ message ServerRequest {
 
 message ServerResponse {
     repeated NodeUri nodeURI = 1;
+}
+
+message ReaderGroupConfiguration {
+    enum RetentionType {
+        NONE = 0;
+        MANUAL = 1;
+        AUTOMATIC = 2;
+    }
+    string scope = 1;
+    string readerGroupName = 2;
+    int64 groupRefreshTimeMillis = 3;
+    int64 automaticCheckpointIntervalMillis = 4;
+    int32 maxOutstandingCheckpointRequest = 5;
+    int32 retentionType = 6;
+    int64 generation = 7;
+    string readerGroupId = 8;
+    repeated StreamCut startingStreamCuts = 9;
+    repeated StreamCut endingStreamCuts = 10;
+    int64 rolloverSizeBytes = 11;
+}
+
+message ReaderGroupConfigResponse {
+    ReaderGroupConfiguration config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+    }
+    Status status = 2;
+}
+
+message ReaderGroupInfo {
+    string scope = 1;
+    string readerGroup = 2;
+    string readerGroupId = 3;
+    int64 generation = 4;
+}
+
+message CreateReaderGroupResponse {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+        INVALID_RG_NAME = 3;
+    }
+    Status status = 1;
+    ReaderGroupConfiguration config = 2;
+}
+
+message DeleteReaderGroupStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+    }
+    Status status = 1;
+}
+
+message UpdateReaderGroupResponse {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+        INVALID_CONFIG = 3;
+    }
+    Status status = 1;
+    int64 generation = 2;
+}
+
+message CreateKeyValueTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_EXISTS = 2;
+        SCOPE_NOT_FOUND = 3;
+        INVALID_TABLE_NAME = 4;
+    }
+    Status status = 1;
+}
+
+message KeyValueTableConfig {
+    string scope = 1;
+    string kvtName = 2;
+    int32 partitionCount = 3;
+    int32 primaryKeyLength = 4;
+    int32 secondaryKeyLength = 5;
+    int64 rolloverSizeBytes = 6;
+}
+
+message KeyValueTableConfigResponse {
+    KeyValueTableConfig config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 2;
+}
+
+message KeyValueTableInfo {
+    string scope = 1;
+    string kvtName = 2;
+}
+
+message KVTablesInScopeRequest {
+    ScopeInfo scope = 1;
+    ContinuationToken continuationToken = 2;
+}
+
+message KVTablesInScopeResponse {
+    repeated KeyValueTableInfo kvtables = 1;
+    ContinuationToken continuationToken = 2;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+}
+
+message DeleteKVTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 1;
 }
 
 message CreateStreamStatus {
@@ -64,8 +221,45 @@ message UpdateStreamStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
+        STREAM_SEALED = 4;
     }
     Status status = 1;
+}
+
+message UpdateSubscriberStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        SUBSCRIBER_NOT_FOUND = 3;
+        STREAM_CUT_NOT_VALID = 4;
+        GENERATION_MISMATCH = 5;
+    }
+    Status status = 1;
+}
+
+message StreamSubscriberInfo {
+    string scope = 1;
+    string stream = 2;
+    string subscriber = 3;
+    int64 operationGeneration = 4;
+}
+
+message SubscriberStreamCut {
+    string subscriber = 1;
+    int64 generation = 2;
+    string readerGroupId = 3;
+    StreamCut streamCut = 4;
+}
+
+message SubscribersResponse {
+    repeated string subscribers = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+    }
+    Status status = 2;
 }
 
 message DeleteStreamStatus {
@@ -115,6 +309,9 @@ message PingTxnStatus {
         MAX_EXECUTION_TIME_EXCEEDED = 2;
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
+        COMMITTED = 5;
+        ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }
@@ -131,13 +328,48 @@ message TxnState {
     State state = 1;
 }
 
-message ScopeInfo {
+ message ScopeInfo {
     string scope = 1;
 }
+
+message ContinuationToken {
+    string token = 1;
+}
+
+ message StreamsInScopeRequest {
+     ScopeInfo scope = 1;
+     ContinuationToken continuationToken = 2;
+}
+
+message StreamsInScopeWithTagRequest {
+    ScopeInfo scope = 1;
+    string tag = 2;
+    ContinuationToken continuationToken =3;
+}
+
+ message StreamsInScopeResponse {
+    repeated StreamInfo streams = 1;
+    ContinuationToken continuationToken = 2;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+ }
 
 message StreamInfo {
     string scope = 1;
     string stream = 2;
+    enum AccessOperation {
+        UNSPECIFIED = 0;
+        NONE = 1;
+        ANY = 2;
+        READ = 3;
+        WRITE = 4;
+        READ_WRITE = 5;
+    }
+    AccessOperation accessOperation = 3;
 }
 
 message ScalingPolicy {
@@ -160,12 +392,20 @@ message RetentionPolicy {
     }
     RetentionPolicyType retentionType = 1;
     int64 retentionParam = 2;
+    int64 retentionMax = 3;
 }
 
 message StreamConfig {
     StreamInfo streamInfo = 1;
     ScalingPolicy scalingPolicy = 2;
     RetentionPolicy retentionPolicy = 3;
+    Tags tags = 4;
+    int64 timestampAggregationTimeout = 5;
+    int64 rolloverSizeBytes = 6;
+}
+
+message Tags {
+    repeated string tag = 1;
 }
 
 message StreamCut {
@@ -224,6 +464,8 @@ message CreateTxnResponse {
 message TxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
+    string writerId = 3;
+    int64 timestamp = 4;
 }
 
 message PingTxnRequest {
@@ -294,10 +536,64 @@ message GetSegmentsRequest {
     int64 timestamp = 2;
 }
 
+message GetEpochSegmentsRequest {
+    StreamInfo streamInfo = 1;
+    int32 epoch = 2;
+}
+
 message SegmentValidityResponse {
+    bool response = 1;
+}
+
+message StreamCutValidityResponse {
     bool response = 1;
 }
 
 message DelegationToken {
     string delegationToken = 1;
- }
+}
+
+message RemoveWriterRequest {
+    string writer = 1;
+    StreamInfo stream = 2;
+}
+
+message RemoveWriterResponse {
+    enum Status {
+        SUCCESS = 0;
+        UNKNOWN_WRITER = 1;
+        STREAM_DOES_NOT_EXIST = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message TimestampFromWriter {
+    string writer = 1;
+    StreamCut position = 2;
+    int64 timestamp = 3;
+}
+
+message TimestampResponse {
+    enum Status {
+        SUCCESS = 0;
+        INVALID_TIME = 1;
+        INVALID_POSITION = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message ScopesResponse {
+    repeated string scopes = 1;
+    ContinuationToken continuationToken = 2;
+}
+
+message ScopesRequest {
+    ContinuationToken continuationToken = 1;
+}
+
+message ExistsResponse {
+    bool exists = 1;
+}
+

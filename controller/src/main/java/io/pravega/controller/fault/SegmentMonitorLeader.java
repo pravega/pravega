@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.fault;
 
@@ -14,6 +20,7 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.metrics.HostContainerMetrics;
 import io.pravega.controller.store.host.HostControllerStore;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
@@ -32,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * This is the monitor leader which watches the pravega data node cluster and handles host level failures.
  * This ensures that all segment containers are owned by hosts which are alive. Containers on existing hosts are
- * also moved if neccessary for load balancing.
+ * also moved if necessary for load balancing.
  */
 @Slf4j
 class SegmentMonitorLeader implements LeaderSelectorListener {
@@ -59,6 +66,9 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
 
     //Flag to check if monitor is suspended or not.
     private final AtomicBoolean suspended = new AtomicBoolean(false);
+
+    // Container and host lifecycle metrics.
+    private final HostContainerMetrics hostContainerMetrics = new HostContainerMetrics();
 
     /**
      * The leader instance which monitors the data node cluster.
@@ -184,7 +194,9 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         try {
             Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
                     pravegaServiceCluster.getClusterMembers());
+            Map<Host, Set<Integer>> oldMapping = hostStore.getHostContainersMap();
             hostStore.updateHostContainersMap(newMapping);
+            hostContainerMetrics.updateHostContainerMetrics(oldMapping, newMapping);
         } catch (ClusterException e) {
             throw new IOException(e);
         }

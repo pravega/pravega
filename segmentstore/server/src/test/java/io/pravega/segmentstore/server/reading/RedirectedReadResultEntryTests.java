@@ -1,23 +1,29 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.val;
 import org.junit.Assert;
@@ -64,7 +70,7 @@ public class RedirectedReadResultEntryTests {
         Assert.assertEquals("Unexpected value for getRequestedReadLength.", baseEntry.getRequestedReadLength(), redirectedEntry.getRequestedReadLength());
 
         // getContent will be thoroughly tested in its own unit test.
-        baseEntry.getContent().complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
+        baseEntry.getContent().complete(new ByteArraySegment(new byte[1]));
         Assert.assertEquals("Unexpected result for getContent.", baseEntry.getContent().join(), redirectedEntry.getContent().join());
 
         redirectedEntry.requestContent(Duration.ZERO);
@@ -137,7 +143,7 @@ public class RedirectedReadResultEntryTests {
             return t1;
         }, 2);
         t1.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when attempting to retry more than once.",
                 e1::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -146,7 +152,7 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t2 = new MockReadResultEntry(1, 1);
         RedirectedReadResultEntry e2 = new RedirectedReadResultEntry(t2, 0, (o, l, m) -> t2, 2);
         t2.getContent().completeExceptionally(new IntentionalException());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when an ineligible exception got thrown.",
                 e2::getContent,
                 ex -> ex instanceof IntentionalException);
@@ -155,7 +161,7 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t3 = new MockReadResultEntry(1, 1);
         RedirectedReadResultEntry e3 = new RedirectedReadResultEntry(t3, 0, (o, l, m) -> e1, 2);
         t3.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when a retry yielded another RedirectReadResultEntry.",
                 e3::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -166,7 +172,7 @@ public class RedirectedReadResultEntryTests {
         RedirectedReadResultEntry e4 = new RedirectedReadResultEntry(t4, 0, (o, l, m) -> {
             throw new IntentionalException();
         }, 2);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when retry failed.",
                 e4::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -177,13 +183,26 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t5Good = new MockReadResultEntry(2, 1);
         t1.setCompletionCallback(i -> { // Do nothing.
         });
-        t5Good.getContent().complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
+        t5Good.getContent().complete(new ByteArraySegment(new byte[1]));
         RedirectedReadResultEntry e5 = new RedirectedReadResultEntry(t5Bad, 1, (o, l, m) -> t5Good, 2);
         val finalResult = e5.getContent().join();
         Assert.assertEquals("Unexpected result from getCompletionCallback after successful redirect.", t5Bad.getCompletionCallback(), t5Good.getCompletionCallback());
         Assert.assertEquals("Unexpected result from getRequestedReadLength after successful redirect.", t5Bad.getRequestedReadLength(), e5.getRequestedReadLength());
         Assert.assertEquals("Unexpected result from getStreamSegmentOffset after successful redirect.", t5Good.getStreamSegmentOffset(), e5.getStreamSegmentOffset());
         Assert.assertEquals("Unexpected result from getContent after successful redirect.", t5Good.getContent().join(), finalResult);
+    }
+
+    @Test
+    public void testFail() {
+        MockReadResultEntry t1 = new MockReadResultEntry(1, 1);
+        val retryInvoked = new AtomicBoolean(false);
+        RedirectedReadResultEntry e1 = new RedirectedReadResultEntry(t1, 0, (o, l, m) -> {
+            retryInvoked.set(true);
+            return null;
+        }, 2);
+        e1.fail(new CancellationException());
+        Assert.assertTrue("Expected the callback to have been failed.", t1.getContent().isCompletedExceptionally());
+        Assert.assertFalse("Not expected a retry invocation.", retryInvoked.get());
     }
 
     private CompletableReadResultEntry illegalGetNext(long offset, int length, long mergeOffset) {

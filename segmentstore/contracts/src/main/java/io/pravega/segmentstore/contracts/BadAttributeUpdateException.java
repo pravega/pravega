@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
@@ -26,6 +32,9 @@ public class BadAttributeUpdateException extends StreamSegmentException {
     @Getter
     private final boolean previousValueMissing;
 
+    @Getter
+    private final AttributeId attributeId;
+
     /**
      * Creates a new instance of the BadAttributeUpdateException class.
      *
@@ -38,6 +47,7 @@ public class BadAttributeUpdateException extends StreamSegmentException {
     public BadAttributeUpdateException(String streamSegmentName, AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {
         super(streamSegmentName, getMessage(attributeUpdate, previousValueMissing, errorMessage));
         this.previousValueMissing = previousValueMissing;
+        this.attributeId = attributeUpdate == null ? null : attributeUpdate.getAttributeId();
     }
 
     private static String getMessage(AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
@@ -51,14 +57,15 @@ public class BookKeeperRunner implements AutoCloseable {
         this.bkRunner = BookKeeperServiceRunner.builder()
                                                .startZk(true)
                                                .zkPort(zkPort)
+                                               .secureZK(false)
                                                .secureBK(false)
-                                               .ledgersPath("/ledgers")
+                                               .ledgersPath("/ledgers/" + zkPort)
                                                .bookiePorts(bookiePorts)
                                                .build();
         this.bkRunner.startAll();
 
         // Create a ZKClient with a base namespace.
-        String baseNamespace = "pravega/" + Long.toHexString(System.nanoTime());
+        String baseNamespace = "pravega/" + zkPort;
         this.zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString("localhost:" + zkPort)
@@ -75,7 +82,7 @@ public class BookKeeperRunner implements AutoCloseable {
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers/" + zkPort)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, this.bookieCount)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, this.bookieCount)
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, this.bookieCount));

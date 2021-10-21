@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -43,7 +49,19 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
         Method m = null;
         try {
             m = this.testClass.getDeclaredMethod(this.methodName);
-            Statement statement = methodBlock(new FrameworkMethod(m));
+            Statement statement = methodBlock(new FrameworkMethod(m) {
+                @Override
+                public Object invokeExplosively(final Object target, final Object... params) throws Throwable {
+                    try {
+                        Object result = super.invokeExplosively(target, params);
+                        log.info("Test " + methodName + " completed without error.");
+                        return result;
+                    } catch (Throwable t) {
+                        log.error("Test " + methodName + " failed with exception. ", t);
+                        throw t;
+                    }
+                }
+            });
             statement.evaluate();
         } catch (Throwable ex) {
             throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Exception while running test" +
@@ -62,7 +80,7 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
         }
     }
 
-    public static void main(String... args) throws ClassNotFoundException {
+    public static void main(String... args) {
         String[] classAndMethod = args[0].split("#");
         //The return value is used to update the mesos task execution status. The mesos task is set to failed state when
         // return value is non-zero.

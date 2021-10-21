@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -21,9 +27,9 @@ import lombok.Getter;
  */
 public class ReadIndexConfig {
     //region Config Names
-    public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageReadAlignment", 1024 * 1024);
-    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryReadMinLength", 4 * 1024);
-    public static final Property<Integer> STORAGE_READ_DEFAULT_TIMEOUT = Property.named("storageReadDefaultTimeoutMillis", 30 * 1000);
+    public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageRead.alignment", 1024 * 1024, "storageReadAlignment");
+    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryRead.length.min", 4 * 1024, "memoryReadMinLength");
+    public static final Property<Integer> STORAGE_READ_DEFAULT_TIMEOUT = Property.named("storageRead.timeout.default.millis", 30 * 1000, "storageReadDefaultTimeoutMillis");
     private static final String COMPONENT_CODE = "readindex";
 
     //endregion

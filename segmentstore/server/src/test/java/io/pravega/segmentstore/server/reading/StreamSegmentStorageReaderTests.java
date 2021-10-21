@@ -1,15 +1,20 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -110,7 +115,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
         val rr1 = StreamSegmentStorageReader.read(si1, 0, SEGMENT_LENGTH, SEGMENT_APPEND_SIZE - 1, s);
         val firstEntry1 = rr1.next();
         Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, firstEntry1.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when Segment does not exist initially.",
                 () -> {
                     firstEntry1.requestContent(TIMEOUT);
@@ -133,7 +138,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
         s.delete(s.openWrite(SEGMENT_NAME).join(), TIMEOUT).join();
         val secondEntry = rr2.next();
         Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, secondEntry.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when Segment was deleted while reading.",
                 () -> {
                     secondEntry.requestContent(TIMEOUT);
@@ -161,7 +166,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
                 entry.requestContent(TIMEOUT);
                 val contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 AssertExtensions.assertGreaterThanOrEqual("Empty read entry contents.", 0, contents.getLength());
-                val readData = StreamHelpers.readAll(contents.getData(), contents.getLength());
+                val readData = contents.getCopy();
                 AssertExtensions.assertArrayEquals("Unexpected data read back.", writtenData, (int) entry.getStreamSegmentOffset(),
                         readData, 0, readData.length);
             }

@@ -1,14 +1,21 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.internal.runners.model.EachTestNotifier;
@@ -23,7 +30,9 @@ import org.junit.runners.model.Statement;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.test.system.framework.Utils.getConfig;
 
 /**
@@ -63,6 +72,8 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
             //read the type of testExecutor from system property. This is sent by the gradle task. By default
             //the tests are executed locally.
             TestExecutorType executionType = TestExecutorType.valueOf(getConfig("execType", "LOCAL"));
+            //sleep for 15 seconds before running tests, remove once pravega/pravega/issues/1665 is resolved
+            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(15));
             invokeTest(notifier, executionType, method);
         }
     }
@@ -80,7 +91,8 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
                 eachNotifier.fireTestStarted();
                 execute(type, method.getMethod()).get();
             } catch (Throwable e) {
-                eachNotifier.addFailure(e);
+                log.error("Test " + method + " failed with exception ", e);
+                eachNotifier.addFailure(unwrap(e));
             } finally {
                 eachNotifier.fireTestFinished();
             }

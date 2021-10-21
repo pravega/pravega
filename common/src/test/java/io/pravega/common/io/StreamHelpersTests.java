@@ -1,23 +1,34 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.io;
 
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
+import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * Unit tests for StreamHelpers class.
  */
+@Slf4j
 public class StreamHelpersTests {
     /**
      * Tests the readAll method that copies data into an existing array.
@@ -64,9 +75,67 @@ public class StreamHelpersTests {
         AssertExtensions.assertThrows(
                 "readAll accepted a length higher than the given input stream length.",
                 () -> StreamHelpers.readAll(new TestInputStream(buffer), buffer.length + 1),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof EOFException);
     }
 
+    /**
+     * Confirm StreamHelpers#readAll throws on null input stream
+     */
+    @Test
+    public void readAllThrowsOnNullInputStream() {
+        AssertExtensions.assertThrows("stream parameter cannot be null",
+                () -> StreamHelpers.readAll(null, null, 0, 0),
+                e -> e instanceof NullPointerException && e.getMessage().equals("stream"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on null target byte array
+     */
+    @Test
+    public void readAllThrowsOnNullTargetBuffer() {
+        AssertExtensions.assertThrows("target parameter cannot be null",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), null, 0, 0),
+                e -> e instanceof NullPointerException && e.getMessage().equals("target"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on illegal offset
+     */
+    @Test
+    public void readAllThrowsOnIllegalOffset() {
+        AssertExtensions.assertThrows("start offset must be less than target buffer length",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), new byte[0], 0, 0),
+                e -> e instanceof IndexOutOfBoundsException && e.getMessage().equals("startOffset (0) must be less than size (0)"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on illegal max length
+     */
+    @Test
+    public void readAllThrowsOnIllegalMaxLength() throws Exception {
+        AssertExtensions.assertThrows("max length must be non-negative",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), new byte[1], 0, -1),
+                e -> e instanceof IllegalArgumentException && e.getMessage().equals("maxLength: must be a non-negative number."));
+    }
+
+    @Test
+    public void testCloseQuietly() {
+        Closeable successful = new Closeable() {
+            @Override
+            public void close() throws IOException {
+               //success;
+            }
+        };
+        Closeable failed = new Closeable() {
+            @Override
+            public void close() throws IOException {
+                throw new IOException("Expected");
+            }
+        };
+        StreamHelpers.closeQuietly(successful, log, "no exception");
+        StreamHelpers.closeQuietly(failed, log, "expected message");
+    }
+    
     private static class TestInputStream extends InputStream {
         private final byte[] buffer;
         private int pos;

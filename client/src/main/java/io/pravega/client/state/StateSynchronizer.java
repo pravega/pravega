@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state;
 
@@ -54,11 +60,11 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * A function which given a state object populates a list of updates that should be applied.
      * 
      * For example:
-     * <code>
-     * stateSynchronizer.updateState((state, updates) -> {
+     * <pre><code>
+     * stateSynchronizer.updateState((state, updates) {@literal ->} {
      *      updates.addAll(findUpdatesForState(state));
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      */
     @FunctionalInterface
@@ -69,15 +75,17 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     /**
      * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
      * For example:
-     * <code>
-     * boolean updated = stateSynchronizer.updateState((state, updates) -> {
+
+     * <pre><code>
+     * boolean updated = stateSynchronizer.updateState((state, updates) {@literal ->} {
+
      *      if (!shouldUpdate(state)) {
      *          return false;
      *      }
      *      updates.addAll(findUpdatesForState(state));
      *      return true;
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      * @param <ReturnT> The type of the result returned.
      */
@@ -111,14 +119,15 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * 
      * As an example suppose the update type was MyUpdate and each update and an associated key.
      * Then it might be useful to return the updated keys:
-     * <code>
+     * <pre>
+     * {@code
      * List<String> updated = stateSynchronizer.updateState((state, updates) -> {
      *      List<MyUpdate> toAdd = findUpdatesForState(state);
      *      updates.addAll(toAdd);
      *      return toAdd.stream().map(a -> a.getKey()).collect(Collectors.toList());
      * });
-     * </code>
-     * 
+     * }
+     * </pre>
      * @param updateGenerator A function which give the state can supply updates that should be
      *            applied.
      * @param <ReturnT> They type of the result returned by the updateGenerator

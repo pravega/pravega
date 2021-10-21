@@ -1,16 +1,21 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-import io.netty.buffer.ByteBufInputStream;
 import java.io.IOException;
 
 /**
@@ -26,6 +31,9 @@ public enum WireCommandType {
     PADDING(-1, WireCommands.Padding::readFrom),
 
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),
+
+    FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
+    FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlushed::readFrom),
 
     EVENT(0, null), // Is read manually.
 
@@ -78,6 +86,35 @@ public enum WireCommandType {
     SEGMENTS_MERGED(59, WireCommands.SegmentsMerged::readFrom),
 
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
+    ERROR_MESSAGE(61, WireCommands.ErrorMessage::readFrom),
+
+    GET_TABLE_SEGMENT_INFO(68, WireCommands.GetTableSegmentInfo::readFrom),
+    TABLE_SEGMENT_INFO(69, WireCommands.TableSegmentInfo::readFrom),
+    CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
+    DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
+    UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
+    TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
+
+    REMOVE_TABLE_KEYS(76, WireCommands.RemoveTableKeys::readFrom),
+    TABLE_KEYS_REMOVED(77, WireCommands.TableKeysRemoved::readFrom),
+
+    READ_TABLE(78, WireCommands.ReadTable::readFrom),
+    TABLE_READ(79, WireCommands.TableRead::readFrom),
+
+    TABLE_SEGMENT_NOT_EMPTY(80, WireCommands.TableSegmentNotEmpty::readFrom),
+    TABLE_KEY_DOES_NOT_EXIST(81, WireCommands.TableKeyDoesNotExist::readFrom),
+    TABLE_KEY_BAD_VERSION(82, WireCommands.TableKeyBadVersion::readFrom),
+
+    READ_TABLE_KEYS(83, WireCommands.ReadTableKeys::readFrom ),
+    TABLE_KEYS_READ(84, WireCommands.TableKeysRead::readFrom),
+
+    READ_TABLE_ENTRIES(85, WireCommands.ReadTableEntries::readFrom),
+    TABLE_ENTRIES_READ(86, WireCommands.TableEntriesRead::readFrom),
+
+    TABLE_ENTRIES_DELTA_READ(87, WireCommands.TableEntriesDeltaRead::readFrom),
+    READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
+
+    CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
@@ -94,7 +131,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+    public WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }

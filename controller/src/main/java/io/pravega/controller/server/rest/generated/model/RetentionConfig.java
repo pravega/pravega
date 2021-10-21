@@ -1,6 +1,6 @@
 /*
  * Pravega Controller APIs
- * List of admin REST APIs for the pravega controller service.
+ * List of admin REST APIs for the Pravega controller service.
  *
  * OpenAPI spec version: 0.0.1
  * 
@@ -17,6 +17,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
@@ -27,7 +28,7 @@ import javax.validation.constraints.*;
 
 public class RetentionConfig   {
   /**
-   * Gets or Sets type
+   * Indicates if retention is by space or time.
    */
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
@@ -63,17 +64,26 @@ public class RetentionConfig   {
   @JsonProperty("value")
   private Long value = null;
 
+  @JsonProperty("timeBasedRetention")
+  private TimeBasedRetention timeBasedRetention = null;
+
+  @JsonProperty("maxValue")
+  private Long maxValue = null;
+
+  @JsonProperty("maxTimeBasedRetention")
+  private TimeBasedRetention maxTimeBasedRetention = null;
+
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
     return this;
   }
 
   /**
-   * Get type
+   * Indicates if retention is by space or time.
    * @return type
    **/
   @JsonProperty("type")
-  @ApiModelProperty(value = "")
+  @ApiModelProperty(value = "Indicates if retention is by space or time.")
   public TypeEnum getType() {
     return type;
   }
@@ -101,6 +111,63 @@ public class RetentionConfig   {
     this.value = value;
   }
 
+  public RetentionConfig timeBasedRetention(TimeBasedRetention timeBasedRetention) {
+    this.timeBasedRetention = timeBasedRetention;
+    return this;
+  }
+
+  /**
+   * Get timeBasedRetention
+   * @return timeBasedRetention
+   **/
+  @JsonProperty("timeBasedRetention")
+  @ApiModelProperty(value = "")
+  public TimeBasedRetention getTimeBasedRetention() {
+    return timeBasedRetention;
+  }
+
+  public void setTimeBasedRetention(TimeBasedRetention timeBasedRetention) {
+    this.timeBasedRetention = timeBasedRetention;
+  }
+
+  public RetentionConfig maxValue(Long maxValue) {
+    this.maxValue = maxValue;
+    return this;
+  }
+
+  /**
+   * Get maxValue
+   * @return maxValue
+   **/
+  @JsonProperty("maxValue")
+  @ApiModelProperty(value = "")
+  public Long getMaxValue() {
+    return maxValue;
+  }
+
+  public void setMaxValue(Long maxValue) {
+    this.maxValue = maxValue;
+  }
+
+  public RetentionConfig maxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
+    return this;
+  }
+
+  /**
+   * Get maxTimeBasedRetention
+   * @return maxTimeBasedRetention
+   **/
+  @JsonProperty("maxTimeBasedRetention")
+  @ApiModelProperty(value = "")
+  public TimeBasedRetention getMaxTimeBasedRetention() {
+    return maxTimeBasedRetention;
+  }
+
+  public void setMaxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -112,12 +179,15 @@ public class RetentionConfig   {
     }
     RetentionConfig retentionConfig = (RetentionConfig) o;
     return Objects.equals(this.type, retentionConfig.type) &&
-        Objects.equals(this.value, retentionConfig.value);
+        Objects.equals(this.value, retentionConfig.value) &&
+        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention) &&
+        Objects.equals(this.maxValue, retentionConfig.maxValue) &&
+        Objects.equals(this.maxTimeBasedRetention, retentionConfig.maxTimeBasedRetention);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, value);
+    return Objects.hash(type, value, timeBasedRetention, maxValue, maxTimeBasedRetention);
   }
 
 
@@ -128,6 +198,9 @@ public class RetentionConfig   {
     
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    value: ").append(toIndentedString(value)).append("\n");
+    sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
+    sb.append("    maxValue: ").append(toIndentedString(maxValue)).append("\n");
+    sb.append("    maxTimeBasedRetention: ").append(toIndentedString(maxTimeBasedRetention)).append("\n");
     sb.append("}");
     return sb.toString();
   }

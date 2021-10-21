@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -99,6 +105,19 @@ class Reporter extends AbstractScheduledService {
                 ? "(warmup)"
                 : String.format("%s/%s", this.testState.getSuccessfulOperationCount(), this.testConfig.getOperationCount());
 
+        String threadPools = String.format("TPools (Q/T/S): %s, %s, %s",
+                formatSnapshot(storePoolSnapshot, "S"),
+                formatSnapshot(testPoolSnapshot, "T"),
+                formatSnapshot(joinPoolSnapshot, "FJ"));
+
+        if (this.testConfig.getTestType().isTablesTest()) {
+            outputTableState(producedLength, ops, (int) instantOps, instantThroughput, threadPools);
+        } else {
+            outputStreamState(producedLength, ops, (int) instantOps, instantThroughput, threadPools);
+        }
+    }
+
+    private void outputStreamState(long producedLength, String ops, int instantOps, double instantThroughput, String threadPools) {
         String data = String.format(this.testConfig.isReadsEnabled() ? " (P/T/C/S): %.1f/%.1f/%.1f/%.1f" : ": %.1f",
                 toMB(producedLength),
                 toMB(this.testState.getVerifiedTailLength()),
@@ -107,16 +126,30 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; %s.",
                 ops,
-                (int) instantOps,
+                instantOps,
                 (int) this.testState.getOperationsPerSecond(),
                 data,
                 instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
-                formatSnapshot(storePoolSnapshot, "S"),
-                formatSnapshot(testPoolSnapshot, "T"),
-                formatSnapshot(joinPoolSnapshot, "FJ"));
+                threadPools);
+    }
+
+    private void outputTableState(long producedLength, String ops, int instantOps, double instantThroughput, String threadPools) {
+        TestLogger.log(
+                LOG_ID,
+                "%s; Ops = %d/%d; U/G/GK:%d/%d/%d; Data: %.1f MB; TPut: %.1f/%.1f MB/s; %s.",
+                ops,
+                instantOps,
+                (int) this.testState.getOperationsPerSecond(),
+                this.testState.getTableUpdateCount(),
+                this.testState.getTableGetCount(),
+                this.testState.getTableGetTotalKeyCount(),
+                toMB(producedLength),
+                instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
+                toMB(this.testState.getThroughput()),
+                threadPools);
     }
 
     private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {
@@ -132,7 +165,7 @@ class Reporter extends AbstractScheduledService {
      */
     void outputSummary() {
         TestLogger.log(LOG_ID, "Operation Summary");
-        outputRow("Operation Type", "Count", "LAvg", "L50", "L75", "L90", "L99", "L999");
+        outputRow("Operation Type", "Count", "LSum", "LAvg", "L50", "L75", "L90", "L99", "L999");
         for (OperationType ot : TestState.SUMMARY_OPERATION_TYPES) {
             val durations = this.testState.getDurations(ot);
             if (durations == null || durations.count() == 0) {
@@ -140,16 +173,16 @@ class Reporter extends AbstractScheduledService {
             }
 
             int[] percentiles = durations.percentiles(0.5, 0.75, 0.9, 0.99, 0.999);
-            outputRow(ot, durations.count(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4]);
+            outputRow(ot, durations.count(), (int) durations.sum(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4]);
         }
     }
 
-    private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999) {
-        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l75, l90, l99, l999);
+    private void outputRow(Object opType, Object count, Object sum, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999) {
+        TestLogger.log(LOG_ID, "%18s | %7s | %9s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, sum, lAvg, l50, l75, l90, l99, l999);
     }
 
     private double toMB(double bytes) {
-        return bytes / (double) ONE_MB;
+        return bytes / ONE_MB;
     }
 
     private double toSeconds(long nanos) {

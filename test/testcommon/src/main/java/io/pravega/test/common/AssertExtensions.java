@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.common;
 
@@ -21,11 +27,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.junit.Assert;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Additional Assert Methods that are useful during testing.
@@ -33,12 +42,101 @@ import org.junit.Assert;
 public class AssertExtensions {
 
     /**
+     * Invokes `eval` in a loop over and over (with a small sleep) and asserts that the value eventually reaches `expected`.
+     * @param <T>                   The type of the value to compare.
+     * @param expected              The expected return value.
+     * @param eval                  The function to test
+     * @param timeoutMillis         The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static <T> void assertEventuallyEquals(T expected, Callable<T> eval, long timeoutMillis) throws Exception {
+        assertEventuallyEquals(expected, eval, 10, timeoutMillis);
+    }
+
+    /**
+     * Invokes `eval` in a loop over and over (with a small sleep) and asserts that the value eventually reaches `expected`.
+     * @param <T>                   The type of the value to compare.
+     * @param expected              The expected return value.
+     * @param eval                  The function to test
+     * @param checkIntervalMillis   The number of milliseconds to wait between two checks.
+     * @param timeoutMillis         The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        try {
+            TestUtils.await(() -> {
+                try {
+                    return (expected == null && eval.call() == null)
+                            || (expected != null && expected.equals(eval.call()));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected value: " + expected + " observed: " + eval.call());
+        }
+        assertEquals(expected, eval.call());
+    }
+
+    /**
+     * Invokes `eval` in a loop over and over (with a small sleep) and asserts that the value eventually reaches `expected`.
+     *
+     * @param <T>                 The type of the value to compare.
+     * @param message             The message ot include.
+     * @param expected            The expected return value.
+     * @param eval                The function to test
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static <T> void assertEventuallyEquals(String message, T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        assertEventuallyEquals(expected, eval, checkIntervalMillis, timeoutMillis);
+        assertEquals(message, expected, eval.call());
+    }
+
+    /**
+     * Asserts that an exception of the Type provided is thrown eventually.
+     *
+     * @param run  The Runnable to execute.
+     * @param type The type of exception to expect.
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static void assertEventuallyThrows(Class<? extends Exception> type, RunnableWithException run, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        try {
+        TestUtils.awaitException(() -> {
+                try {
+                    run.run();
+                    Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+                } catch (CompletionException | ExecutionException e) {
+                    if (!type.isAssignableFrom(e.getCause().getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getCause().getClass().getName(),
+                                e);
+                    }
+                } catch (Exception e) {
+                    if (!type.isAssignableFrom(e.getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                                e);
+                    }
+                    return true;
+                }
+            return false;
+        }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected exception did not occur:" + type.getName());
+        }
+    }
+
+    /**
      * Asserts that an exception of the Type provided is thrown.
      *
      * @param run  The Runnable to execute.
      * @param type The type of exception to expect.
      */
-    public static void assertThrows(Class<? extends Exception> type, RunnableWithException run) {
+    public static void assertThrows(Class<? extends Throwable> type, RunnableWithException run) {
         try {
             run.run();
             Assert.fail("No exception thrown where: " + type.getName() + " was expected");
@@ -70,11 +168,11 @@ public class AssertExtensions {
             Assert.fail(message + " No exception has been thrown.");
         } catch (CompletionException | ExecutionException ex) {
             if (!tester.test(ex.getCause())) {
-                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex.getCause(), ex);
+                throw new AssertionError(message + " Exception thrown failed tester: " + ex.getCause(), ex);
             }
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             if (!tester.test(ex)) {
-                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex, ex);
+                throw new AssertionError(message + " Exception thrown failed tester: " + ex, ex);
             }
         }
     }
@@ -87,7 +185,8 @@ public class AssertExtensions {
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>            The type of the future's result.
      */
-    public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
+    public static <T> void assertSuppliedFutureThrows(String message,
+            Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
         try {
             futureSupplier.get().join();
             Assert.fail(message + " No exception has been thrown.");
@@ -110,7 +209,7 @@ public class AssertExtensions {
      * @param tester  A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>     The type of the future's result.
      */
-    public static <T> void assertThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
+    public static <T> void assertFutureThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
         try {
             future.join();
             Assert.fail(message + " No exception has been thrown.");
@@ -136,6 +235,7 @@ public class AssertExtensions {
      * @param length  The number of elements to check.
      */
     public static void assertArrayEquals(String message, byte[] array1, int offset1, byte[] array2, int offset2, int length) {
+        // TODO: This method could be reduced to a single line (and execute faster) if we could compile this project with JDK11.
         // We could do argument checks here, but the array access below will throw the appropriate exceptions if any of these args are out of bounds.
         for (int i = 0; i < length; i++) {
             if (array1[i + offset1] != array2[i + offset2]) {
@@ -229,7 +329,7 @@ public class AssertExtensions {
      * @param <K>      The type of the map's keys.
      * @param <V>      The type of the map's values.
      */
-    public static <K extends Comparable<? super K>, V extends Comparable<? super V>> void assertMapEquals(String message, Map<K, V> expected, Map<K, V> actual) {
+    public static <K, V> void assertMapEquals(String message, Map<K, V> expected, Map<K, V> actual) {
         Assert.assertEquals(String.format("%s Maps differ in size.", message), expected.size(), actual.size());
         for (Map.Entry<K, V> e : expected.entrySet()) {
             if (!actual.containsKey(e.getKey())) {
@@ -249,17 +349,41 @@ public class AssertExtensions {
      * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
      * @param <T>      The type of the list's elements.
      */
-    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
+    public static <T> void assertListEquals(String message, List<? extends T> expected, List<? extends T> actual, BiPredicate<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
             T actualItem = actual.get(i);
-            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), tester.test(expectedItem, actualItem));
+            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem),
+                    (expectedItem == null && actualItem == null) || tester.test(expectedItem, actualItem));
         }
     }
 
     /**
-     * Asserts that actual < expected.
+     * Determines whether two list contain the same elements.
+     *
+     * @param expected The list to check against.
+     * @param actual   The list to check.
+     * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
+     * @param <T>      The type of the list's elements.
+     * @return True if the lists are equal, false otherwise.
+     */
+    public static <T> boolean listEquals(List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
+        if (expected.size() != actual.size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.size(); i++) {
+            T expectedItem = expected.get(i);
+            T actualItem = actual.get(i);
+            if (!tester.test(expectedItem, actualItem)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Asserts that actual {@literal <} expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The larger value.
@@ -270,7 +394,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual <= expected.
+     * Asserts that actual {@literal <=} expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The larger value.
@@ -281,7 +405,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual > expected.
+     * Asserts that actual {@literal >} expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The smaller value.
@@ -292,7 +416,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual >= expected.
+     * Asserts that actual {@literal >=} expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The smaller value.
@@ -365,13 +489,13 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      * @return The result of the blockingFunction.
      * @param <ResultT> The result of the blockingFunction.
      */
-    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, Runnable unblocker) {
+    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, RunnableWithException unblocker) {
         final AtomicReference<ResultT> result = new AtomicReference<>(null);
         final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
@@ -393,7 +517,11 @@ public class AssertExtensions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        unblocker.run();
+        try {
+            unblocker.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Blocking call threw an exception", e);
+        }
         try {
             isBlocked.acquire();
             t.join();
@@ -410,11 +538,11 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      */
-    public static void assertBlocks(RunnableWithException blockingFunction, Runnable unblocker) {
+    public static void assertBlocks(RunnableWithException blockingFunction, RunnableWithException unblocker) {
         final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {
@@ -441,7 +569,11 @@ public class AssertExtensions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        unblocker.run();
+        try {
+            unblocker.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Blocking call threw an exception", e);
+        }
         try {
             if (!isBlocked.tryAcquire(2000, TimeUnit.MILLISECONDS)) {
                 RuntimeException e = new RuntimeException("Failed to unblock");
@@ -456,6 +588,38 @@ public class AssertExtensions {
         }
         if (exception.get() != null) {
             throw new RuntimeException(exception.get());
-        } 
+        }
+    }
+
+    /**
+    * Compares two floating point values with a given precision.
+    *
+    * @param a the first operand.
+    * @param b the second operand.
+    * @param precision the maximum absolute difference between the two values.
+    * @return true if the two operands are both null or the represent the same
+    * value within the given precision
+    */
+    public static boolean nearlyEquals(Double a, Double b, double precision) {
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a != null && b != null) {
+            return Math.abs(a - b) <= precision;
+        }
+        return false;
+    }
+
+    /**
+     * Same as {@link Assert#fail(String)}, but this is a method that returns a value. Useful for more compact syntax
+     * in lambdas that should return a value but only verify that nothing is invoked.
+     *
+     * @param message Message to display.
+     * @param <T>     A type.
+     * @return Nothing. This method always throws {@link AssertionError}.
+     */
+    public static <T> T fail(String message) {
+        Assert.fail(message);
+        return null;
     }
 }

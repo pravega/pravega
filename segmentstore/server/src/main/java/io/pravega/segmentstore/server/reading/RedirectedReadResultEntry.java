@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -15,7 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import java.time.Duration;
@@ -34,9 +40,10 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private final long adjustedOffset;
     private CompletableReadResultEntry secondEntry;
     private TimeoutTimer timer;
-    private final CompletableFuture<ReadResultEntryContents> result;
+    private final CompletableFuture<BufferView> result;
     private final GetEntry retryGetEntry;
     private final long redirectedSegmentId;
+    private volatile boolean failed = false;
 
     //endregion
 
@@ -91,7 +98,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     }
 
     @Override
-    public CompletableFuture<ReadResultEntryContents> getContent() {
+    public CompletableFuture<BufferView> getContent() {
         return this.result;
     }
 
@@ -118,6 +125,15 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         return getActiveEntry().getCompletionCallback();
     }
 
+    @Override
+    public void fail(Throwable ex) {
+        // This is usually invoked by the StreamSegmentReadResult - we must set a flag to prevent certain failures from
+        // automatically re-triggering the query for the second entry.
+        this.failed = true;
+        this.result.completeExceptionally(ex);
+        getActiveEntry().fail(ex);
+    }
+
     //endregion
 
     //region Helpers
@@ -135,14 +151,13 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      */
     private boolean handle(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        if (this.secondEntry == null && isRetryable(ex)) {
+        if (!this.failed && this.secondEntry == null && isRetryable(ex)) {
             // This is the first attempt and we caught a retry-eligible exception; issue the query for the new entry.
             CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength(), this.redirectedSegmentId);
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 // Request the content for the new entry (if that fails, we do not change any state).
                 newEntry.requestContent(this.timer == null ? DEFAULT_TIMEOUT : timer.getRemaining());
                 assert newEntry.getStreamSegmentOffset() == this.adjustedOffset : "new entry's StreamSegmentOffset does not match the adjusted offset of this entry";
-                assert newEntry.getRequestedReadLength() == this.firstEntry.getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
 
                 // After all checks are done, update the internal state to use the new entry.
                 newEntry.setCompletionCallback(this.firstEntry.getCompletionCallback());
@@ -197,7 +212,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     }
 
     private void setOutcomeAfterSecondEntry() {
-        CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
+        CompletableFuture<BufferView> sourceFuture = this.secondEntry.getContent();
         sourceFuture.thenAccept(this.result::complete);
         Futures.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }

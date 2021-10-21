@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -16,6 +22,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
@@ -108,7 +115,12 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
         throw new IllegalStateException("Unexpected operation: " + segmentAttributeUpdated);
     }
-    
+
+    @Override
+    public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+        throw new IllegalStateException("Unexpected operation: " + storageFlushed);
+    }
+
     @Override
     public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
         throw new IllegalStateException("Unexpected operation: " + segmentAttribute);
@@ -145,13 +157,72 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authFailed) {
+        throw new IllegalStateException("Unexpected operation: " + authFailed);
+    }
+
+    @Override
+    public void tableSegmentInfo(WireCommands.TableSegmentInfo info) {
+        throw new IllegalStateException("Unexpected operation: " + info);
+    }
+
+    @Override
+    public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesUpdated);
+    }
+
+    @Override
+    public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRemoved);
+    }
+
+    @Override
+    public void tableRead(WireCommands.TableRead tableRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableRead);
+    }
+
+    @Override
+    public void tableSegmentNotEmpty(TableSegmentNotEmpty tableSegmentNotEmpty) {
+        throw new IllegalStateException("Unexpected operation: " + tableSegmentNotEmpty);
+    }
+
+    @Override
     public void segmentPolicyUpdated(SegmentPolicyUpdated segment) {
         throw new IllegalStateException("Unexpected operation: " + segment);
     }
 
     @Override
     public void keepAlive(KeepAlive keepAlive) {
-        throw new IllegalStateException("Unexpected operation: " + keepAlive);
+        log.trace("KeepAlive received");
     }
 
+    @Override
+    public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyDoesNotExist);
+    }
+
+    @Override
+    public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyBadVersion);
+    }
+
+    @Override
+    public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRead);
+    }
+
+    @Override
+    public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesRead);
+    }
+
+    @Override
+    public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesDeltaRead);
+    }
+
+    @Override
+    public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+        throw new IllegalStateException("Unexpected operation: " + errorMessage);
+    }
 }

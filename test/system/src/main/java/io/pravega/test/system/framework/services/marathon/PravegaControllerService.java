@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services.marathon;
 
@@ -34,8 +40,9 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    public static final int CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 10080;
+    private static final String COMPONENT_CODE = "controller";
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;
@@ -119,23 +126,27 @@ public class PravegaControllerService extends MarathonBasedService {
         healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
 
-        //set env
         String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
-                setSystemProperty("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
+                buildSystemProperty(propertyName("zk.connect.uri"), zk) +
+                buildSystemProperty(propertyName("service.rpc.published.host.nameOrIp"), this.id + ".marathon.mesos") +
+                buildSystemProperty(propertyName("service.rpc.published.port"), String.valueOf(CONTROLLER_PORT)) +
+                buildSystemProperty(propertyName("service.rpc.listener.port"), String.valueOf(CONTROLLER_PORT)) +
+                buildSystemProperty(propertyName("service.rest.listener.port"), String.valueOf(REST_PORT)) +
+                buildSystemProperty("log.level", "DEBUG") +
+                buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
+                buildSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
+                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(600 * 1000)) +
+                buildSystemProperty(propertyName("retention.frequency.minutes"), String.valueOf(2));
+
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("controller"));
 
         return app;
+    }
+
+    private String propertyName(String str) {
+        return String.format("%s.%s", COMPONENT_CODE, str);
     }
 }

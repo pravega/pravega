@@ -1,48 +1,54 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.logs.InMemoryLog;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.ErrorInjector;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -60,20 +66,25 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
     private final UpdateableContainerMetadata metadata;
-    private final SequencedItemList<Operation> log;
+    private final InMemoryLog log;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
     @GuardedBy("lock")
     private final HashMap<Long, AppendData> appendData;
     @GuardedBy("lock")
-    private final HashMap<Long, Map<UUID, Long>> attributeData;
+    private final HashMap<Long, Map<AttributeId, Long>> attributeData;
+    @GuardedBy("lock")
+    private final HashMap<Long, Long> attributeRootPointers;
     @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
+    @GuardedBy("lock")
+    private long ackSeqNo;
     @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
     private final AtomicLong lastAddedCheckpoint;
     private final AtomicBoolean ackEffective;
     private final AtomicBoolean closed;
+    private final AtomicLong lastAddedSeqNo;
     @GuardedBy("lock")
     private Consumer<Long> segmentMetadataRequested;
     @GuardedBy("lock")
@@ -88,10 +99,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
     private ErrorInjector<Exception> persistAttributesErrorInjector;
+    /**
+     * Arg1: Root Pointer
+     * Arg2: LastSeqNo
+     * Return: True (validate root pointer), False (do not validate).
+     */
+    @GuardedBy("lock")
+    private BiFunction<Long, Long, CompletableFuture<Boolean>> notifyAttributesPersistedInterceptor;
     @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
-    @GuardedBy("lock")
-    private Runnable onGetAppendData;
     private final Object lock = new Object();
 
     //endregion
@@ -107,9 +123,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.appendData = new HashMap<>();
+        this.attributeRootPointers = new HashMap<>();
         this.attributeData = new HashMap<>();
-        this.log = new SequencedItemList<>();
+        this.log = new InMemoryLog();
         this.lastAddedCheckpoint = new AtomicLong(0);
+        this.lastAddedSeqNo = new AtomicLong(0);
+        this.ackSeqNo = 0;
         this.waitFullyAcked = null;
         this.ackEffective = new AtomicBoolean(true);
         this.closed = new AtomicBoolean(false);
@@ -163,10 +182,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
-        if (!this.log.add(operation)) {
-            throw new IllegalStateException("Sequence numbers out of order.");
-        }
-
+        this.log.add(operation);
+        this.lastAddedSeqNo.set(operation.getSequenceNumber());
         notifyAddProcessed();
         return operation.getSequenceNumber();
     }
@@ -184,7 +201,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             }
         }
 
-        ad.append(operation.getStreamSegmentOffset(), operation.getData());
+        ad.append(operation.getStreamSegmentOffset(), operation.getData().getCopy());
     }
 
     /**
@@ -219,16 +236,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                 .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
                     if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
-                        this.log.truncate(upToSequenceNumber);
                         this.metadata.removeTruncationMarkers(upToSequenceNumber);
                     }
 
                     // See if anyone is waiting for the DataSource to be emptied out; if so, notify them.
                     CompletableFuture<Void> callback = null;
                     synchronized (this.lock) {
-                        // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
-                        Operation last = this.log.getLast();
-                        if (this.waitFullyAcked != null && (last == null || last.getSequenceNumber() <= upToSequenceNumber)) {
+                        this.ackSeqNo = upToSequenceNumber;
+
+                        // If someone is waiting for a full ack, check to see if we should notify them.
+                        if (this.waitFullyAcked != null && this.lastAddedSeqNo.get() > 0 && this.lastAddedSeqNo.get() <= this.ackSeqNo) {
                             callback = this.waitFullyAcked;
                             this.waitFullyAcked = null;
                         }
@@ -241,7 +258,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+    public CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<AttributeId, Long> attributes, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
@@ -249,10 +266,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.supplyAsync(() -> {
                     synchronized (this.lock) {
                         // We use "null" as an indication that the attribute data is deleted, hence the extra work here.
-                        Map<UUID, Long> segmentAttributes;
+                        Map<AttributeId, Long> segmentAttributes;
                         if (this.attributeData.containsKey(streamSegmentId)) {
                             segmentAttributes = this.attributeData.get(streamSegmentId);
                         } else {
@@ -275,15 +292,50 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                             // This is turned into an UnmodifiableMap, which throws UnsupportedOperationException for modify calls.
                             throw new CompletionException(new StreamSegmentSealedException("attributes_" + streamSegmentId, ex));
                         }
+
+                        long rootPointer = this.attributeRootPointers.getOrDefault(streamSegmentId, 0L) + 1;
+                        this.attributeRootPointers.put(streamSegmentId, rootPointer);
+                        return rootPointer;
                     }
                 }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, Duration timeout) {
+        BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor;
+        synchronized (this.lock) {
+            interceptor = this.notifyAttributesPersistedInterceptor;
+        }
+
+        if (interceptor == null) {
+            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, true), this.executor);
+        } else {
+            return interceptor.apply(rootPointer, lastSequenceNumber)
+                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, validate), this.executor);
+        }
+    }
+
+    private void notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
+        Preconditions.checkArgument(segmentType.equals(this.metadata.getStreamSegmentMetadata(segmentId).getType()));
+        synchronized (this.lock) {
+            Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
+            if (!validateRootPointer || expectedRootPointer == rootPointer) {
+                this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(
+                        ImmutableMap.<AttributeId, Long>builder()
+                                .put(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer)
+                                .put(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, lastSequenceNumber)
+                                .build());
+            } else {
+                throw new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer));
+            }
+        }
     }
 
     @Override
     public CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
             synchronized (this.lock) {
-                Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
+                Map<AttributeId, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
                 this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
             }
         }, this.executor);
@@ -299,7 +351,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
+    public CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
@@ -308,17 +360,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> {
-                    Iterator<Operation> logReadResult = this.log.read(afterSequenceNumber, maxCount);
-                    if (logReadResult.hasNext()) {
-                        // Result is readily available; return it.
-                        return CompletableFuture.completedFuture(logReadResult);
-                    } else {
-                        // Result is not yet available; wait for an add and then retry the read.
-                        return waitForAdd(afterSequenceNumber, timeout)
-                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
-                    }
-                });
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> this.log.take(maxCount, timeout, this.executor));
     }
 
     @Override
@@ -330,24 +372,21 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
-        Runnable callback;
+    public BufferView getAppendData(long streamSegmentId, long startOffset, int length) {
         AppendData ad;
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
-            callback = this.onGetAppendData;
-        }
 
-        if (callback != null) {
-            callback.run();
-        }
-
-        synchronized (this.lock) {
             // Perform the same validation checks as the ReadIndex would do.
             SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            if (sm.isDeleted()) {
+                // StorageWriterFactory.WriterDataSource returns null for inexistent segments.
+                return null;
+            }
+
             Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
             Preconditions.checkArgument(startOffset >= sm.getStorageLength(),
-                    "startOffset must be larger than refer to an offset beyond the Segment's StorageLength offset.");
+                    "startOffset (%s) must refer to an offset beyond the Segment's StorageLength offset(%s).", startOffset, sm.getStorageLength());
             Preconditions.checkArgument(startOffset + length <= sm.getLength(),
                     "startOffset+length must be less than the length of the Segment.");
             Preconditions.checkArgument(startOffset >= Math.min(sm.getStartOffset(), sm.getStorageLength()),
@@ -391,9 +430,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //region Other Properties
 
-    void setOnGetAppendData(Runnable callback) {
+    long getAttributeRootPointer(long segmentId) {
         synchronized (this.lock) {
-            this.onGetAppendData = callback;
+            return this.attributeRootPointers.getOrDefault(segmentId, Attributes.NULL_ATTRIBUTE_VALUE);
         }
     }
 
@@ -445,6 +484,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
     }
 
+    void setNotifyAttributesPersistedInterceptor(BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor) {
+        synchronized (this.lock) {
+            this.notifyAttributesPersistedInterceptor = interceptor;
+        }
+    }
+
     BiConsumer<Long, Long> getCompleteMergeCallback() {
         synchronized (this.lock) {
             return this.completeMergeCallback;
@@ -465,7 +510,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         synchronized (this.lock) {
             if (this.waitFullyAcked == null) {
                 // Nobody else is waiting for the DataSource to empty out.
-                if (this.log.getLast() == null) {
+                if (this.ackSeqNo >= this.lastAddedSeqNo.get()) {
                     // We are already empty; return a completed future.
                     return CompletableFuture.completedFuture(null);
                 } else {
@@ -481,7 +526,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     /**
      * Gets a copy of all the attributes so far.
      */
-    Map<UUID, Long> getPersistedAttributes(long segmentId) {
+    Map<AttributeId, Long> getPersistedAttributes(long segmentId) {
         synchronized (this.lock) {
             val m = this.attributeData.get(segmentId);
             return m == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(m));
@@ -491,33 +536,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //endregion
 
     //region Helpers
-
-    private CompletableFuture<Void> waitForAdd(long currentSeqNo, Duration timeout) {
-        CompletableFuture<Void> result;
-        synchronized (this.lock) {
-            Operation last = this.log.getLast();
-            if (last != null && last.getSequenceNumber() > currentSeqNo) {
-                // An add has already been processed that meets or exceeds the given sequence number.
-                result = CompletableFuture.completedFuture(null);
-            } else {
-                if (this.addProcessed == null) {
-                    // We need to wait for an add, and nobody else is waiting for it too.
-                    this.addProcessed = Futures.futureWithTimeout(timeout, this.executor);
-                    Futures.onTimeout(this.addProcessed, ex -> {
-                        synchronized (this.lock) {
-                            if (this.addProcessed.isCompletedExceptionally()) {
-                                this.addProcessed = null;
-                            }
-                        }
-                    });
-                }
-
-                result = this.addProcessed;
-            }
-        }
-
-        return result;
-    }
 
     private void notifyAddProcessed() {
         CompletableFuture<Void> f;
@@ -553,8 +571,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.data.put(segmentOffset, data);
         }
 
-        synchronized InputStream read(final long segmentOffset, final int length) {
-            ArrayList<InputStream> result = new ArrayList<>();
+        synchronized BufferView read(final long segmentOffset, final int length) {
+            ArrayList<BufferView> result = new ArrayList<>();
 
             // Locate first entry.
             long currentOffset = segmentOffset;
@@ -569,7 +587,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             int remainingLength = length;
             while (entryData != null && remainingLength > 0) {
                 int entryLength = Math.min(remainingLength, entryData.length - entryOffset);
-                result.add(new ByteArrayInputStream(entryData, entryOffset, entryLength));
+                result.add(new ByteArraySegment(entryData, entryOffset, entryLength));
                 currentOffset += entryLength;
                 remainingLength -= entryLength;
                 entryOffset = 0;
@@ -580,7 +598,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                 return null;
             }
 
-            return new SequenceInputStream(Iterators.asEnumeration(result.iterator()));
+            return BufferView.wrap(result);
         }
     }
 }

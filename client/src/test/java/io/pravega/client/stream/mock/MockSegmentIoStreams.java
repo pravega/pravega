@@ -1,17 +1,24 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInfo;
@@ -21,23 +28,24 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
+public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, EventSegmentReader, ConditionalOutputStream, SegmentMetadataClient {
 
     private final Segment segment;
-    @GuardedBy("$lock")
-    private int readIndex; 
     @GuardedBy("$lock")
     private long readOffset = 0;
     @GuardedBy("$lock")
@@ -47,21 +55,27 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private long writeOffset = 0;
     @GuardedBy("$lock")
-    private final ArrayList<ByteBuffer> dataWritten = new ArrayList<>();
+    private final TreeMap<Long, ByteBuffer> dataWritten = new TreeMap<>();
     @GuardedBy("$lock")
-    private final ArrayList<Long> offsetList = new ArrayList<>();
     private final AtomicBoolean close = new AtomicBoolean();
     private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
+    private final Semaphore fillCalled;
     
     @Override
     @Synchronized
-    public void setOffset(long offset) {
-        int index = offsetList.indexOf(offset);
-        if (index < 0) {
-            throw new IllegalArgumentException("There is not an entry at offset: " + offset);
+    public void setOffset(long offset, boolean resend) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Invalid offset " + offset);
         }
-        readIndex = index;
+        if (offset > writeOffset) {
+            throw new IllegalArgumentException("Beyond the end of the stream: " + offset);
+        }
         readOffset = offset;
+    }
+
+    @Override
+    public void setOffset(long offset) {
+        setOffset(offset, false);
     }
 
     @Override
@@ -72,8 +86,14 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength() {
-        return writeOffset;
+    public CompletableFuture<Long> fetchCurrentSegmentHeadOffset() {
+        return CompletableFuture.completedFuture(startingOffset);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Long> fetchCurrentSegmentLength() {
+        return CompletableFuture.completedFuture(writeOffset);
     }
 
     
@@ -82,34 +102,62 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return read(Long.MAX_VALUE);
     }
     
+    /** 
+     * Event read.
+     * @see io.pravega.client.segment.impl.EventSegmentReader#read(long)
+     */
     @Override
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        if (readIndex >= eventsWritten) {
+        if (readOffset >= writeOffset) {
             throw new EndOfSegmentException();
         }
         if (readOffset < startingOffset) {
             throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
         }
-        ByteBuffer buffer = dataWritten.get(readIndex);
-        readIndex++;
-        readOffset += buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        return buffer.slice();
+        ByteBuffer buffer = dataWritten.floorEntry(readOffset).getValue();
+        readOffset += buffer.remaining();
+        ByteBuffer result = buffer.slice();
+        result.position(WireCommands.TYPE_PLUS_LENGTH_SIZE);
+        return result;
+    }
+    
+    /** 
+     * Byte oriented read.
+     * @see io.pravega.client.segment.impl.SegmentInputStream#read(java.nio.ByteBuffer, long)
+     */
+    @Override
+    @Synchronized
+    public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+        if (readOffset >= writeOffset) {
+            throw new EndOfSegmentException();
+        }
+        if (readOffset < startingOffset) {
+            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
+        }
+        int result = 0;
+        while (toFill.hasRemaining() && readOffset < writeOffset) {
+            ByteBuffer buffer = dataWritten.floorEntry(readOffset).getValue();
+            int read = ByteBufferUtils.copy(buffer, toFill);
+            readOffset += read;
+            result += read;
+        }
+        return result;
+    }
+
+    @Override
+    public void write(PendingEvent event) {
+        CompletableFuture<Void> ackFuture = doWrite(event);
+        if (ackFuture != null) {            
+            ackFuture.complete(null);
+        }
     }
 
     @Override
     @Synchronized
-    public void write(PendingEvent event) {
-        ByteBuffer data = event.getData();
-        write(data);
-        event.getAckFuture().complete(null);
-    }
-    
-    @Override
-    @Synchronized
     public boolean write(ByteBuffer data, long expectedOffset) {
         if (writeOffset == expectedOffset) {
-            write(data);
+            write(PendingEvent.withHeader(null, data, null).getData().nioBuffer());
             return true;
         } else {
             return false;
@@ -117,10 +165,16 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     private void write(ByteBuffer data) {
-        dataWritten.add(data.slice());
-        offsetList.add(writeOffset);
+        dataWritten.put(writeOffset, data.slice());
         eventsWritten++;
-        writeOffset += data.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        writeOffset += data.remaining();
+    }
+    
+    @Synchronized
+    private CompletableFuture<Void> doWrite(PendingEvent event) {
+        ByteBuffer data = event.getData().nioBuffer();
+        write(data);
+        return event.getAckFuture();
     }
     
     @Override
@@ -134,7 +188,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean canReadWithoutBlocking() {
+    public boolean isSegmentReady() {
         return true;
     }
 
@@ -144,8 +198,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void fillBuffer() {
-        //Noting to do.
+    public CompletableFuture<?> fillBuffer() {
+        if (fillCalled != null) {
+            fillCalled.release();
+        }
+        return null;
     }
 
     @Override
@@ -159,15 +216,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public long fetchProperty(SegmentAttribute attribute) {
+    public CompletableFuture<Long> fetchProperty(SegmentAttribute attribute) {
         Long result = attributes.get(attribute);
-        return result == null ? SegmentAttribute.NULL_VALUE : result;
+        return CompletableFuture.completedFuture(result == null ? Long.valueOf(SegmentAttribute.NULL_VALUE) : result);
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public CompletableFuture<Boolean> compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
-        return attributes.replace(attribute, expectedValue, newValue);
+        return CompletableFuture.completedFuture(attributes.replace(attribute, expectedValue, newValue));
     }
 
     public boolean isClosed() {
@@ -176,21 +233,39 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo() {
-        return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
+    public CompletableFuture<SegmentInfo> getSegmentInfo() {
+        return CompletableFuture.completedFuture(new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis()));
     }
 
     @Override
     @Synchronized
-    public void truncateSegment(Segment segment, long offset) {
+    public CompletableFuture<Void> truncateSegment(long offset) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public String getScopedSegmentName() {
         return segment.getScopedName();
+    }
+
+    @Override
+    @Synchronized
+    public int bytesInBuffer() {
+        return (int) (writeOffset - readOffset);
+    }
+
+    @Override
+    public CompletableFuture<Void> sealSegment() {
+        //Nothing to do
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public long getLastObservedWriteOffset() {
+        return fetchCurrentSegmentLength().join();
     }
 }

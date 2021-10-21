@@ -1,16 +1,24 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.controller.util.Config;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.Property;
@@ -21,8 +29,8 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.io.IOException;
@@ -158,16 +166,22 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .forClass(BookKeeperServiceRunner.class)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.testConfig.getBkPort(0))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_SECURE_BK, this.testConfig.isEnableSecurity())
-                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE, "../../config/bookie.keystore.jks")
-                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE_PASSWD, "../../config/bookie.keystore.jks.passwd")
+                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE,
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_BK_KEYSTORE_FILE_NAME))
+                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE_PASSWD,
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_BK_KEYSTORE_PASSWORD_FILE_NAME))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.testConfig.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_ZK_LEDGER_PATH)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("bk", 0))))
                 .start());
         log("Bookies started (Count = %s, Ports = [%s-%s])",
                 bookieCount, this.testConfig.getBkPort(0), this.testConfig.getBkPort(bookieCount - 1));
+    }
+
+    private String pathOfConfigItem(String fileName) {
+        return String.format("../../config/%s", fileName);
     }
 
     private void startAllControllers() throws IOException {
@@ -181,22 +195,25 @@ class OutOfProcessAdapter extends ExternalAdapter {
         int port = this.testConfig.getControllerPort(controllerId);
         int restPort = this.testConfig.getControllerRestPort(controllerId);
         int rpcPort = this.testConfig.getControllerRpcPort(controllerId);
+
         Process p = ProcessStarter
                 .forClass(io.pravega.controller.server.Main.class)
-                .sysProp("CONTAINER_COUNT", this.testConfig.getContainerCount())
-                .sysProp("ZK_URL", getZkUrl())
-                .sysProp("CONTROLLER_SERVER_PORT", port)
-                .sysProp("AUTHORIZATION_ENABLED", this.testConfig.isEnableSecurity())
-                .sysProp("USER_PASSWORD_FILE", "../../config/passwd")
-                .sysProp("TLS_ENABLED", this.testConfig.isEnableSecurity())
-                .sysProp("TLS_CERT_FILE", "../../config/cert.pem")
-                .sysProp("TLS_TRUST_STORE", "../../config/cert.pem")
-                .sysProp("TLS_KEY_FILE", "../../config/key.pem")
-                .sysProp("TOKEN_SIGNING_KEY", "secret")
-                .sysProp("REST_SERVER_IP", TestConfig.LOCALHOST)
-                .sysProp("REST_SERVER_PORT", restPort)
-                .sysProp("CONTROLLER_RPC_PUBLISHED_HOST", TestConfig.LOCALHOST)
-                .sysProp("CONTROLLER_RPC_PUBLISHED_PORT", rpcPort)
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_CONTAINER_COUNT), this.testConfig.getContainerCount())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_ZK_URL), getZkUrl())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_SERVICE_PORT), port)
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_AUTH_ENABLED), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE),
+                        pathOfConfigItem(SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME))
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_ENABLED), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_CERT_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_TRUST_STORE), pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_KEY_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TOKEN_SIGNING_KEY), "secret")
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_REST_IP), TestConfig.LOCALHOST)
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_REST_PORT), restPort)
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_RPC_HOST), TestConfig.LOCALHOST)
+                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_RPC_PORT), rpcPort)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("controller", controllerId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("controller", controllerId))))
                 .start();
@@ -222,8 +239,11 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ENABLE_TLS), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.KEY_FILE), "../../config/key.pem")
-                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.CERT_FILE), "../../config/cert.pem")
+                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.TLS_PROTOCOL_VERSION), Config.PROPERTY_TLS_PROTOCOL_VERSION.getDefaultValue())
+                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.KEY_FILE),
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
+                .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.CERT_FILE),
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
                 .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.ZK_ADDRESS), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.LISTENING_PORT), port)
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.STORAGE_IMPLEMENTATION), ServiceConfig.StorageType.FILESYSTEM)
@@ -231,10 +251,12 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerUrl())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.AUTH_ENABLED), this.testConfig.isEnableSecurity())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_ENABLED), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_CERT_FILE), "../../config/cert.pem")
+                .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_CERT_FILE),
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TOKEN_SIGNING_KEY), "secret")
                 .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.BK_TLS_ENABLED), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.TLS_TRUST_STORE_PATH), "../../config/bookie.truststore.jks")
+                .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.TLS_TRUST_STORE_PATH),
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_BK_TRUSTSTORE_FILE_NAME))
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("segmentStore", segmentStoreId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))));
         if (this.testConfig.getBookieCount() > 0) {
@@ -243,9 +265,6 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
         if (this.testConfig.isMetricsEnabled()) {
             ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_STATISTICS), true);
-            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_CSV_REPORTER), true);
-            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.CSV_ENDPOINT),
-                    this.testConfig.getComponentMetricsPath("segmentstore", segmentStoreId));
         }
 
         Process p = ps.start();

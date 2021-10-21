@@ -1,28 +1,42 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import lombok.Getter;
+
 import java.io.IOException;
 
 /**
  * Log Operation that indicates a Segment is to be merged into another Segment.
  */
-public class MergeSegmentOperation extends StorageOperation {
+public class MergeSegmentOperation extends StorageOperation implements AttributeUpdaterOperation {
     //region Members
 
     private long streamSegmentOffset;
     private long length;
     private long sourceSegmentId;
+    @Getter
+    private AttributeUpdateCollection attributeUpdates;
 
     //endregion
 
@@ -39,6 +53,12 @@ public class MergeSegmentOperation extends StorageOperation {
         this.sourceSegmentId = sourceSegmentId;
         this.length = -1;
         this.streamSegmentOffset = -1;
+        this.attributeUpdates = null;
+    }
+
+    public MergeSegmentOperation(long targetSegmentId, long sourceSegmentId, AttributeUpdateCollection attributeUpdates) {
+        this(targetSegmentId, sourceSegmentId);
+        this.attributeUpdates = attributeUpdates;
     }
 
     /**
@@ -107,17 +127,23 @@ public class MergeSegmentOperation extends StorageOperation {
     @Override
     public String toString() {
         return String.format(
-                "%s, SourceSegmentId = %d, Length = %s, MergeOffset = %s",
+                "%s, SourceSegmentId = %d, Length = %s, MergeOffset = %s, Attributes = %d",
                 super.toString(),
                 getSourceSegmentId(),
                 toString(getLength(), -1),
-                toString(getStreamSegmentOffset(), -1));
+                toString(getStreamSegmentOffset(), -1),
+                this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
     //endregion
 
+    //region Serializer
+
     static class Serializer extends OperationSerializer<MergeSegmentOperation> {
         private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
+        // Segment merges can be conditionally based on attributes. Each attribute update is serialized as a UUID
+        // (attributeId, 2 longs), attribute type (1 byte), old and new values (2 longs).
+        private static final int ATTRIBUTE_UUID_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
 
         @Override
         protected OperationBuilder<MergeSegmentOperation> newBuilder() {
@@ -131,7 +157,8 @@ public class MergeSegmentOperation extends StorageOperation {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read01);
         }
 
         @Override
@@ -150,6 +177,23 @@ public class MergeSegmentOperation extends StorageOperation {
             target.writeLong(o.streamSegmentOffset);
         }
 
+        private void write01(MergeSegmentOperation o, RevisionDataOutput target) throws IOException {
+            if (o.attributeUpdates == null || o.attributeUpdates.isEmpty()) {
+                target.getCompactIntLength(0);
+                return;
+            }
+            target.length(target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UUID_UPDATE_LENGTH));
+            target.writeCollection(o.attributeUpdates, this::writeAttributeUpdateUUID01);
+        }
+
+        private void writeAttributeUpdateUUID01(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+            target.writeLong(au.getAttributeId().getBitGroup(0));
+            target.writeLong(au.getAttributeId().getBitGroup(1));
+            target.writeByte(au.getUpdateType().getTypeId());
+            target.writeLong(au.getValue());
+            target.writeLong(au.getComparisonValue());
+        }
+
         private void read00(RevisionDataInput source, OperationBuilder<MergeSegmentOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.setStreamSegmentId(source.readLong());
@@ -157,5 +201,21 @@ public class MergeSegmentOperation extends StorageOperation {
             b.instance.length = source.readLong();
             b.instance.streamSegmentOffset = source.readLong();
         }
+
+        private void read01(RevisionDataInput source, OperationBuilder<MergeSegmentOperation> b) throws IOException {
+            if (source.getRemaining() > 0) {
+                b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID01, AttributeUpdateCollection::new);
+            }
+        }
+
+        private AttributeUpdate readAttributeUpdateUUID01(RevisionDataInput source) throws IOException {
+            return new AttributeUpdate(
+                    AttributeId.uuid(source.readLong(), source.readLong()),
+                    AttributeUpdateType.get(source.readByte()),
+                    source.readLong(),
+                    source.readLong());
+        }
     }
+
+    //endregion
 }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -34,13 +40,18 @@ public class TestState {
     //region Members
 
     static final OperationType[] SUMMARY_OPERATION_TYPES = {
-            ProducerOperationType.APPEND,
-            ProducerOperationType.CREATE_TRANSACTION,
-            ProducerOperationType.MERGE_TRANSACTION,
-            ProducerOperationType.ABORT_TRANSACTION,
-            ProducerOperationType.SEAL,
+            ProducerOperationType.STREAM_APPEND,
+            ProducerOperationType.CREATE_STREAM_TRANSACTION,
+            ProducerOperationType.MERGE_STREAM_TRANSACTION,
+            ProducerOperationType.ABORT_STREAM_TRANSACTION,
+            ProducerOperationType.STREAM_SEAL,
+            ProducerOperationType.TABLE_REMOVE,
+            ProducerOperationType.TABLE_UPDATE,
             ConsumerOperationType.END_TO_END,
-            ConsumerOperationType.CATCHUP_READ};
+            ConsumerOperationType.CATCHUP_READ,
+            ConsumerOperationType.TABLE_GET,
+            ConsumerOperationType.TABLE_ITERATOR,
+            ConsumerOperationType.TABLE_ITERATOR_STEP};
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
     private static final int MAX_LATENCY_MILLIS = 30000;
 
@@ -51,6 +62,9 @@ public class TestState {
     private final AtomicLong verifiedTailLength;
     private final AtomicLong verifiedCatchupLength;
     private final AtomicLong verifiedStorageLength;
+    private final AtomicInteger tableUpdateCount;
+    private final AtomicInteger tableGetCount;
+    private final AtomicInteger tableGetTotalKeyCount;
     private final ConcurrentHashMap<String, StreamInfo> allStreams;
     @GuardedBy("allStreamNames")
     private final ArrayList<String> allStreamNames;
@@ -75,6 +89,9 @@ public class TestState {
         this.verifiedTailLength = new AtomicLong();
         this.verifiedCatchupLength = new AtomicLong();
         this.verifiedStorageLength = new AtomicLong();
+        this.tableUpdateCount = new AtomicInteger();
+        this.tableGetCount = new AtomicInteger();
+        this.tableGetTotalKeyCount = new AtomicInteger();
         this.startTimeNanos = new AtomicLong();
         this.lastAppendTime = new AtomicLong();
         this.durations = Collections.unmodifiableMap(
@@ -134,6 +151,28 @@ public class TestState {
      */
     long getVerifiedStorageLength() {
         return this.verifiedStorageLength.get();
+    }
+
+    /**
+     * Gets a value indicating the number of Table Updates & Removes performed.
+     */
+    int getTableUpdateCount() {
+        return this.tableUpdateCount.get();
+    }
+
+    /**
+     * Gets a value indicating the number of Table Get invocations.
+     */
+    int getTableGetCount() {
+        return this.tableGetCount.get();
+    }
+
+    /**
+     * Gets a value indicating the total number of Keys retrieved via Table Get invocations (each invocation may request
+     * more than one key).
+     */
+    int getTableGetTotalKeyCount() {
+        return this.tableGetTotalKeyCount.get();
     }
 
     /**
@@ -254,6 +293,8 @@ public class TestState {
         this.verifiedTailLength.set(0);
         this.verifiedCatchupLength.set(0);
         this.verifiedStorageLength.set(0);
+        this.tableUpdateCount.set(0);
+        this.tableGetCount.set(0);
         this.durations.values().forEach(LatencyCollection::reset);
     }
 
@@ -338,7 +379,7 @@ public class TestState {
      *
      * @param length The length of the append.
      */
-    void recordAppend(int length) {
+    void recordDataWritten(int length) {
         this.producedLength.addAndGet(length);
         this.lastAppendTime.set(System.nanoTime());
     }
@@ -353,6 +394,15 @@ public class TestState {
 
     void recordStorageRead(int length) {
         this.verifiedStorageLength.addAndGet(length);
+    }
+
+    void recordTableModification(int updateCount) {
+        this.tableUpdateCount.addAndGet(updateCount);
+    }
+
+    void recordTableGet(int keyCount) {
+        this.tableGetCount.incrementAndGet();
+        this.tableGetTotalKeyCount.addAndGet(keyCount);
     }
 
     /**
@@ -530,15 +580,22 @@ public class TestState {
         }
 
         /**
-         * Gets a value indicating the average latency.
+         * Gets a value indicating the overall latency.
          */
-        synchronized double average() {
+        synchronized double sum() {
             long sum = 0;
             for (int i = 0; i < this.latencyCounts.length; i++) {
                 sum += (long) this.latencyCounts[i] * i;
             }
 
-            return (double) sum / this.size;
+            return sum;
+        }
+
+        /**
+         * Gets a value indicating the average latency.
+         */
+        synchronized double average() {
+            return sum() / this.size;
         }
 
         /**

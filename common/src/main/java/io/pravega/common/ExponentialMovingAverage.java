@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common;
 
@@ -20,19 +26,19 @@ public class ExponentialMovingAverage {
 
     private final double newSampleWeight;
     private final AtomicLong valueEncodedAsLong;
-    private final boolean logarithmicWeighting;
+    private final boolean sqrtWeighting;
     
     /**
      * Creates a new value to track.
      * 
      * @param initialValue The value to be used as the initial average
      * @param newSampleWeight The fractional weight to give to new samples. 0.0 - 1.0 (exclusive)
-     * @param logarithmicWeighting If the samples should be weighted logarithmically to reduce the impact of outliers.
+     * @param sqrtWeighting If the samples should be weighted according to the square root to reduce the impact of outliers.
      */
-    public ExponentialMovingAverage(double initialValue, double newSampleWeight, boolean logarithmicWeighting ) {
+    public ExponentialMovingAverage(double initialValue, double newSampleWeight, boolean sqrtWeighting ) {
         Preconditions.checkArgument(newSampleWeight > 0.0 && newSampleWeight < 1.0, "New sample weight must be between 0.0 and 1.0");       
         this.newSampleWeight = newSampleWeight;
-        this.logarithmicWeighting = logarithmicWeighting;
+        this.sqrtWeighting = sqrtWeighting;
         double value = calculateLog(initialValue);
         this.valueEncodedAsLong = new AtomicLong(Double.doubleToLongBits(value));
     }
@@ -62,19 +68,19 @@ public class ExponentialMovingAverage {
     }
 
     private double calculateLog(double newSample) {
-        if (!logarithmicWeighting) {
+        if (!sqrtWeighting) {
             return newSample;
         } 
         
-        return Math.signum(newSample) * Math.log1p(Math.abs(newSample));
+        return Math.signum(newSample) * Math.sqrt(Math.abs(newSample));
     }
     
     private double calculateExponential(double result) {
-        if (!logarithmicWeighting) {
+        if (!sqrtWeighting) {
             return result;
         } 
         
-        return Math.signum(result) * (Math.expm1(Math.abs(result)));
+        return result * Math.abs(result);
     }
     
     @Override

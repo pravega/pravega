@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services.marathon;
 
@@ -22,11 +28,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -124,14 +130,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         //Properties set to override defaults for system tests
         String hostSystemProperties = "-Xmx1024m" +
-                setSystemProperty("autoScale.muteInSeconds", "120") +
-                setSystemProperty("autoScale.cooldownInSeconds", "120") +
-                setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
-                setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
-                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+                buildSystemProperty("autoScale.muteInSeconds", "120") +
+                buildSystemProperty("autoScale.cooldownInSeconds", "120") +
+                buildSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
+                buildSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
+                buildSystemProperty("log.level", "DEBUG") +
+                buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
+                buildSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
+                buildSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);

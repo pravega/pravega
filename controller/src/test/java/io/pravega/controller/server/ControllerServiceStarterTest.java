@@ -1,18 +1,26 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClient;
@@ -21,78 +29,77 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * ControllerServiceStarter tests.
  */
 @Slf4j
 public abstract class ControllerServiceStarterTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
+    protected final int grpcPort;
+    protected final int restPort;
+    protected ScheduledExecutorService executor;
     private final boolean disableControllerCluster;
-    private final int grpcPort;
     private final boolean enableAuth;
 
     ControllerServiceStarterTest(final boolean disableControllerCluster, boolean enableAuth) {
         this.disableControllerCluster = disableControllerCluster;
         this.enableAuth = enableAuth;
         this.grpcPort = TestUtils.getAvailableListenPort();
+        this.restPort = TestUtils.getAvailableListenPort();
     }
 
     @Before
-    public abstract void setup();
+    public abstract void setup() throws Exception;
 
     @After
-    public abstract void tearDown();
+    public abstract void tearDown() throws Exception;
 
     @Test
-    public void testStartStop() {
+    public void testStartStop() throws URISyntaxException {
         Assert.assertNotNull(storeClient);
-        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient);
+        @Cleanup
+        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient,
+                SegmentHelperMock.getSegmentHelperMockForTables(executor));
         starter.startAsync();
-
-        try {
-            starter.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting starter to get ready");
-            Assert.fail("Error awaiting starter to get ready");
-        }
+        starter.awaitRunning();
 
         // Now, that starter has started, perform some rpc operations.
-        URI uri;
-        try {
-            uri = new URI( (enableAuth ? "tls" : "tcp") + "://localhost:" + grpcPort);
-        } catch (URISyntaxException e) {
-            log.error("Error creating controller URI", e);
-            Assert.fail("Error creating controller URI");
-            return;
-        }
+        URI uri = new URI( (enableAuth ? "tls" : "tcp") + "://localhost:" + grpcPort);
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(uri)
-                                                                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                                                        .trustStore("../config/cert.pem").build());
+        StreamManager streamManager = new StreamManagerImpl(
+                ClientConfig.builder().controllerURI(uri)
+                                      .credentials(new DefaultCredentials(
+                                              SecurityConfigDefaults.AUTH_ADMIN_PASSWORD, SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
+                                      .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                            .build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);
         streamManager.close();
 
         starter.stopAsync();
-        try {
-            starter.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting termination of starter");
-            Assert.fail("Error awaiting termination of starter");
-        }
+        starter.awaitTerminated();
     }
 
     protected ControllerServiceConfig createControllerServiceConfig() {
@@ -119,11 +126,17 @@ public abstract class ControllerServiceStarterTest {
                                                                   .port(grpcPort)
                                                                   .authorizationEnabled(enableAuth)
                                                                   .tlsEnabled(enableAuth)
-                                                                  .tlsCertFile("../config/cert.pem")
-                                                                  .tlsKeyFile("../config/key.pem")
-                                                                  .userPasswordFile("../config/passwd")
+                                                                  .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
+                                                                  .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                  .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                                                                  .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                   .build()))
-                .restServerConfig(Optional.empty())
+                .restServerConfig(Optional.of(RESTServerConfigImpl.builder()
+                        .port(restPort)
+                        .host("localhost")
+                        .authorizationEnabled(enableAuth)
+                        .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
+                        .build()))
                 .build();
     }
 }

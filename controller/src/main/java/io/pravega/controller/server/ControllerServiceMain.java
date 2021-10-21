@@ -1,37 +1,41 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
-import io.pravega.common.LoggerHelpers;
-import io.pravega.controller.store.client.StoreClient;
-import io.pravega.controller.store.client.StoreClientFactory;
-import io.pravega.controller.store.client.StoreType;
-import io.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Monitor;
-import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-
+import io.pravega.common.LoggerHelpers;
+import io.pravega.common.function.Callbacks;
+import io.pravega.controller.metrics.ZookeeperMetrics;
+import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.client.StoreType;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.state.ConnectionState;
 
 /**
  * ControllerServiceMonitor, entry point into the controller service.
  */
 @Slf4j
-public class ControllerServiceMain extends AbstractExecutionThreadService {
+public class ControllerServiceMain extends AbstractExecutionThreadService implements AutoCloseable {
 
     enum ServiceState {
         NEW,
@@ -51,18 +55,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     private final Monitor.Guard hasReachedStarting = new HasReachedState(ServiceState.STARTING);
     private final Monitor.Guard hasReachedPausing = new HasReachedState(ServiceState.PAUSING);
 
-
-    @AllArgsConstructor
-    static class ZKWatcher implements Watcher {
-        private final CompletableFuture<Void> sessionExpiryFuture;
-
-        @Override
-        public void process(WatchedEvent event) {
-            if (event.getState() == Event.KeeperState.Expired) {
-                sessionExpiryFuture.complete(null);
-            }
-        }
-    }
+    private final ZookeeperMetrics zookeeperMetrics;
 
     final class HasReachedState extends Monitor.Guard {
         private ServiceState desiredState;
@@ -90,11 +83,12 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         this.starterFactory = starterFactory;
         this.serviceStopFuture = new CompletableFuture<>();
         this.serviceState = ServiceState.NEW;
+        this.zookeeperMetrics = new ZookeeperMetrics();
     }
 
     @Override
     protected void triggerShutdown() {
-        log.info("Shutting down ControllerServiceMain");
+        log.info("Shutting down Controller Service.");
         this.serviceStopFuture.complete(null);
     }
 
@@ -104,8 +98,10 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         try {
             while (isRunning()) {
                 // Create store client.
-                log.info("Creating store client");
+                log.debug("Creating store client");
                 storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+
+                starter = starterFactory.apply(serviceConfig, storeClient);
 
                 boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
                         serviceConfig.isControllerClusterListenerEnabled();
@@ -114,23 +110,25 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 if (hasZkConnection) {
                     CuratorFramework client = (CuratorFramework) storeClient.getClient();
 
-                    log.info("Awaiting ZK client connection to ZK server");
+                    log.debug("Awaiting ZK client connection to ZK server");
                     client.blockUntilConnected();
 
                     // Await ZK session expiry.
-                    log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
-                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
+                    log.debug("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
+                    client.getConnectionStateListenable().addListener((client1, newState) -> {
+                        if (newState.equals(ConnectionState.LOST)) {
+                            sessionExpiryFuture.complete(null);
+                            starter.notifySessionExpiration();
+                        }
+                    });
                 }
 
                 // Start controller services.
-                starter = starterFactory.apply(serviceConfig, storeClient);
-                log.info("Starting controller services");
+                log.info("Starting Controller Services.");
                 notifyServiceStateChange(ServiceState.STARTING);
                 starter.startAsync();
-
-                log.info("Awaiting controller services start");
                 starter.awaitRunning();
-
+                log.info("Controller Services started successfully.");
                 if (hasZkConnection) {
                     // At this point, wait until either of the two things happen
                     // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
@@ -144,19 +142,25 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     // Once ZK session expires or once ControllerServiceMain is externally stopped,
                     // stop ControllerServiceStarter.
                     if (sessionExpiryFuture.isDone()) {
-                        log.info("ZK session expired");
-                        storeClient.close();
+                        zookeeperMetrics.reportZKSessionExpiration();
+                        log.info("ZK session expired. Stopping Controller Services.");
                     }
                 } else {
                     this.serviceStopFuture.join();
+                    log.info("Stopping Controller Services.");
                 }
 
-                log.info("Stopping ControllerServiceStarter");
                 notifyServiceStateChange(ServiceState.PAUSING);
                 starter.stopAsync();
 
-                log.info("Awaiting termination of ControllerServiceStarter");
+                log.debug("Awaiting termination of ControllerServices");
                 starter.awaitTerminated();
+
+                if (hasZkConnection) {
+                    log.debug("Calling close on store client.");
+                    storeClient.close();
+                }
+                log.info("Controller Services terminated successfully.");
             }
         } catch (Exception e) {
             log.error("Controller Service Main thread exited exceptionally", e);
@@ -171,6 +175,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     /**
      * Changes internal state to the new value.
+     *
      * @param newState new internal state.
      */
     private void notifyServiceStateChange(ServiceState newState) {
@@ -225,6 +230,32 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         Preconditions.checkState(serviceConfig.isControllerClusterListenerEnabled(),
                 "Controller Cluster not enabled");
         awaitServiceStarting();
-        ZKUtils.simulateZkSessionExpiry((CuratorFramework) this.storeClient.getClient());
+        ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
+                                                         .getTestable().injectSessionExpiration();
+    }
+
+    @Override
+    protected void shutDown() throws Exception {
+        if (starter != null) {
+            if (starter.isRunning()) {
+                triggerShutdown();
+                starter.awaitTerminated();
+            }
+        }
+        if (storeClient != null) {
+            storeClient.close();
+        }
+    }
+
+    @Override
+    public void close() {
+        if (starter != null) {
+            triggerShutdown();
+            Callbacks.invokeSafely(starter::close, ex -> log.debug("Error closing starter. " + ex.getMessage()));
+        }
+
+        if (storeClient != null) {
+            Callbacks.invokeSafely(storeClient::close, ex -> log.debug("Error closing storeClient. " + ex.getMessage()));
+        }
     }
 }

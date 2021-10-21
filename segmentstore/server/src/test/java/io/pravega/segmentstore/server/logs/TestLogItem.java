@@ -1,31 +1,39 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.SequencedElement;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.junit.Assert;
 
 /**
  * Test LogItem implementation that allows injecting serialization errors.
  */
-class TestLogItem implements SequencedItemList.Element {
+class TestLogItem implements SequencedElement {
     @Getter
     private final long sequenceNumber;
     @Getter
@@ -61,8 +69,12 @@ class TestLogItem implements SequencedItemList.Element {
 
     @SneakyThrows(IOException.class)
     byte[] getFullSerialization() {
-        byte[] result = new byte[Long.BYTES + Integer.BYTES + this.data.length];
-        serialize(new FixedByteArrayOutputStream(result, 0, result.length));
+        int expectedSize = Long.BYTES + Integer.BYTES + this.data.length;
+        @Cleanup
+        val resultStream = new ByteBufferOutputStream(expectedSize);
+        serialize(resultStream);
+        val result = resultStream.getData().getCopy();
+        Assert.assertEquals(expectedSize, result.length);
         return result;
     }
 

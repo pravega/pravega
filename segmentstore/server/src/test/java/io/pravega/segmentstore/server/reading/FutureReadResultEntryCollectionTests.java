@@ -1,15 +1,23 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -78,6 +86,34 @@ public class FutureReadResultEntryCollectionTests {
         }
 
         AssertExtensions.assertListEquals("Unexpected result from close().", entries, result, Object::equals);
+    }
+
+    /**
+     * Tests the ability to auto-unregister pending reads when they are completed externally.
+     */
+    @Test
+    public void testAutoUnregister() {
+        @Cleanup
+        FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
+        List<FutureReadResultEntry> entries = generateEntries();
+        entries.forEach(c::add);
+
+        Assert.assertEquals("Unexpected number of entries registered.", entries.size(), c.size());
+        for (FutureReadResultEntry e : entries) {
+            Assert.assertFalse("StorageReadResultEntry is completed.", e.getContent().isDone());
+        }
+
+        for (int i = 0; i < entries.size(); i++) {
+            if (i % 2 == 0) {
+                entries.get(i).complete(new ByteArraySegment(new byte[1]));
+            } else {
+                entries.get(i).fail(new IntentionalException());
+            }
+        }
+
+        Assert.assertEquals("Unexpected number of entries after being completed externally.", 0, c.size());
+        val closeResult = c.close();
+        Assert.assertEquals("Not expecting any items to be returned from close().", 0, closeResult.size());
     }
 
     private List<FutureReadResultEntry> generateEntries() {

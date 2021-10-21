@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
@@ -24,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -45,9 +53,9 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
 
     @Override
-    public final CompletableFuture<Void> process(final T streamEvent) {
+    public final CompletableFuture<Void> process(final T streamEvent, Supplier<Boolean> isCancelled) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Work work = new Work(streamEvent, System.currentTimeMillis(), result);
+        Work work = new Work(streamEvent, System.currentTimeMillis(), result, isCancelled);
         String key = streamEvent.getKey();
 
         final ConcurrentLinkedQueue<Work> queue;
@@ -86,7 +94,20 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        processEvent(work.getEvent()).whenComplete((r, e) -> {
+        CompletableFuture<Void> future;
+        try {
+            assert work != null;
+            if (!work.getCancelledSupplier().get()) {
+                future = processEvent(work.getEvent());
+            } else {
+                future = new CompletableFuture<>();
+                future.cancel(true);
+            }
+        } catch (Exception e) {
+            future = Futures.failedFuture(e);
+        }
+
+        future.whenComplete((r, e) -> {
             if (e != null && toPostpone(work.getEvent(), work.getPickupTime(), e)) {
                 handleWorkPostpone(key, workQueue, work);
             } else {
@@ -149,6 +170,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         private final T event;
         private final long pickupTime;
         private final CompletableFuture<Void> result;
+        private final Supplier<Boolean> cancelledSupplier;
     }
 
 }

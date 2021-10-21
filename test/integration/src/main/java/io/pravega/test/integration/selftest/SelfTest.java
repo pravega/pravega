@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -39,7 +45,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ArrayList<Actor> actors;
     private final Reporter reporter;
-    private final ProducerDataSource dataSource;
+    private final ProducerDataSource<?> dataSource;
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
     private final StoreAdapter store;
     private ServiceManager actorManager;
@@ -64,9 +70,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
         this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
-        this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
+        this.dataSource = createProducerDataSource(this.testConfig, this.state, this.store);
         Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
+    }
+
+    private ProducerDataSource<?> createProducerDataSource(TestConfig config, TestState state, StoreAdapter store) {
+        return config.getTestType().isTablesTest()
+                ? new TableProducerDataSource(config, state, store)
+                : new StreamProducerDataSource(config, state, store);
     }
 
     //endregion
@@ -78,7 +90,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (!this.closed.get()) {
             try {
                 Futures.await(Services.stopAsync(this, this.executor));
-                this.dataSource.deleteAllStreams()
+                this.dataSource.deleteAll()
                         .exceptionally(ex -> {
                             TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);
                             return null;
@@ -110,7 +122,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
         // Create all segments, then start the Actor Manager.
         Services.startAsync(this.store, this.executor)
-                .thenCompose(v -> this.dataSource.createStreams())
+                .thenCompose(v -> this.dataSource.createAll())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
                             createTestActors();
@@ -176,23 +188,37 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer<>(i, this.testConfig, this.dataSource, this.store, this.executor));
         }
 
-        // Create Consumers (based on the number of non-transaction Segments).
-        boolean readsEnabled = this.testConfig.isReadsEnabled();
-        boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
-        if (readsEnabled && storeSupportsReads) {
+        TestLogger.log(LOG_ID, "Created %s Producer(s).", this.testConfig.getProducerCount());
+
+        // Create Consumers.
+        if (!this.testConfig.isReadsEnabled()) {
+            TestLogger.log(LOG_ID, "Not creating any consumers because reads are not enabled.");
+            return;
+        }
+
+        if (this.testConfig.getTestType().isTablesTest()) {
+            // Create TableConsumer.
+            this.actors.add(new TableConsumer(this.testConfig, (TableProducerDataSource) this.dataSource, this.state, this.store, this.executor));
+            TestLogger.log(LOG_ID, "Created TableConsumer.");
+        } else {
+            // Create Stream Consumers.
+            if (!Consumer.canUseStoreAdapter(this.store)) {
+                TestLogger.log(LOG_ID, "Not creating any consumers because the StorageAdapter does not support all required features.");
+                return;
+            }
+
+            int count = 0;
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
-                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
+                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.state, this.store, this.executor));
+                    count++;
                 }
             }
-        } else {
-            String reason = readsEnabled
-                    ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
-                    : "reads are not enabled";
-            TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
+
+            TestLogger.log(LOG_ID, "Created %s Consumer(s).", count);
         }
     }
 

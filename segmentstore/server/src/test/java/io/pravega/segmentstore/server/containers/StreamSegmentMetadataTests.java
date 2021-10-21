@@ -1,24 +1,38 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -37,6 +51,42 @@ public class StreamSegmentMetadataTests {
     public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
+     * Tests {@link StreamSegmentMetadata#getType()} and {@link StreamSegmentMetadata#refreshDerivedProperties()}.
+     */
+    @Test
+    public void testRefreshType() {
+        SegmentType expectedType = SegmentType.STREAM_SEGMENT;
+        int expectedAttributeIdLength = -1;
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+        Assert.assertEquals("Unexpected segment type for non-initialized type.", expectedType, metadata.getType());
+        Assert.assertEquals("Unexpected id length for non-initialized type.", expectedAttributeIdLength, metadata.getAttributeIdLength());
+
+        // Segment type exists in Core attributes.
+        expectedType = SegmentType.builder().critical().internal().build();
+        metadata.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_TYPE, expectedType.getValue()));
+        expectedAttributeIdLength = 123;
+        metadata.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_ID_LENGTH, (long) expectedAttributeIdLength));
+        metadata.refreshDerivedProperties();
+        Assert.assertEquals("Unexpected segment type for single type.", expectedType, metadata.getType());
+        Assert.assertEquals("Unexpected id length.", expectedAttributeIdLength, metadata.getAttributeIdLength());
+
+        // Segment type exists in Core attributes, but other attributes indicate this is a Table Segment.
+        expectedType = SegmentType.builder(expectedType).tableSegment().build();
+        metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, 0L));
+        metadata.refreshDerivedProperties();
+        Assert.assertEquals("Unexpected value for simple table segment type.", expectedType, metadata.getType());
+        Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
+                expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
+
+        // CopyFrom.
+        val m2 = new StreamSegmentMetadata(metadata.getName(), metadata.getId(), metadata.getContainerId());
+        metadata.setLength(0);
+        metadata.setStorageLength(0);
+        m2.copyFrom(metadata);
+        Assert.assertEquals("copyFrom().", metadata.getType(), m2.getType());
+    }
+
+    /**
      * Tests that Attributes are properly recorded and updated
      */
     @Test
@@ -53,7 +103,7 @@ public class StreamSegmentMetadataTests {
         // Step 2: Update half of attributes and add 50% more.
         int count = 0;
         val keyIterator = expectedAttributes.keySet().iterator();
-        val attributeUpdates = new HashMap<UUID, Long>();
+        val attributeUpdates = new HashMap<AttributeId, Long>();
 
         // Update
         while (count < ATTRIBUTE_COUNT / 2 && keyIterator.hasNext()) {
@@ -63,14 +113,22 @@ public class StreamSegmentMetadataTests {
 
         // Now add a few more.
         while (attributeUpdates.size() < ATTRIBUTE_COUNT) {
-            attributeUpdates.put(UUID.randomUUID(), rnd.nextLong());
+            attributeUpdates.put(AttributeId.randomUUID(), rnd.nextLong());
         }
 
         attributeUpdates.forEach(expectedAttributes::put);
         metadata.updateAttributes(attributeUpdates);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after update.", expectedAttributes, metadata);
 
-        // Step 3: Remove all attributes (Note that attributes are not actually removed; they're set to the NULL_ATTRIBUTE_VALUE).fa
+        // Check getAttributes(filter).
+        BiPredicate<AttributeId, Long> filter = (key, value) -> key.getBitGroup(1) % 2 == 0;
+        val expectedFilteredAttributes = expectedAttributes.entrySet().stream()
+                                                           .filter(e -> filter.test(e.getKey(), e.getValue()))
+                                                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        val actualFilteredAttributes = metadata.getAttributes(filter);
+        AssertExtensions.assertMapEquals("Unexpected result from getAttributes(Filter).", expectedFilteredAttributes, actualFilteredAttributes);
+
+        // Step 3: Remove all attributes (Note that attributes are not actually removed; they're set to the NULL_ATTRIBUTE_VALUE).
         expectedAttributes.entrySet().forEach(e -> e.setValue(Attributes.NULL_ATTRIBUTE_VALUE));
         metadata.updateAttributes(expectedAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after removal.", expectedAttributes, metadata);
@@ -81,18 +139,18 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCleanupAttributes() {
-        final UUID coreAttributeId = Attributes.EVENT_COUNT;
+        final AttributeId coreAttributeId = Attributes.EVENT_COUNT;
         final int attributeCount = 10000;
         final int maxAttributeCount = attributeCount / 10;
 
         // Initial population.
         StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        val extendedAttributes = new ArrayList<UUID>();
-        val expectedValues = new HashMap<UUID, Long>();
+        val extendedAttributes = new ArrayList<AttributeId>();
+        val expectedValues = new HashMap<AttributeId, Long>();
         expectedValues.put(coreAttributeId, 1000L);
         metadata.updateAttributes(Collections.singletonMap(coreAttributeId, 1000L));
         for (int i = 0; i < attributeCount; i++) {
-            UUID attributeId = new UUID(0, (long) i);
+            AttributeId attributeId = AttributeId.uuid(0, i);
             extendedAttributes.add(attributeId);
             metadata.setLastUsed(i);
             metadata.updateAttributes(Collections.singletonMap(attributeId, (long) i));
@@ -145,10 +203,29 @@ public class StreamSegmentMetadataTests {
      * Verifies the given maps are equal without actually invoking get() or getOrDefault() on actual; to prevent lastUsed
      * from being updated.
      */
-    private void checkAttributesEqual(Map<UUID, Long> expected, Map<UUID, Long> actual) {
+    private void checkAttributesEqual(Map<AttributeId, Long> expected, Map<AttributeId, Long> actual) {
         Assert.assertEquals("Sizes differ.", expected.size(), actual.size());
         for (val e : actual.entrySet()) {
             Assert.assertEquals("Unexpected value found.", expected.get(e.getKey()), e.getValue());
+        }
+    }
+
+    /**
+     * Validates that we can safely iterate over a StreamSegmentMetadata.AttributesView elements while the backing
+     * StreamSegmentMetadata maps are being modified.
+     */
+    @Test
+    public void testAttributeConcurrentOperations() {
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+
+        metadata.updateAttributes(generateAttributes(new Random(0)));
+        Iterator<Long> attributes = metadata.getAttributes().values().iterator();
+        Assert.assertNotNull(attributes.next());
+        // Put some more attributes, modifying the underlying collection with different elements.
+        metadata.updateAttributes(generateAttributes(new Random(1)));
+        // This should not throw java.util.ConcurrentModificationException
+        while (attributes.hasNext()) {
+            attributes.next();
         }
     }
 
@@ -157,19 +234,17 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCopyFrom() {
-        // Transaction (IsMerged==true).
-        val txnMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        txnMetadata.markSealed();
-        txnMetadata.setLength(3235342);
-        txnMetadata.markMerged();
-        testCopyFrom(txnMetadata);
-
-        // Non-Transaction (no ParentId, but has StartOffset).
-        val normalMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        normalMetadata.markSealed();
-        normalMetadata.setLength(3235342);
-        normalMetadata.setStartOffset(1200);
-        testCopyFrom(normalMetadata);
+        Stream.<Consumer<UpdateableSegmentMetadata>>of(
+                UpdateableSegmentMetadata::markMerged,
+                m -> m.setStartOffset(1200),
+                UpdateableSegmentMetadata::markSealedInStorage)
+                .forEach(c -> {
+                    val metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+                    metadata.markSealed();
+                    metadata.setLength(3235342);
+                    c.accept(metadata);
+                    testCopyFrom(metadata);
+                });
     }
 
     private void testCopyFrom(StreamSegmentMetadata baseMetadata) {
@@ -177,13 +252,17 @@ public class StreamSegmentMetadataTests {
         baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
+        baseMetadata.markDeletedInStorage();
         baseMetadata.markInactive();
         baseMetadata.setLastUsed(1545895);
+        baseMetadata.markPinned();
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(baseMetadata.getName(), baseMetadata.getId(), baseMetadata.getContainerId());
         newMetadata.copyFrom(baseMetadata);
         Assert.assertTrue("copyFrom copied the Active flag too.", newMetadata.isActive());
+        // Force the base metadata to update its core attributes with the correct type. Do this after the copyFrom call.
+        baseMetadata.refreshDerivedProperties();
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
         Assert.assertEquals("Metadata copy: getLastUsed differs.",
                 baseMetadata.getLastUsed(), newMetadata.getLastUsed());
@@ -200,10 +279,10 @@ public class StreamSegmentMetadataTests {
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    private Map<UUID, Long> generateAttributes(Random rnd) {
-        val result = new HashMap<UUID, Long>();
+    private Map<AttributeId, Long> generateAttributes(Random rnd) {
+        val result = new HashMap<AttributeId, Long>();
         for (int i = 0; i < ATTRIBUTE_COUNT; i++) {
-            result.put(UUID.randomUUID(), rnd.nextLong());
+            result.put(AttributeId.randomUUID(), rnd.nextLong());
         }
 
         return result;

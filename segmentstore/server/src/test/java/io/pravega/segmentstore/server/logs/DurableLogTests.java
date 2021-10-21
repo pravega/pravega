@@ -1,19 +1,26 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.collect.Streams;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -23,38 +30,47 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -66,6 +82,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -124,8 +142,8 @@ public class DurableLogTests extends OperationLogTestBase {
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
 
-        // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).join());
+        // On a freshly created DurableLog, it should auto-add a MetadataCheckpoint as the first operation.
+        // No need to verify this here. We will check this in performLogOperationChecks.
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
@@ -142,48 +160,6 @@ public class DurableLogTests extends OperationLogTestBase {
         performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, setup.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, setup.readIndex);
-
-        // Stop the processor.
-        durableLog.stopAsync().awaitTerminated();
-    }
-
-    /**
-     * Tests the operationProcessingBarrier() method.
-     */
-    @Test
-    public void testOperationProcessingBarrier() throws Exception {
-        int streamSegmentCount = 1;
-        int appendsPerStreamSegment = 20;
-
-        // Setup a DurableLog and start it.
-        @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
-        @Cleanup
-        DurableLog durableLog = setup.createDurableLog();
-        durableLog.startAsync().awaitRunning();
-
-        // Empty log.
-        CompletableFuture<Void> emptyLogBarrier = durableLog.operationProcessingBarrier(TIMEOUT);
-        emptyLogBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("Barrier for empty log did not complete successfully.", Futures.isSuccessful(emptyLogBarrier));
-
-        // Add a few operations, and verify the "barrier" is always completed after them.
-        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, Collections.emptyMap(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-
-        // Process all generated operations.
-        List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
-
-        CompletableFuture<Void> afterBarrier = durableLog
-                .operationProcessingBarrier(TIMEOUT);
-
-        // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-        CompletableFuture<Void> allOtherOperations = OperationWithCompletion.allOf(completionFutures);
-
-        // Wait for barrier to complete.
-        afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("barrier for non-empty log did not complete successfully.", Futures.isSuccessful(afterBarrier));
-        Assert.assertTrue("barrier was completed before its previous operations were completed.", Futures.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
@@ -351,7 +327,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
-        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
 
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -373,9 +349,11 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("Expected the DurableLog to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, durableLog.state());
 
-        // We can't really check the DurableLog or the DurableDataLog contents since they are both closed.
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
-        performReadIndexChecks(completionFutures, setup.readIndex);
+        durableLog.close();
+        setup.readIndex.close();
+
+        // Perform failure-recovery specific checks. The regular checks cannot be done here since we are in a failed state.
+        performPostFailureRecoveryChecks(setup, streamSegmentCount, completionFutures);
     }
 
     /**
@@ -421,7 +399,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    public void testAddWithDataCorruptionFailures() throws Exception {
+    public void testAddWithDataCorruptionFailures() {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
         int failAtOperationIndex = 123;
@@ -458,10 +436,6 @@ public class DurableLogTests extends OperationLogTestBase {
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
             OperationWithCompletion oc = completionFutures.get(i);
-            if (!oc.operation.canSerialize()) {
-                // Non-serializable operations (i.e., ProbeOperations always complete normally).
-                continue;
-            }
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
@@ -509,62 +483,39 @@ public class DurableLogTests extends OperationLogTestBase {
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
-        // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
-        ArrayList<CompletableFuture<Iterator<Operation>>> readFutures = new ArrayList<>();
-        for (int i = 0; i < operationCount; i++) {
-            long afterSeqNo = i + 1;
-            CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(afterSeqNo, operationCount, TIMEOUT);
-            Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = " + afterSeqNo + ").", readFuture.isDone());
-            readFutures.add(readFuture);
-        }
+        // A MetadataCheckpointOperation gets auto-queued upon the first startup. Get it out of our way for this test.
+        val checkpointRead = durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected first read operation to be a MetadataCheckpointOperation.",
+                checkpointRead.size() == 1 && checkpointRead.poll() instanceof MetadataCheckpointOperation);
 
-        // Add one operation at at time, and each time, verify that the correct Read got activated.
+        // Setup a read operation, and make sure it is blocked (since there is no data).
+        val readFuture = durableLog.read(operationCount, TIMEOUT);
+        Assert.assertFalse("read() returned a completed future when there is no data available", readFuture.isDone());
+
+        // Add one operation and verify that the Read was activated.
         OperationComparer operationComparer = new OperationComparer(true);
-        for (int appendId = 0; appendId < operationCount; appendId++) {
-            Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), null);
-            durableLog.add(operation, TIMEOUT).join();
-            for (int readId = 0; readId < readFutures.size(); readId++) {
-                val readFuture = readFutures.get(readId);
-                boolean expectedComplete = readId <= appendId;
-                if (expectedComplete) {
-                    // The internal callback happens asynchronously, so wait for this future to complete in a bit.
-                    readFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                }
 
-                Assert.assertEquals(
-                        String.format("Unexpected read completion status for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                        expectedComplete,
-                        readFutures.get(readId).isDone());
+        Operation operation = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment("TestData".getBytes()), null);
+        durableLog.add(operation, OperationPriority.Normal, TIMEOUT).join();
 
-                if (appendId == readId) {
-                    // Verify that the read result matches the operation.
-                    Iterator<Operation> readResult = readFuture.join();
+        // The internal callback happens asynchronously, so wait for this future to complete in a bit.
+        val readResult = readFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-                    // Verify that we actually have a non-empty read result.
-                    Assert.assertTrue(
-                            String.format("Empty read result read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            readResult.hasNext());
+        // Verify that we actually have a non-empty read result.
+        Assert.assertFalse(readResult.isEmpty());
 
-                    // Verify the read result.
-                    Operation readOp = readResult.next();
-                    operationComparer.assertEquals(
-                            String.format("Unexpected result operation for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            operation,
-                            readOp);
+        // Verify the read result.
+        Operation readOp = readResult.poll();
+        operationComparer.assertEquals("Unexpected result operation for read.", operation, readOp);
 
-                    // Verify that we don't have more than one read result.
-                    Assert.assertFalse(
-                            String.format("Not expecting more than one result for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            readResult.hasNext());
-                }
-            }
-        }
+        // Verify that we don't have more than one read result.
+        Assert.assertTrue(readResult.isEmpty());
 
         // Verify that such reads are cancelled when the DurableLog is closed.
-        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(operationCount + 2, operationCount, TIMEOUT);
-        Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = MAX).", readFuture.isDone());
+        val cancelledRead = durableLog.read(operationCount, TIMEOUT);
+        Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = MAX).", cancelledRead.isDone());
         durableLog.stopAsync().awaitTerminated();
-        Assert.assertTrue("A tail read was not cancelled when the DurableLog was stopped.", readFuture.isCompletedExceptionally());
+        Assert.assertTrue("A tail read was not cancelled when the DurableLog was stopped.", cancelledRead.isCancelled());
     }
 
     /**
@@ -572,9 +523,10 @@ public class DurableLogTests extends OperationLogTestBase {
      * tests that they will time out appropriately.
      */
     @Test
-    public void testTailReadsTimeout() {
+    public void testTailReadsTimeout() throws Exception {
         final long segmentId = 1;
         final String segmentName = Long.toString(segmentId);
+        final Duration shortTimeout = Duration.ofMillis(30);
 
         // Setup a DurableLog and start it.
         @Cleanup
@@ -587,14 +539,17 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
         segmentMetadata.setLength(0);
 
-        Duration shortTimeout = Duration.ofMillis(30);
+        // A MetadataCheckpointOperation gets auto-queued upon the first startup. Get it out of our way for this test.
+        val checkpointRead = durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected first read operation to be a MetadataCheckpointOperation.",
+                checkpointRead.size() == 1 && checkpointRead.poll() instanceof MetadataCheckpointOperation);
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
-        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
+        val readFuture = durableLog.read(1, shortTimeout);
         Assert.assertFalse("read() returned a completed future when there is no data available.", Futures.isSuccessful(readFuture));
 
         CompletableFuture<Void> controlFuture = Futures.delayedFuture(Duration.ofMillis(2000), setup.executorService);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
                 ex -> ex instanceof TimeoutException);
@@ -644,7 +599,7 @@ public class DurableLogTests extends OperationLogTestBase {
         durableLog.startAsync().awaitRunning();
 
         // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+        verifyFirstItemIsMetadataCheckpoint(durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).iterator());
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
@@ -667,7 +622,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Calculate how many we were expecting.
-        int expectedCheckpoints = readOperations.size() - (int) operations.stream().filter(Operation::canSerialize).count();
+        int expectedCheckpoints = readOperations.size() - operations.size();
 
         if (expectedCheckpoints != injectedOperationCount) {
             Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.",
@@ -704,7 +659,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         AbstractMap<Long, Long> transactions;
         List<OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -712,18 +667,18 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
-            transactions = createTransactionsWithOperations(streamSegmentIds, transactionsPerStreamSegment, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
+            transactions = createTransactionsWithOperations(streamSegmentIds, transactionsPerStreamSegment, metadata, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
             // Process all generated operations and wait for them to complete
@@ -740,7 +695,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -772,22 +727,22 @@ public class DurableLogTests extends OperationLogTestBase {
         Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
 
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
             // Process all generated operations and wait for them to complete
@@ -801,7 +756,7 @@ public class DurableLogTests extends OperationLogTestBase {
         //Recovery failure due to DataLog Failures.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
@@ -836,7 +791,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Recovery failure due to DataCorruptionException.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Reset error injectors to nothing.
@@ -849,7 +804,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             // previous sequence number.
                             DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
-                            ArrayView serialization = df.getData();
+                            CompositeArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
                         }
 
@@ -896,22 +851,22 @@ public class DurableLogTests extends OperationLogTestBase {
         storage.initialize(1);
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
 
         // Write some data to the log. We'll read it later.
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<Operation> originalOperations;
         List<OperationWithCompletion> completionFutures;
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
             durableLog.startAsync().awaitRunning();
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(operations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
@@ -921,7 +876,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Disable the DurableDataLog. This requires us to initialize the log, then disable it.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -935,7 +890,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -946,21 +901,17 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertTrue("Expecting an offline DurableLog.", durableLog.isOffline());
 
             // Verify all operations fail with the right exception.
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "add() did not fail with the right exception when offline.",
-                    () -> durableLog.add(new ProbeOperation(), TIMEOUT),
+                    () -> durableLog.add(new StreamSegmentSealOperation(123), OperationPriority.Normal, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "read() did not fail with the right exception when offline.",
-                    () -> durableLog.read(0, 1, TIMEOUT),
+                    () -> durableLog.read(1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "truncate() did not fail with the right exception when offline.",
                     () -> durableLog.truncate(0, TIMEOUT),
-                    ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
-                    "operationProcessingBarrier() did not fail with the right exception when offline.",
-                    () -> durableLog.operationProcessingBarrier(TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
 
             // Verify we can also shut it down properly from this state.
@@ -971,7 +922,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Verify that, when the DurableDataLog becomes enabled, the DurableLog can pick up the change and resume normal operations.
         // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -1016,16 +967,16 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         val metadata1 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
         SegmentProperties originalSegmentInfo;
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Create the segment.
-            val segmentIds = createStreamSegmentsWithOperations(1, metadata1, durableLog, storage);
+            val segmentIds = createStreamSegmentsWithOperations(1, durableLog);
             segmentId = segmentIds.stream().findFirst().orElse(-1L);
 
             // Evict the segment.
@@ -1038,7 +989,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Map the segment again.
             val reMapOp = new StreamSegmentMapOperation(originalSegmentInfo);
             reMapOp.setStreamSegmentId(segmentId);
-            durableLog.add(reMapOp, TIMEOUT).join();
+            durableLog.add(reMapOp, OperationPriority.Normal, TIMEOUT).join();
 
             // Stop.
             durableLog.stopAsync().awaitTerminated();
@@ -1046,7 +997,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Recovery #1. This should work well.
         val metadata2 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -1061,7 +1012,7 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
 
             // ... and re-map it with a new Id. This is a perfectly valid operation, and we can't prevent it.
-            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), TIMEOUT).join();
+            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), OperationPriority.Normal, TIMEOUT).join();
 
             // Stop.
             durableLog.stopAsync().awaitTerminated();
@@ -1069,7 +1020,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Recovery #2. This should fail due to the same segment mapped multiple times with different ids.
         val metadata3 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata3, dataLogFactory, readIndex, executorService())) {
             AssertExtensions.assertThrows(
                     "Recovery did not fail with the expected exception in case of multi-mapping",
@@ -1077,6 +1028,201 @@ public class DurableLogTests extends OperationLogTestBase {
                     ex -> ex instanceof IllegalStateException
                             && ex.getCause() instanceof DataCorruptionException
                             && ex.getCause().getCause() instanceof MetadataUpdateException);
+        }
+    }
+
+    /**
+     * Tests the ability of the DurableLog properly recover from situations where operations were split across multiple
+     * DataFrames, but were not persisted in their entirety. These operations should be ignored as they are incomplete
+     * and were never acknowledged to the upstream callers.
+     */
+    @Test
+    public void testRecoveryPartialOperations() {
+        // Setup the first Durable Log and create the segment.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog dl1 = setup.createDurableLog();
+        dl1.startAsync().awaitRunning();
+        Assert.assertNotNull("Internal error: could not grab a pointer to the created TestDurableDataLog.", setup.dataLog.get());
+        val segmentId = createStreamSegmentsWithOperations(1, dl1).stream().findFirst().orElse(-1L);
+
+        // Part of this operation should fail.
+        ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(
+                count -> count == 1,
+                () -> new DurableDataLogException("intentional"));
+        setup.dataLog.get().setAppendErrorInjectors(null, asyncErrorInjector);
+        val append1 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[MAX_DATA_LOG_APPEND_SIZE]), null);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected the operation to have failed.",
+                () -> dl1.add(append1, OperationPriority.Normal, TIMEOUT),
+                ex -> ex instanceof DurableDataLogException);
+
+        AssertExtensions.assertThrows(
+                "Expected the DurableLog to have failed after failed operation.",
+                dl1::awaitTerminated,
+                ex -> ex instanceof IllegalStateException);
+        dl1.close();
+        setup.dataLog.get().setAppendErrorInjectors(null, null);
+
+        // Setup the second Durable Log. Ensure the recovery succeeds and that we don't see that failed operation.
+        @Cleanup
+        val dl2 = setup.createDurableLog();
+        dl2.startAsync().awaitRunning();
+        val ops2 = dl2.read(10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", !ops2.isEmpty() && ops2.poll() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", !ops2.isEmpty() && ops2.poll() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Not expecting any other operations.", ops2.isEmpty());
+
+        // Add a new operation. This one should succeed.
+        val append2 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[10]), null);
+        dl2.add(append2, OperationPriority.Normal, TIMEOUT).join();
+        dl2.stopAsync().awaitTerminated();
+        dl2.close();
+
+        // Setup the third Durable Log. Ensure the recovery succeeds that we only see the operations we care about.
+        @Cleanup
+        val dl3 = setup.createDurableLog();
+        dl3.startAsync().awaitRunning();
+        val ops3 = dl3.read(10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", !ops3.isEmpty() && ops3.poll() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", !ops3.isEmpty() && ops3.poll() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Expected third operation to be an append.", !ops3.isEmpty() && ops3.poll() instanceof CachedStreamSegmentAppendOperation);
+        Assert.assertTrue("Not expecting any other operations.", ops3.isEmpty());
+        dl2.stopAsync().awaitTerminated();
+        dl3.close();
+    }
+
+    /**
+     * Tests the DurableLog recovery process when there are multiple {@link MetadataCheckpointOperation}s added, with each
+     * such checkpoint including information about evicted segments or segments which had their storage state modified.
+     */
+    @Test
+    public void testRecoveryWithIncrementalCheckpoints() throws Exception {
+        final int streamSegmentCount = 50;
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        @Cleanup
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        storage.initialize(1);
+
+        // First DurableLog. We use this for generating data.
+        val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
+        List<Long> deletedIds;
+        Set<Long> evictIds;
+        try (
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Create some segments.
+            val segmentIds = new ArrayList<>(createStreamSegmentsWithOperations(streamSegmentCount, durableLog));
+            deletedIds = segmentIds.subList(0, 5);
+            val mergedFromIds = segmentIds.subList(5, 10);
+            val mergedToIds = segmentIds.subList(10, 15); // Must be same length as mergeFrom
+            evictIds = new HashSet<>(segmentIds.subList(15, 20));
+            val changeStorageStateIds = segmentIds.subList(20, segmentIds.size() - 5);
+
+            // Append something to each segment.
+            for (val segmentId : segmentIds) {
+                if (!evictIds.contains(segmentId)) {
+                    durableLog.add(new StreamSegmentAppendOperation(segmentId, generateAppendData((int) (long) segmentId), null), OperationPriority.Normal, TIMEOUT).join();
+                }
+            }
+
+            // Checkpoint 1.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Delete some segments.
+            for (val segmentId : deletedIds) {
+                durableLog.add(new DeleteSegmentOperation(segmentId), OperationPriority.Normal, TIMEOUT).join();
+            }
+
+            // Checkpoint 2.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Merge some segments.
+            for (int i = 0; i < mergedFromIds.size(); i++) {
+                durableLog.add(new StreamSegmentSealOperation(mergedFromIds.get(i)), OperationPriority.Normal, TIMEOUT).join();
+                durableLog.add(new MergeSegmentOperation(mergedToIds.get(i), mergedFromIds.get(i)), OperationPriority.Normal, TIMEOUT).join();
+            }
+
+            // Checkpoint 3.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Evict some segments.
+            val evictableContainerMetadata = (EvictableMetadata) metadata1;
+            metadata1.removeTruncationMarkers(metadata1.getOperationSequenceNumber());
+            val toEvict = evictableContainerMetadata.getEvictionCandidates(Integer.MAX_VALUE, segmentIds.size())
+                    .stream().filter(m -> evictIds.contains(m.getId())).collect(Collectors.toList());
+            val evicted = evictableContainerMetadata.cleanup(toEvict, Integer.MAX_VALUE);
+            AssertExtensions.assertContainsSameElements("", evictIds, evicted.stream().map(SegmentMetadata::getId).collect(Collectors.toList()));
+
+            // Checkpoint 4.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Update storage state for some segments.
+            for (val segmentId : changeStorageStateIds) {
+                val sm = metadata1.getStreamSegmentMetadata(segmentId);
+                if (segmentId % 3 == 0) {
+                    sm.setStorageLength(sm.getLength());
+                }
+                if (segmentId % 4 == 0) {
+                    sm.markSealed();
+                    sm.markSealedInStorage();
+                }
+                if (segmentId % 5 == 0) {
+                    sm.markDeleted();
+                    sm.markDeletedInStorage();
+                }
+            }
+
+            // Checkpoint 5.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Second DurableLog. We use this for recovery.
+        val metadata2 = new MetadataBuilder(CONTAINER_ID).build();
+        try (
+                ContainerReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Validate metadata matches.
+            val expectedSegmentIds = metadata1.getAllStreamSegmentIds();
+            val actualSegmentIds = metadata2.getAllStreamSegmentIds();
+            AssertExtensions.assertContainsSameElements("Unexpected set of recovered segments. Only Active segments expected to have been recovered.",
+                    expectedSegmentIds, actualSegmentIds);
+
+            val expectedSegments = expectedSegmentIds.stream().sorted()
+                    .map(metadata1::getStreamSegmentMetadata)
+                    .collect(Collectors.toList());
+            val actualSegments = actualSegmentIds.stream().sorted()
+                    .map(metadata2::getStreamSegmentMetadata)
+                    .collect(Collectors.toList());
+            for (int i = 0; i < expectedSegments.size(); i++) {
+                val e = expectedSegments.get(i);
+                val a = actualSegments.get(i);
+                SegmentMetadataComparer.assertEquals("Recovered segment metadata mismatch", e, a);
+            }
+
+            // Validate read index is as it should. Here, we can only check if the read indices for evicted segments are
+            // no longer loaded; we do more thorough checks in the ContainerReadIndexTests suite.
+            Streams.concat(evictIds.stream(), deletedIds.stream())
+                    .forEach(segmentId ->
+                            Assert.assertNull("Not expecting a read index for an evicted or deleted segment.", readIndex.getIndex(segmentId)));
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
         }
     }
 
@@ -1103,11 +1249,11 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
 
         // First DurableLog. We use this for generating data.
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
@@ -1118,16 +1264,21 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            HashSet<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-            queuedOperations.add(new MetadataCheckpointOperation()); // Add one of these at the end to ensure we can truncate everything.
 
-            List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
-            OperationWithCompletion.allOf(completionFutures).join();
+            // Process all operations.
+            OperationWithCompletion.allOf(processOperations(queuedOperations, durableLog)).join();
+
+            // Add a MetadataCheckpointOperation at the end, after everything else has processed. This ensures that it
+            // sits in a DataFrame by itself and enables us to truncate everything at the end.
+            processOperation(new MetadataCheckpointOperation(), durableLog).completion.join();
+            awaitLastOperationAdded(durableLog, metadata);
 
             // Get a list of all the operations, before truncation.
             List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             boolean fullTruncationPossible = false;
+            long currentTruncatedSeqNo = originalOperations.get(0).getSequenceNumber();
 
             // Truncate up to each operation and:
             // * If the DataLog was truncated:
@@ -1137,41 +1288,36 @@ public class DurableLogTests extends OperationLogTestBase {
                 Operation currentOperation = originalOperations.get(i);
                 truncationOccurred.set(false);
                 if (currentOperation instanceof MetadataCheckpointOperation) {
-                    // Need to figure out if the operation we're about to truncate to is actually the first in the log;
-                    // in that case, we should not be expecting any truncation.
-                    boolean isTruncationPointFirstOperation = durableLog.read(-1, 1, TIMEOUT).join().next() instanceof MetadataCheckpointOperation;
-
                     // Perform the truncation.
                     durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
-                    if (!isTruncationPointFirstOperation) {
-                        Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(), truncationOccurred.get());
+                    awaitLastOperationAdded(durableLog, metadata);
+                    if (currentOperation.getSequenceNumber() != currentTruncatedSeqNo) {
+                        // If the operation we're about to truncate to is actually the first in the log, then we should
+                        // not be expecting any truncation.
+                        Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(),
+                                truncationOccurred.get());
+
+                        // Now verify that we get a StorageMetadataCheckpointOperation queued.
+                        AssertExtensions.assertGreaterThan("Expected an operation to be queued as part of truncation.",
+                                0, durableLog.getInMemoryOperationLog().size());
+                        val readAfterTruncate = durableLog.read(1, TIMEOUT).join();
+                        Assert.assertTrue("Expected a StorageMetadataCheckpointOperation to be queued as part of truncation.",
+                                readAfterTruncate.poll() instanceof StorageMetadataCheckpointOperation);
                     }
 
-                    // Verify all operations up to, and including this one have been removed.
-                    Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
-                    Assert.assertTrue("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.hasNext());
-                    verifyFirstItemIsMetadataCheckpoint(reader);
-
-                    if (i < originalOperations.size() - 1) {
-                        Operation firstOp = reader.next();
-                        OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
-                    } else {
+                    if (i == originalOperations.size()) {
                         // Sometimes the Truncation Point is on the same DataFrame as other data, and it's the last DataFrame;
                         // In that case, it cannot be truncated, since truncating the frame would mean losing the Checkpoint as well.
-                        fullTruncationPossible = !reader.hasNext();
+                        fullTruncationPossible = durableLog.getInMemoryOperationLog().size() == 0;
                     }
                 } else {
                     // Verify we are not allowed to truncate on non-valid Truncation Points.
-                    AssertExtensions.assertThrows(
+                    AssertExtensions.assertSuppliedFutureThrows(
                             "DurableLog allowed truncation on a non-MetadataCheckpointOperation.",
                             () -> durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT),
                             ex -> ex instanceof IllegalArgumentException);
 
-                    // Verify the Operation Log is still intact.
-                    Iterator<Operation> reader = durableLog.read(-1, 1, TIMEOUT).join();
-                    Assert.assertTrue("No elements left in the log even though no truncation occurred.", reader.hasNext());
-                    Operation firstOp = reader.next();
-                    AssertExtensions.assertLessThanOrEqual("It appears that Operations were removed from the Log even though no truncation happened.", currentOperation.getSequenceNumber(), firstOp.getSequenceNumber());
+                    Assert.assertFalse("Not expecting a truncation to have occurred.", truncationOccurred.get());
                 }
             }
 
@@ -1181,11 +1327,13 @@ public class DurableLogTests extends OperationLogTestBase {
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
-                durableLog.add(lastCheckpoint, TIMEOUT).join();
+                durableLog.add(lastCheckpoint, OperationPriority.Normal, TIMEOUT).join();
+                awaitLastOperationAdded(durableLog, metadata);
                 durableLog.truncate(lastCheckpoint.getSequenceNumber(), TIMEOUT).join();
             }
 
-            durableLog.add(newOp, TIMEOUT).join();
+            durableLog.add(newOp, OperationPriority.Normal, TIMEOUT).join();
+            awaitLastOperationAdded(durableLog, metadata);
             final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
             List<Operation> newOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             Assert.assertEquals("Unexpected number of operations added after full truncation.", expectedOperationCount, newOperations.size());
@@ -1219,12 +1367,12 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-        HashSet<Long> streamSegmentIds;
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
 
@@ -1234,7 +1382,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
@@ -1271,12 +1419,12 @@ public class DurableLogTests extends OperationLogTestBase {
                     dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
 
                     // Verify all operations up to, and including this one have been removed.
-                    Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
-                    Assert.assertTrue("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.hasNext());
-                    verifyFirstItemIsMetadataCheckpoint(reader);
+                    Queue<Operation> reader = durableLog.read(2, TIMEOUT).join();
+                    Assert.assertFalse("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.isEmpty());
+                    verifyFirstItemIsMetadataCheckpoint(reader.iterator());
 
                     if (i < originalOperations.size() - 1) {
-                        Operation firstOp = reader.next();
+                        Operation firstOp = reader.poll();
                         OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
                     }
                 }
@@ -1305,12 +1453,12 @@ public class DurableLogTests extends OperationLogTestBase {
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
         @Cleanup
-        val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
-        HashSet<Long> streamSegmentIds;
+        val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
 
         // First DurableLog. We use this for generating data.
@@ -1319,7 +1467,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata1, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
@@ -1354,7 +1502,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Start a second DurableLog and then verify the metadata.
         val metadata2 = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        val readIndex2 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+        val readIndex2 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex2, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -1381,16 +1529,14 @@ public class DurableLogTests extends OperationLogTestBase {
         // Log Operation based checks
         long lastSeqNo = -1;
         val successfulOperations = operations.stream()
-                                             .filter(oc -> !oc.completion.isCompletedExceptionally())
-                                             .map(oc -> oc.operation)
-                                             .filter(Operation::canSerialize)
-                                             .collect(Collectors.toList());
+                .filter(oc -> !oc.completion.isCompletedExceptionally())
+                .map(oc -> oc.operation)
+                .collect(Collectors.toList());
 
         // Writing to the DurableLog is done asynchronously, so wait for the last operation to arrive there before reading.
-        durableLog.read(successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber() - 1, 1, TIMEOUT).join();
+        List<Operation> readOperations = readUpToSequenceNumber(durableLog, successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber());
+        val logIterator = readOperations.iterator();
 
-        // Issue the read for the entire log now.
-        Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
         OperationComparer comparer = new OperationComparer(true);
         for (Operation expectedOp : successfulOperations) {
@@ -1402,6 +1548,38 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertTrue("No more items left to read from DurableLog. Expected: " + expectedOp, logIterator.hasNext());
             comparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, logIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
         }
+
+        Assert.assertFalse(logIterator.hasNext());
+    }
+
+    private void performPostFailureRecoveryChecks(ContainerSetup setup, int streamSegmentCount, List<OperationWithCompletion> completionFutures) {
+        val recoveredMetadata = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, recoveredMetadata, setup.storage, setup.cacheManager, executorService());
+        @Cleanup
+        DurableLog recoveredLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), recoveredMetadata, setup.dataLogFactory, readIndex, executorService());
+        recoveredLog.startAsync().awaitRunning();
+
+        // Fetch recovered operations and skip over the segment creation ones.
+        List<Operation> recoveredOperations = readUpToSequenceNumber(recoveredLog, recoveredMetadata.getOperationSequenceNumber());
+        recoveredOperations = recoveredOperations.subList(1 + streamSegmentCount, recoveredOperations.size());
+
+        val successfulOperationCount = completionFutures.stream().filter(oc -> !oc.completion.isCompletedExceptionally()).count();
+
+        // We expect that we recover the exact set of operations that were acked. However in the process of shutting down
+        // we may have failed some operations that have been successfully written to DurableDataLog (i.e., persisted, but
+        // the connection failed so we never got an ack). Since we cannot determine which of the "failed" operations should
+        // have been successful, we can only check the ones that were.
+        AssertExtensions.assertGreaterThanOrEqual("Fewer operations were recovered than were acked.", successfulOperationCount, recoveredOperations.size());
+
+        val operationsToCheck = completionFutures.subList(0, recoveredOperations.size()).stream()
+                .map(oc -> oc.operation)
+                .collect(Collectors.toList());
+
+        assertRecoveredOperationsMatch(operationsToCheck, recoveredOperations);
+
+        // Stop the services.
+        recoveredLog.stopAsync().awaitTerminated();
     }
 
     /**
@@ -1422,18 +1600,19 @@ public class DurableLogTests extends OperationLogTestBase {
             // Figure out how much to read. If we don't know, read at least one item so we see what's the first SeqNo
             // in the Log.
             int maxCount = result.size() == 0 ? 1 : (int) (seqNo - result.get(result.size() - 1).getSequenceNumber());
-            Iterator<Operation> logIterator = durableLog.read(afterSequence, maxCount, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            while (logIterator.hasNext()) {
-                result.add(logIterator.next());
+            Queue<Operation> logIterator = durableLog.read(maxCount, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            while (!logIterator.isEmpty()) {
+                result.add(logIterator.poll());
             }
         }
         return result;
     }
 
-    private void verifyFirstItemIsMetadataCheckpoint(Iterator<Operation> logIterator) {
-        Assert.assertTrue("DurableLog is empty even though a MetadataCheckpointOperation was expected.", logIterator.hasNext());
-        Operation firstOp = logIterator.next();
-        Assert.assertTrue("First operation in DurableLog is not a MetadataCheckpointOperation: " + firstOp, firstOp instanceof MetadataCheckpointOperation);
+    private void verifyFirstItemIsMetadataCheckpoint(Iterator<Operation> readResult) {
+        Assert.assertTrue(readResult.hasNext());
+        Operation firstOp = readResult.next();
+        Assert.assertTrue("First operation in DurableLog is not a MetadataCheckpointOperation: " + firstOp,
+                firstOp instanceof MetadataCheckpointOperation);
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, DurableLog durableLog) {
@@ -1446,20 +1625,24 @@ public class DurableLogTests extends OperationLogTestBase {
         int index = 0;
         for (Operation o : operations) {
             index++;
-            CompletableFuture<Void> completionFuture;
-            try {
-                completionFuture = durableLog.add(o, TIMEOUT);
-            } catch (Exception ex) {
-                completionFuture = Futures.failedFuture(ex);
-            }
-
-            completionFutures.add(new OperationWithCompletion(o, completionFuture));
+            val oc = processOperation(o, durableLog);
+            completionFutures.add(oc);
             if (index % waitEvery == 0) {
-                completionFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                oc.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
         }
 
         return completionFutures;
+    }
+
+    private OperationWithCompletion processOperation(Operation o, DurableLog durableLog) {
+        CompletableFuture<Void> completionFuture;
+        try {
+            completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
+        } catch (Exception ex) {
+            completionFuture = Futures.failedFuture(ex);
+        }
+        return new OperationWithCompletion(o, completionFuture);
     }
 
     private void assertRecoveredOperationsMatch(List<Operation> expected, List<Operation> actual) {
@@ -1467,10 +1650,31 @@ public class DurableLogTests extends OperationLogTestBase {
         for (int i = 0; i < expected.size(); i++) {
             Operation expectedItem = expected.get(i);
             Operation actualItem = actual.get(i);
-            OperationComparer.DEFAULT.assertEquals(
-                    String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
-                    expectedItem, actualItem);
+            if (expectedItem instanceof CheckpointOperationBase) {
+                Assert.assertNull("Recovered Checkpoint Operation did not have contents cleared up.", ((CheckpointOperationBase) actualItem).getContents());
+                Assert.assertEquals(" Unexpected Sequence Number", expectedItem.getSequenceNumber(), actualItem.getSequenceNumber());
+            } else {
+                OperationComparer.DEFAULT.assertEquals(
+                        String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
+                        expectedItem, actualItem);
+            }
         }
+    }
+
+    /**
+     * Blocks synchronously until an operation with a Sequence Number of at least
+     * {@link UpdateableContainerMetadata#getOperationSequenceNumber()} is present in the given {@link OperationLog}'s
+     * operations.
+     *
+     * This is helpful if we want to make sure that all the background async operations have completed before moving on
+     * to a next step. The {@link OperationProcessor} (inside {@link DurableLog}) acknowledges operations before adding
+     * them to the internal memory structures, so it is possible that we act on an ack before an operation that we need
+     * is present in the {@link DurableLog}.
+     */
+    @SneakyThrows(TimeoutException.class)
+    private void awaitLastOperationAdded(DurableLog durableLog, UpdateableContainerMetadata metadata) {
+        final long sn = metadata.getOperationSequenceNumber();
+        TestUtils.await(() -> durableLog.getInMemoryOperationLog().getLastSequenceNumber() >= sn, 10, TIMEOUT.toMillis());
     }
 
     //endregion
@@ -1496,19 +1700,19 @@ public class DurableLogTests extends OperationLogTestBase {
         final ReadIndex readIndex;
         final CacheManager cacheManager;
         final Storage storage;
+        final CacheStorage cacheStorage;
         DurableLogConfig durableLogConfig;
-        final CacheFactory cacheFactory;
 
         ContainerSetup(ScheduledExecutorService executorService) {
             this.dataLog = new AtomicReference<>();
             this.executorService = executorService;
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new InMemoryCacheFactory();
             this.storage = InMemoryStorageFactory.newStorage(executorService);
             this.storage.initialize(1);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.executorService);
-            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, this.executorService);
+            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.storage, this.cacheManager, this.executorService);
         }
 
         @Override
@@ -1516,8 +1720,8 @@ public class DurableLogTests extends OperationLogTestBase {
             this.readIndex.close();
             this.dataLogFactory.close();
             this.storage.close();
-            this.cacheFactory.close();
             this.cacheManager.close();
+            this.cacheStorage.close();
         }
 
         DurableLog createDurableLog() {
@@ -1564,7 +1768,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         @Override
-        protected SequencedItemList<Operation> createInMemoryLog() {
+        protected InMemoryLog createInMemoryLog() {
             return new CorruptedMemoryOperationLog(FAIL_AT_INDEX.get());
         }
     }

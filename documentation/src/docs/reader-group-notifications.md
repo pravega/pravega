@@ -1,11 +1,17 @@
 <!--
-Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Working with Pravega: ReaderGroup Notifications
 
@@ -27,17 +33,17 @@ The method for subscribing to segment notifications is shown below
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
 groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig.builder().
-                                                            .stream(Stream.of(SCOPE, STREAM))
-                                                            .build());
+        .stream(Stream.of(SCOPE, STREAM))
+        .build());
 
 groupManager.getReaderGroup(GROUP_NAME).getSegmentNotifier(executor).registerListener(segmentNotification -> {
-       int numOfReaders = segmentNotification.getNumOfReaders();
-       int segments = segmentNotification.getNumOfSegments();
-       if (numOfReaders < segments) {
-          //Scale up number of readers based on application capacity
-       } else {
-         //More readers available time to shut down some
-       }
+    int numOfReaders = segmentNotification.getNumOfReaders();
+    int segments = segmentNotification.getNumOfSegments();
+    if (numOfReaders < segments) {
+        //Scale up number of readers based on application capacity
+    } else {
+        //More readers available time to shut down some
+    }
 });
 
 ```
@@ -63,11 +69,11 @@ The method for subscribing to end of data notifications is shown below
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
 groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig.builder()
-                                                            .stream(Stream.of(SCOPE, SEALED_STREAM))
-                                                            .build());
+        .stream(Stream.of(SCOPE, SEALED_STREAM))
+        .build());
 
 groupManager.getReaderGroup(GROUP_NAME).getEndOfDataNotifier(executor).registerListener(notification -> {
-      //custom action e.g: close all readers
+    //custom action e.g: close all readers
 });
 
 ```

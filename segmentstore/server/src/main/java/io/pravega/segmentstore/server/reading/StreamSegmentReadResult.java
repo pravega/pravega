@@ -1,38 +1,56 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.BiFunction;
+import java.util.concurrent.CancellationException;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
  */
 @Slf4j
-class StreamSegmentReadResult implements ReadResult {
+@ThreadSafe
+@VisibleForTesting
+public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final String traceObjectId;
     private final long streamSegmentStartOffset;
     private final int maxResultLength;
     private final NextEntrySupplier getNextItem;
-    private CompletableFuture<ReadResultEntryContents> lastEntryFuture;
+    @GuardedBy("this")
+    private CompletableReadResultEntry lastEntry;
+    @GuardedBy("this")
     private int consumedLength;
+    @GuardedBy("this")
     private boolean canRead;
+    @GuardedBy("this")
     private boolean closed;
+    @GuardedBy("this")
+    private boolean copyOnRead;
+    @GuardedBy("this")
+    private int maxReadAtOnce;
 
     //endregion
 
@@ -45,20 +63,25 @@ class StreamSegmentReadResult implements ReadResult {
      * @param maxResultLength          The maximum number of bytes to read.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume. The first argument
      *                                 is startOffset (long) and the second is remainingLength (int).
+     * @param traceObjectId            Used for logging.
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
+    public StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
         Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
         Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
-        Preconditions.checkNotNull(getNextItem, "getNextItem");
-
         this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
+        this.maxReadAtOnce = this.maxResultLength;
         this.getNextItem = getNextItem;
         this.consumedLength = 0;
         this.canRead = true;
+
+        // By default, all cache reads are to be copied into heap buffers before being served to calling code. This is
+        // to avoid situations where there upstream code has pointers to evicted (and reallocated) cache blocks. If this
+        // is not desired, then the upstream code should disable this and document WHY it is safe to do so.
+        this.copyOnRead = true;
     }
 
     //endregion
@@ -76,18 +99,38 @@ class StreamSegmentReadResult implements ReadResult {
     }
 
     @Override
-    public int getConsumedLength() {
+    public synchronized int getConsumedLength() {
         return this.consumedLength;
     }
 
     @Override
-    public boolean isClosed() {
+    public synchronized boolean isCopyOnRead() {
+        return this.copyOnRead;
+    }
+
+    @Override
+    public synchronized void setCopyOnRead(boolean value) {
+        this.copyOnRead = value;
+    }
+
+    @Override
+    public synchronized int getMaxReadAtOnce() {
+        return this.maxReadAtOnce;
+    }
+
+    @Override
+    public synchronized void setMaxReadAtOnce(int value) {
+        this.maxReadAtOnce = value <= 0 || value > this.maxResultLength ? this.maxResultLength : value;
+    }
+
+    @Override
+    public synchronized boolean isClosed() {
         return this.closed || !hasNext();
     }
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset, this.maxResultLength, this.consumedLength);
+        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset, this.maxResultLength, getConsumedLength());
     }
 
     //endregion
@@ -96,17 +139,21 @@ class StreamSegmentReadResult implements ReadResult {
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.closed = true;
-
-            // If we have already returned a result but it hasn't been consumed yet, cancel it.
-            CompletableFuture<ReadResultEntryContents> lastReturnedFuture = this.lastEntryFuture;
-            if (lastReturnedFuture != null && !lastReturnedFuture.isDone()) {
-                lastReturnedFuture.cancel(true);
-                this.lastEntryFuture = null;
+        CompletableReadResultEntry lastEntry = null;
+        synchronized (this) {
+            if (!this.closed) {
+                this.closed = true;
+                lastEntry = this.lastEntry;
+                this.lastEntry = null;
+                log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
             }
+        }
 
-            log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
+        // If we have already returned a result but it hasn't been consumed yet, cancel it, but make sure we do it
+        // outside of the lock.
+        if (lastEntry != null && !lastEntry.isDone()) {
+            lastEntry.fail(new CancellationException(String.format("ReadResult[%s] closed.", this.traceObjectId)));
+            log.trace("{}.ReadResult[{}]: Cancelled last entry '{}'.", this.traceObjectId, this.streamSegmentStartOffset, lastEntry);
         }
     }
 
@@ -123,7 +170,7 @@ class StreamSegmentReadResult implements ReadResult {
      * </ul>
      */
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return !this.closed && this.canRead && this.consumedLength < this.maxResultLength;
     }
 
@@ -142,14 +189,12 @@ class StreamSegmentReadResult implements ReadResult {
      * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.
      */
     @Override
-    public ReadResultEntry next() {
+    public synchronized ReadResultEntry next() {
         Exceptions.checkNotClosed(this.closed, this);
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
-        if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone()) {
-            this.lastEntryFuture.join();
-        }
+        Preconditions.checkState(this.lastEntry == null || this.lastEntry.isDone(),
+                "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
 
         // Only check for hasNext now, after we have waited for the previous entry to finish - since that updates
         // some fields that hasNext relies on.
@@ -159,12 +204,12 @@ class StreamSegmentReadResult implements ReadResult {
 
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
-        int remainingLength = this.maxResultLength - this.consumedLength;
-        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
+        int remainingLength = Math.min(this.maxReadAtOnce, this.maxResultLength - this.consumedLength);
+        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength, this.copyOnRead);
 
         if (entry == null) {
             assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
-            this.lastEntryFuture = null;
+            this.lastEntry = null;
         } else {
             assert entry.getStreamSegmentOffset() == startOffset : String.format("Invalid ReadResultEntry. Expected offset %d, given %d.", startOffset, entry.getStreamSegmentOffset());
             if (entry.getType().isTerminal()) {
@@ -173,12 +218,16 @@ class StreamSegmentReadResult implements ReadResult {
                 // or if the StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment
                 // length. We cannot continue reading; close the ReadResult and return the appropriate Result Entry.
                 // If we don't close the ReadResult, hasNext() will erroneously return true and next() will have undefined behavior.
-                this.lastEntryFuture = null;
+                this.lastEntry = null;
                 this.canRead = false;
             } else {
                 // After the previous entry is done, update the consumedLength value.
-                entry.setCompletionCallback(length -> this.consumedLength += length);
-                this.lastEntryFuture = entry.getContent();
+                entry.setCompletionCallback(length -> {
+                    synchronized (StreamSegmentReadResult.this) {
+                        this.consumedLength += length;
+                    }
+                });
+                this.lastEntry = entry;
 
                 // Check, again, if we are closed. It is possible that this Result was closed after the last check
                 // and before we got the lastEntryFuture. If this happened, throw the exception and don't return anything.
@@ -195,10 +244,12 @@ class StreamSegmentReadResult implements ReadResult {
     //region NextEntrySupplier
 
     /**
-     * Defines a Function that given a startOffset (long) and remainingLength (int), returns the next entry to be consumed (ReadResultEntry).
+     * Defines a Function that given a startOffset (long), remainingLength (int) and whether to make a copy of any returned
+     * cached data, returns the next entry to be consumed (CompletableReadResultEntry).
      */
     @FunctionalInterface
-    interface NextEntrySupplier extends BiFunction<Long, Integer, CompletableReadResultEntry> {
+    public interface NextEntrySupplier {
+        CompletableReadResultEntry apply(Long startOffset, Integer remainingLength, Boolean makeCopy);
     }
 
     //endregion

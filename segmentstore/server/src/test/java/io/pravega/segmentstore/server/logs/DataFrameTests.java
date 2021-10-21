@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -67,7 +73,7 @@ public class DataFrameTests {
 
         AssertExtensions.assertThrows(
                 "append(ByteArraySegment) worked even though no entry started.",
-                () -> df.append(new ByteArraySegment(new byte[1])),
+                () -> df.append(new ByteArraySegment(new byte[1]).getBufferViewReader()),
                 ex -> ex instanceof IllegalStateException);
 
         // Start a new entry.
@@ -154,7 +160,7 @@ public class DataFrameTests {
             // Append the first half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(true); // true - this is the first entry for the record.
             int firstHalfLength = record.getLength() / 2;
-            int bytesAppended = dataFrame.append(record.subSegment(0, firstHalfLength));
+            int bytesAppended = dataFrame.append(record.slice(0, firstHalfLength).getBufferViewReader());
             dataFrame.endEntry(false); // false - we did not finish the record.
             if (bytesAppended < firstHalfLength) {
                 // We filled out the frame.
@@ -165,7 +171,7 @@ public class DataFrameTests {
             // Append the second half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(false); // false - this is not the first entry for the record.
             int secondHalfLength = record.getLength() - firstHalfLength;
-            bytesAppended = dataFrame.append(record.subSegment(firstHalfLength, secondHalfLength));
+            bytesAppended = dataFrame.append(record.slice(firstHalfLength, secondHalfLength).getBufferViewReader());
             fullRecordsAppended += bytesAppended;
             if (bytesAppended < secondHalfLength) {
                 // We filled out the frame.

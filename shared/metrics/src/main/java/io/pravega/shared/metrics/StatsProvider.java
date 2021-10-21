@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
@@ -18,6 +24,14 @@ public interface StatsProvider extends AutoCloseable {
      * Initialize the stats provider.
      */
     void start();
+
+    /**
+     * Initialize the stats provider with SimpleMeterRegistry only which is memory based without exporting.
+     * Note different Micrometer registry may behave inconsistently from storage perspective (e.g. same metric
+     * may return different value from different registry).
+     * To keep things consistent, particularly for unit tests, only SimpleMeterRegistry is bound here.
+     */
+    void startWithoutExporting();
 
     /**
      * Close the stats provider.

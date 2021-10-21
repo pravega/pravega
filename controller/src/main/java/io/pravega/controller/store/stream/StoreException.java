@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -28,6 +34,7 @@ public class StoreException extends RuntimeException {
     public enum Type {
         DATA_EXISTS,
         DATA_NOT_FOUND,
+        DATA_CONTAINER_NOT_FOUND,
         DATA_CONTAINS_ELEMENTS,
         WRITE_CONFLICT,
         ILLEGAL_STATE,
@@ -89,6 +96,9 @@ public class StoreException extends RuntimeException {
             case DATA_NOT_FOUND:
                 exception = new DataNotFoundException(errorMessage, cause);
                 break;
+            case DATA_CONTAINER_NOT_FOUND:
+                exception = new DataContainerNotFoundException(errorMessage, cause);
+                break;
             case DATA_CONTAINS_ELEMENTS:
                 exception = new DataNotEmptyException(errorMessage, cause);
                 break;
@@ -123,10 +133,19 @@ public class StoreException extends RuntimeException {
     }
 
     /**
-     * Exception type when node does not exist and is operated on.
+     * Exception type when data does not exist and is operated on.
      */
     public static class DataNotFoundException extends StoreException {
         private DataNotFoundException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
+        }
+    }
+
+    /**
+     * Exception type when the parent container of the data does not exist.
+     */
+    public static class DataContainerNotFoundException extends DataNotFoundException {
+        private DataContainerNotFoundException(String errorMessage, Throwable cause) {
             super(errorMessage, cause);
         }
     }

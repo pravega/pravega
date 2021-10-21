@@ -1,17 +1,25 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -44,14 +52,14 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
-     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
+     * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
+     * the segment for read and write activities (ex: read, get, write, seal, concat). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    default CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    default CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
         return create(streamSegmentName, SegmentRollingPolicy.NO_ROLLING, timeout);
     }
 
@@ -61,14 +69,14 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @param streamSegmentName The full name of the StreamSegment.
      * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
-     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
+     * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
+     *      * the segment for read and write activities (ex: read, get, write, seal, concat). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout);
+    CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.
@@ -168,6 +176,26 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @return True or false.
      */
     boolean supportsTruncation();
+
+    /**
+     * Determines whether this Storage implementation supports atomic writes. Supporting atomic writes means that calls
+     * to {@link #write} will either make all the payload available for reading (via {@link #getStreamSegmentInfo} and
+     * {@link #read}) or none, regardless of whether the underlying Storage binding supports that (e.g., FileSystem does not).
+     *
+     * If this returns true, then even a system crash or other failure will guarantee that, upon a recovery, the payload
+     * will either be visible in its entirety or none at all.
+     *
+     * @return True if atomic writes are supported, false otherwise.
+     */
+    boolean supportsAtomicWrites();
+
+    /**
+     * Lists all the segments stored on the storage device.
+     *
+     * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
+     * @throws IOException if exception occurred while listing segments.
+     */
+    Iterator<SegmentProperties> listSegments() throws IOException;
 
     @Override
     void close();

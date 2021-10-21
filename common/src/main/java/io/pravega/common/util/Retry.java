@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -23,7 +29,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Getter;
-import lombok.experimental.Wither;
+import lombok.With;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -54,7 +60,10 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public final class Retry {
-
+    public static final RetryAndThrowBase<Exception> NO_RETRY = Retry
+            .withExpBackoff(1, 1, 1)
+            .retryingOn(Exception.class)
+            .throwingOn(Exception.class);
     private final static long DEFAULT_RETRY_INIT_DELAY = 100;
     private final static int DEFAULT_RETRY_MULTIPLIER = 2;
     private final static long DEFAULT_RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
@@ -102,16 +111,16 @@ public final class Retry {
      */
     public static final class RetryWithBackoff {
         @Getter
-        @Wither
+        @With
         private final long initialMillis;
         @Getter
-        @Wither
+        @With
         private final int multiplier;
         @Getter
-        @Wither
+        @With
         private final int attempts;
         @Getter
-        @Wither
+        @With
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
@@ -187,7 +196,11 @@ public final class Retry {
                     Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
 
                     delay = Math.min(params.maxDelay, params.multiplier * delay);
-                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                    log.debug("Retrying command {} due to \"{}\" Retry #{}, timestamp={}",
+                              r.toString(),
+                              last.getMessage(),
+                              attemptNumber,
+                              Instant.now());
                 }
             }
             throw new RetriesExhaustedException(last);
@@ -218,7 +231,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                                    log.debug("Retrying command {} Retry #{}, timestamp={}", task.toString(), attemptNumber, Instant.now());
                                 }
                                 return null;
                             }),
@@ -249,7 +262,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
                                 }
 
                                 return null;

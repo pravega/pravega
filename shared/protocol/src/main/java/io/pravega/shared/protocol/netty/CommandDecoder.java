@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -16,7 +22,6 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Cleanup;
@@ -45,14 +50,16 @@ public class CommandDecoder extends ByteToMessageDecoder {
     @VisibleForTesting
     public static WireCommand parseCommand(ByteBuf in) throws IOException {
         @Cleanup
-        ByteBufInputStream is = new ByteBufInputStream(in);
+        EnhancedByteBufInputStream is = new EnhancedByteBufInputStream(in);
         int readableBytes = in.readableBytes();
         if (readableBytes < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Not enough bytes to read.");
         }
         WireCommandType type = readType(is);
         int length = readLength(is, readableBytes);
+        int readIndex = in.readerIndex();
         WireCommand command = type.readFrom(is, length);
+        in.readerIndex(readIndex + length);
         return command;
     }
 

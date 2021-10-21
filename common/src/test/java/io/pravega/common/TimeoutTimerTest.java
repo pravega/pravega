@@ -1,0 +1,47 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.pravega.common;
+
+import java.time.Duration;
+import org.junit.Test;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class TimeoutTimerTest {
+
+    @Test
+    public void testTimeouts() {
+        TimeoutTimer timer = new TimeoutTimer(Duration.ofMillis(0));
+        assertFalse(timer.hasRemaining());
+        timer.reset(Duration.ofMillis(10000));
+        assertTrue(timer.hasRemaining());
+        assertTrue(timer.getElapsed().toNanos() > 0);
+        timer.zero();
+        assertFalse(timer.hasRemaining());
+    }
+
+    @Test
+    public void testResetToZero() {
+        TimeoutTimer timer = new TimeoutTimer(Duration.ofMillis(10000));
+        assertTrue(timer.hasRemaining());
+        timer.reset(Duration.ofMillis(0));
+        assertFalse(timer.hasRemaining());
+        timer.zero();
+        assertFalse(timer.hasRemaining());
+    }
+
+}

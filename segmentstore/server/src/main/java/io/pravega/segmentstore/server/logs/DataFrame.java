@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -14,10 +20,11 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
+import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.EOFException;
 import java.io.IOException;
@@ -37,10 +44,11 @@ public class DataFrame {
     //region Members
 
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
+    private static final CompositeByteArraySegment.BufferLayout BUFFER_LAYOUT = new CompositeByteArraySegment.BufferLayout(17); // 128KB
     private static final byte CURRENT_VERSION = 0;
-    private final ByteArraySegment data;
+    private final CompositeArrayView data;
     private WriteFrameHeader header;
-    private ByteArraySegment contents;
+    private CompositeArrayView contents;
 
     /**
      * The Frame Address within its serialization chain.
@@ -65,11 +73,10 @@ public class DataFrame {
      *
      * @param source The ByteArraySegment to wrap.
      */
-    DataFrame(ByteArraySegment source) {
-        Preconditions.checkArgument(!source.isReadOnly(), "Cannot create a WriteFrame for a readonly source.");
+    private DataFrame(CompositeArrayView source) {
         this.data = source;
         this.writeEntryStartIndex = -1;
-        this.sealed = source.isReadOnly();
+        this.sealed = false;
         this.writePosition = this.sealed ? -1 : 0;
 
         //We want to use the DataFrame for at least 1 byte of data.
@@ -77,8 +84,8 @@ public class DataFrame {
         Exceptions.checkArgument(sourceLength > FrameHeader.SERIALIZATION_LENGTH, "data",
                 "Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SERIALIZATION_LENGTH + 1);
 
-        this.header = new WriteFrameHeader(CURRENT_VERSION, this.data.subSegment(0, FrameHeader.SERIALIZATION_LENGTH));
-        this.contents = this.data.subSegment(FrameHeader.SERIALIZATION_LENGTH, sourceLength - FrameHeader.SERIALIZATION_LENGTH);
+        this.header = new WriteFrameHeader(CURRENT_VERSION, this.data.slice(0, FrameHeader.SERIALIZATION_LENGTH));
+        this.contents = this.data.slice(FrameHeader.SERIALIZATION_LENGTH, sourceLength - FrameHeader.SERIALIZATION_LENGTH);
     }
 
     /**
@@ -86,11 +93,9 @@ public class DataFrame {
      *
      * @param maxSize The maximum size of the frame, including Frame Header and other control structures
      *                that the frame may use to organize records.
-     * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
-    @VisibleForTesting
     static DataFrame ofSize(int maxSize) {
-        return new DataFrame(new ByteArraySegment(new byte[maxSize]));
+        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_LAYOUT));
     }
 
     //endregion
@@ -103,6 +108,7 @@ public class DataFrame {
      * When creating new frames (write mode), this value may be less than the 'maxLength' provided in the constructor.
      * When reading frames from a source (read mode), this value may be less than the size of the source.
      * This value is serialized with the frame.
+     * @return The length (bytes) of the frame, including the header, contents and other control structures needed to serialize the frame.
      */
     public int getLength() {
         return this.header.getSerializationLength() + this.header.getContentLength();
@@ -111,13 +117,9 @@ public class DataFrame {
     /**
      * Returns an ArrayView representing the serialized form of this frame.
      */
-    ArrayView getData() {
-        if (this.data.isReadOnly()) {
-            return this.data;
-        } else {
-            // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.subSegment(0, getLength());
-        }
+    CompositeArrayView getData() {
+        //  Only return the segment of the buffer that contains data.
+        return this.data.slice(0, getLength());
     }
 
     /**
@@ -131,7 +133,7 @@ public class DataFrame {
      * Gets a value indicating whether the DataFrame is sealed.
      */
     boolean isSealed() {
-        return this.sealed || this.contents.isReadOnly();
+        return this.sealed;
     }
 
     //endregion
@@ -158,7 +160,7 @@ public class DataFrame {
         }
 
         this.writeEntryStartIndex = this.writePosition;
-        this.writeEntryHeader = new WriteEntryHeader(this.contents.subSegment(this.writePosition, WriteEntryHeader.HEADER_SIZE));
+        this.writeEntryHeader = new WriteEntryHeader(this.contents.slice(this.writePosition, WriteEntryHeader.HEADER_SIZE));
         this.writeEntryHeader.setFirstRecordEntry(firstRecordEntry);
         this.writePosition += WriteEntryHeader.HEADER_SIZE;
         return true;
@@ -214,27 +216,87 @@ public class DataFrame {
     int append(byte b) {
         ensureAppendConditions();
         if (getAvailableLength() >= 1) {
-            this.contents.set(writePosition, b);
-            writePosition++;
+            this.contents.set(this.writePosition, b);
+            this.writePosition++;
             return 1;
         } else {
-            // Current DataFrame is full. we can't write anymore.
+            // Current DataFrame is full. We can't write anymore.
             return 0;
         }
     }
 
     /**
-     * Appends the contents of the ByteArraySegment to the DataFrame.
+     * Appends a short (2 bytes) to the DataFrame. The entire Short will either be accepted or rejected (no partial
+     * serializations).
      *
-     * @param data The ByteArraySegment to append.
-     * @return The number of bytes written. If less than the length of the ByteArraySegment, the frame is full and cannot
+     * @param shortValue The Short to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(short shortValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Short.BYTES) {
+            this.contents.setShort(this.writePosition, shortValue);
+            this.writePosition += Short.BYTES;
+            return Short.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends an int (4 bytes) to the DataFrame. The entire Integer will either be accepted or rejected (no partial
+     * serializations).
+     *
+     * @param intValue The Integer to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(int intValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Integer.BYTES) {
+            this.contents.setInt(this.writePosition, intValue);
+            this.writePosition += Integer.BYTES;
+            return Integer.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends a Long (8 bytes) to the DataFrame. The entire Long will either be accepted or rejected (no partial
+     * serializations).
+     *
+     * @param longValue The Long to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(long longValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Long.BYTES) {
+            this.contents.setLong(this.writePosition, longValue);
+            this.writePosition += Long.BYTES;
+            return Long.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends the contents of the {@link BufferView.Reader} to the DataFrame.
+     *
+     * @param data The {@link BufferView.Reader} to append.
+     * @return The number of bytes written. If less than {@link BufferView.Reader#available()}, the frame is full and cannot
      * write anything anymore. The remaining bytes will need to be written to a new frame.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
-    int append(ByteArraySegment data) {
+    int append(BufferView.Reader data) {
         ensureAppendConditions();
 
-        int actualLength = Math.min(data.getLength(), getAvailableLength());
+        int actualLength = Math.min(data.available(), getAvailableLength());
         if (actualLength > 0) {
             this.contents.copyFrom(data, writePosition, actualLength);
             writePosition += actualLength;
@@ -250,7 +312,7 @@ public class DataFrame {
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
     void seal() {
-        if (!this.sealed && !this.contents.isReadOnly()) {
+        if (!this.sealed) {
             Preconditions.checkState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
 
             this.header.setContentLength(writePosition);
@@ -335,19 +397,19 @@ public class DataFrame {
     }
 
     private static class WriteEntryHeader extends EntryHeader {
-        private ByteArraySegment data;
+        private CompositeArrayView data;
 
-        WriteEntryHeader(ByteArraySegment headerContents) {
+        WriteEntryHeader(CompositeArrayView headerContents) {
             Exceptions.checkArgument(headerContents.getLength() == HEADER_SIZE, "headerContents",
                     "Invalid headerContents size. Expected %d, given %d.", HEADER_SIZE, headerContents.getLength());
             this.data = headerContents;
         }
 
         void serialize() {
-            Preconditions.checkState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
+            Preconditions.checkState(this.data != null, "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
-            BitConverter.writeInt(this.data, 0, getEntryLength());
+            this.data.setInt(0, getEntryLength());
 
             // Write flags.
             byte flags = isFirstRecordEntry() ? FIRST_ENTRY_MASK : 0;
@@ -412,9 +474,9 @@ public class DataFrame {
          */
         @Getter
         private final int serializationLength;
-        private ByteArraySegment buffer;
+        private CompositeArrayView buffer;
 
-        WriteFrameHeader(byte version, ByteArraySegment target) {
+        WriteFrameHeader(byte version, CompositeArrayView target) {
             Exceptions.checkArgument(target.getLength() == SERIALIZATION_LENGTH, "target",
                     "Unexpected length for target buffer. Expected %d, given %d.", SERIALIZATION_LENGTH, target.getLength());
             setVersion(version);
@@ -423,14 +485,15 @@ public class DataFrame {
         }
 
         void commit() {
-            Preconditions.checkState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
+            Preconditions.checkState(this.buffer != null, "Cannot commit a read-only FrameHeader");
             assert this.buffer.getLength() == SERIALIZATION_LENGTH;
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
             int bufferOffset = 0;
             this.buffer.set(bufferOffset, getVersion());
             bufferOffset += Byte.BYTES;
-            bufferOffset += BitConverter.writeInt(this.buffer, bufferOffset, getContentLength());
+            this.buffer.setInt(bufferOffset, getContentLength());
+            bufferOffset += Integer.BYTES;
             this.buffer.set(bufferOffset, encodeFlags());
         }
     }

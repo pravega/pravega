@@ -1,36 +1,26 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
-import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
-public interface ArrayView {
-    /**
-     * Gets the value at the specified index.
-     *
-     * @param index The index to query.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     * @return Byte indicating the value at the given index.
-     */
-    byte get(int index);
-
-    /**
-     * Gets a value representing the length of this ArrayView.
-     *
-     * @return The length.
-     */
-    int getLength();
-
+public interface ArrayView extends BufferView, StructuredWritableBuffer, StructuredReadableBuffer {
     /**
      * Gets a reference to the backing array for this ArrayView. This should be used in conjunction with arrayOffset()
      * in order to determine where in the array this ArrayView starts at.
@@ -49,24 +39,6 @@ public interface ArrayView {
     int arrayOffset();
 
     /**
-     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
-     * spans the entire ArrayView.
-     *
-     * @return The InputStream.
-     */
-    InputStream getReader();
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
-     * spans the given section of the ArrayView.
-     *
-     * @param offset The starting offset of the section to read.
-     * @param length The length of the section to read.
-     * @return The InputStream.
-     */
-    InputStream getReader(int offset, int length);
-
-    /**
      * Copies a specified number of bytes from this ArrayView into the given target array.
      *
      * @param target       The target array.
@@ -77,9 +49,21 @@ public interface ArrayView {
     void copyTo(byte[] target, int targetOffset, int length);
 
     /**
-     * Returns a copy of the contents of this ArrayView.
+     * Creates a new {@link ArrayView} that represents a sub-range of this {@link ArrayView} instance. The new instance
+     * will share the same backing array as this one, so a change to one will be reflected in the other.
      *
-     * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
+     * @param offset The starting offset to begin the slice at.
+     * @param length The sliced length.
+     * @return A new {@link ArrayView}.
      */
-    byte[] getCopy();
+    @Override
+    ArrayView slice(int offset, int length);
+
+    /**
+     * Returns a new {@link ByteBuffer} that wraps the contents of this {@link ArrayView}.
+     *
+     * @return A {@link ByteBuffer} that shares the same backing array as this {@link ArrayView}. Any changes made to
+     * the {@link ByteBuffer} will be reflected in this {@link ArrayView} and viceversa.
+     */
+    ByteBuffer asByteBuffer();
 }

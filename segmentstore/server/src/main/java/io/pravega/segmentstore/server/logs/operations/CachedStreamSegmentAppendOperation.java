@@ -1,17 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import java.util.Collection;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 
 /**
  * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation cannot
@@ -23,7 +28,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
 
     private final int length;
     private final long streamSegmentOffset;
-    private final Collection<AttributeUpdate> attributeUpdates;
+    private final AttributeUpdateCollection attributeUpdates;
 
     //endregion
 
@@ -42,12 +47,13 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
         Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0, "given baseOperation does not have an assigned StreamSegment Offset.");
 
         this.streamSegmentOffset = baseOperation.getStreamSegmentOffset();
-        this.length = baseOperation.getData().length;
+        this.length = baseOperation.getData().getLength();
         if (baseOperation.getSequenceNumber() >= 0) {
             setSequenceNumber(baseOperation.getSequenceNumber());
         }
 
         this.attributeUpdates = baseOperation.getAttributeUpdates();
+        setDesiredPriority(baseOperation.getDesiredPriority());
     }
 
     //endregion
@@ -60,7 +66,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
      * @return A Collection of Attribute updates, or null if no updates are available.
      */
     @Override
-    public Collection<AttributeUpdate> getAttributeUpdates() {
+    public AttributeUpdateCollection getAttributeUpdates() {
         return this.attributeUpdates;
     }
 
@@ -85,6 +91,11 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
 
     @Override
     public long getLength() {
+        return this.length;
+    }
+
+    @Override
+    public long getCacheLength() {
         return this.length;
     }
 

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage;
 
@@ -22,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -79,7 +86,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         val s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Create
-        toReturn.set(StreamSegmentInformation.builder().name(segmentName).build());
+        toReturn.set(handle);
         validator.set((o, segment) -> {
             Assert.assertEquals(TestStorage.CREATE, o);
             Assert.assertEquals(segmentName, segment);
@@ -354,6 +361,14 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
     }
 
+    @Test
+    public void testSupportsAtomicWrites() {
+        val innerStorage = new TestStorage((operation, segment) -> null);
+        @Cleanup
+        val s = new AsyncStorageWrapper(innerStorage, executorService());
+        Assert.assertFalse(s.supportsAtomicWrites());
+    }
+
     private CompletableFuture<Void> allOf(Collection<CompletableFuture<?>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
     }
@@ -401,8 +416,8 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public SegmentProperties create(String streamSegmentName) {
-            return (SegmentProperties) this.methodInvoked.apply(CREATE, streamSegmentName);
+        public SegmentHandle create(String streamSegmentName) {
+            return (SegmentHandle) this.methodInvoked.apply(CREATE, streamSegmentName);
         }
 
         @Override
@@ -449,6 +464,10 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         public void initialize(long containerEpoch) {
         }
 
+        @Override
+        public Iterator<SegmentProperties> listSegments() {
+            return null;
+        }
         //endregion
     }
 

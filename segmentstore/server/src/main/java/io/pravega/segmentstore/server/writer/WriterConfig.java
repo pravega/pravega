@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -13,8 +19,8 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -23,16 +29,18 @@ import lombok.Getter;
 public class WriterConfig {
     //region Config Names
 
-    public static final Property<Integer> FLUSH_THRESHOLD_BYTES = Property.named("flushThresholdBytes", 4 * 1024 * 1024);
-    public static final Property<Long> FLUSH_THRESHOLD_MILLIS = Property.named("flushThresholdMillis", 30 * 1000L);
-    public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
-    public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("maxItemsToReadAtOnce", 1000);
-    public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("minReadTimeoutMillis", 2 * 1000L);
-    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 30 * 60 * 1000L);
-    public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("errorSleepMillis", 1000L);
-    public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
-    public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
-    public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
+    public static final Property<Integer> FLUSH_THRESHOLD_BYTES = Property.named("flush.threshold.bytes", 4 * 1024 * 1024, "flushThresholdBytes");
+    public static final Property<Long> FLUSH_THRESHOLD_MILLIS = Property.named("flush.threshold.milliseconds", 30 * 1000L, "flushThresholdMillis");
+    public static final Property<Integer> FLUSH_ATTRIBUTES_THRESHOLD = Property.named("flush.attributes.threshold", 200, "flushAttributesThreshold");
+    public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("flush.size.bytes.max", FLUSH_THRESHOLD_BYTES.getDefaultValue(), "maxFlushSizeBytes");
+    public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("itemsToReadAtOnce.max", 1000, "maxItemsToReadAtOnce");
+    public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("read.timeout.milliseconds.min", 2 * 1000L, "minReadTimeoutMillis");
+    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("read.timeout.milliseconds.max", 30 * 60 * 1000L, "maxReadTimeoutMillis");
+    public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("error.sleep.milliseconds", 1000L, "errorSleepMillis");
+    public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flush.timeout.milliseconds", 60 * 1000L, "flushTimeoutMillis");
+    public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ack.timeout.milliseconds", 15 * 1000L, "ackTimeoutMillis");
+    public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutDown.timeout.milliseconds", 10 * 1000L, "shutdownTimeoutMillis");
+    public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("rollover.size.bytes.max", SegmentRollingPolicy.NO_ROLLING.getMaxLength(), "maxRolloverSizeBytes");
     private static final String COMPONENT_CODE = "writer";
 
     //endregion
@@ -50,6 +58,12 @@ public class WriterConfig {
      */
     @Getter
     private final Duration flushThresholdTime;
+
+    /**
+     * The minimum number of attributes that should accumulate before flushing them into the Attribute Index.
+     */
+    @Getter
+    private final int flushAttributesThreshold;
 
     /**
      * The maximum number of bytes that can be flushed with a single write operation.
@@ -99,6 +113,13 @@ public class WriterConfig {
     @Getter
     private final Duration shutdownTimeout;
 
+    /**
+     * The maximum Rolling Size (in bytes) for a Segment in Storage. This will preempt any value configured on the Segment
+     * via the Segment's Attributes (no rolling size may exceed this value).
+     */
+    @Getter
+    private final long maxRolloverSize;
+
     //endregion
 
     //region Constructor
@@ -115,6 +136,11 @@ public class WriterConfig {
         }
 
         this.flushThresholdTime = Duration.ofMillis(properties.getLong(FLUSH_THRESHOLD_MILLIS));
+        this.flushAttributesThreshold = properties.getInt(FLUSH_ATTRIBUTES_THRESHOLD);
+        if (this.flushAttributesThreshold < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", FLUSH_THRESHOLD_BYTES));
+        }
+
         this.maxFlushSizeBytes = properties.getInt(MAX_FLUSH_SIZE_BYTES);
         this.maxItemsToReadAtOnce = properties.getInt(MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
@@ -137,6 +163,7 @@ public class WriterConfig {
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
         this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
+        this.maxRolloverSize = Math.max(0, properties.getLong(MAX_ROLLOVER_SIZE));
     }
 
     /**

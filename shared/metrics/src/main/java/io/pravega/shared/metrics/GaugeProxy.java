@@ -1,25 +1,41 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
-import com.google.common.base.Preconditions;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import lombok.Getter;
 
-class GaugeProxy extends MetricProxy<Gauge> implements Gauge {
-    @Getter
-    private final Supplier<? extends Number> valueSupplier;
+class GaugeProxy extends MetricProxy<Gauge, GaugeProxy> implements Gauge {
 
-    GaugeProxy(Gauge gauge, String proxyName, Supplier<? extends Number> valueSupplier, Consumer<String> closeCallback) {
+    GaugeProxy(Gauge gauge, String proxyName, Consumer<GaugeProxy> closeCallback) {
         super(gauge, proxyName, closeCallback);
-        this.valueSupplier = Preconditions.checkNotNull(valueSupplier, "valueSupplier");
+    }
+
+    @Override
+    public void setSupplier(Supplier<Number> supplier) {
+        getInstance().setSupplier(supplier);
+    }
+
+    @Override
+    public Supplier<Number> getSupplier() {
+        return getInstance().getSupplier();
+    }
+
+    @Override
+    protected GaugeProxy getSelf() {
+        return this;
     }
 }

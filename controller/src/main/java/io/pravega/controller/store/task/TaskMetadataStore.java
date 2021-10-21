@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.task;
 
@@ -25,10 +31,10 @@ public interface TaskMetadataStore {
      * If (oldOwner, oldTag) are specified then it revokes old owner's lock and itself acquires it.
      * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
      * If oldOwner is null then
-     * atomically create the key value pair resource -> (owner, tag, taskData) if it does not exist.
+     * atomically create the key value pair resource -{@literal >} (owner, tag, taskData) if it does not exist.
      * If oldOwner is non-null
-     * then atomically replace the key value pair resource -> (oldOwner, oldTag, taskData) with the pair
-     * resource -> (owner, tag, taskData).
+     * then atomically replace the key value pair resource -{@literal >} (oldOwner, oldTag, taskData) with the pair
+     * resource -{@literal >} (owner, tag, taskData).
      *
      * @param resource    resource identifier.
      * @param taskData    details of update task on the resource.
@@ -47,7 +53,7 @@ public interface TaskMetadataStore {
 
     /**
      * Unlocks a resource if it is owned by the specified owner.
-     * Delete the key value pair resource -> (x, taskData) iff x == owner.
+     * Delete the key value pair resource -{@literal >} (x, taskData) iff x == owner.
      *
      * @param resource resource identifier.
      * @param owner    owner of the lock.

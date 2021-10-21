@@ -1,70 +1,48 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
-import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
-import io.pravega.test.common.TestingServerStarter;
-import java.io.IOException;
-import java.util.UUID;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * ControllerServiceStarter backed by ZK store tests.
  */
 @Slf4j
-public class ZKControllerServiceStarterTest extends ControllerServiceStarterTest {
-    private TestingServer zkServer;
-
-    public ZKControllerServiceStarterTest() {
-        super(true, false);
+public class ZKControllerServiceStarterTest extends ZKBackedControllerServiceStarterTest {
+    @Override
+    StoreClientConfig getStoreConfig(ZKClientConfig zkClientConfig) {
+        return StoreClientConfigImpl.withZKClient(zkClientConfig);
     }
 
     @Override
-    public void setup() {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting test zk server");
-            Assert.fail("Error starting test zk server");
-        }
-
-        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
-                .initialSleepInterval(500)
-                .maxRetries(10)
-                .namespace("pravega/" + UUID.randomUUID())
-                .sessionTimeoutMs(10 * 1000)
-                .build();
-        storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
-        storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
-        Assert.assertNotNull(storeClient);
+    StreamMetadataStore getStore(StoreClient storeClient) {
+        return StreamStoreFactory.createZKStore((CuratorFramework) storeClient.getClient(), executor);
     }
 
     @Override
-    public void tearDown() {
-        try {
-            storeClient.close();
-        } catch (Exception e) {
-            log.error("Error closing ZK client");
-            Assert.fail("Error closing ZK client");
-        }
-
-        try {
-            zkServer.close();
-        } catch (IOException e) {
-            log.error("Error stopping test zk server");
-            Assert.fail("Error stopping test zk server");
-        }
+    KVTableMetadataStore getKVTStore(StoreClient storeClient) {
+        return KVTableStoreFactory.createZKStore((CuratorFramework) storeClient.getClient(), executor);
     }
 }

@@ -1,15 +1,22 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.Stream;
+import io.pravega.shared.NameUtils;
 
 public interface StreamInternal extends Stream {
 
@@ -20,17 +27,10 @@ public interface StreamInternal extends Stream {
      */
     @Override
     default String getScopedName() {
-        StringBuffer sb = new StringBuffer();
-        String scope = getScope();
-        if (scope != null) {
-            sb.append(scope);
-            sb.append('/');
-        }
-        sb.append(getStreamName());
-        return sb.toString();
+        return NameUtils.getScopedStreamName(getScope(), getStreamName());
     }
     
-    public static Stream fromScopedName(String scopedName) {
+    static Stream fromScopedName(String scopedName) {
         String[] tokens = scopedName.split("/");
         if (tokens.length == 2) {
             return new StreamImpl(tokens[0], tokens[1]);

@@ -1,15 +1,24 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.state.InitialUpdate;
@@ -20,17 +29,29 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
 import java.io.Serializable;
+import java.net.URI;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
@@ -43,8 +64,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynchronizerTest {
+
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build();
 
     @Data
     private static class RevisionedImpl implements Revisioned {
@@ -205,15 +232,17 @@ public class SynchronizerTest {
         RevisionedImpl state3 = sync.getState();
         assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
     }
-    
+
     @Test(timeout = 20000)
-    public void testCompaction() throws EndOfSegmentException {
+    public void testCompaction() {
         String streamName = "streamName";
         String scope = "scope";
-        
+
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -267,6 +296,7 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
         @Cleanup
         StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
                                                                                         new JavaSerializer<>(),
@@ -304,13 +334,15 @@ public class SynchronizerTest {
     }
     
     @Test(timeout = 20000)
-    public void testReturnValue() throws EndOfSegmentException {
+    public void testReturnValue() {
         String streamName = "streamName";
         String scope = "scope";
         
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -356,13 +388,15 @@ public class SynchronizerTest {
     }
     
     @Test(timeout = 20000)
-    public void testCompactionShrinksSet() throws EndOfSegmentException {
+    public void testCompactionShrinksSet() {
         String streamName = "testCompactionShrinksSet";
         String scope = "scope";
         
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         RevisionedStreamClient<byte[]> rsc = clientFactory.createRevisionedStreamClient(streamName, new ByteArraySerializer(),
                                                                                    SynchronizerConfig.builder().build());
@@ -382,13 +416,15 @@ public class SynchronizerTest {
     }
 
     @Test(timeout = 20000)
-    public void testSetOperations() throws EndOfSegmentException {
+    public void testSetOperations() {
         String streamName = "testCompactionShrinksSet";
         String scope = "scope";
         
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         SetSynchronizer<String> set2 = SetSynchronizer.createNewSet(streamName, clientFactory);
         assertEquals(0, set.getCurrentSize());
@@ -411,5 +447,270 @@ public class SynchronizerTest {
         assertEquals(0, set3.getCurrentSize());
     }
 
-    
+    @Test(timeout = 20000)
+    public void testCompactWithTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactoryA = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryA.getController());
+        @Cleanup
+        MockClientFactory clientFactoryB = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryB.getController());
+
+        StateSynchronizer<RevisionedImpl> syncA = clientFactoryA.createStateSynchronizer(streamName,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                SynchronizerConfig.builder().build());
+
+        StateSynchronizer<RevisionedImpl> syncB = clientFactoryB.createStateSynchronizer(streamName,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                SynchronizerConfig.builder().build());
+
+        assertEquals(0, syncA.bytesWrittenSinceCompaction());
+        assertEquals(0, syncB.bytesWrittenSinceCompaction());
+
+        AtomicInteger callCount = new AtomicInteger(0);
+
+        syncA.initialize(new RegularUpdate("a"));
+        syncB.initialize(new RegularUpdate("b"));
+        assertEquals("a", syncA.getState().getValue());
+        assertEquals("a", syncB.getState().getValue());
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("b"));
+        });
+        assertEquals(1, callCount.get());
+        assertEquals("b", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("b", syncB.getState().getValue());
+
+        long size = syncA.bytesWrittenSinceCompaction();
+        assertTrue(size > 0);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("c"));
+        });
+        assertEquals(2, callCount.get());
+        assertEquals("c", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("c", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("d"));
+        });
+        assertEquals(3, callCount.get());
+        assertEquals("d", syncA.getState().getValue());
+        assertEquals("c", syncB.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("d", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("e"));
+        });
+        assertEquals(4, callCount.get());
+        assertEquals("e", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("e", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("f"));
+        });
+        assertEquals(5, callCount.get());
+        assertEquals("f", syncA.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        assertEquals("e", syncB.getState().getValue());
+        syncB.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate(state.getValue());
+        });
+        assertEquals(7, callCount.get());
+        assertEquals(0, syncB.bytesWrittenSinceCompaction());
+        assertEquals("f", syncA.getState().getValue());
+        assertEquals("f", syncB.getState().getValue());
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("g"));
+        });
+        assertEquals(9, callCount.get());
+        assertEquals("g", syncA.getState().getValue());
+        assertEquals(syncA.bytesWrittenSinceCompaction(), size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("h"));
+        });
+        assertEquals(10, callCount.get());
+        assertEquals("h", syncA.getState().getValue());
+
+        syncA.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate("h");
+        });
+        assertEquals(11, callCount.get());
+        assertEquals("h", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("h", syncB.getState().getValue());
+        assertEquals(0, syncA.bytesWrittenSinceCompaction());
+    }
+
+    @Test(timeout = 20000)
+    public void testCreateStateSynchronizerError() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        Controller controller = mock(Controller.class);
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, ClientConfig.builder().build());
+
+        // Simulate a sealed stream.
+        CompletableFuture<StreamSegments> result = new CompletableFuture<>();
+        result.complete(new StreamSegments(new TreeMap<>()));
+        when(controller.getCurrentSegments(scope, streamName)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createStateSynchronizer(streamName,
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                SynchronizerConfig.builder().build()));
+
+        result = new CompletableFuture<>();
+        result.completeExceptionally(new RuntimeException("Controller exception"));
+        when(controller.getCurrentSegments(scope, streamName)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createStateSynchronizer(streamName,
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                SynchronizerConfig.builder().build()));
+    }
+
+    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    public void testFetchUpdatesWithMultipleTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedClient = mock(RevisionedStreamClient.class);
+        final Segment segment = new Segment(scope, streamName, 0L);
+        @Cleanup
+        StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedClient);
+
+        Revision firstMark = new RevisionImpl(segment, 10L, 1);
+        Revision secondMark = new RevisionImpl(segment, 20L, 2);
+        final AbstractMap.SimpleImmutableEntry<Revision, UpdateOrInit<RevisionedImpl>> entry =
+                new AbstractMap.SimpleImmutableEntry<>(secondMark, new UpdateOrInit<>(new RegularUpdate("x")));
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+
+        // Setup Mock
+        when(revisionedClient.getMark()).thenReturn(firstMark);
+        when(revisionedClient.readFrom(firstMark))
+                // simulate multiple TruncatedDataExceptions.
+                .thenThrow(new TruncatedDataException())
+                .thenThrow(new TruncatedDataException())
+                .thenReturn(iterator);
+        when(revisionedClient.readFrom(secondMark)).thenReturn(iterator);
+
+        syncA.fetchUpdates(); // invoke fetchUpdates which will encounter TruncatedDataException from RevisionedStreamClient.
+        assertEquals("x", syncA.getState().getValue());
+    }
+
+    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    public void testConcurrentFetchUpdatesAfterTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        // Mock of the RevisionedStreamClient.
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedStreamClient = mock(RevisionedStreamClient.class);
+
+        final Segment segment = new Segment(scope, streamName, 0L);
+        @Cleanup
+        StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedStreamClient);
+
+        Revision firstMark = new RevisionImpl(segment, 10L, 1);
+        Revision secondMark = new RevisionImpl(segment, 20L, 2);
+        final AbstractMap.SimpleImmutableEntry<Revision, UpdateOrInit<RevisionedImpl>> entry =
+                new AbstractMap.SimpleImmutableEntry<>(secondMark, new UpdateOrInit<>(new RegularUpdate("x")));
+
+        // Mock iterators to simulate concurrent revisionedStreamClient.readFrom(firstMark) call.
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator1 =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator2 =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+        // Latch to ensure both the thread encounter truncation exception.
+        CountDownLatch truncationLatch = new CountDownLatch(2);
+        // Latch to ensure both the threads invoke read attempt reading from same revision.
+        // This will simulate the race condition where the in-memory state is newer than the state returned by RevisionedStreamClient.
+        CountDownLatch raceLatch = new CountDownLatch(2);
+
+        // Setup Mock
+        when(revisionedStreamClient.getMark()).thenReturn(firstMark);
+        when(revisionedStreamClient.readFrom(firstMark))
+                // simulate multiple TruncatedDataExceptions.
+                .thenAnswer(invocation -> {
+                    truncationLatch.countDown();
+                    truncationLatch.await(); // wait until the other thread encounters the TruncationDataException.
+                    throw new TruncatedDataException();
+                })
+                .thenAnswer(invocation -> {
+                    throw new TruncatedDataException();
+                })
+                .thenAnswer(invocation -> {
+                    truncationLatch.countDown();
+                    raceLatch.await(); // wait until the other thread attempts to fetch updates from SSS post truncation and updates internal state.
+                    return iterator1;
+                }).thenAnswer(invocation -> {
+                    raceLatch.countDown();
+                    return iterator2;
+                });
+
+        // Return an iterator whose hasNext is false.
+        when(revisionedStreamClient.readFrom(secondMark)).thenAnswer(invocation -> {
+            raceLatch.countDown(); // release the waiting thread which is fetching updates from SSS when the internal state is already updated.
+            return iterator2;
+        });
+
+        // Simulate concurrent invocations of fetchUpdates API.
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService exec = ExecutorServiceHelpers.newScheduledThreadPool(2, "test-pool");
+        CompletableFuture<Void> cf1 = CompletableFuture.supplyAsync(() -> {
+            syncA.fetchUpdates();
+            return null;
+        }, exec);
+        CompletableFuture<Void> cf2 = CompletableFuture.supplyAsync(() -> {
+            syncA.fetchUpdates();
+            return null;
+        }, exec);
+        // Wait until the completion of both the fetchUpdates() API.
+        CompletableFuture.allOf(cf1, cf2).join();
+        assertEquals("x", syncA.getState().getValue());
+    }
+
+    @Test(timeout = 5000)
+    public void testSynchronizerClientFactory() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        @Cleanup
+        ClientFactoryImpl factory = (ClientFactoryImpl) SynchronizerClientFactory.withScope("scope", config);
+        ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
+        assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
+        assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
+    }
+
+    private void createScopeAndStream(String streamName, String scope, Controller controller) {
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName, config);
+    }
 }

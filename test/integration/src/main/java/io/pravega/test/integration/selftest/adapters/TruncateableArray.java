@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest.adapters;
 
@@ -16,10 +22,13 @@ import io.pravega.common.util.ArrayView;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Iterator;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -75,7 +84,27 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public short getShort(int index) {
+        throw new UnsupportedOperationException("getShort() not supported.");
+    }
+
+    @Override
+    public int getInt(int index) {
+        throw new UnsupportedOperationException("getInt() not supported.");
+    }
+
+    @Override
+    public long getLong(int index) {
+        throw new UnsupportedOperationException("getLong() not supported.");
+    }
+
+    @Override
     public int getLength() {
+        return this.length;
+    }
+
+    @Override
+    public int getAllocatedLength() {
         return this.length;
     }
 
@@ -129,8 +158,43 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public Reader getBufferViewReader() {
+        throw new UnsupportedOperationException("getBufferViewReader() not supported.");
+    }
+
+    @Override
+    public ArrayView slice(int offset, int length) {
+        throw new UnsupportedOperationException("slice() not supported.");
+    }
+
+    @Override
+    public ByteBuffer asByteBuffer() {
+        throw new UnsupportedOperationException("asByteBuffer() not supported.");
+    }
+
+    @Override
+    public void copyTo(OutputStream target) {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
+    public int copyTo(ByteBuffer byteBuffer) {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
     public void copyTo(byte[] target, int targetOffset, int length) {
         throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
+        throw new UnsupportedOperationException("collect() not supported.");
+    }
+
+    @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        throw new UnsupportedOperationException("iterateBuffers() not supported.");
     }
 
     @Override
@@ -206,6 +270,26 @@ public class TruncateableArray implements ArrayView {
             assert this.firstArrayOffset == 0 : "first entry offset not reset when no entries exist";
             assert this.length == 0 : "non-zero length when no entries exist";
         }
+    }
+
+    @Override
+    public void set(int index, byte value) {
+        throw new UnsupportedOperationException("set() not supported.");
+    }
+
+    @Override
+    public void setShort(int index, short value) {
+        throw new UnsupportedOperationException("setShort() not supported.");
+    }
+
+    @Override
+    public void setInt(int index, int value) {
+        throw new UnsupportedOperationException("setInt() not supported.");
+    }
+
+    @Override
+    public void setLong(int index, long value) {
+        throw new UnsupportedOperationException("setLong() not supported.");
     }
 
     //endregion

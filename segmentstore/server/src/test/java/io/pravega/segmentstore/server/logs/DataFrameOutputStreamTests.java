@@ -1,26 +1,36 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -85,46 +95,6 @@ public class DataFrameOutputStreamTests {
         Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame);
         Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
         DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
-    }
-
-    /**
-     * Tests the ability to reuse existing physical buffers, and discard them if needed.
-     */
-    @Test
-    public void testBufferReuse() throws Exception {
-        final int count = 500;
-        final int resetEvery = 50;
-        final byte[] writeData = new byte[1000];
-        final int maxFrameSize = 10 * 1024;
-
-        // Callback for when a frame is written.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-
-        int expectedStartIndex = 0;
-        @Cleanup
-        DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrame::set);
-        for (int i = 0; i < count; i++) {
-            if (i % resetEvery == 0) {
-                s.releaseBuffer();
-                expectedStartIndex = 0;
-            }
-
-            // We generate some frame of fixed size.
-            s.startNewRecord();
-            s.write(writeData);
-            s.endRecord();
-            s.flush();
-
-            // Then we inspect it's ArrayView's buffer characteristics, especially the array offset. If it increases as
-            // expect it to (and then resets when it exceeds a certain size), then we know the same physical buffer is
-            // reused.
-            ArrayView av = writtenFrame.getAndSet(null).getData();
-            Assert.assertEquals("Unexpected buffer index after flush #" + (i + 1), expectedStartIndex, av.arrayOffset());
-            expectedStartIndex += av.getLength();
-            if (maxFrameSize - expectedStartIndex < av.getLength()) {
-                expectedStartIndex = 0;
-            }
-        }
     }
 
     /**
@@ -205,6 +175,60 @@ public class DataFrameOutputStreamTests {
         AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
         val readFrames = writtenFrames.stream().map(this::readFrame).collect(Collectors.toList());
         DataFrameTestHelpers.checkReadRecords(readFrames, records, ByteArraySegment::new);
+    }
+
+    /**
+     * Tests {@link DataFrameOutputStream#writeShort}.
+     */
+    @Test
+    public void testWriteShort() throws Exception {
+        testWritePrimitiveTypes(i -> i, DataFrameOutputStream::writeShort, DataOutputStream::writeShort);
+    }
+
+    /**
+     * Tests {@link DataFrameOutputStream#writeInt}.
+     */
+    @Test
+    public void testWriteInt() throws Exception {
+        testWritePrimitiveTypes(i -> i * i, DataFrameOutputStream::writeInt, DataOutputStream::writeInt);
+    }
+
+    /**
+     * Tests {@link DataFrameOutputStream#writeLong}.
+     */
+    @Test
+    public void testWriteLong() throws Exception {
+        testWritePrimitiveTypes(i -> (long) Math.pow(i, 3), DataFrameOutputStream::writeLong, DataOutputStream::writeLong);
+    }
+
+    private <T> void testWritePrimitiveTypes(Function<Integer, T> toPrimitiveType, OutputStreamWriter<T> writer,
+                                             OutputStreamExpectedWriter<T> expectedWriter) throws Exception {
+        int maxFrameSize = 511; // Very small frame, so we can test switching over to new frames.
+        val values = IntStream.range(0, Short.MAX_VALUE).boxed().map(toPrimitiveType).collect(Collectors.toList());
+        @Cleanup
+        val expectedRecord = new ByteBufferOutputStream();
+        @Cleanup
+        val expectedRecordWriter = new DataOutputStream(expectedRecord);
+
+        // Callback for when a frame is written.
+        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
+            // Write a single record, and dump all values in it.
+            s.startNewRecord();
+            for (val v : values) {
+                writer.accept(s, v);
+                expectedWriter.accept(expectedRecordWriter, v);
+            }
+            s.endRecord();
+
+            // Seal whatever is left at the end.
+            s.flush();
+            expectedRecordWriter.flush();
+        }
+
+        AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
+        val readFrames = writtenFrames.stream().map(this::readFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, Collections.singletonList(expectedRecord.getData()), b -> b);
     }
 
     /**
@@ -346,4 +370,13 @@ public class DataFrameOutputStreamTests {
         return DataFrame.read(dataFrame.getData().getReader(), dataFrame.getLength(), dataFrame.getAddress());
     }
 
+    @FunctionalInterface
+    private interface OutputStreamWriter<T> {
+        void accept(DataFrameOutputStream dfos, T value) throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface OutputStreamExpectedWriter<T> {
+        void accept(DataOutputStream dos, T value) throws IOException;
+    }
 }

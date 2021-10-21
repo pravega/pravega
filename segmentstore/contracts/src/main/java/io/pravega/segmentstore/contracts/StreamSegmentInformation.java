@@ -1,11 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
@@ -14,7 +20,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -35,9 +40,16 @@ public class StreamSegmentInformation implements SegmentProperties {
     @Getter
     private final boolean deleted;
     @Getter
+    private final boolean sealedInStorage;
+    @Getter
+    private final boolean deletedInStorage;
+    @Getter
+    private final long storageLength;
+
+    @Getter
     private final ImmutableDate lastModified;
     @Getter
-    private final Map<UUID, Long> attributes;
+    private final Map<AttributeId, Long> attributes;
 
     //endregion
 
@@ -46,30 +58,43 @@ public class StreamSegmentInformation implements SegmentProperties {
     /**
      * Creates a new instance of the StreamSegmentInformation class.
      *
-     * @param name         The name of the StreamSegment.
-     * @param startOffset  The first available offset in this StreamSegment.
-     * @param length       The length of the StreamSegment.
-     * @param sealed       Whether the StreamSegment is sealed (for modifications).
-     * @param deleted      Whether the StreamSegment is deleted (does not exist).
-     * @param attributes   The attributes of this StreamSegment.
-     * @param lastModified The last time the StreamSegment was modified.
+     * @param name             The name of the StreamSegment.
+     * @param startOffset      The first available offset in this StreamSegment.
+     * @param length           The length of the StreamSegment.
+     * @param sealed           Whether the StreamSegment is sealed (for modifications).
+     * @param deleted          Whether the StreamSegment is deleted (does not exist).
+     * @param storageLength    Storage length.
+     * @param sealedInStorage  Whether the StreamSegment is sealed (for modifications) in storage.
+     * @param deletedInStorage Whether the StreamSegment is deleted (does not exist) in storage.
+     * @param attributes       The attributes of this StreamSegment.
+     * @param lastModified     The last time the StreamSegment was modified.
      */
     @Builder
-    private StreamSegmentInformation(String name, long startOffset, long length, boolean sealed, boolean deleted,
-                                    Map<UUID, Long> attributes, ImmutableDate lastModified) {
+    private StreamSegmentInformation(String name, long startOffset, long length, long storageLength, boolean sealed, boolean deleted,
+                                     boolean sealedInStorage, boolean deletedInStorage, Map<AttributeId, Long> attributes, ImmutableDate lastModified) {
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
+        Preconditions.checkArgument(length >= storageLength, "storageLength must be less than or equal to length.");
+        if (deletedInStorage) {
+            Preconditions.checkArgument(deleted, "deleted must be set if deletedInStorage is set.");
+        }
+        if (sealedInStorage) {
+            Preconditions.checkArgument(sealed, "sealed must be set if sealedInStorage is set.");
+        }
         this.name = Exceptions.checkNotNullOrEmpty(name, "name");
         this.startOffset = startOffset;
         this.length = length;
+        this.storageLength = storageLength;
         this.sealed = sealed;
+        this.sealedInStorage = sealedInStorage;
         this.deleted = deleted;
+        this.deletedInStorage = deletedInStorage;
         this.lastModified = lastModified == null ? new ImmutableDate() : lastModified;
-        this.attributes = getAttributes(attributes);
+        this.attributes = createAttributes(attributes);
     }
 
     /**
-     * Creates a new StreamSegmentInformationBuilder with information already populated from the given SegmentProperties.
+     * Creates a new {@link StreamSegmentInformationBuilder} with information already populated from the given SegmentProperties.
      *
      * @param base The SegmentProperties to use as a base.
      * @return The Builder.
@@ -89,11 +114,11 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Override
     public String toString() {
-        return String.format("Name = %s, StartOffset = %d, Length = %d, Sealed = %s, Deleted = %s", getName(),
-                getStartOffset(), getLength(), isSealed(), isDeleted());
+        return String.format("Name = %s, StartOffset = %d, Length = %d, Storage Length = %d, Sealed = %s, Deleted = %s, Sealed in Storage = %s, Deleted in Storage = %s", getName(),
+                getStartOffset(), getLength(), getStorageLength(), isSealed(), isDeleted(), isSealedInStorage(), isDeletedInStorage());
     }
 
-    private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {
+    private static Map<AttributeId, Long> createAttributes(Map<AttributeId, Long> input) {
         return input == null || input.size() == 0 ? Collections.emptyMap() : Collections.unmodifiableMap(input);
     }
 }

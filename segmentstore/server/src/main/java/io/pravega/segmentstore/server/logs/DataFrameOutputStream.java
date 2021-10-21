@@ -1,34 +1,40 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.SimpleMovingAverage;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
  * from one Data Frame to another if the previous Data Frame was full.
- *
+ * <p>
  * Data written with this class can be read back using DataFrameInputStream.
  */
 @NotThreadSafe
-class DataFrameOutputStream extends OutputStream {
+class DataFrameOutputStream extends OutputStream implements DirectDataOutput {
     //region Members
 
     private final Consumer<DataFrame> dataFrameCompleteCallback;
@@ -36,7 +42,7 @@ class DataFrameOutputStream extends OutputStream {
     private boolean hasDataInCurrentFrame;
     @Getter
     private boolean closed;
-    private final BufferFactory bufferFactory;
+    private final int maxDataFrameSize;
 
     //endregion
 
@@ -54,13 +60,70 @@ class DataFrameOutputStream extends OutputStream {
         Exceptions.checkArgument(maxDataFrameSize > DataFrame.MIN_ENTRY_LENGTH_NEEDED, "maxDataFrameSize",
                 "Must be a at least %s.", DataFrame.MIN_ENTRY_LENGTH_NEEDED);
 
-        this.bufferFactory = new BufferFactory(maxDataFrameSize);
+        this.maxDataFrameSize = maxDataFrameSize;
         this.dataFrameCompleteCallback = Preconditions.checkNotNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
     }
 
     //endregion
 
-    //region OutputStream Implementation
+    //region OutputStream and DirectDataOutput Implementation
+
+    @Override
+    public void writeShort(int shortValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append((short) shortValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
+
+    @Override
+    public void writeInt(int intValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append(intValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
+
+    @Override
+    public void writeLong(long longValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append(longValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
 
     @Override
     public void write(int b) throws IOException {
@@ -68,48 +131,42 @@ class DataFrameOutputStream extends OutputStream {
         Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
         int attemptCount = 0;
-        int totalBytesWritten = 0;
-        while (totalBytesWritten == 0 && attemptCount < 2) {
-            // We attempt to write 1 byte. If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
-            totalBytesWritten += this.currentFrame.append((byte) b);
-            if (totalBytesWritten == 0) {
-                this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of the record.
-                flush();
-                createNewFrame();
-                startNewRecordInCurrentFrame(false);
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append((byte) b) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
             }
-
-            attemptCount++;
         }
 
-        if (totalBytesWritten == 0) {
-            throw new SerializationException("Unable to make progress in serializing to DataFrame.");
-        }
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
     }
 
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
+        writeBuffer(new ByteArraySegment(data, offset, length));
+    }
+
+    @Override
+    public void writeBuffer(BufferView data) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
-        int totalBytesWritten = 0;
         int attemptsWithNoProgress = 0;
-        while (totalBytesWritten < length) {
-            int bytesWritten = this.currentFrame.append(new ByteArraySegment(data, offset + totalBytesWritten, length - totalBytesWritten));
+        BufferView.Reader reader = data.getBufferViewReader();
+        while (reader.available() > 0) {
+            int bytesWritten = this.currentFrame.append(reader);
             attemptsWithNoProgress = bytesWritten == 0 ? attemptsWithNoProgress + 1 : 0;
             if (attemptsWithNoProgress > 1) {
                 // We had two consecutive attempts to write to a frame with no progress made.
                 throw new IOException("Unable to make progress in serializing to DataFrame.");
             }
 
-            // Update positions.
-            totalBytesWritten += bytesWritten;
-            if (totalBytesWritten < length) {
+            if (reader.available() > 0) {
                 // We were only able to write this partially because the current frame is full. Seal it and create a new one.
-                this.currentFrame.endEntry(false);
-                flush();
-                createNewFrame();
-                startNewRecordInCurrentFrame(false);
+                swapNewFrame();
             }
         }
     }
@@ -133,7 +190,6 @@ class DataFrameOutputStream extends OutputStream {
         // Invoke the callback. At the end of this, the frame is committed so we can get rid of it.
         if (!this.currentFrame.isEmpty()) {
             // Only flush something if it's not empty.
-            this.bufferFactory.markUsed(this.currentFrame.getLength());
             this.dataFrameCompleteCallback.accept(this.currentFrame);
         }
 
@@ -207,18 +263,17 @@ class DataFrameOutputStream extends OutputStream {
         this.hasDataInCurrentFrame = false;
     }
 
-    /**
-     * Releases any buffers that may be lingering around and are no longer needed.
-     */
-    void releaseBuffer() {
-        Exceptions.checkNotClosed(this.closed, this);
-        this.bufferFactory.reset();
+    private void swapNewFrame() throws IOException {
+        this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of the record.
+        flush();
+        createNewFrame();
+        startNewRecordInCurrentFrame(false);
     }
 
     private void createNewFrame() {
         Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
-        this.currentFrame = new DataFrame(this.bufferFactory.next());
+        this.currentFrame = DataFrame.ofSize(this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;
     }
 
@@ -231,60 +286,5 @@ class DataFrameOutputStream extends OutputStream {
     }
 
     //endregion
-
-    /**
-     * Buffer Factory for use with DataFrames.
-     */
-    @RequiredArgsConstructor
-    @NotThreadSafe
-    private static class BufferFactory {
-        private static final int MIN_LENGTH = 1024; // Min amount of space remaining in the buffer when trying to reuse it.
-        private final SimpleMovingAverage lastBuffers = new SimpleMovingAverage(10);
-        private final int maxLength;
-        private byte[] current;
-        private int currentUsed;
-
-        /**
-         * Gets a ByteArraySegment that can be used as a DataFrame buffer, which wraps a physical buffer (byte array).
-         * Tries to reuse the last used physical buffer as much as possible if space allows, otherwise a new byte array
-         * will be allocated.
-         *
-         * @return The ByteArraySegment to use.
-         */
-        ByteArraySegment next() {
-            if (this.current == null) {
-                this.current = new byte[this.maxLength];
-                this.currentUsed = 0;
-            }
-
-            return new ByteArraySegment(this.current, this.currentUsed, this.current.length - this.currentUsed);
-        }
-
-        /**
-         * Indicates that the given number of bytes have been used in the given buffer.
-         *
-         * @param length The number of bytes used.
-         */
-        void markUsed(int length) {
-            this.currentUsed += length;
-            this.lastBuffers.add(length);
-            int minLength = (int) Math.max(MIN_LENGTH, this.lastBuffers.getAverage(0));
-
-            if (this.current != null && (this.current.length - this.currentUsed < minLength)) {
-                this.current = null;
-            }
-        }
-
-        /**
-         * Releases the current buffer (if any) and resets the stats. After this method is called, the first call to next()
-         * will allocate a new buffer.
-         */
-        void reset() {
-            this.current = null;
-            this.lastBuffers.reset();
-        }
-    }
-
-
 }
 
