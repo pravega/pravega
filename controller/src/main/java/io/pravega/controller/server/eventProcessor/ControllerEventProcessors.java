@@ -413,10 +413,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                               log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
                                       streamName);
                           } else if (r) {
-                              log.debug("truncation for stream {} at streamcut {} submitted.",
+                              log.debug("Truncation for stream {} at streamcut {} submitted.",
                                       streamName, streamcut);
                           } else {
-                              log.debug("truncation for stream {} at streamcut {} rejected.",
+                              log.debug("Truncation for stream {} at streamcut {} rejected.",
                                       streamName, streamcut);
                           }
                           return null;
