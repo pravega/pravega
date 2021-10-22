@@ -46,7 +46,10 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public abstract class DataRecoveryCommand extends AdminCommand {
-    protected final static String COMPONENT = "storage";
+    protected static final String COMPONENT = "storage";
+
+    protected static final int REPAIR_LOG_ID = Integer.MAX_VALUE;
+    protected static final int BACKUP_LOG_ID = Integer.MAX_VALUE - 1;
 
     protected static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()

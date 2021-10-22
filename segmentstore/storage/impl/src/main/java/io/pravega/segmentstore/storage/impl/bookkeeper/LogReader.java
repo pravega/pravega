@@ -48,6 +48,10 @@ import org.apache.bookkeeper.client.api.Handle;
 class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
     //region Members
 
+    // LogReader can only read from ledgers tagged with the same log id. For special log repair operations, we allow the
+    // LogReader to read from a special log id that contains admin-provided changes to repair the original lod data.
+    private static final int REPAIR_LOG_ID = Integer.MAX_VALUE;
+
     private final int logId;
     private final BookKeeper bookKeeper;
     private final LogMetadata metadata;
@@ -141,7 +145,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             ledger = Ledgers.openFence(metadata.getLedgerId(), this.bookKeeper, this.config);
         }
 
-        //checkLogIdProperty(ledger);
+        checkLogIdProperty(ledger);
         long lastEntryId = ledger.getLastAddConfirmed();
         if (lastEntryId < address.getEntryId()) {
             // This ledger is empty.
@@ -167,7 +171,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
     private void checkLogIdProperty(Handle handle) throws DataLogCorruptedException {
         int actualLogId = Ledgers.getBookKeeperLogId(handle);
-        if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId) {
+        if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId && actualLogId != REPAIR_LOG_ID) {
             throw new DataLogCorruptedException(String.format("BookKeeperLog %s contains ledger %s which belongs to BookKeeperLog %s.",
                     this.logId, handle.getId(), actualLogId));
         }

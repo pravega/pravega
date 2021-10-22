@@ -199,6 +199,13 @@ public abstract class AdminCommand {
         return s.nextLong();
     }
 
+    protected long getIntUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextInt();
+    }
+
     //endregion
 
     //region Arguments

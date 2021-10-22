@@ -247,8 +247,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int instanceId = 0;
         int bookieCount = 3;
         int containerCount = 1;
-        @Cleanup
-
+        //@Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
@@ -285,7 +284,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Execute the command for list segments
         // FIXME: Need a way to pass multiple input values to the command execution
         System.setIn(new ByteArrayInputStream(("yes" + System.lineSeparator()).getBytes()));
-        //System.setIn(new ByteArrayInputStream("delete".getBytes()));
         TestUtils.executeCommand("storage durableLog-repair 0", STATE.get());
     }
 
