@@ -185,6 +185,14 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope recursively: {}", scopeName);
+        deleteScopeContent(scopeName);
+        return Futures.getThrowingException(controller.deleteScopeRecursive(scopeName));
+    }
+
+    @Override
     public boolean deleteScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
@@ -201,24 +209,7 @@ public class StreamManagerImpl implements StreamManager {
         return Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
-    @Override
-    public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
-        NameUtils.validateUserScopeName(scopeName);
-        log.info("Deleting scope recursively: {}", scopeName);
-        deleteScopeContent(scopeName);
-        return Futures.getThrowingException(controller.deleteScopeRecursive(scopeName));
-    }
-    
-    @Override
-    public StreamInfo getStreamInfo(String scopeName, String streamName) {
-        NameUtils.validateUserStreamName(streamName);
-        NameUtils.validateUserScopeName(scopeName);
-        log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        return Futures.getThrowingException(getStreamInfo(Stream.of(scopeName, streamName)));
-    }
-
     public void deleteScopeContent(String scopeName) throws DeleteScopeFailedException {
-        {
             List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
@@ -266,6 +257,13 @@ public class StreamManagerImpl implements StreamManager {
                 }
             }
         }
+
+    @Override
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
+        return Futures.getThrowingException(getStreamInfo(Stream.of(scopeName, streamName)));
     }
 
     /**
