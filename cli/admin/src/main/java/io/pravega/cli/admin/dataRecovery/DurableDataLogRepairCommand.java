@@ -56,6 +56,9 @@ import java.util.function.BiConsumer;
 public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
+    @VisibleForTesting
+    private List<LogEditOperation> durableLogEdits;
+    private boolean testMode = false;
 
     /**
      * Creates a new instance of the DurableLogRepairCommand class.
@@ -64,6 +67,13 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      */
     public DurableDataLogRepairCommand(CommandArgs args) {
         super(args);
+    }
+
+    @VisibleForTesting
+    DurableDataLogRepairCommand(CommandArgs args, List<LogEditOperation> durableLogEdits) {
+        super(args);
+        this.durableLogEdits = durableLogEdits;
+        this.testMode = true;
     }
 
     @Override
@@ -109,23 +119,21 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         // Validate that the original and backup logs have the same number of operations.
         int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) -> {}, containerId, backupDataLog);
-        System.err.println("ORIGINAL LOG OPERATIONS: " + operationsReadFromOriginalLog +
-                " BACKUP LOG OPERATIONS: " + backupLogReadOperations);
+        outputInfo("Original DurableLog operations read: " + operationsReadFromOriginalLog +
+                ", Backup DurableLog operations read: " + backupLogReadOperations);
         // FIXME: We need to ensure that we read everything from original log once disabled (flushing?)
         //assert operationsReadFromOriginalLog == readDurableDataLogWithCustomCallback((a, b) -> {}, containerId, backupDataLog);
 
         output("Original DurableLog has been backed up correctly.");
-        if (!confirmContinue()) {
+        if (!this.testMode && !confirmContinue()) {
             output("Not editing original DurableLog this time.");
             return;
         }
 
         // Get user input of operations to skip, replace, or delete.
-        List<LogEditOperation> durableLogEdits = new ArrayList<>();
-        durableLogEdits.add(new LogEditOperation(LogEditType.REPLACE_OPERATION, 1, 1, new DeleteSegmentOperation(123)));
-        durableLogEdits.add(new LogEditOperation(LogEditType.DELETE_OPERATION, 2, 1000, null));
-        /*durableLogEdits.add(new LogEditOperation(LogEditType.ADD_OPERATION, 1, 200, new DeleteSegmentOperation(123)));
-        durableLogEdits.add(new LogEditOperation(LogEditType.ADD_OPERATION, 300, 300, new DeleteSegmentOperation(123)));//getDurableLogEditesFromUser();*/
+        if (this.durableLogEdits == null) {
+            this.durableLogEdits = getDurableLogEditsFromUser();
+        }
 
         // Operations need to be sorted and they should impact on disjoint operations (e.g., we cannot allow 2 edits on
         // the same operation id)
@@ -137,7 +145,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         // Replace original log with the new contents.
         output("Ready to apply admin-provided changes in the original DurableLog.");
-        if (false) { //!confirmContinue()) {
+        if (!this.testMode && !confirmContinue()) {
             output("Not editing original DurableLog this time.");
             return;
         }
@@ -154,8 +162,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try {
             int readBackupLogAgain = readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
             dataFrameBuilderEdit.flush();
-            System.err.println("BACKUP LOG OPERATIONS: " + backupLogReadOperations +
-                    " NEW BACKUP LOG OPERATIONS: " + readBackupLogAgain);
+            outputInfo("Backup DurableLog operations read on first attempt: " + backupLogReadOperations +
+                    ", Backup DurableLog operations read on second attempt: " + readBackupLogAgain);
             assert !logEditState.isFailed;
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
@@ -163,18 +171,25 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             // TODO: Safely rollback here.
         }
 
+        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) -> System.out.println(op), REPAIR_LOG_ID, editedDataLog);
+        outputInfo("Edited DurableLog Operations: " + editedDurableLogOperations);
+
         // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
         @Cleanup
         val editedLogWrapper = dataLogFactory.createDebugLogWrapper(REPAIR_LOG_ID);
+        output("Original DurableLog Metadata: " + originalDataLog.fetchMetadata());
+        output("Edited DurableLog Metadata: " + editedLogWrapper.fetchMetadata());
         originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
+        output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
 
         // Read the edited contents that are now reachable from the original log id.
         try {
             @Cleanup
-            val finalEditedLog = dataLogFactory.createDebugLogWrapper(containerId).asReadOnly();
+            val finalEditedLog = originalDataLog.asReadOnly();
             int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) -> System.out.println(op), containerId, finalEditedLog);
-            System.err.println("BACKUP LOG OPERATIONS: " + backupLogReadOperations +
-                    " FINAL EDITED LOG OPERATIONS: " + finalEditedLogReadOps);
+            outputInfo("Edited DurableLog operations read: " + finalEditedLogReadOps);
+            // FIXME: This assertion should work.
+            //assert editedDurableLogOperations == finalEditedLogReadOps;
         } catch (Exception ex) {
             outputError("Problem reading original DurableLog with edits.");
             ex.printStackTrace();
@@ -182,18 +197,18 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
-    public int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
+    private int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
                                                      int containerId, DurableDataLog durableDataLog) throws Exception {
-        val backupCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
+        val logReaderCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
                 callback,
-                op -> false,
+                op -> false, // We are not interested on doing actual recovery, just reading the operations.
                 null,
                 null);
         val containerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
         val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
         @Cleanup
         val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
-                containerConfig, readIndexConfig, this.executorService, backupCallbacks);
+                containerConfig, readIndexConfig, this.executorService, logReaderCallbacks);
         int operationsRead = rp.performRecovery();
         output("Number of operations read from DurableLog: " + operationsRead);
         return operationsRead;
@@ -217,6 +232,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                             durableLogEdits.add(new LogEditOperation(LogEditType.ADD_OPERATION, initialOpId, initialOpId, createUserDefinedOperation()));
                             outputInfo("You can add more Operations at this sequence number or not.");
                         } while (confirmContinue());
+                        break;
                     case "replace":
                         initialOpId = getLongUserInput("What Operation sequence number would you like to replace?");
                         durableLogEdits.add(new LogEditOperation(LogEditType.REPLACE_OPERATION, initialOpId, initialOpId, createUserDefinedOperation()));
@@ -238,7 +254,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return durableLogEdits;
     }
 
-    private Operation createUserDefinedOperation() {
+    @VisibleForTesting
+    Operation createUserDefinedOperation() {
         final String operations = "[DeleteSegmentOperation|MergeSegmentOperation|MetadataCheckpointOperation|" +
                 "StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|" +
                 "StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]";
@@ -336,9 +353,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         public void accept(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
                 // Nothing to edit, just write the Operations from the original log to the edited one.
-                if (!hasToApplyEdits(op)) {
+                if (!hasEditsToApply(op)) {
                     op.resetSequenceNumber(newSequenceNumber++);
                     editedDataLog.append(op);
+                    editedDataLog.flush();
                 } else {
                     // Edits to a DurableLog are sorted by their initial operation id and they are removed once they
                     // have been applied. The only case in which we can find a DurableLog Operation with a sequence
@@ -387,11 +405,13 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                                 logEdit = durableLogEdits.get(0);
                                 logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
                                 editedDataLog.append(logEdit.getNewOperation());
+                                editedDataLog.flush();
                                 durableLogEdits.remove(0);
                             }
                             // After all the additions are done, add the current log operation.
                             op.resetSequenceNumber(newSequenceNumber++);
                             editedDataLog.append(op);
+                            editedDataLog.flush();
                             break;
                         case REPLACE_OPERATION:
                             // A Replace Edit Operation on a DurableLog consists of deleting the current Operation and
@@ -415,7 +435,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             }
         }
 
-        private boolean hasToApplyEdits(Operation op) {
+        private boolean hasEditsToApply(Operation op) {
             if (this.durableLogEdits.isEmpty()) {
                 return false;
             }

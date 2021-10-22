@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -67,6 +68,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -247,7 +249,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int instanceId = 0;
         int bookieCount = 3;
         int containerCount = 1;
-        //@Cleanup
+        @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
@@ -267,6 +269,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
 
         // set Pravega properties for the test
         STATE.set(new AdminCommandState());
@@ -281,10 +286,11 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
-        // Execute the command for list segments
-        // FIXME: Need a way to pass multiple input values to the command execution
-        System.setIn(new ByteArrayInputStream(("yes" + System.lineSeparator()).getBytes()));
-        TestUtils.executeCommand("storage durableLog-repair 0", STATE.get());
+        // Execute basic command workflow for repairing DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        List<DurableDataLogRepairCommand.LogEditOperation> durableLogEdits = new ArrayList<>();
+        DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args, durableLogEdits);
+        command.execute();
     }
 
     /**
