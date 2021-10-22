@@ -18,12 +18,9 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 
 import io.pravega.client.stream.NoSuchScopeException;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import org.slf4j.LoggerFactory;
 
