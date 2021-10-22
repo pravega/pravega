@@ -17,6 +17,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 
+import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
@@ -38,9 +39,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final ScheduledExecutorService executor;
 
-    public DeleteScopeTask(final StreamMetadataTasks streamMetaTasks,
-                                 final StreamMetadataStore streamMetaStore,
-                                 final ScheduledExecutorService executor) {
+    public DeleteScopeTask(final StreamMetadataStore streamMetaStore,
+                           final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetaStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetaStore;
@@ -55,16 +55,11 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         log.debug(requestId, "Deleting {} scope", scope);
         return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
             if (!exists) {
-                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                log.warn(requestId, "Scope not found: {}", scope);
+                throw new NoSuchScopeException();
             }
             return CompletableFuture.completedFuture(null);
-        }).thenCompose( v -> streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
-                .thenCompose(exists -> {
-                    if (exists) {
-                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Scope in deletion state"));
-                    }
-                    return CompletableFuture.completedFuture(null);
-            })).thenCompose(v1 -> {
+        }).thenCompose(v1 -> {
             streamMetadataStore.deleteScopeRecursive(scope, context, executor);
             return CompletableFuture.completedFuture(null);
         });

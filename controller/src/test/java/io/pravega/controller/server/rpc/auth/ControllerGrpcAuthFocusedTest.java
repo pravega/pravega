@@ -197,7 +197,7 @@ public class ControllerGrpcAuthFocusedTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
                 streamStore,
-                new DeleteScopeTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new DeleteScopeTask(streamStore, EXECUTOR),
                 EXECUTOR);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, EXECUTOR));

@@ -191,7 +191,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                         checkScopeInDeletingTable(scope, context, executor)
                                                 .thenCompose(exist -> {
                                                     if (exist) {
-                                                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "scope in deleting state"));
+                                                        throw new IllegalArgumentException("Scope already in deleting state: " + scope);
                                                     }
                                                     // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
                                                     return getStream(scope, name, context)

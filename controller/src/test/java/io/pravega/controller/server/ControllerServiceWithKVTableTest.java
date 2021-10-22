@@ -117,7 +117,7 @@ public abstract class ControllerServiceWithKVTableTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
+                new DeleteScopeTask(streamStore, executor),
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));

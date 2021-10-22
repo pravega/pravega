@@ -219,7 +219,7 @@ public abstract class StreamMetadataTasksTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStorePartialMock,
-                new DeleteScopeTask(streamMetadataTasks, streamStore, executor),
+                new DeleteScopeTask(streamStore, executor),
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);

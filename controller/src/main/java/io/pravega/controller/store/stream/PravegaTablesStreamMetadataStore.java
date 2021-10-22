@@ -51,6 +51,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
@@ -133,9 +134,15 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
-        return Futures.toVoid(storeHelper.createTable(DELETING_SCOPES_TABLE, context.getRequestId()).thenCompose(
-                v -> storeHelper.addNewEntry(DELETING_SCOPES_TABLE, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId()))
+        return Futures.toVoid(createTableIfAbsent(() -> storeHelper.addNewEntry(
+                DELETING_SCOPES_TABLE, scope, UUID.randomUUID(), UUID_TO_BYTES_FUNCTION, context.getRequestId()), context)
         );
+    }
+
+    private <T> CompletableFuture<T> createTableIfAbsent(Supplier<CompletableFuture<T>> futureSupplier,
+                                                             OperationContext context) {
+        return Futures.exceptionallyComposeExpecting(futureSupplier.get(),
+                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(DELETING_SCOPES_TABLE, context.getRequestId()).thenCompose(v -> futureSupplier.get()));
     }
 
     @VisibleForTesting 
