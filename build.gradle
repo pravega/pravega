@@ -481,6 +481,9 @@ project ('bindings') {
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
 
+        compile group: 'software.amazon.awssdk', name: 's3', version: awsSdkVersion
+        compile group: 'software.amazon.awssdk', name: 'sts', version: awsSdkVersion
+
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
         // so adding explicit dependencies is necessary (as well as desirable).
