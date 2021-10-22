@@ -19,7 +19,6 @@ package io.pravega.controller.store.stream;
  * Interface for defining an operation context. 
  */
 public interface OperationContext {
-
     long getOperationStartTime();
     
     long getRequestId();

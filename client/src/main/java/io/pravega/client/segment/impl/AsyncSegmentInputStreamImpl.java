@@ -100,6 +100,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
+            log.info("Received segmentIsTruncated {}", segmentIsTruncated);
             CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getOffset());
             if (future != null) {
                 future.completeExceptionally(new SegmentTruncatedException(segmentIsTruncated.toString()));
