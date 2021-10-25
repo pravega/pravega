@@ -51,7 +51,7 @@ public class HDFSChunkStorageMockTest extends ThreadPooledTestSuite {
         this.storageConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
-                .with(HDFSStorageConfig.URL, "hdfs://localhost:9010")
+                .with(HDFSStorageConfig.URL, "hdfs://dummy")
                 .build();
     }
 

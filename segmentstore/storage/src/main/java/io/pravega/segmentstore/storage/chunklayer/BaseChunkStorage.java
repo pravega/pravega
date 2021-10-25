@@ -288,7 +288,6 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
      * @param opContext Context for the given operation.
      * @return Return the total size of storage used in bytes. 0 should be returned if not supported.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
-     * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException {
         return 0;

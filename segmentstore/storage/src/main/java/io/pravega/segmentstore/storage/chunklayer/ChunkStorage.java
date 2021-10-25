@@ -246,7 +246,7 @@ public interface ChunkStorage extends AutoCloseable, StatsReporter {
     CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly);
 
     /**
-     * Get used space.
+     * Get used space in bytes.
      *
      * @return A CompletableFuture that, when completed, will return the total size of storage used in bytes.
      * If the operation failed, it will contain the cause of the failure.

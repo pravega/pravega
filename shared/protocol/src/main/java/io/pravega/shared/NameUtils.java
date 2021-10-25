@@ -38,7 +38,7 @@ public final class NameUtils {
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
     // The Prefix which is used when creating internally used pravega streams.
-    public static final String INTERNAL_SCOPE_PREFIX = "_system/";
+    public static final String INTERNAL_SCOPE_PREFIX = INTERNAL_SCOPE_NAME + "/";
 
     // The prefix used for internal container segments.
     public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";

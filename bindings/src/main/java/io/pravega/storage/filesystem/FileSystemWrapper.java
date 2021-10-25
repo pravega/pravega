@@ -129,6 +129,11 @@ public class FileSystemWrapper {
         return Files.size(path);
     }
 
+    /**
+     * Gets the used space in bytes corresponding to the partition/volume for given path.
+     * @param path File path.
+     * @return Used space in bytes.
+     */
     long getUsedSpace(Path path) {
         File file = path.toFile();
         return file.getTotalSpace() - file.getUsableSpace();

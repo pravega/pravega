@@ -732,12 +732,12 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     boolean isFull = used >= config.getMaxSafeStorageSize();
                     if (isFull) {
                         if (!isStorageFull.get()) {
-                            log.warn("{} STORAGE FULL. ENTERING SAFE MODE. Any non-critical writes will be rejected.", logPrefix);
+                            log.warn("{} STORAGE FULL. ENTERING READ ONLY MODE. Any non-critical writes will be rejected.", logPrefix);
                         }
                         log.warn("{} STORAGE FULL -  used={} total={}.", logPrefix, used, config.getMaxSafeStorageSize());
                     } else {
                         if (isStorageFull.get()) {
-                            log.info("{} STORAGE AVAILABLE. LEAVING SAFE MODE. Restoring normal writes", logPrefix);
+                            log.info("{} STORAGE AVAILABLE. LEAVING READ ONLY MODE. Restoring normal writes", logPrefix);
                         }
                     }
                     isStorageFull.set(isFull);
