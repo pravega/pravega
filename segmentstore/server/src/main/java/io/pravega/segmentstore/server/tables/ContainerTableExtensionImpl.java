@@ -22,6 +22,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -29,6 +30,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -71,17 +73,19 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class.
      *
+     * @param config           Configuration.
      * @param segmentContainer The {@link SegmentContainer} to associate with.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(TableExtensionConfig.builder().build(), segmentContainer, cacheManager, KeyHasher.sha256(), executor);
+    public ContainerTableExtensionImpl(TableExtensionConfig config, SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
+        this(config, segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class with custom {@link KeyHasher}.
      *
+     * @param config           Configuration.
      * @param segmentContainer The {@link SegmentContainer} to associate with.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param hasher           The {@link KeyHasher} to use.
@@ -144,7 +148,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return this.hashTableLayout;
         }
 
-        throw new IllegalArgumentException(String.format("Segment Type '%s' not supported (Segment = '%s').", segmentType, segmentName));
+        throw new BadSegmentTypeException(segmentName, SegmentType.builder().tableSegment().build(), segmentType);
     }
 
     //endregion
@@ -173,18 +177,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> selectLayout(segment.getInfo()).deleteSegment(segmentName, mustBeEmpty, timer.getRemaining()), this.executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> merge(@NonNull String targetSegmentName, @NonNull String sourceSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("merge");
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("seal");
     }
 
     @Override
@@ -243,6 +235,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.segmentContainer.forSegment(segmentName, fetchTimeout)
                 .thenApplyAsync(segment -> selectLayout(segment.getInfo()).entryDeltaIterator(segment, fromPosition, fetchTimeout), this.executor);
+    }
+
+    @Override
+    public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        logRequest("getInfo", segmentName);
+        val timer = new TimeoutTimer(timeout);
+        return this.segmentContainer
+                .forSegment(segmentName, timer.getRemaining())
+                .thenComposeAsync(segment -> selectLayout(segment.getInfo()).getInfo(segment, timer.getRemaining()), this.executor);
     }
 
     //endregion

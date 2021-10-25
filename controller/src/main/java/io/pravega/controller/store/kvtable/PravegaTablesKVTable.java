@@ -71,6 +71,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
         this.idRef = new AtomicReference<>(null);
     }
 
+    @Override
     public CompletableFuture<String> getId(OperationContext context) {
         Preconditions.checkNotNull(context, "context cannot be null");
         String id = idRef.get();

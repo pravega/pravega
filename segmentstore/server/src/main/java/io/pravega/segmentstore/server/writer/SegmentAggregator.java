@@ -1176,6 +1176,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // Configured value.
         long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
 
+        // rolloverSize being zero means the default value should be used.
+        rolloverSize = rolloverSize == 0 ? SegmentRollingPolicy.NO_ROLLING.getMaxLength() : rolloverSize;
+
         // Make sure it does not exceed configured max value.
         return Math.min(rolloverSize, this.config.getMaxRolloverSize());
     }

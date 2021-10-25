@@ -15,12 +15,14 @@
  */
 package io.pravega.cli.admin;
 
+import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Keeps state between commands.
@@ -30,6 +32,12 @@ public class AdminCommandState implements AutoCloseable {
     private final ServiceBuilderConfig.Builder configBuilder;
     @Getter
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "password-tools");
+    @Getter
+    @Setter
+    private AbstractSerializer keySerializer = null;
+    @Getter
+    @Setter
+    private AbstractSerializer valueSerializer = null;
 
     /**
      * Creates a new instance of the AdminCommandState class.

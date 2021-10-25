@@ -85,7 +85,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * Creates a new stream with the given name and configuration.
      *
      * @param scopeName       scope name
-     * @param kvtName      stream name
+     * @param kvtName         stream name
      * @param configuration   stream configuration
      * @param createTimestamp stream creation timestamp
      * @param context         operation context

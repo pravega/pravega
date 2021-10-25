@@ -48,6 +48,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -66,6 +67,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
+    private static final Duration COMMIT_PROCESSOR_TIMEOUT = Duration.ofSeconds(10);
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -147,11 +149,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> isRunning() || this.commitQueue.size() > 0,
-                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE)
-                                .thenAcceptAsync(this::processCommits, this.executor),
+                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
+                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
+                                .handleAsync(this::handleProcessCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
+                    log.info("{}: Completing and closing commitProcessor. Is OperationProcessor running? {}", this.traceObjectId, isRunning());
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
                     // shut down normally.
                     val uncommittedOperations = this.commitQueue.close();
@@ -159,11 +162,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     // Update the cacheUtilizationProvider with the fact that these operations are no longer pending for the cache.
                     uncommittedOperations.stream().flatMap(Collection::stream).forEach(this.state::notifyOperationCommitted);
                     if (ex != null) {
+                        log.warn("{}: commitProcessor completed exceptionally {}.", this.traceObjectId, ex.toString());
                         throw new CompletionException(ex);
                     }
                 });
         return CompletableFuture.allOf(queueProcessor, commitProcessor)
                 .exceptionally(this::iterationErrorHandler);
+    }
+
+    @SneakyThrows
+    private Void handleProcessCommits(Queue<List<CompletableOperation>> items, Throwable ex) {
+        // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
+        // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
+        if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
+            return null;
+        } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
+            throw ex;
+        }
+        // No exceptions and we got some elements to process.
+        processCommits(items);
+        return null;
     }
 
     @Override

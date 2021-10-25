@@ -63,7 +63,7 @@ public class StatsLoggerImpl implements StatsLogger {
     @Override
     public Gauge registerGauge(final String statName, final Supplier<Number> valueSupplier, String... tags) {
         try {
-            return new GaugeImpl<>(statName, Preconditions.checkNotNull(valueSupplier), tags);
+            return new GaugeImpl(statName, Preconditions.checkNotNull(valueSupplier), tags);
         } catch (Exception e) {
             log.warn("registerGauge failure: {}", statName, e);
             return NULLGAUGE;
@@ -127,7 +127,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
     }
 
-    private class GaugeImpl<T extends Number> implements Gauge {
+    private class GaugeImpl implements Gauge {
         @Getter
         private final Id id;
         private final AtomicReference<Supplier<Number>> supplierReference = new AtomicReference<>();

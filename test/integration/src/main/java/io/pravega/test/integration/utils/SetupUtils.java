@@ -39,8 +39,12 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -53,6 +57,8 @@ import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
+
+import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
 /**
  * Utility functions for creating the test setup.
@@ -86,17 +92,24 @@ public final class SetupUtils {
     private final int servicePort = TestUtils.getAvailableListenPort();
     @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
-    private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
-    
+    private ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder();
+
+    /**
+     * Returns the cli config for this instance.
+     */
+    public ClientConfig getClientConfig() {
+        return clientConfigBuilder.build();
+    }
+
     /**
      * Start all pravega related services required for the test deployment.
      *
      * @throws Exception on any errors.
      */
     public void startAllServices() throws Exception {
-        startAllServices(null);
+        startAllServices(null, false, false);
     }
-    
+
     /**
      * Start all pravega related services required for the test deployment.
      *
@@ -104,14 +117,51 @@ public final class SetupUtils {
      * @throws Exception on any errors.
      */
     public void startAllServices(Integer numThreads) throws Exception {
+        startAllServices(null, false, false);
+    }
+
+    /**
+     * Start all pravega related services required for the test deployment.
+     *
+     * @param enableAuth set to enale authentication
+     * @param enableTls set to enable tls
+     * @throws Exception on any errors.
+     */
+    public void startAllServices(boolean enableAuth, boolean enableTls) throws Exception {
+        startAllServices(null, enableAuth, enableTls);
+    }
+    
+    /**
+     * Start all pravega related services required for the test deployment.
+     *
+     * @param numThreads the number of threads for the internal client threadpool.
+     * @param enableAuth set to enale authentication
+     * @param enableTls set to enable tls
+     * @throws Exception on any errors.
+     */
+    public void startAllServices(Integer numThreads, boolean enableAuth, boolean enableTls) throws Exception {
         if (!this.started.compareAndSet(false, true)) {
             log.warn("Services already started, not attempting to start again");
             return;
         }
+
+        if (enableAuth) {
+            clientConfigBuilder = clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
+        }
+
+        if (enableTls) {
+            clientConfigBuilder = clientConfigBuilder.trustStore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
+                    .controllerURI(URI.create("tls://localhost:" + controllerRPCPort))
+                    .validateHostName(false);
+        } else {
+            clientConfigBuilder = clientConfigBuilder.controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
+        }
+
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(getClientConfig()).build(),
                                              executor);
-        this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
+        this.clientFactory = new ClientFactoryImpl(scope, controller, getClientConfig());
         
         // Start zookeeper.
         this.zkTestServer = new TestingServerStarter().start();
@@ -123,19 +173,32 @@ public final class SetupUtils {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server = new PravegaConnectionListener(enableTls, false, "localhost",
+                servicePort, store, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),  new PassingTokenVerifier(),
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, true,
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+
         this.server.startListening();
         log.info("Started Pravega Service");
 
-        this.adminListener = new AdminConnectionListener(false, false, "localhost", adminPort,
-                store, tableStore, new PassingTokenVerifier(), null, null);
+        this.adminListener = new AdminConnectionListener(enableTls, false, "localhost", adminPort,
+                store, tableStore, new PassingTokenVerifier(), pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.adminListener.startListening();
         log.info("AdminConnectionListener started successfully.");
 
         // Start Controller.
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort);
+                this.zkTestServer.getConnectString(), false, true, controllerRPCPort,
+                "localhost", servicePort, Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, enableAuth,
+                pathToConfig() + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME,
+                "secret", true, 600, enableTls, SecurityConfigDefaults.TLS_PROTOCOL_VERSION,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME,
+                pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
         log.info("Initialized Pravega Controller");
@@ -174,7 +237,7 @@ public final class SetupUtils {
         Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
+        StreamManager streamManager = StreamManager.create(getClientConfig());
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName,
                                    StreamConfiguration.builder()
@@ -224,11 +287,11 @@ public final class SetupUtils {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
-        return ReaderGroupManager.withScope(scope, clientConfig);
+        return ReaderGroupManager.withScope(scope, getClientConfig());
     }
 
     public URI getControllerUri() {
-        return clientConfig.getControllerURI();
+        return getClientConfig().getControllerURI();
     }
 
     public URI getControllerRestUri() {

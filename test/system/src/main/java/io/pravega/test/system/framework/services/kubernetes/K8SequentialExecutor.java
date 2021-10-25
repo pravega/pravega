@@ -37,6 +37,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
@@ -55,7 +56,6 @@ public class K8SequentialExecutor implements TestExecutor {
     private static final String SERVICE_ACCOUNT = System.getProperty("testServiceAccount", "test-framework"); //Service Account used by the test pod.
     private static final String CLUSTER_ROLE_BINDING = System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
-    private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -70,17 +70,21 @@ public class K8SequentialExecutor implements TestExecutor {
         Map<String, V1ContainerStatus> podStatusBeforeTest = getPravegaPodStatus(client);
 
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
+        final AtomicReference<CompletableFuture<Void>> logDownload = new AtomicReference<>(CompletableFuture.completedFuture(null));
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
                 .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                 .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
                 .thenCompose(v -> {
-                    CompletableFuture<Void> logDownload = CompletableFuture.completedFuture(null);
                     // start download of logs.
                     if (!Utils.isSkipLogDownloadEnabled()) {
-                        logDownload = client.downloadLogs(pod, "./build/test-results/" + podName);
+                        logDownload.set(client.downloadLogs(pod, "./build/test-results/" + podName));
                     }
-                    return client.waitUntilPodCompletes(NAMESPACE, podName).thenCombine(logDownload, (status, v1) -> status);
+                    return client.waitUntilPodCompletes(NAMESPACE, podName);
                 }).handle((s, t) -> {
+                       Futures.getAndHandleExceptions(logDownload.get(), t1 -> {
+                           log.error("Failed to download logs for {}#{}", className, methodName, t1);
+                           return null;
+                       });
                     if (t == null) {
                         log.info("Test {}#{} execution completed with status {}", className, methodName, s);
                         verifyPravegaPodRestart(podStatusBeforeTest, getPravegaPodStatus(client));
@@ -171,8 +175,6 @@ public class K8SequentialExecutor implements TestExecutor {
                 "pravegaOperatorVersion",
                 "bookkeeperOperatorVersion",
                 "zookeeperOperatorVersion",
-                "desiredPravegaCMVersion",
-                "desiredBookkeeperCMVersion",
                 "publishedChartName",
                 "helmRepository",
                 "controllerLabel",
@@ -194,9 +196,9 @@ public class K8SequentialExecutor implements TestExecutor {
                 "imageVersion",
                 "securityEnabled",
                 "tlsEnabled",
-                "logLevel",
                 "configs",
-                "failFast"
+                "failFast",
+                "log.level"
         };
 
         StringBuilder builder = new StringBuilder();

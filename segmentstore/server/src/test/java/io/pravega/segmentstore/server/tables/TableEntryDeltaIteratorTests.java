@@ -63,7 +63,9 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     private static final int NUM_ENTRIES = 10;
     private static final int MAX_UPDATE_COUNT = 10000;
-    private static final TableExtensionConfig CONFIG = TableExtensionConfig.builder().maxCompactionSize(50000).build();
+    private static final TableExtensionConfig CONFIG = TableExtensionConfig.builder()
+            .with(TableExtensionConfig.MAX_COMPACTION_SIZE, 50000)
+            .build();
 
     private static final TableEntry NON_EXISTING_ENTRY = TableEntry.notExists(
             new ByteArraySegment("NULL".getBytes()),
@@ -83,6 +85,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testUsingInvalidArgs() {
+        @Cleanup
         TableContext context = new TableContext(CONFIG, executorService());
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(

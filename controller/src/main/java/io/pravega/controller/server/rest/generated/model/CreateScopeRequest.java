@@ -1,6 +1,6 @@
 /*
  * Pravega Controller APIs
- * List of admin REST APIs for the pravega controller service.
+ * List of admin REST APIs for the Pravega controller service.
  *
  * OpenAPI spec version: 0.0.1
  * 
@@ -14,10 +14,11 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
-
+import com.fasterxml.jackson.annotation.JsonCreator;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import javax.validation.constraints.*;
 
 /**
  * CreateScopeRequest

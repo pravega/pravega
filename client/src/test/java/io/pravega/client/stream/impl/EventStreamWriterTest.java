@@ -575,6 +575,8 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         outputStream1.invokeSealedCallBack();
         // Verify that the inflight event which is written to segment2 due to sealed segment fails incase of a connection failure.
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(writerFuture));
+        // Verify that a flush() does indicate this failure.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> writer.flush());
     }
 
     @Test
@@ -870,6 +872,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
         writer.noteTime(123);
@@ -893,6 +896,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
         AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.noteTime(123));       
@@ -917,6 +921,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         CollectingExecutor executor = new CollectingExecutor();
         
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executor, executor, null);
         

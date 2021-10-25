@@ -51,7 +51,7 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 public class HostStoreTest {
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private final String host = "localhost";
     private final int controllerPort = 9090;

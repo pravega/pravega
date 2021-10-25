@@ -40,12 +40,14 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
         assertTrue(true);
     }
 
+    @Override
     @Test
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
 
+    @Override
     @Test
     public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
@@ -103,6 +105,12 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Test
     @Override
     public void sizeBasedRetentionStreamTest() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void readerGroupFailureTests() {
         // no op
     }
 }

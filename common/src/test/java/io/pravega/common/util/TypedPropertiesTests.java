@@ -16,7 +16,6 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
-
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -141,8 +140,24 @@ public class TypedPropertiesTests {
         TypedProperties typedProps = new TypedProperties(props, "getPositiveInteger");
         Assert.assertEquals(1000, typedProps.getPositiveInt(Property.named("positiveInteger")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("zero")));
+        Assert.assertEquals(0, typedProps.getNonNegativeInt(Property.named("zero")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("negativeInteger")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getNonNegativeInt(Property.named("negativeInteger")));
         AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveInt(Property.named("notAnInteger")));
+    }
+
+    @Test
+    public void testGetPositiveLong() {
+        Properties props = new Properties();
+        props.setProperty("getPositiveLong.positiveLong", "1000000000000");
+        props.setProperty("getPositiveLong.zero", "0");
+        props.setProperty("getPositiveLong.negativeLong", "-1");
+        props.setProperty("getPositiveLong.notALong", "hello");
+        TypedProperties typedProps = new TypedProperties(props, "getPositiveLong");
+        Assert.assertEquals(1000000000000L, typedProps.getPositiveLong(Property.named("positiveLong")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveLong(Property.named("zero")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveLong(Property.named("negativeLong")));
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> typedProps.getPositiveLong(Property.named("notALong")));
     }
 
     @Test

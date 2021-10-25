@@ -184,11 +184,11 @@ public class LocalController implements Controller {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to create stream: " + streamConfig);
+                throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
             case INVALID_STREAM_NAME:
-                throw new IllegalArgumentException("Illegal stream name: " + streamName + " config: " + streamConfig);
+                throw new IllegalArgumentException(String.format("Failed to create stream. Illegal Stream name: %s", streamName));
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException("Scope does not exist: " + scope + " config: " + streamConfig);
+                throw new IllegalArgumentException(String.format("Failed to create stream: %s as Scope %s does not exist.", streamName, scope));
             case STREAM_EXISTS:
                 return false;
             case SUCCESS:
@@ -203,18 +203,20 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.updateStream(scope, streamName, streamConfig, requestIdGenerator.nextLong()).thenApply(x -> {
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, streamName);
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to update stream: " + streamConfig);
+                throw new ControllerFailureException(String.format("Failed to update Stream: %s, config: %s", scopedStreamName, streamConfig));
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException("Scope does not exist: " + scope + " config: " + streamConfig);
+                throw new IllegalArgumentException(String.format("Failed to update Stream %s as Scope %s does not exist.", scope, streamName));
             case STREAM_NOT_FOUND:
-                throw new IllegalArgumentException("Stream does not exist: " + streamName + " in scope: " + scope + " config: "  + streamConfig);
+                throw new IllegalArgumentException(String.format("Failed to update Stream: %s as Stream does not exist under Scope: %s", streamName, scope));
+            case STREAM_SEALED:
+                throw new UnsupportedOperationException(String.format("Failed to update Stream: %s as Stream is sealed", streamName));
             case SUCCESS:
                 return true;
             default:
-                throw new ControllerFailureException("Unknown return status updating stream " + streamConfig
-                                                     + " " + x.getStatus());
+                throw new ControllerFailureException(String.format("Failed to update Stream: %s. Unknown return status updating stream %s", scopedStreamName, x.getStatus()));
             }
         });
     }
@@ -227,16 +229,15 @@ public class LocalController implements Controller {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                    throw new ControllerFailureException(String.format("Failed to create Reader Group: %s", scopedRGName));
                 case INVALID_RG_NAME:
-                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                    throw new IllegalArgumentException(String.format("Failed to create Reader Group: %s due to Illegal Reader Group name: %s", scopedRGName, rgName));
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName + " config: " + scopeName);
+                    throw new IllegalArgumentException(String.format("Failed to create Reader Group: %s as Scope: %s does not exist.", scopedRGName, scopeName));
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
-                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x);
+                    throw new ControllerFailureException(String.format("Unknown return status creating ReaderGroup %s: Status: %s", scopedRGName, x));
             }
         });
     }
@@ -247,16 +248,15 @@ public class LocalController implements Controller {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                    throw new ControllerFailureException(String.format("Failed to update Reader Group: %s", scopedRGName));
                 case INVALID_CONFIG:
-                    throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + config.toString());
+                    throw new ReaderGroupConfigRejectedException(String.format("Failed to update Reader Group: %s, Invalid Reader Group Config: %s.", scopedRGName, config.toString()));
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopeName + " config: "  + scopedRGName);
+                    throw new ReaderGroupNotFoundException(String.format("Failed to update Reader Group as Reader Group: %s does not exist.", scopedRGName));
                 case SUCCESS:
                     return x.getGeneration();
                 default:
-                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                    throw new ControllerFailureException(String.format("Failed to update Reader Group: %s, due to unknown return status %s.", scopedRGName, x.getStatus()));
             }
         });
     }
@@ -267,14 +267,13 @@ public class LocalController implements Controller {
            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
            switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to get Config for ReaderGroup: " + scopedRGName);
+                    throw new ControllerFailureException(String.format("Failed to get configuration for Reader Group: %s.", scopedRGName));
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException("Could not find Reader Group: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException(String.format("Failed to get configuration for Reader Group %s, as Reader Group could not be found.", scopedRGName));
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
-                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                    throw new ControllerFailureException(String.format("Failed to get configuration for Reader Group: %s, due to unknown return status: %s.", scopedRGName, x.getStatus()));
             }
         });
     }
@@ -286,14 +285,13 @@ public class LocalController implements Controller {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                    throw new ControllerFailureException(String.format("Failed to delete Reader Group: %s", scopedRGName));
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException("Reader group not found: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException(String.format("Failed to delete Reader Group as Reader Group %s could not be found.", scopedRGName));
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                    throw new ControllerFailureException(String.format("Failed to delete Reader Group: %s, due to unknown return status: %s", scopedRGName, x.getStatus()));
             }
         });
     }
@@ -301,17 +299,17 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
         return this.controller.listSubscribers(scope, streamName, requestIdGenerator.nextLong()).thenApply(x -> {
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, streamName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to listSubscribers for stream: " + scope + "/" + streamName);
+                    throw new ControllerFailureException(String.format("Failed to listSubscribers for Stream: %s", scopedStreamName));
                 case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                    throw new IllegalArgumentException(String.format("Failed to listSubscribers for Stream: %s, as Stream does not exist.", scopedStreamName));
                 case SUCCESS:
                     return new ArrayList<>(x.getSubscribersList());
                 default:
                     throw new ControllerFailureException(
-                            String.format("Unknown return status for listSubscribers on stream %s/%s %s", 
-                                    scope, streamName, x.getStatus()));
+                            String.format("Failed to listSubscribers for Stream: %s due to unknown return status %s", scopedStreamName, x.getStatus()));
             }
         });
     }
@@ -358,6 +356,8 @@ public class LocalController implements Controller {
                 throw new IllegalArgumentException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
                 throw new IllegalArgumentException("Stream does not exist: " + stream + " in scope: " + scope);
+            case STREAM_SEALED:
+                throw new UnsupportedOperationException("Failed to update Stream: " + stream + " as stream is sealed");
             case SUCCESS:
                 return true;
             default:

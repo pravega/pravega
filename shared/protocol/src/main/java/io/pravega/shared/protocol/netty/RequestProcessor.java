@@ -24,12 +24,10 @@ import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
-import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.RemoveTableKeys;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateTableEntries;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
-import io.pravega.shared.protocol.netty.WireCommands.SealTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
@@ -57,11 +55,7 @@ public interface RequestProcessor {
 
     void mergeSegments(MergeSegments mergeSegments);
 
-    void mergeTableSegments(MergeTableSegments mergeSegments);
-
     void sealSegment(SealSegment sealSegment);
-
-    void sealTableSegment(SealTableSegment sealTableSegment);
 
     void truncateSegment(TruncateSegment truncateSegment);
 
@@ -70,6 +64,8 @@ public interface RequestProcessor {
     void keepAlive(KeepAlive keepAlive);
 
     void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy);
+
+    void getTableSegmentInfo(WireCommands.GetTableSegmentInfo getInfo);
 
     void createTableSegment(CreateTableSegment createTableSegment);
 

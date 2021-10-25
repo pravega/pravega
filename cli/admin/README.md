@@ -65,18 +65,19 @@ Pravega Admin CLI.
    
 Initial configuration:
     cli.store.metadata.backend=segmentstore
-    cli.controller.connect.credentials.username=admin
+    cli.credentials.username=admin
     pravegaservice.admin.gateway.port=9999
     pravegaservice.storage.impl.name=FILESYSTEM
-    cli.controller.connect.credentials.pwd=1111_aaaa
+    cli.credentials.pwd=1111_aaaa
     bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
-    cli.controller.connect.channel.auth=false
-    cli.controller.connect.channel.tls=false
+    cli.channel.auth=false
+    cli.channel.tls=false
     pravegaservice.clusterName=pravega/pravega
     pravegaservice.zk.connect.uri=localhost:2181
     cli.controller.connect.rest.uri=localhost:9091
     cli.controller.connect.grpc.uri=localhost:9090
-    cli.controller.connect.trustStore.location=conf/ca-cert.crt
+    cli.trustStore.location=conf/ca-cert.crt
+    cli.trustStore.access.token.ttl.seconds=300
     pravegaservice.container.count=4
 ```
 
@@ -240,6 +241,19 @@ the appropriate implementation in `AdminRequestProcessorImpl`.
   
 - The last step would be to add each new `segmentstore` command as a separate class in the package where the existing
 commands are already placed.
+
+## Enable tls and auth in cli
+Make sure to update the following fields in the configuration to enable tls ad auth in the cli:
+```    
+cli.channel.auth=true
+cli.channel.tls=true
+
+cli.credentials.username=admin
+cli.credentials.pwd=1111_aaaa
+cli.trustStore.location=conf/ca-cert.crt
+cli.trustStore.access.token.ttl.seconds=600
+```
+Set above fields to match the username, password, and certificate location in the environment.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

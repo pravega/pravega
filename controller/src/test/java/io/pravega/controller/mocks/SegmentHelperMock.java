@@ -27,6 +27,8 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -57,7 +59,7 @@ import static org.mockito.Mockito.spy;
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class), mock(ScheduledExecutorService.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig()), mock(ScheduledExecutorService.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
@@ -66,13 +68,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
@@ -92,7 +94,7 @@ public class SegmentHelperMock {
                 .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
                 anyString(), anyBoolean(), anyString(), anyLong());
@@ -109,13 +111,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
@@ -127,7 +129,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
 
         return helper;
     }
@@ -147,7 +149,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt(), anyLong());
         // endregion
         
         // region delete table

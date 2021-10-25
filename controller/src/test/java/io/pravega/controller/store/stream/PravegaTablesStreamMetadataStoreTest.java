@@ -114,7 +114,29 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                 store.getActiveSegments(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
-    
+
+    @Test
+    public void testInvalidTokenForListStreamWithTags() throws Exception {
+
+        final String scope = "testListStreamTag";
+        final String stream = "stream1";
+        final String lastTagChunk = ".#.24";
+        final StreamConfiguration streamConfig = StreamConfiguration.builder().build();
+
+        store.createScope(scope, null, executor).get();
+        store.createStream(scope, stream, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        Pair<List<String>, String> result1 = store.listStreamsForTag(scope, "InvalidToken", "", executor, null).get();
+        assertTrue(result1.getLeft().isEmpty());
+        String token = result1.getRight();
+        assertTrue(token.contains(lastTagChunk));
+
+        // invoke the API by passing the last token.
+        Pair<List<String>, String> result2 = store.listStreamsForTag(scope, "InvalidTag", token, executor, null).get();
+        assertTrue(result2.getLeft().isEmpty());
+        assertTrue(result2.getRight().contains(lastTagChunk));
+    }
+
     @Test
     public void testScaleMetadata() throws Exception {
         String scope = "testScopeScale";
@@ -497,7 +519,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                 scopeObj.createScope(context), 
                 e -> Exceptions.unwrap(e).equals(unknown));
     }
-    
+
     @Test
     public void testDeleteScopeWithEntries() {
         PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
@@ -542,12 +564,6 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
 
     }
 
-    private byte[] getIdInBytes(UUID id) {
-        byte[] b = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(new ByteArraySegment(b), id);
-        return b;
-    }
-
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
         Set<Integer> batches = new ConcurrentSkipListSet<>();
         testStore.getStoreHelper().getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE, 0L)
@@ -572,8 +588,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     private void createAndCommitTransaction(String scope, String stream, UUID txnId, PravegaTablesStreamMetadataStore testStore) {
         testStore.createTransaction(scope, stream, txnId, 10000L, 10000L, null, executor).join();
         testStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", 0L, null, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 100, null, executor).join();
-        testStore.completeCommitTransactions(scope, stream, record, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
+        testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
     }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {

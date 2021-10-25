@@ -182,7 +182,7 @@ class Reporter extends AbstractScheduledService {
     }
 
     private double toMB(double bytes) {
-        return bytes / (double) ONE_MB;
+        return bytes / ONE_MB;
     }
 
     private double toSeconds(long nanos) {

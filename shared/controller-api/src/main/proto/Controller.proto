@@ -93,6 +93,7 @@ message ReaderGroupConfiguration {
     string readerGroupId = 8;
     repeated StreamCut startingStreamCuts = 9;
     repeated StreamCut endingStreamCuts = 10;
+    int64 rolloverSizeBytes = 11;
 }
 
 message ReaderGroupConfigResponse {
@@ -160,6 +161,7 @@ message KeyValueTableConfig {
     int32 partitionCount = 3;
     int32 primaryKeyLength = 4;
     int32 secondaryKeyLength = 5;
+    int64 rolloverSizeBytes = 6;
 }
 
 message KeyValueTableConfigResponse {
@@ -219,6 +221,7 @@ message UpdateStreamStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
+        STREAM_SEALED = 4;
     }
     Status status = 1;
 }
@@ -397,6 +400,8 @@ message StreamConfig {
     ScalingPolicy scalingPolicy = 2;
     RetentionPolicy retentionPolicy = 3;
     Tags tags = 4;
+    int64 timestampAggregationTimeout = 5;
+    int64 rolloverSizeBytes = 6;
 }
 
 message Tags {

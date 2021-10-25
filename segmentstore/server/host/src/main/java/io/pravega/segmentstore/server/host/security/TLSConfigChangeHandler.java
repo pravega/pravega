@@ -36,10 +36,11 @@ class TLSConfigChangeHandler {
     private @NonNull final AtomicReference<SslContext> sslContext;
     private @NonNull final String pathToCertificateFile;
     private @NonNull final String pathToKeyFile;
+    private @NonNull final String[] tlsProtocolVersion;
 
     public void handleTlsConfigChange() {
         log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
-        sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
+        sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile, tlsProtocolVersion));
     }
 
     int getNumOfConfigChangesSinceStart() {

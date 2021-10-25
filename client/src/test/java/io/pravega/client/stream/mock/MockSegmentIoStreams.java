@@ -86,6 +86,12 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
+    public CompletableFuture<Long> fetchCurrentSegmentHeadOffset() {
+        return CompletableFuture.completedFuture(startingOffset);
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<Long> fetchCurrentSegmentLength() {
         return CompletableFuture.completedFuture(writeOffset);
     }

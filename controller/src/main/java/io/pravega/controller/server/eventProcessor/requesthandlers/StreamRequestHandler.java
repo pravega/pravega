@@ -16,6 +16,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -31,6 +32,7 @@ import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEvent> {
@@ -79,7 +81,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(scaleOpEvent.getRequestId(), "Processing scale request for stream {}/{}", scaleOpEvent.getScope(), 
                 scaleOpEvent.getStream());
         return withCompletion(scaleOperationTask, scaleOpEvent, scaleOpEvent.getScope(), scaleOpEvent.getStream(),
-                SCALE_EVENT_RETRY_PREDICATE)
+                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException))
                 .thenAccept(v -> {
                     log.info(scaleOpEvent.getRequestId(), "Processing scale request for stream {}/{} complete",
                             scaleOpEvent.getScope(), scaleOpEvent.getStream());
@@ -91,7 +93,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(updateStreamEvent.getRequestId(), "Processing update request for stream {}/{}",  
                 updateStreamEvent.getScope(), updateStreamEvent.getStream());
         return withCompletion(updateStreamTask, updateStreamEvent, updateStreamEvent.getScope(), updateStreamEvent.getStream(),
-                EVENT_RETRY_PREDICATE)
+                OPERATION_NOT_ALLOWED_PREDICATE)
                 .thenAccept(v -> {
                     log.info(updateStreamEvent.getRequestId(), "Processing update request for stream {}/{} complete", 
                             updateStreamEvent.getScope(), updateStreamEvent.getStream());
@@ -103,7 +105,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(truncateStreamEvent.getRequestId(), "Processing truncate request for stream {}/{}", 
                 truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
         return withCompletion(truncateStreamTask, truncateStreamEvent, truncateStreamEvent.getScope(), truncateStreamEvent.getStream(),
-                EVENT_RETRY_PREDICATE)
+                OPERATION_NOT_ALLOWED_PREDICATE)
                 .thenAccept(v -> {
                     log.info(truncateStreamEvent.getRequestId(), "Processing truncate request for stream {}/{} complete", 
                             truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
@@ -115,7 +117,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(sealStreamEvent.getRequestId(), "Processing seal request for stream {}/{}", 
                 sealStreamEvent.getScope(), sealStreamEvent.getStream());
         return withCompletion(sealStreamTask, sealStreamEvent, sealStreamEvent.getScope(), sealStreamEvent.getStream(),
-                EVENT_RETRY_PREDICATE)
+                OPERATION_NOT_ALLOWED_PREDICATE)
                 .thenAccept(v -> {
                     log.info(sealStreamEvent.getRequestId(), "Processing seal request for stream {}/{} complete", 
                             sealStreamEvent.getScope(), sealStreamEvent.getStream());
@@ -127,7 +129,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(deleteStreamEvent.getRequestId(), "Processing delete request for stream {}/{}", 
                 deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
         return withCompletion(deleteStreamTask, deleteStreamEvent, deleteStreamEvent.getScope(), deleteStreamEvent.getStream(),
-                EVENT_RETRY_PREDICATE)
+                OPERATION_NOT_ALLOWED_PREDICATE)
                 .thenAccept(v -> {
                     log.info(deleteStreamEvent.getRequestId(), "Processing delete request for stream {}/{} complete", 
                             deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
@@ -138,20 +140,43 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
         log.info(createRGEvent.getRequestId(), "Processing create request for ReaderGroup {}/{}", 
                 createRGEvent.getScope(), createRGEvent.getRgName());
-        return createRGTask.execute(createRGEvent);
+        return createRGTask.execute(createRGEvent).thenAccept(v -> {
+            log.info(createRGEvent.getRequestId(), "Processing of create event for Reader Group {}/{} completed successfully.",
+                    createRGEvent.getScope(), createRGEvent.getRgName());
+        }).exceptionally(ex -> {
+            log.error(createRGEvent.getRequestId(), String.format("Error processing create event for Reader Group %s/%s. Unexpected exception.",
+                    createRGEvent.getScope(), createRGEvent.getRgName()), ex);
+            throw new CompletionException(ex);
+        });
     }
 
     @Override
     public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
         log.info(deleteRGEvent.getRequestId(), "Processing delete request for ReaderGroup {}/{}",
                 deleteRGEvent.getScope(), deleteRGEvent.getRgName());
-        return deleteRGTask.execute(deleteRGEvent);
+        return deleteRGTask.execute(deleteRGEvent)
+                .thenAccept(v -> log.info(deleteRGEvent.getRequestId(), "Processing of delete event for Reader Group {}/{} completed successfully.",
+                    deleteRGEvent.getScope(), deleteRGEvent.getRgName()))
+                .exceptionally(ex -> {
+                    log.error(deleteRGEvent.getRequestId(), String.format("Error processing delete event for Reader Group %s/%s. Unexpected exception.",
+                            deleteRGEvent.getScope(), deleteRGEvent.getRgName()), ex);
+                    throw new CompletionException(ex);
+                });
     }
 
     @Override
     public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
         log.info(updateRGEvent.getRequestId(), "Processing update request for ReaderGroup {}/{}",
                 updateRGEvent.getScope(), updateRGEvent.getRgName());
-        return updateRGTask.execute(updateRGEvent);
+        return updateRGTask.execute(updateRGEvent)
+                .thenAccept(v -> {
+                    log.info(updateRGEvent.getRequestId(), "Processing of update event for Reader Group {}/{} completed successfully.",
+                            updateRGEvent.getScope(), updateRGEvent.getRgName());
+                })
+                .exceptionally(ex -> {
+                    log.error(updateRGEvent.getRequestId(), String.format("Error processing update event for Reader Group %s/%s. Unexpected exception.",
+                            updateRGEvent.getScope(), updateRGEvent.getRgName()), ex);
+                    throw new CompletionException(ex);
+                });
     }
 }

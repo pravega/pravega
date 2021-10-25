@@ -138,6 +138,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+    private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -212,7 +213,7 @@ public class StreamMetadataTasks extends TaskBase {
             if (toSetEventHelper) {
                 this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                         ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                        EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()),
+                        EventWriterConfig.builder().enableConnectionPooling(true).retryAttempts(Integer.MAX_VALUE).build()),
                         this.executor, this.eventExecutor, this.context.getHostId(),
                         ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
                 toSetEventHelper = false;
@@ -454,7 +455,8 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).thenCompose(x -> createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                        .rolloverSizeBytes(READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES).build(),
                 System.currentTimeMillis(), 10, getRequestId(context))
                 .thenCompose(createStatus -> {
                     if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
@@ -755,25 +757,32 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
-        // 1. get configuration
-        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
-                .thenCompose(configProperty -> {
-                    // 2. post event to start update workflow
-                    if (!configProperty.getObject().isUpdating()) {
-                        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(
-                                new UpdateStreamEvent(scope, stream, requestId),
-                                // 3. update new configuration in the store with updating flag = true
-                                // if attempt to update fails, we bail out with no harm done
-                                () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
-                                        context, executor))
-                                // 4. wait for update to complete
-                                .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
-                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS)));
-                    } else {
-                        log.error(requestId, "Another update in progress for {}/{}",
-                                scope, stream);
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+        return streamMetadataStore.getState(scope, stream, true, context, executor)
+                .thenCompose(state -> {
+                    if (state.equals(State.SEALED)) {
+                        log.error(requestId, "Cannot update a sealed stream {}/{}", scope, stream);
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
+                    // 1. get configuration
+                    return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                            .thenCompose(configProperty -> {
+                                // 2. post event to start update workflow
+                                if (!configProperty.getObject().isUpdating()) {
+                                    return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(
+                                                    new UpdateStreamEvent(scope, stream, requestId),
+                                                    // 3. update new configuration in the store with updating flag = true
+                                                    // if attempt to update fails, we bail out with no harm done
+                                                    () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
+                                                            context, executor))
+                                            // 4. wait for update to complete
+                                            .thenCompose(y -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
+                                                    .thenApply(z -> UpdateStreamStatus.Status.SUCCESS)));
+                                } else {
+                                    log.error(requestId, "Another update in progress for {}/{}",
+                                            scope, stream);
+                                    return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                                }
+                            });
                 })
                 .exceptionally(ex -> {
                     final String message = "Exception updating stream configuration {}";
@@ -791,11 +800,15 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenApply(v -> {
                                     State state = stateFuture.join();
                                     StreamConfigurationRecord configProperty = configPropertyFuture.join();
-
                                     // if property is updating and doesn't match our request, it's a subsequent update
                                     if (configProperty.isUpdating()) {
                                         return !configProperty.getStreamConfiguration().equals(newConfig);
                                     } else {
+                                        // if stream is sealed then update should not be allowed
+                                        if (state.equals(State.SEALED)) {
+                                            log.error("Cannot update a sealed stream {}/{}", scope, stream);
+                                            throw new UnsupportedOperationException("Cannot update a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                        }
                                         // if update-barrier is not updating, then update is complete if property matches our expectation
                                         // and state is not updating
                                         return !(configProperty.getStreamConfiguration().equals(newConfig) &&
@@ -1404,18 +1417,25 @@ public class StreamMetadataTasks extends TaskBase {
                                                                        final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
-        // 1. get stream cut
-        return eventHelperFuture.thenCompose(eventHelper -> startTruncation(scope, stream, streamCut, context)
-                // 4. check for truncation to complete
-                .thenCompose(truncationStarted -> {
-                    if (truncationStarted) {
-                        return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
-                                .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
-                    } else {
-                        log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+        return streamMetadataStore.getState(scope, stream, true, context, executor)
+                .thenCompose(state -> {
+                    if (state.equals(State.SEALED)) {
+                        log.error(requestId, "Cannot truncate a sealed stream {}/{}", scope, stream);
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_SEALED);
                     }
-                }))
+                    // 1. get stream cut
+                    return eventHelperFuture.thenCompose(eventHelper -> startTruncation(scope, stream, streamCut, context) // 1. get stream cut
+                                    // 4. check for truncation to complete
+                                    .thenCompose(truncationStarted -> {
+                                        if (truncationStarted) {
+                                            return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
+                                                    .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
+                                        } else {
+                                            log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
+                                            return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                                        }
+                                    }));
+                })
                 .exceptionally(ex -> {
                     final String message = "Exception thrown in trying to truncate stream";
                     return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
@@ -1461,6 +1481,11 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (truncationRecord.isUpdating()) {
                                         return !truncationRecord.getStreamCut().equals(streamCut);
                                     } else {
+                                        // if stream is sealed then truncate should not be allowed
+                                        if (state.equals(State.SEALED)) {
+                                            log.error("Cannot truncate a sealed stream {}/{}", scope, stream);
+                                            throw new UnsupportedOperationException("Cannot truncate a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                        }
                                         // if truncate-barrier is not updating, then truncate is complete if property
                                         // matches our expectation and state is not updating
                                         return !(truncationRecord.getStreamCut().equals(streamCut) && state.equals(State.TRUNCATING));
@@ -1790,7 +1815,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId,
                                             response.getConfiguration().getScalingPolicy(),
-                                            this.retrieveDelegationToken(), requestId);
+                                            this.retrieveDelegationToken(), requestId, config.getRolloverSizeBytes());
                                 })
                                 .thenCompose(v -> {
                                     return streamMetadataStore.getVersionedState(scope, markStream, context, executor)
@@ -1832,14 +1857,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .stream()
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken,
-                        requestId))
+                        requestId, configuration.getRolloverSizeBytes()))
                 .collect(Collectors.toList())));
     }
 
     public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken, long requestId) {
+                                                    String controllerToken, long requestId, long rolloverSize) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, controllerToken, requestId), executor));
+                stream, segmentId, policy, controllerToken, requestId, rolloverSize), executor));
     }
 
     public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,
@@ -1929,6 +1954,8 @@ public class StreamMetadataTasks extends TaskBase {
         log.error(requestId, "Exception updating Stream {}. Cause: {}.", streamFullName, logMessage, cause);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof UnsupportedOperationException) {
+            return UpdateStreamStatus.Status.STREAM_SEALED;
         } else if (cause instanceof TimeoutException) {
             throw new CompletionException(cause);
         } else {

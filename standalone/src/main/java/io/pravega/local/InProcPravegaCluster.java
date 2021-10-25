@@ -17,6 +17,7 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.security.ZKTLSUtils;
@@ -52,6 +53,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Builder;
@@ -70,6 +72,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final String LOCALHOST = "localhost";
+    private static final String ALL_INTERFACES = "0.0.0.0";
     private static final int THREADPOOL_SIZE = 20;
     private boolean isInMemStorage;
 
@@ -79,6 +82,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
+    private String[] tlsProtocolVersion;
 
     private boolean enableTlsReload;
 
@@ -144,6 +148,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         private int containerCount = 4;
         private boolean enableRestServer = true;
         private boolean replyWithStackTraceOnError = true;
+        private String[] tlsProtocolVersion = new TLSProtocolVersion(SingleNodeConfig.TLS_PROTOCOL_VERSION.getDefaultValue()).getProtocols();
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
@@ -169,7 +174,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = !this.isInMemStorage;
-            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
                     enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
@@ -296,10 +301,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.TLS_PROTOCOL_VERSION, Arrays.stream(this.tlsProtocolVersion).collect(Collectors.joining(",")))
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
+                        .with(ServiceConfig.REST_KEYSTORE_FILE, this.jksKeyFile)
+                        .with(ServiceConfig.REST_KEYSTORE_PASSWORD_FILE, this.keyPasswordFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
-                        .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)
+                        .with(ServiceConfig.LISTENING_IP_ADDRESS, ALL_INTERFACES)
                         .with(ServiceConfig.PUBLISHED_IP_ADDRESS, LOCALHOST)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
@@ -308,12 +316,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 ServiceConfig.DataLogType.BOOKKEEPER)
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM)
+                                ServiceConfig.StorageType.INMEMORY.name() :
+                                ServiceConfig.StorageType.FILESYSTEM.name())
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
                         .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
                         .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)
-                        .with(ServiceConfig.REST_LISTENING_PORT, this.restServerPort + segmentStoreId + 1)
+                        .with(ServiceConfig.REST_LISTENING_PORT, ServiceConfig.REST_LISTENING_PORT.getDefaultValue() + segmentStoreId)
                         .with(ServiceConfig.REST_LISTENING_ENABLE, this.enableRestServer))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
@@ -407,6 +415,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
+                .tlsProtocolVersion(this.tlsProtocolVersion)
                 .tlsTrustStore(this.certFile)
                 .tlsCertFile(this.certFile)
                 .tlsKeyFile(this.keyFile)
@@ -423,6 +432,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .host("0.0.0.0")
                     .port(this.restServerPort)
                     .tlsEnabled(this.enableTls)
+                    .tlsProtocolVersion(this.tlsProtocolVersion)
                     .keyFilePath(this.jksKeyFile)
                     .keyFilePasswordPath(this.keyPasswordFile)
                     .build();

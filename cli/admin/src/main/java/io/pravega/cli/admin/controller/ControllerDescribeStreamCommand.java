@@ -16,7 +16,7 @@
 package io.pravega.cli.admin.controller;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -61,7 +61,7 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
             // (tables). We need to instantiate the correct type of metadata store object based on the cluster at hand.
             StreamMetadataStore store;
             SegmentHelper segmentHelper = null;
-            if (getCLIControllerConfig().getMetadataBackend().equals(CLIControllerConfig.MetadataBackends.ZOOKEEPER.name())) {
+            if (getCLIControllerConfig().getMetadataBackend().equals(CLIConfig.MetadataBackends.ZOOKEEPER.name())) {
                 store = StreamStoreFactory.createZKStore(zkClient, executor);
             } else {
                 segmentHelper = instantiateSegmentHelper(zkClient);

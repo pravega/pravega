@@ -108,13 +108,18 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
      */
     protected abstract boolean supportsDeleteIfEmpty();
 
+    protected WriterTableProcessor createWriterTableProcessor(TableContext context) {
+        return createWriterTableProcessor(context.ext, context);
+    }
+
     /**
      * When implemented in a derived class, creates a {@link WriterTableProcessor} for async indexing.
      *
+     * @param ext     The extension to attach to.
      * @param context TableContext.
      * @return A new {@link WriterTableProcessor}, or null if not supported ({@link #shouldExpectWriterTableProcessors()} == false).
      */
-    protected abstract WriterTableProcessor createWriterTableProcessor(TableContext context);
+    protected abstract WriterTableProcessor createWriterTableProcessor(ContainerTableExtension ext, TableContext context);
 
     /**
      * When implemented in a derived class, determines if {@link WriterTableProcessor}s are expected/supported.
@@ -208,24 +213,6 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
                 "Segment not deleted.",
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
-    }
-
-    /**
-     * Verifies that the methods that are not yet implemented are not implemented by accident without unit tests.
-     * This test should be removed once every method tested in it is implemented.
-     */
-    @Test
-    public void testUnimplementedMethods() {
-        @Cleanup
-        val context = new TableContext(executorService());
-        AssertExtensions.assertThrows(
-                "merge() is implemented.",
-                () -> context.ext.merge(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "seal() is implemented.",
-                () -> context.ext.seal(SEGMENT_NAME, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     /**
@@ -345,8 +332,8 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
     @SneakyThrows
     protected void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         val config = TableExtensionConfig.builder()
-                .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
-                .compactionFrequency(Duration.ofMillis(1))
+                .with(TableExtensionConfig.MAX_COMPACTION_SIZE, (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
+                .with(TableExtensionConfig.COMPACTION_FREQUENCY, 1)
                 .build();
         @Cleanup
         val context = new TableContext(config, keyHasher, executorService());
@@ -542,6 +529,8 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
         @Cleanup
         val ext2 = context.createExtension();
+        @Cleanup
+        val processor2 = createWriterTableProcessor(ext2, context);
         checkTable.accept(last.expectedEntries, removedKeys, ext2);
 
         // Finally, remove all data.
@@ -550,6 +539,9 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
         ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
+        if (processor2 != null) {
+            processor2.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
         checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
         deleteSegment(Collections.emptyList(), supportsDeleteIfEmpty(), ext2);
     }
@@ -600,6 +592,9 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected key at position " + i, expectedKey, actualEntry.getKey().getKey());
             Assert.assertEquals("Unexpected value at position " + i, expectedValue, actualEntry.getValue());
         }
+
+        val info = ext.getInfo(SEGMENT_NAME, TIMEOUT).join();
+        Assert.assertEquals("Unexpected entry count for " + info, expectedEntries.size(), info.getEntryCount());
     }
 
     @SneakyThrows

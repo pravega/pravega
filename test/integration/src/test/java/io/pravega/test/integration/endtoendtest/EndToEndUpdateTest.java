@@ -22,14 +22,14 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.PravegaResource;
+import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndUpdateTest extends ThreadPooledTestSuite {
@@ -43,8 +43,7 @@ public class EndToEndUpdateTest extends ThreadPooledTestSuite {
     }
     
     @Test(timeout = 30000)
-    public void testUpdateStream() throws InterruptedException, ExecutionException, TimeoutException,
-                                        TruncatedDataException, ReinitializationRequiredException {
+    public void testUpdateStream() throws InterruptedException, ExecutionException, TruncatedDataException, ReinitializationRequiredException {
         String scope = "scope";
         String streamName = "updateStream";
 
@@ -91,5 +90,17 @@ public class EndToEndUpdateTest extends ThreadPooledTestSuite {
         
         // verify that stream is scaled to have 3 segments
         assertEquals(controller.getCurrentSegments(scope, streamName).join().getNumberOfSegments(), 5);
+
+        // Seal Stream.
+        assertTrue(controller.sealStream(scope, streamName).get());
+
+        config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(3))
+                .build();
+
+        // Attempt to update a sealed stream should complete exceptionally.
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                controller.updateStream(scope, streamName, config),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
     }
 }

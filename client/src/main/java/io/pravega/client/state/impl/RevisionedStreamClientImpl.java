@@ -133,14 +133,17 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     }
 
     @Override
-    public Iterator<Entry<Revision, T>> readFrom(Revision start) {
-        log.trace("Read segment {} from revision {}", segment, start);
+    public Iterator<Entry<Revision, T>> readFrom(Revision revision) {
+        log.trace("Read segment {} from revision {}", segment, revision);
         synchronized (lock) {
-            long startOffset = start.asImpl().getOffsetInSegment();
+            long startOffset = revision.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
-                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", start, segmentInfo));
+                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", revision, segmentInfo));
+            }
+            if (startOffset == endOffset) {
+                log.debug("No new updates to be read from revision {}", revision);
             }
             log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
@@ -232,6 +235,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public void truncateToRevision(Revision newStart) {
         Futures.getThrowingException(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()));
+        log.info("Truncate segment {} to revision {}", newStart.asImpl().getSegment(), newStart);
     }
 
     @Override

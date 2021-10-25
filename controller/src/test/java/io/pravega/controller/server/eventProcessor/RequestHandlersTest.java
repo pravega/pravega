@@ -258,7 +258,7 @@ public abstract class RequestHandlersTest {
         verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                 .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                 .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
 
@@ -270,6 +270,98 @@ public abstract class RequestHandlersTest {
         streamStore2.close();
     }
 
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void updateSealedStream() throws Exception {
+        String stream = "updateSealed";
+        StreamMetadataStore streamStore = getStore();
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        UpdateStreamTask requestHandler = new UpdateStreamTask(streamMetadataTasks, streamStoreSpied, bucketStore, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
+
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore.completeUpdateConfiguration(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStoreSpied).completeUpdateConfiguration(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        signal.join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
+                e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
+
+        // validate
+        VersionedMetadata<StreamConfigurationRecord> versioned = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+        streamStore.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void truncateSealedStream() throws Exception {
+        String stream = "truncateSealed";
+        StreamMetadataStore streamStore = getStore();
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        TruncateStreamTask requestHandler = new TruncateStreamTask(streamMetadataTasks, streamStoreSpied, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        Map<Long, Long> map = new HashMap<>();
+        map.put(0L, 100L);
+
+        streamStore.startTruncation(scope, stream, map, null, executor).join();
+
+        TruncateStreamEvent event = new TruncateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore.completeTruncation(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStoreSpied).completeTruncation(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        signal.join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("Updating sealed stream job should fail", () -> future,
+                e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
+
+        // validate
+        VersionedMetadata<StreamTruncationRecord> versioned = streamStore.getTruncationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+        streamStore.close();
+    }
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
@@ -368,7 +460,7 @@ public abstract class RequestHandlersTest {
             verify(streamStore1Spied, times(invocationCount.get("completeRollingTxn")))
                     .completeRollingTxn(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                     .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
         } else {
@@ -398,8 +490,8 @@ public abstract class RequestHandlersTest {
                     signal.complete(null);
                     waitOn.join();
                     return store.completeCommitTransactions(x.getArgument(0), x.getArgument(1),
-                            x.getArgument(2), x.getArgument(3), x.getArgument(4));
-                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                            x.getArgument(2), x.getArgument(3), x.getArgument(4), Collections.emptyMap());
+                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any());
                 break;
             case "startRollingTxn":
                 doAnswer(x -> {
@@ -797,7 +889,8 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent = new ScaleOpEvent(fairness, fairness, Collections.singletonList(0L), 
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
                 false, System.currentTimeMillis(), 0L);
-        streamRequestHandler.process(scaleEvent, () -> false).join();
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent, () -> false),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
         // verify that scale was started
         assertEquals(State.SCALING, streamStore.getState(fairness, fairness, true, null, executor).join());
 
@@ -818,7 +911,8 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
                 false, System.currentTimeMillis(), 0L);
-        streamRequestHandler.process(scaleEvent2, () -> false).join();
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2, () -> false),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
     
@@ -841,7 +935,7 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new NullPointerException()))
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
                 .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -852,7 +946,7 @@ public abstract class RequestHandlersTest {
         
         UpdateStreamEvent event = new UpdateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof NullPointerException);
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
@@ -893,8 +987,7 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        Exception exception = StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Some processing exception");
-        doAnswer(x -> Futures.failedFuture(exception))
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
                 .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -904,7 +997,7 @@ public abstract class RequestHandlersTest {
         
         TruncateStreamEvent event = new TruncateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
@@ -935,13 +1028,12 @@ public abstract class RequestHandlersTest {
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis(), 0L).join();
 
-        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L).join().getKey().getId();
+        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L, 1024 * 1024L).join().getKey().getId();
         streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, 
                 null, executor).join();
         
         // 1. set segment helper mock to throw exception
-        Exception exception = StoreException.create(StoreException.Type.ILLEGAL_STATE, "Some processing exception");
-        doAnswer(x -> Futures.failedFuture(exception))
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
         
@@ -954,7 +1046,7 @@ public abstract class RequestHandlersTest {
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
@@ -997,8 +1089,7 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        Exception exception = StoreException.create(StoreException.Type.DATA_CONTAINER_NOT_FOUND, "Some processing exception");
-        doAnswer(x -> Futures.failedFuture(exception))
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
                 .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -1058,7 +1149,8 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         DeleteStreamEvent event = new DeleteStreamEvent(fairness, fairness, 0L, createTimestamp);
-        streamRequestHandler.process(event, () -> false).join();
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce())
                 .deleteSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());

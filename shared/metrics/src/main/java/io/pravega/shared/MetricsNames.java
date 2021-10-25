@@ -94,6 +94,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET_LATENCY = PREFIX + "segmentstore.tablesegment.get_latency_ms";                               // Histogram
     public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_keys_latency_ms";             // Histogram
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_entries_latency_ms";       // Histogram
+    public static final String TABLE_SEGMENT_GET_INFO_LATENCY = PREFIX + "segmentstore.tablesegment.get_info_latency_ms";                     // Histogram
 
     public static final String TABLE_SEGMENT_UPDATE = PREFIX + "segmentstore.tablesegment.update";                         // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = PREFIX + "segmentstore.tablesegment.update_conditional"; // Counter and Per-segment Counter
@@ -102,6 +103,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET = PREFIX + "segmentstore.tablesegment.get";                               // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_KEYS = PREFIX + "segmentstore.tablesegment.iterate_keys";             // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_GET_INFO = PREFIX + "segmentstore.tablesegment.get_info";                     // Counter and Per-segment Counter
 
     // Storage stats
     public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
@@ -156,9 +158,22 @@ public final class MetricsNames {
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
-    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count";  // Counter
+    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count"; // Counter
 
-    public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
+    public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";         // Counter
+    public static final String SLTS_GC_TASK_PROCESSED = PREFIX + "segmentstore.storage.slts.GC.task_processed_count";   // Counter
+
+    public static final String SLTS_GC_CHUNK_NEW = PREFIX + "segmentstore.storage.slts.GC.chunk_new_count";             // Counter
+    public static final String SLTS_GC_CHUNK_QUEUED = PREFIX + "segmentstore.storage.slts.GC.chunk_queued_count";       // Counter
+
+    public static final String SLTS_GC_CHUNK_DELETED = PREFIX + "segmentstore.storage.slts.GC.chunk_deleted_count";     // Counter
+    public static final String SLTS_GC_CHUNK_RETRY = PREFIX + "segmentstore.storage.slts.GC.chunk_retry_count";         // Counter
+    public static final String SLTS_GC_CHUNK_FAILED = PREFIX + "segmentstore.storage.slts.GC.chunk_failed_count";       // Counter
+
+    public static final String SLTS_GC_SEGMENT_QUEUED = PREFIX + "segmentstore.storage.slts.GC.segment_queued_count";       // Counter
+    public static final String SLTS_GC_SEGMENT_PROCESSED = PREFIX + "segmentstore.storage.slts.GC.segment_deleted_count";   // Counter
+    public static final String SLTS_GC_SEGMENT_RETRY = PREFIX + "segmentstore.storage.slts.GC.segment_retry_count";         // Counter
+    public static final String SLTS_GC_SEGMENT_FAILED = PREFIX + "segmentstore.storage.slts.GC.segment_failed_count";       // Counter
 
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";

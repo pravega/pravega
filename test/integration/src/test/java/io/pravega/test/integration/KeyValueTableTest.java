@@ -80,6 +80,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
 
+    @Override
     @Before
     public void setup() throws Exception {
         super.setup();
@@ -101,7 +102,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
 
-        //4. Create Scope
+        // 4. Create Scope
         this.controller.createScope(SCOPE).get();
         ClientConfig clientConfig = ClientConfig.builder().build();
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
