@@ -1856,7 +1856,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
     //endregion
 
-    public class InstrumentedContainerMetadata extends StreamSegmentContainerMetadata {
+    private static class InstrumentedContainerMetadata extends StreamSegmentContainerMetadata {
 
         // This future is provided by the caller to ensure that the getStreamSegmentMetadata call will not make progress
         // until the caller performs its intended duties.
