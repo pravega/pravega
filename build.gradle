@@ -1157,6 +1157,7 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
+        systemProperty "tier2Env", System.getProperty("tier2Env")
         systemProperty "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
         systemProperty "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
         systemProperty "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
