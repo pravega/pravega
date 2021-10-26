@@ -93,7 +93,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                     if (error != null) {
                         log.warn(requestId, "Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
-                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, event.getTxid().toString());
+                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream);
                     } else {
                         log.info(requestId, "Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());

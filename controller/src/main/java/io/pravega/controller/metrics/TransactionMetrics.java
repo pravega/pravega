@@ -38,7 +38,6 @@ import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_SEGMENTS_LATENCY
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
-import static io.pravega.shared.MetricsTags.transactionTags;
 
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
@@ -153,19 +152,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global, Stream-related and Transaction-related counters of failed commit operations.
-     *
-     * @param scope      Scope.
-     * @param streamName Name of the Stream.
-     * @param txnId      Transaction id.
-     */
-    public void commitTransactionFailed(String scope, String streamName, String txnId) {
-        commitTransactionFailed(scope, streamName);
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
-    }
-
-    /**
-     * This method increments the global, Stream-related counters of failed commit operations.
+     * This method increments the global and Stream-related counters of failed commit operations.
      *
      * @param scope      Scope.
      * @param streamName Name of the Stream.
@@ -208,16 +195,14 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global, Stream-related and Transaction-related counters of failed abort operations.
+     * This method increments the global and Stream-related counters of failed abort operations.
      *
      * @param scope      Scope.
      * @param streamName Name of the Stream.
-     * @param txnId      Transaction id.
      */
-    public void abortTransactionFailed(String scope, String streamName, String txnId) {
+    public void abortTransactionFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
     }
 
     /**
