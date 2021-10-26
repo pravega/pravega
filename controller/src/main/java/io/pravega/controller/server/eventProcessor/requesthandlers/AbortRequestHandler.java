@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -80,7 +81,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         UUID txId = event.getTxid();
         long requestId = event.getRequestId();
         if (requestId == 0L) {
-            requestId = ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong();
+            requestId = ControllerService.nextRequestId();
         }
         Timer timer = new Timer();
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
