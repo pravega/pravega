@@ -1096,7 +1096,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
     }
 
-
     private <T> CompletableFuture<T> delayedResponse(T value) {
         return Futures.delayedFuture(Duration.ofMillis(1), executorService()).thenApply(v -> value);
     }
@@ -1157,7 +1156,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         assertNotNull(decoded);
         return (Reply) decoded;
     }
-
 
     private void interceptCreateTransient(StreamSegmentStore store, String streamSegmentName) {
         when(store.createStreamSegment(contains(streamSegmentName), eq(SegmentType.TRANSIENT_SEGMENT), any(), eq(AppendProcessor.TIMEOUT)))
