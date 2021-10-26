@@ -60,6 +60,7 @@ public class PrometheusTest {
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, true)
                         .with(MetricsConfig.ENABLE_PROMETHEUS, true)
+                        .with(MetricsConfig.METRICS_PREFIX, "promtestsegmentstore")
                 )
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)

@@ -75,6 +75,7 @@ public class ControllerPrometheusTest {
         MetricsProvider.initialize(MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_PROMETHEUS, true)
+                .with(MetricsConfig.METRICS_PREFIX, "promtestcontroller")
                 .build());
 
         @Cleanup
