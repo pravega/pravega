@@ -747,14 +747,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Verifies that the StorageWriter does not create an Attribute Aggregator for Transient Segments.
-     */
-    @Test
-    public void testNoAttributeAggregatorTransientSegments() {
-
-    }
-
-    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments
