@@ -15,6 +15,7 @@
  */
 package io.pravega.local;
 
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -37,6 +38,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private boolean enableRestServer;
     private boolean enableAuth;
     private boolean enableTls;
+    private String[] tlsProtocolVersion;
     private String certFile;
     private String passwd;
     private String userName;
@@ -56,6 +58,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     public static final class LocalPravegaEmulatorBuilder {
+        private String[] tlsProtocolVersion = new TLSProtocolVersion(SingleNodeConfig.TLS_PROTOCOL_VERSION.getDefaultValue()).getProtocols();
         public LocalPravegaEmulator build() {
             this.inProcPravegaCluster = InProcPravegaCluster
                     .builder()
@@ -73,6 +76,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableRestServer(enableRestServer)
                     .enableAuth(enableAuth)
                     .enableTls(enableTls)
+                    .tlsProtocolVersion(tlsProtocolVersion)
                     .certFile(certFile)
                     .keyFile(keyFile)
                     .enableTlsReload(enableTlsReload)
@@ -92,7 +96,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
-                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
+                    enableAuth, enableTls, tlsProtocolVersion, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
                     jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, metricsReportInterval,
                     enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
         }
@@ -115,6 +119,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableRestServer(conf.isEnableRestServer())
                     .enableAuth(conf.isEnableAuth())
                     .enableTls(conf.isEnableTls())
+                    .tlsProtocolVersion(conf.getTlsProtocolVersion())
                     .enableMetrics(conf.isEnableMetrics())
                     .enableInfluxDB(conf.isEnableInfluxDB())
                     .metricsReportInterval(conf.getMetricsReportInterval())

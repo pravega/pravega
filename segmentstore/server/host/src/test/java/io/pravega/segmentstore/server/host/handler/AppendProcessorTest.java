@@ -1085,6 +1085,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         @Cleanup
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
         InOrder connectionVerifier = Mockito.inOrder(connection);
+        @SuppressWarnings("unchecked")
         Map<AttributeId, Long> attributes = mock(Map.class);
         when(store.getAttributes(streamSegmentName, Collections.singleton(AttributeId.fromUUID(clientId)), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(attributes));

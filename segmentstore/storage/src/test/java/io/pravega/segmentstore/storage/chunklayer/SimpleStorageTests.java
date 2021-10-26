@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -62,8 +63,14 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 chunkStorage = getChunkStorage();
             }
         }
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID,
+                chunkStorage, chunkMetadataStore, executor, getDefaultConfig());
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return chunkedSegmentStorage;
+    }
+
+    protected ChunkedSegmentStorageConfig getDefaultConfig() {
+        return ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
     }
 
     abstract protected ChunkStorage getChunkStorage() throws Exception;
@@ -83,6 +90,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
                 storage.getConfig());
+        forkedChunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return forkedChunkedSegmentStorage;
     }
 

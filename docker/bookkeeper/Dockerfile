@@ -27,6 +27,7 @@ FROM apache/bookkeeper:4.14.1
 
 ARG BK_VERSION=4.14.1
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
+ENV JAVA_HOME=/usr/lib/jvm/java-11
 
 RUN set -x \
     && yum install -y iproute wget \

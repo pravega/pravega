@@ -141,8 +141,14 @@ paths:
         - "Streams"
       parameters:
         - in: query
-          name: showInternalStreams
-          description: Optional flag whether to display system created streams. If not specified only user created streams will be returned
+          name: filter_type
+          description: Filter options
+          required: false
+          type: string
+          enum: [showInternalStreams, tag]
+        - in: query
+          name: filter_value
+          description: value to be passed. must match the type passed with it.
           required: false
           type: string
       operationId: listStreams
@@ -179,6 +185,12 @@ paths:
                 $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
                 $ref: "#/definitions/RetentionConfig"
+              streamTags:
+                $ref: "#/definitions/TagsList"
+              timestampAggregationTimeout:
+                $ref: "#/definitions/TimestampAggregationTimeout"
+              rolloverSizeBytes:
+                $ref: "#/definitions/RolloverSizeBytes"
       produces:
         - application/json
       responses:
@@ -239,6 +251,13 @@ paths:
                 $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
                 $ref: "#/definitions/RetentionConfig"
+              streamTags:
+                $ref: "#/definitions/TagsList"
+              timestampAggregationTimeout:
+                $ref: "#/definitions/TimestampAggregationTimeout"
+              rolloverSizeBytes:
+                $ref: "#/definitions/RolloverSizeBytes"
+
       produces:
         - application/json
       responses:
@@ -584,6 +603,17 @@ paths:
         500:
           description: Internal server error while fetching the health status of a given health contributor.
 definitions:
+  TimestampAggregationTimeout:
+    type: long
+    minimum: 0
+  RolloverSizeBytes:
+    type: long
+    minimum: 0
+  TagsList:
+    type: array
+    items:
+      type: string
+      maxLength: 256
   ScalingEventList:
     type: object
     properties:
@@ -621,6 +651,12 @@ definitions:
         $ref: "#/definitions/ScalingConfig"
       retentionPolicy:
         $ref: "#/definitions/RetentionConfig"
+      tags:
+        $ref: "#/definitions/TagsList"
+      timestampAggregationTimeout:
+        $ref: "#/definitions/TimestampAggregationTimeout"
+      rolloverSizeBytes:
+        $ref: "#/definitions/RolloverSizeBytes"
   ScalingConfig:
     type: object
     properties:

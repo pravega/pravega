@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 public abstract class CheckpointStoreTests {
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected CheckpointStore checkpointStore;
 
     @Before

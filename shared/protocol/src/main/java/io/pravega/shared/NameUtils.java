@@ -37,6 +37,9 @@ public final class NameUtils {
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
+    // The prefix used for internal container segments.
+    public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";
+
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
@@ -108,7 +111,7 @@ public final class NameUtils {
     /**
      * Prefix for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_PREFIX = "_system/containers/metadata_";
+    private static final String METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "metadata_";
 
     /**
      * Format for Container Metadata Segment name.
@@ -118,7 +121,7 @@ public final class NameUtils {
     /**
      * Prefix for Storage Metadata Segment name.
      */
-    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = "_system/containers/storage_metadata_";
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
@@ -128,12 +131,12 @@ public final class NameUtils {
     /**
      * Format for Container System Journal file name.
      */
-    private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+    private static final String SYSJOURNAL_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.file%d";
 
     /**
      * Format for Container System snapshot file name.
      */
-    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -179,7 +182,7 @@ public final class NameUtils {
     /**
      * Formatting for internal Segments used for ContainerEventProcessor.
      */
-    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = "_system/containers/event_processor_%s_%d";
+    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = INTERNAL_CONTAINER_PREFIX + "event_processor_%s_%d";
 
     //endregion
 

@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 @Data
 @AllArgsConstructor
 public class CreateReaderGroupEvent implements ControllerEvent {
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 1L;
     private final long requestId;
     private final String scope;
@@ -111,7 +112,6 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             ImmutableMap.Builder<String, RGStreamCutRecord> endStreamCutBuilder = ImmutableMap.builder();
             source.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, endStreamCutBuilder);
             eb.endingStreamCuts(endStreamCutBuilder.build());
-
         }
     }
     //endregion

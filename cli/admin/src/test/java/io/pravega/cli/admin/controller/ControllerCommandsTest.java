@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
-import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
@@ -82,7 +82,8 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
     static {
         CLUSTER.start();
         STATE = createAdminCLIConfig(getCLIControllerRestUri(CLUSTER.controllerRestUri()),
-                getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(), false, false);
+                getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(),
+                false, false, CLUSTER.getAccessTokenTtl());
         String scope = "testScope";
         String testStream = "testStream";
         ClientConfig clientConfig = prepareValidClientConfig(CLUSTER.controllerUri(), false, false);
@@ -105,6 +106,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         assertTrue("Failed to create the stream ", isStreamCreated);
     }
 
+    @Override
     protected AdminCommandState cliConfig() {
         return STATE;
     }
@@ -117,6 +119,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         STATE.close();
     }
 
+    @Override
     @Test
     @SneakyThrows
     public void testDescribeReaderGroupCommand() {
@@ -154,11 +157,11 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
 
         // Try the Zookeeper backend, which is expected to fail and be handled by the command.
         Properties properties = new Properties();
-        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.ZOOKEEPER.name());
+        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.ZOOKEEPER.name());
         cliConfig().getConfigBuilder().include(properties);
         commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
         new ControllerDescribeStreamCommand(commandArgs).execute();
-        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.SEGMENTSTORE.name());
+        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.SEGMENTSTORE.name());
         cliConfig().getConfigBuilder().include(properties);
     }
 

@@ -17,15 +17,19 @@ package io.pravega.segmentstore.server.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.sun.management.HotSpotDiagnosticMXBean;
+import io.netty.util.internal.PlatformDependent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -35,6 +39,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -42,8 +47,11 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -61,16 +69,21 @@ import javax.annotation.concurrent.ThreadSafe;
 @Slf4j
 public final class ServiceStarter {
     //region Members
+    @VisibleForTesting
+    @Getter
+    private HealthServiceManager healthServiceManager;
+
+    @VisibleForTesting
+    @Getter
+    private final ServiceBuilder serviceBuilder;
 
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
-    private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private AdminConnectionListener adminListener;
     private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
-    private HealthServiceManager healthServiceManager;
     private RESTServer restServer;
     private boolean closed;
 
@@ -99,25 +112,16 @@ public final class ServiceStarter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
+        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
+        healthServiceManager.start();
+        log.info("Initializing HealthService ...");
+
         MetricsConfig metricsConfig = builderConfig.getConfig(MetricsConfig::builder);
         if (metricsConfig.isEnableStatistics()) {
             log.info("Initializing metrics provider ...");
             MetricsProvider.initialize(metricsConfig);
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
-        }
-
-        log.info("Initializing HealthService ...");
-        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
-        healthServiceManager.start();
-
-        if (this.serviceConfig.isRestServerEnabled()) {
-            log.info("Initializing RESTServer ...");
-            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
-                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
-                    healthServiceManager.getEndpoint())));
-            restServer.startAsync();
-            restServer.awaitRunning();
         }
 
         log.info("Initializing ZooKeeper Client ...");
@@ -150,7 +154,8 @@ public final class ServiceStarter {
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor());
+                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
+                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -158,11 +163,25 @@ public final class ServiceStarter {
         if (serviceConfig.isEnableAdminGateway()) {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
-                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
+                    healthServiceManager);
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
         }
         log.info("StreamSegmentService started.");
+
+        healthServiceManager.register(new ZKHealthContributor(zkClient));
+        healthServiceManager.register(new CacheManagerHealthContributor(serviceBuilder.getCacheManager()));
+        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getSegmentContainerRegistry()));
+
+        if (this.serviceConfig.isRestServerEnabled()) {
+            log.info("Initializing RESTServer ...");
+            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
+                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
+                    healthServiceManager.getEndpoint())));
+            restServer.startAsync();
+            restServer.awaitRunning();
+        }
     }
 
     public void shutdown() {
@@ -233,10 +252,32 @@ public final class ServiceStarter {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
             return loader.load(setup,
-                    this.serviceConfig.getStorageImplementation().toString(),
+                    this.serviceConfig.getStorageImplementation(),
                     this.serviceConfig.getStorageLayout(),
                     setup.getStorageExecutor());
         });
+    }
+
+    @VisibleForTesting
+    static void validateConfig(ServiceBuilderConfig config) {
+        long xmx = Runtime.getRuntime().maxMemory();
+        long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
+        long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+                                                                   .getVMOption("MaxDirectMemorySize").getValue());
+        maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
+        long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
+        log.info("MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", maxDirectMemorySize, cacheSize, nettyDirectMem);
+        //run checks
+        validateConfig(cacheSize, xmx, maxDirectMemorySize, ((com.sun.management.OperatingSystemMXBean) ManagementFactory
+                .getOperatingSystemMXBean()).getTotalPhysicalMemorySize());
+    }
+
+    @VisibleForTesting
+    static void validateConfig(long cacheSize, long xmx, long maxDirectMem, long totalMem) {
+        Preconditions.checkState(totalMem > (maxDirectMem + xmx), String.format("MaxDirectMemorySize(%s B) along " +
+                "with JVM Xmx value(%s B) is greater than the available system memory!", maxDirectMem, xmx));
+        Preconditions.checkState(maxDirectMem > cacheSize, String.format("Cache size (%s B) configured is more " +
+                "than the JVM MaxDirectMemory(%s B) value", cacheSize, maxDirectMem));
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
@@ -321,6 +362,7 @@ public final class ServiceStarter {
             // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
             log.info("Segment store configuration:");
             config.forEach((key, value) -> log.info("{} = {}", key, value));
+            validateConfig(config);
             serviceStarter.set(new ServiceStarter(config));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);

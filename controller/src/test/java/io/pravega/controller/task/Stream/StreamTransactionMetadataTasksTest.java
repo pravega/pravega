@@ -262,8 +262,8 @@ public class StreamTransactionMetadataTasksTest {
         // Create 2 transactions
         final long lease = 5000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L, 1024 * 1024L).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L, 1024 * 1024L).join().getKey();
 
         // Commit the first one
         TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), 0L).join();
@@ -305,10 +305,10 @@ public class StreamTransactionMetadataTasksTest {
         failedTxnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L).join().getKey();
-        VersionedTransactionData tx4 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L, 0L).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L, 0L).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L, 0L).join().getKey();
+        VersionedTransactionData tx4 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L, 0L).join().getKey();
 
         // Ping another txn from failedHost.
         PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, tx4.getId(), 10000, 0L).join();
@@ -430,8 +430,8 @@ public class StreamTransactionMetadataTasksTest {
         // Create 2 transactions
         final long lease = 5000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L, 1024 * 1024L).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, 0L, 1024 * 1024L).join().getKey();
 
         UUID tx1 = txData1.getId();
         UUID tx2 = txData2.getId();
@@ -508,7 +508,7 @@ public class StreamTransactionMetadataTasksTest {
         final long lease = 10000;
 
         AssertExtensions.assertFutureThrows("Transaction creation fails, although a new txn id gets added to the store",
-                txnTasks.createTxn(SCOPE, STREAM, lease, 0L),
+                txnTasks.createTxn(SCOPE, STREAM, lease, 0L, 1024 * 1024L),
                 e -> e instanceof RuntimeException);
 
         // Ensure that exactly one transaction is active on the stream.
@@ -585,7 +585,7 @@ public class StreamTransactionMetadataTasksTest {
             }
         }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), any(), any());
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 
-                0L).join();
+                0L, 1024 * 1024L).join();
 
         // verify that generate transaction id is called 3 times
         verify(streamStoreMock, times(3)).generateTransactionId(any(), any(), any(), any());
@@ -624,7 +624,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Verify Ping transaction on committing transaction.
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 
-                0L).join();
+                0L, 0L).join();
         UUID txnId = txn.getKey().getId();
         txnTasks.commitTxn(SCOPE, STREAM, txnId, 0L).join();
         assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
@@ -634,7 +634,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
         val record = streamStoreMock.getVersionedCommittingTransactionsRecord(
                 SCOPE, STREAM, null, executor).join();
-        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor, Collections.emptyMap()).join();
 
         // verify that transaction is removed from active txn
         AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",
@@ -645,7 +645,7 @@ public class StreamTransactionMetadataTasksTest {
                 0L).join().getStatus());
 
         // Verify Ping transaction on an aborting transaction.
-        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L).join();
+        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L, 1024 * 1024L).join();
         txnId = txn.getKey().getId();
         txnTasks.abortTxn(SCOPE, STREAM, txnId, null, 0L).join();
         assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
@@ -665,7 +665,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Verify max execution time.
         txnTasks.setMaxExecutionTime(1L);
-        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L).join();
+        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L, 1024 * 1024L).join();
         UUID tid = txn.getKey().getId();
         AssertExtensions.assertEventuallyEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, 
                 () -> txnTasks.pingTxn(SCOPE, STREAM, tid, 10000L, 0L).join().getStatus(), 10000L);
@@ -727,7 +727,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createFuture = txnTasks.createTxn(
-                SCOPE, STREAM, leasePeriod, 0L);
+                SCOPE, STREAM, leasePeriod, 0L, 0L);
 
         // create and ping transactions should not wait for writer initialization and complete immediately.
         createFuture.join();
@@ -741,7 +741,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
         assertTrue(Futures.await(commitFuture));
-        UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, leasePeriod, 0L).join().getKey().getId();
+        UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, leasePeriod, 0L, 1024 * 1024L).join().getKey().getId();
         assertTrue(Futures.await(txnTasks.abortTxn(SCOPE, STREAM, txnId2, null, 0L)));
     }
     

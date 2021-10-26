@@ -43,7 +43,7 @@ import static org.junit.Assert.assertEquals;
 public abstract class RESTServerTest {
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
@@ -124,6 +124,7 @@ public abstract class RESTServerTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                     .tlsEnabled(true)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                     .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
                     .build();
@@ -136,6 +137,7 @@ public abstract class RESTServerTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                     .tlsEnabled(true)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                     .keyFilePasswordPath("Wrong_Path")
                     .build();

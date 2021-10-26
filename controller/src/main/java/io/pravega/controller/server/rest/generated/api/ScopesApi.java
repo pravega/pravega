@@ -245,10 +245,11 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the list of streams for the given scope", response = StreamsList.class) })
     public Response listStreams(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
-,@ApiParam(value = "Optional flag whether to display system created streams. If not specified only user created streams will be returned") @QueryParam("showInternalStreams") String showInternalStreams
+,@ApiParam(value = "Filter options", allowableValues="showInternalStreams, tag") @QueryParam("filter_type") String filterType
+,@ApiParam(value = "value to be passed. must match the type passed with it.") @QueryParam("filter_value") String filterValue
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
-        return delegate.listStreams(scopeName,showInternalStreams,securityContext);
+        return delegate.listStreams(scopeName,filterType,filterValue,securityContext);
     }
     @PUT
     @Path("/{scopeName}/streams/{streamName}")

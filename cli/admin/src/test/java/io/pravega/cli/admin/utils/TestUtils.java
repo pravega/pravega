@@ -54,12 +54,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Arrays;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -109,15 +109,21 @@ public final class TestUtils {
      * @return A local Pravega cluster
      */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
-        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder().authEnabled(authEnabled);
+        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder();
+        if (authEnabled) {
+            clusterWrapperBuilder.authEnabled(authEnabled);
+        }
+
         if (tlsEnabled) {
             clusterWrapperBuilder
                     .tlsEnabled(true)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                     .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                     .tlsHostVerificationEnabled(false)
                     .tlsServerKeystorePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
-                    .tlsServerKeystorePasswordPath(pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+                    .tlsServerKeystorePasswordPath(pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME)
+                    .tokenSigningKeyBasis("secret");
         }
         return clusterWrapperBuilder.controllerRestEnabled(true).build();
     }
@@ -131,10 +137,11 @@ public final class TestUtils {
      * @param containerCount the container count.
      * @param authEnabled whether the cli requires authentication to access the cluster.
      * @param tlsEnabled whether the cli requires TLS to access the cluster.
+     * @param accessTokenTtl how long the access token will last
      */
     @SneakyThrows
     public static AdminCommandState createAdminCLIConfig(String controllerRestUri, String controllerUri, String zkConnectUri,
-                                                         int containerCount, boolean authEnabled, boolean tlsEnabled) {
+                                                         int containerCount, boolean authEnabled, boolean tlsEnabled, Duration accessTokenTtl) {
         AdminCommandState state = new AdminCommandState();
         Properties pravegaProperties = new Properties();
         System.out.println("REST URI: " + controllerRestUri);
@@ -142,11 +149,12 @@ public final class TestUtils {
         pravegaProperties.setProperty("cli.controller.connect.grpc.uri", controllerUri);
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", zkConnectUri);
         pravegaProperties.setProperty("pravegaservice.container.count", Integer.toString(containerCount));
-        pravegaProperties.setProperty("cli.controller.connect.channel.auth", Boolean.toString(authEnabled));
-        pravegaProperties.setProperty("cli.controller.connect.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-        pravegaProperties.setProperty("cli.controller.connect.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-        pravegaProperties.setProperty("cli.controller.connect.channel.tls", Boolean.toString(tlsEnabled));
-        pravegaProperties.setProperty("cli.controller.connect.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(authEnabled));
+        pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+        pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(tlsEnabled));
+        pravegaProperties.setProperty("cli.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Long.toString(accessTokenTtl.toSeconds()));
         state.getConfigBuilder().include(pravegaProperties);
         return state;
     }
@@ -204,6 +212,7 @@ public final class TestUtils {
         ClientConfig clientConfig = ClientConfig.builder().build();
         @Cleanup
         ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @SuppressWarnings("resource") //Don't close the controller.
         StreamManager streamManager = new StreamManagerImpl(controller, cp);
         //create scope
         Boolean createScopeStatus = streamManager.createScope(scopeName);

@@ -111,7 +111,21 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
                                          .put("replicas", clusterSize)
                                          .put("persistence", ImmutableMap.of("reclaimPolicy", "Delete"))
+                                         .put("pod", ImmutableMap.of("resources", getZookeeperResources()))
                                          .build())
                 .build();
+    }
+
+    private Map<String, Object> getZookeeperResources() {
+        return ImmutableMap.<String, Object>builder()
+                           .put("limits", ImmutableMap.builder()
+                                                      .put("cpu", "400m")
+                                                      .put("memory", "2Gi")
+                                                      .build())
+                           .put("requests", ImmutableMap.builder()
+                                                        .put("cpu", "200m")
+                                                        .put("memory", "1Gi")
+                                                        .build())
+                           .build();
     }
 }

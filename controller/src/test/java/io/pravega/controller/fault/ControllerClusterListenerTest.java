@@ -53,6 +53,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
 import org.junit.rules.Timeout;
+import org.junit.Assert;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -138,6 +139,8 @@ public class ControllerClusterListenerTest {
 
         clusterListener.awaitRunning();
 
+        Assert.assertTrue(clusterListener.areAllSweepersReady());
+
         validateAddedNode(host.getHostId());
 
         // Add a new host
@@ -151,6 +154,7 @@ public class ControllerClusterListenerTest {
         clusterListener.stopAsync();
 
         clusterListener.awaitTerminated();
+        Assert.assertFalse(clusterListener.isRunning());
         validateRemovedNode(host.getHostId());
     }
 

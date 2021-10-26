@@ -341,6 +341,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * {@link #take} and returns an instance of {@link InterceptableFuture}.
      */
     private static class InterceptableQueue extends BlockingDrainingQueue<Integer> {
+        @Override
         @VisibleForTesting
         protected CompletableFuture<Queue<Integer>> newTakeResult() {
             return new InterceptableFuture<>();

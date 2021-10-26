@@ -93,7 +93,7 @@ public class PravegaAuthManagerTest {
     }
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @BeforeClass
     public static void before() {

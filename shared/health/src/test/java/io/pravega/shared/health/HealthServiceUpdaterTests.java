@@ -47,19 +47,19 @@ public class HealthServiceUpdaterTests {
     public void testServiceUpdaterProperlyUpdates() throws Exception {
         @Cleanup
         HealthContributor contributor = new HealthyContributor("contributor");
-        service.getRoot().register(contributor);
+        service.register(contributor);
 
-        TestHealthContributors.awaitHealthContributor(service, service.getRoot().getName());
+        TestHealthContributors.awaitHealthContributor(service, service.getName());
         Health health = service.getEndpoint().getHealth();
         Assert.assertEquals(Status.UP, health.getStatus());
         contributor.close();
 
         Assert.assertEquals("Closed contributor should no longer be listed as a child.",
                 0,
-                service.getRoot().getHealthSnapshot().getChildren().size());
+                service.getHealthSnapshot().getChildren().size());
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
         contributor = new FailingContributor("failing");
-        service.getRoot().register(contributor);
+        service.register(contributor);
         TestHealthContributors.awaitHealthContributor(service, contributor.getName());
 
         health = service.getEndpoint().getHealth();
