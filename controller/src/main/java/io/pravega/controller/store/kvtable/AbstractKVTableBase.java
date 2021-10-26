@@ -193,6 +193,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     }
 
     // region state
+    @Override
     abstract public CompletableFuture<String> getId(OperationContext context);
 
     abstract CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state, OperationContext context);

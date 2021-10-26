@@ -23,6 +23,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Class used to monitor the pravega host cluster for failures and ensure the segment containers owned by them are
  * assigned to the other pravega hosts.
@@ -40,6 +42,8 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
+
+    private final AtomicBoolean zkConnected = new AtomicBoolean(false);
 
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
@@ -61,9 +65,11 @@ public class SegmentContainerMonitor extends AbstractIdleService {
         segmentMonitorLeader = new SegmentMonitorLeader(hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
 
-        //Listen for any zookeeper connectivity error and relinquish leadership.
+        this.zkConnected.set(client.getZookeeperClient().isConnected());
+        //Listen for any zookeeper connection state changes
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
+                    this.zkConnected.set(newState.isConnected());
                     switch (newState) {
                         case LOST:
                             log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
@@ -87,6 +93,10 @@ public class SegmentContainerMonitor extends AbstractIdleService {
                     }
                 }
         );
+    }
+
+    public boolean isZKConnected() {
+        return zkConnected.get();
     }
 
     /**

@@ -105,6 +105,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             .include(ReadIndexConfig
                     .builder()
                     .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+            .include(TableExtensionConfig
+                    .builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, (MAX_KEY_LENGTH + MAX_KEY_LENGTH) * 13))
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
@@ -276,6 +279,14 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
+            boolean fixedKeyLength = isFixedKeyLength(segmentName);
+            val info = tableStore.getInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Assert.assertEquals(segmentName, info.getName());
+            AssertExtensions.assertGreaterThan("Unexpected length for " + segmentName, 0, info.getLength());
+            val expectedKeyLength = isFixedKeyLength(segmentName) ? getFixedKeyLength(segmentName) : 0;
+            Assert.assertEquals("Unexpected key length for " + segmentName, expectedKeyLength, info.getKeyLength());
+            Assert.assertEquals(fixedKeyLength, info.getType().isFixedKeyLengthTableSegment());
+
             val keys = new ArrayList<BufferView>();
             for (val se : e.getValue()) {
                 keys.add(se.getKey());
@@ -288,20 +299,20 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
                                 .thenApply(v -> {
-                                    if (isFixedKeyLength(segmentName)) {
+                                    if (fixedKeyLength) {
                                         checkSortedOrder(result);
                                     }
                                     return result;
                                 });
                     });
             iteratorFutures.add(entryIteratorFuture);
-            if (!isFixedKeyLength(segmentName)) {
+            if (!fixedKeyLength) {
                 unsortedIteratorFutures.add(entryIteratorFuture);
                 // For simplicity, always start from beginning of TableSegment.
                 offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
                         .thenCompose(ei -> {
                             val result = new ArrayList<IteratorItem<TableEntry>>();
-                            return ei.forEachRemaining(i -> result.add(i), executorService())
+                            return ei.forEachRemaining(result::add, executorService())
                                     .thenApply(v -> result);
                         }));
             }

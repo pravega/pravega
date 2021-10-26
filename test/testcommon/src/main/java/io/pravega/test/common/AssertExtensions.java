@@ -136,7 +136,7 @@ public class AssertExtensions {
      * @param run  The Runnable to execute.
      * @param type The type of exception to expect.
      */
-    public static void assertThrows(Class<? extends Exception> type, RunnableWithException run) {
+    public static void assertThrows(Class<? extends Throwable> type, RunnableWithException run) {
         try {
             run.run();
             Assert.fail("No exception thrown where: " + type.getName() + " was expected");

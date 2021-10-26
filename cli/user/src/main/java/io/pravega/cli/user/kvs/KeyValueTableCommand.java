@@ -167,6 +167,7 @@ public abstract class KeyValueTableCommand extends Command {
                     .partitionCount(getConfig().getDefaultSegmentCount())
                     .primaryKeyLength(pkLength)
                     .secondaryKeyLength(skLength)
+                    .rolloverSizeBytes(getConfig().getRolloverSizeBytes())
                     .build();
             val success = m.createKeyValueTable(s.getScope(), s.getName(), kvtConfig);
             if (success) {
@@ -286,6 +287,7 @@ public abstract class KeyValueTableCommand extends Command {
 
         protected abstract void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception;
 
+        @Override
         public void execute() throws Exception {
             ensurePreconditions();
             val kvtName = getScopedNameArg(0);

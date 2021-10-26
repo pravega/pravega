@@ -37,12 +37,12 @@ public class TestFrameworkException extends RuntimeException {
     public TestFrameworkException(Type type, String reason, Throwable cause) {
         super(reason, cause);
         this.type = type;
-        log.error("TestFramework Exception. Type: {}, Details: {}", type, reason, cause);
+        log.warn("TestFramework Exception. Type: {}, Details: {}", type, reason, cause);
     }
 
     public TestFrameworkException(Type type, String reason) {
         super(reason);
         this.type = type;
-        log.error("TestFramework Exception. Type: {}, Details: {}", type, reason);
+        log.warn("TestFramework Exception. Type: {}, Details: {}", type, reason);
     }
 }

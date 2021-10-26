@@ -73,8 +73,8 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
     }
 
     @Override
-    protected WriterTableProcessor createWriterTableProcessor(TableContext context) {
-        val p = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+    protected WriterTableProcessor createWriterTableProcessor(ContainerTableExtension ext, TableContext context) {
+        val p = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
         Assert.assertNotNull(p);
         context.segment().setAppendCallback((offset, length) -> addToProcessor(offset, length, p));
         return p;
@@ -185,8 +185,11 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
         // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
         // Process each TestEntryData in turn.  After each time, re-create the Extension.
         // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
+        val recoveryConfig = TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * 11)
+                .build();
         @Cleanup
-        val context = new TableContext(executorService());
+        val context = new TableContext(recoveryConfig, executorService());
 
         // Create the Segment.
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
@@ -258,7 +261,7 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
 
         // We set up throttling such that we allow 'unthrottledCount' through, but block (throttle) on the next one.
         val config = TableExtensionConfig.builder()
-                .maxUnindexedLength(unthrottledCount * (keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
+                .with(TableExtensionConfig.MAX_UNINDEXED_LENGTH, unthrottledCount * (keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
                 .build();
 
         val s = new EntrySerializer();

@@ -22,12 +22,14 @@ import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Builder;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.rules.ExternalResource;
 
 import java.net.URI;
+import java.util.Arrays;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -49,20 +51,37 @@ import static org.junit.Assert.assertNotNull;
  *
  */
 @Slf4j
+@Builder
 public class PravegaEmulatorResource extends ExternalResource {
     final boolean authEnabled;
     final boolean tlsEnabled;
+    final boolean restEnabled;
+    final String[] tlsProtocolVersion;
     final LocalPravegaEmulator pravega;
 
+    public static final class PravegaEmulatorResourceBuilder {
+        boolean authEnabled = false;
+        boolean tlsEnabled = false;
+        boolean restEnabled = false;
+        String[] tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
+
+        public PravegaEmulatorResource build() {
+            return new PravegaEmulatorResource(authEnabled, tlsEnabled, restEnabled, tlsProtocolVersion);
+        }
+    }
     /**
      * Create an instance of Pravega Emulator resource.
      * @param authEnabled Authorisation enable flag.
      * @param tlsEnabled  Tls enable flag.
      * @param restEnabled REST endpoint enable flag.
+     * @param tlsProtocolVersion TlsProtocolVersion
      */
-    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled) {
+
+    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled, String[] tlsProtocolVersion) {
         this.authEnabled = authEnabled;
         this.tlsEnabled = tlsEnabled;
+        this.restEnabled = restEnabled;
+        this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(TestUtils.getAvailableListenPort())
                 .segmentStorePort(TestUtils.getAvailableListenPort())
@@ -71,6 +90,7 @@ public class PravegaEmulatorResource extends ExternalResource {
                 .enableRestServer(restEnabled)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .enabledAdminGateway(true)
                 .adminGatewayPort(TestUtils.getAvailableListenPort());
 
@@ -94,6 +114,8 @@ public class PravegaEmulatorResource extends ExternalResource {
 
         pravega = emulatorBuilder.build();
     }
+
+
 
     @Override
     protected void before() throws Exception {

@@ -96,6 +96,12 @@ public abstract class ByteStreamWriter extends OutputStream {
     public abstract void closeAndSeal() throws IOException;
 
     /**
+     * This makes a synchronous RPC call to the server to obtain the current head of the stream.
+     * @return The current head offset
+     */
+    public abstract long fetchHeadOffset();
+
+    /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written
      * to the segment in its history. This is the sum total of the bytes written in all calls to
      * {@link #write(byte[])} that have been flushed. It does not include data that was passed to

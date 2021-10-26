@@ -43,5 +43,10 @@
     <allow pkg="io.jsonwebtoken" />
     <allow pkg="io.kubernetes" />
     <allow pkg="edu.umd.cs.findbugs.annotations" />
-
+    <subpackage name="storage.s3">
+        <allow pkg="software.amazon.awssdk"/>
+    </subpackage>
+    <subpackage name="segmentstore.server.host">
+      <allow pkg="com.sun"/>
+    </subpackage>
 </import-control>

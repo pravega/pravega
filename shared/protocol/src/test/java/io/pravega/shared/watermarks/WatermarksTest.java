@@ -42,7 +42,7 @@ public class WatermarksTest {
     }
     
     @Test
-    public void testWatermark() throws IOException {
+    public void testWatermark() {
         SegmentWithRange segmentWithRange1 = new SegmentWithRange(0L, 0.0, 0.5);
         SegmentWithRange segmentWithRange2 = new SegmentWithRange(1L, 0.5, 1.0);
         ImmutableMap<SegmentWithRange, Long> map = ImmutableMap.of(segmentWithRange1, 1L, segmentWithRange2, 1L);

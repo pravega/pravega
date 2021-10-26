@@ -28,9 +28,11 @@ CONFIG_MAP_DATA=/etc/config
 KEEP_PVC=false
 NAMESPACE=${NAMESPACE:-"default"}
 NAME=${NAME:-"pravega-fluent-bit"}
-TAR_NAME="pravega-logs-export.tar"
+LOGS_DIR="pravega-logs-export"
+TAR_NAME="${LOGS_DIR}.tar"
 SKIP_FORCE_ROTATE=${SKIP_FORCE_ROTATE:-"false"}
 ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine:latest"}
+SKIP_LOG_BUNDLE_COMPRESSION=${SKIP_LOG_BUNDLE_COMPRESSION:-"false"}
 RETRIES=3
 
 # Configurable flag parameters.
@@ -91,6 +93,9 @@ for i in "$@"; do
         ;;
     -f | --skip-force-rotate)
         SKIP_FORCE_ROTATE="true"
+        ;;
+    -b | --skip-bundle-compression)
+        SKIP_LOG_BUNDLE_COMPRESSION="true"
         ;;
 esac
 done
@@ -190,7 +195,6 @@ cp_log() {
 #   Set of log files downloaded to $FLUENT_BIT_EXPORT_PATH.
 ######################################
 cp_remote_logs() {
-    local output=$1; shift
     local remote_log_files=$@
     if [ -z "$remote_log_files" ]; then
         echo "No remote files given to collect."
@@ -198,9 +202,9 @@ cp_remote_logs() {
     remote_log_files=($remote_log_files)
 
     # Clean any previous instances of collected logs.
-    rm -rf "$TAR_NAME"{.gz,}
+    rm -rf "$TAR_NAME"{.gz,} "$LOGS_DIR"{.zip,}
     # Temporary directory to hold the log files.
-    local logs_dir=${TAR_NAME%.tar}
+    local logs_dir=$LOGS_DIR
     mkdir "$logs_dir" && cd "$logs_dir"
 
     local total=${#remote_log_files[@]}
@@ -214,11 +218,11 @@ cp_remote_logs() {
     wait
     # Return from $logs_dir.
     cd ../
-
     # Validate log collection -- compare number of fetched logs to number of given logs.
     local actual_logs="$(find $logs_dir -type f)"
     local actual_log_count="$(echo "$actual_logs" | wc -l)"
     local expected_log_count="$total"
+
     if [ "$expected_log_count" != "$actual_log_count" ]; then
         echo -e "\nFound mismatch between expected # of logs ($expected_log_count) and actual ($actual_log_count)."
         for log in "${remote_log_files[@]}"; do
@@ -231,8 +235,15 @@ cp_remote_logs() {
         echo ""
         echo "Successfully downloaded a total of $actual_log_count log files."
     fi
-    tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
-    rm -rf "$logs_dir"
+
+    if [ "$SKIP_LOG_BUNDLE_COMPRESSION" != "true" ]; then
+      if command -v zip; then
+        zip -r "$logs_dir.zip" "$logs_dir" > /dev/null
+      else
+        tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+      fi
+      rm -rf "$logs_dir"
+    fi
 
     logs_fetched=1
 }
@@ -271,7 +282,7 @@ fetch_active_logs() {
         fi
     done <<< $pods
     pushd "$output" > /dev/null 2>&1
-    cp_remote_logs "$output" "${log_files[@]}"
+    cp_remote_logs "${log_files[@]}"
     popd > /dev/null 2>&1
 }
 
@@ -303,7 +314,7 @@ fetch_stored_logs() {
     fi
 
     pushd "$output" > /dev/null 2>&1
-    cp_remote_logs "$output" $logs
+    cp_remote_logs $logs
     popd > /dev/null 2>&1
 }
 

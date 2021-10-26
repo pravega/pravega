@@ -667,6 +667,9 @@ public class ControllerImpl implements Controller {
             case STREAM_NOT_FOUND:
                 log.warn(requestId, "Stream does not exist: {}", streamName);
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+            case STREAM_SEALED:
+                log.warn(requestId, "Stream is sealed: {}", streamName);
+                throw new UnsupportedOperationException("Stream is sealed: " + streamConfig);
             case SUCCESS:
                 log.info(requestId, "Successfully updated stream: {}", streamName);
                 return true;
@@ -800,6 +803,9 @@ public class ControllerImpl implements Controller {
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}/{}", scope, stream);
                     throw new IllegalArgumentException("Stream does not exist: " + stream);
+                case STREAM_SEALED:
+                    log.warn(requestId, "Stream is sealed: {}/{}", scope, stream);
+                    throw new UnsupportedOperationException("Stream is sealed: " + stream);
                 case SUCCESS:
                     log.info(requestId, "Successfully updated stream: {}/{}", scope, stream);
                     return true;
@@ -1791,22 +1797,23 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApplyAsync(x -> {
+            final String rgScopedName = NameUtils.getScopedReaderGroupName(scope, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to create reader group: {}", rgName);
-                    throw new ControllerFailureException("Failed to create reader group: " + rgName);
+                    log.warn(requestId, "Failed to create Reader Group: {}", rgScopedName);
+                    throw new ControllerFailureException("Failed to create Reader Group: " + rgScopedName);
                 case INVALID_RG_NAME:
-                    log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
-                    throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
+                    log.warn(requestId, "Failed to create Reader Group {} as name is illegal.", rgScopedName);
+                    throw new IllegalArgumentException("Failed to create Reader Group, as name is illegal." + rgScopedName);
                 case SCOPE_NOT_FOUND:
-                    log.warn(requestId, "Scope not found: {}", scope);
-                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                    log.warn(requestId, "Failed to create Reader Group {} as Scope {} does not exist.", rgScopedName, scope);
+                    throw new IllegalArgumentException("Failed to create Reader Group as Scope does not exits:" + rgScopedName);
                 case SUCCESS:
-                    log.info(requestId, "ReaderGroup created successfully: {}", rgName);
+                    log.info(requestId, "Reader Group {} created successfully: {}", rgScopedName);
                     return encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status creating reader group " + rgName
+                    throw new ControllerFailureException("Unknown return status creating reader group " + rgScopedName
                             + " " + x.getStatus());
             }
         }, this.executor).whenComplete((x, e) -> {
@@ -1837,27 +1844,27 @@ public class ControllerImpl implements Controller {
             final String rgScopedName = NameUtils.getScopedReaderGroupName(scope, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to create reader group: {}", rgScopedName);
-                    throw new ControllerFailureException("Failed to create readergroup: " + rgScopedName);
+                    log.warn(requestId, "Failed to update Reader Group: {}", rgScopedName);
+                    throw new ControllerFailureException("Failed to update Reader Group: " + rgScopedName);
                 case INVALID_CONFIG:
-                    log.warn(requestId, "Illegal Reader Group Config for reader group {}: {}", rgScopedName, rgConfig);
+                    log.warn(requestId, "Failed to update Reader Group {} as Config was invalid: {}", rgScopedName, rgConfig);
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + rgConfig.toString());
                 case RG_NOT_FOUND:
-                    log.warn(requestId, "Reader Group not found: {}", rgScopedName);
+                    log.warn(requestId, "Failed to update Reader Group {} as Reader Group was not found.", rgScopedName);
                     throw new ReaderGroupNotFoundException(rgScopedName);
                 case SUCCESS:
-                    log.info(requestId, "ReaderGroup created successfully: {}", rgScopedName);
+                    log.info(requestId, "Reader Group updated successfully: {}", rgScopedName);
                     return x.getGeneration();
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status creating reader group " + rgScopedName
+                    throw new ControllerFailureException("Unknown return status updating reader group " + rgScopedName
                             + " " + x.getStatus());
             }
         }, this.executor).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "createReaderGroup {}/{} failed: ", scope, rgName, e);
+                log.warn(requestId, "updateReaderGroup {}/{} failed: ", scope, rgName, e);
             }
-            LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
+            LoggerHelpers.traceLeave(log, "updateReaderGroup", traceId, rgConfig, requestId);
         });
     }
 

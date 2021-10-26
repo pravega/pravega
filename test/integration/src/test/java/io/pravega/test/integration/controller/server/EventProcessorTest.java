@@ -529,6 +529,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
         ConcurrentSkipListSet<Integer> output2 = new ConcurrentSkipListSet<>();
 
         // wait until rebalance may have happened. 
+        @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);

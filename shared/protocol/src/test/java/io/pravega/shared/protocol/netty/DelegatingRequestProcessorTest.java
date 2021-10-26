@@ -54,7 +54,7 @@ public class DelegatingRequestProcessorTest {
         rp.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(0, "", null, 0, 0, ""));
         rp.getSegmentAttribute(new WireCommands.GetSegmentAttribute(0, "", null, ""));
         rp.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(0, "", ""));
-        rp.createSegment(new WireCommands.CreateSegment(0, "", (byte) 0, 0, ""));
+        rp.createSegment(new WireCommands.CreateSegment(0, "", (byte) 0, 0, "", 0));
         rp.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(0, "", (byte) 0, 0, ""));
         rp.deleteTableSegment(new WireCommands.DeleteTableSegment(0, "", false,  ""));
         rp.keepAlive(new WireCommands.KeepAlive());
@@ -64,12 +64,10 @@ public class DelegatingRequestProcessorTest {
         rp.readTableKeys(new WireCommands.ReadTableKeys(0, "", "", 0, null));
         rp.readTableEntries(new WireCommands.ReadTableEntries(0, "", "", 0, null));
         rp.mergeSegments(new WireCommands.MergeSegments(0, "", "", ""));
-        rp.mergeTableSegments(new WireCommands.MergeTableSegments(0, "", "", ""));
         rp.sealSegment(new WireCommands.SealSegment(0, "", ""));
-        rp.sealTableSegment(new WireCommands.SealTableSegment(0, "", ""));
         rp.truncateSegment(new WireCommands.TruncateSegment(0, "", 0, ""));
         rp.deleteSegment(new WireCommands.DeleteSegment(0, "", ""));
-        rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, 0, ""));
+        rp.createTableSegment(new WireCommands.CreateTableSegment(0, "", false, 0, "", 0));
         rp.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(0, "", "", 0, 0));
         rp.createTransientSegment(new WireCommands.CreateTransientSegment(0, new UUID(0, 0), "", null));
         rp.connectionDropped();
@@ -91,9 +89,7 @@ public class DelegatingRequestProcessorTest {
         verify(rp.getNextRequestProcessor(), times(1)).readTable(any());
         verify(rp.getNextRequestProcessor(), times(1)).readTableKeys(any());
         verify(rp.getNextRequestProcessor(), times(1)).mergeSegments(any());
-        verify(rp.getNextRequestProcessor(), times(1)).mergeTableSegments(any());
         verify(rp.getNextRequestProcessor(), times(1)).sealSegment(any());
-        verify(rp.getNextRequestProcessor(), times(1)).sealTableSegment(any());
         verify(rp.getNextRequestProcessor(), times(1)).truncateSegment(any());
         verify(rp.getNextRequestProcessor(), times(1)).deleteSegment(any());
         verify(rp.getNextRequestProcessor(), times(1)).readTableEntries(any());

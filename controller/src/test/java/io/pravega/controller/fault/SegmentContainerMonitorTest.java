@@ -140,7 +140,6 @@ public class SegmentContainerMonitorTest {
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
                 new UniformContainerBalancer(), 2);
         monitor.startAsync().awaitRunning();
-
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 
         //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.

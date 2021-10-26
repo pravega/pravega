@@ -87,6 +87,14 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
+    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.flushToStorage(timeout),
+                "flushToStorage");
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         return invoke(
                 streamSegmentName,
@@ -116,7 +124,16 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
         return invoke(
                 sourceStreamSegment,
                 container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, timeout),
-                "mergeTransaction", targetStreamSegment, sourceStreamSegment);
+                "mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
+    }
+
+    @Override
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          AttributeUpdateCollection attributes, Duration timeout) {
+        return invoke(
+                sourceStreamSegment,
+                container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, attributes, timeout),
+                "mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
     }
 
     @Override

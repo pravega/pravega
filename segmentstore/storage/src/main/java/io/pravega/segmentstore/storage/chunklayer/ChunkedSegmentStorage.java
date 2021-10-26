@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -46,7 +47,6 @@ import lombok.val;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
@@ -87,7 +87,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)} ()}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -118,7 +118,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)}.
      */
     @Getter
     private final int containerId;
@@ -154,6 +154,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     private final ScheduledFuture<?> reporter;
 
+    private AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue;
+
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
@@ -176,7 +178,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                 chunkStorage,
                 metadataStore,
                 config,
-                executor);
+                executor,
+                System::currentTimeMillis,
+                duration -> Futures.delayedFuture(duration, executor));
+
         this.systemJournal = new SystemJournal(containerId,
                 chunkStorage,
                 metadataStore,
@@ -191,14 +196,22 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
+     * @param taskQueue  Task queue to use for garbage collection.
      */
-    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore, AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
-
+        this.taskQueue = taskQueue;
         // Now bootstrap
-        return this.systemJournal.bootstrap(epoch, snapshotInfoStore)
-                .thenRun(() -> garbageCollector.initialize());
+        return this.systemJournal.bootstrap(epoch, snapshotInfoStore);
+    }
+
+    /**
+     * Concludes and finalizes the boostrap.
+     * @return
+     */
+    public CompletableFuture<Void> finishBootstrap() {
+        return garbageCollector.initialize(taskQueue);
     }
 
     @Override
@@ -211,7 +224,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} openWrite - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName),
                     txn -> txn.get(streamSegmentName)
                             .thenComposeAsync(storageMetadata -> {
@@ -222,14 +237,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                 final CompletableFuture<Void> f;
                                 if (segmentMetadata.getOwnerEpoch() < this.epoch) {
                                     log.debug("{} openWrite - Segment needs ownership change - segment={}.", logPrefix, segmentMetadata.getName());
-                                    f = claimOwnership(txn, segmentMetadata)
-                                            .exceptionally(e -> {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                                    throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                                }
-                                                throw new CompletionException(ex);
-                                            });
+                                    f = claimOwnership(txn, segmentMetadata);
                                 } else {
                                     f = CompletableFuture.completedFuture(null);
                                 }
@@ -239,11 +247,19 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
                                     // This instance is the owner, return a handle.
                                     val retValue = SegmentStorageHandle.writeHandle(streamSegmentName);
+                                    log.debug("{} openWrite - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                     LoggerHelpers.traceLeave(log, "openWrite", traceId, retValue);
                                     return retValue;
                                 }, executor);
                             }, executor),
-                    executor);
+                    executor)
+                    .handleAsync( (v, ex) -> {
+                        if (null != ex) {
+                            log.debug("{} openWrite - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
+                            handleException(streamSegmentName, ex);
+                        }
+                        return v;
+                    }, executor);
         }, streamSegmentName);
     }
 
@@ -339,7 +355,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, rollingPolicy);
             val timer = new Timer();
-
+            log.debug("{} create - started segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> {
                 // Retrieve metadata and make sure it does not exist.
                 return txn.get(streamSegmentName)
@@ -365,27 +381,28 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                         Duration elapsed = timer.getElapsed();
                                         SLTS_CREATE_LATENCY.reportSuccessEvent(elapsed);
                                         SLTS_CREATE_COUNT.inc();
-                                        log.debug("{} create - segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, elapsed.toMillis());
+                                        log.debug("{} create - finished segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, elapsed.toMillis());
                                         LoggerHelpers.traceLeave(log, "create", traceId, retValue);
                                         return retValue;
-                                    }, executor)
-                                    .handleAsync((v, e) -> {
-                                        handleException(streamSegmentName, e);
-                                        return v;
                                     }, executor);
                         }, executor);
+            }, executor)
+            .handleAsync((v, e) -> {
+                if (null != e) {
+                    log.debug("{} create - exception segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, timer.getElapsedMillis(), e);
+                    handleException(streamSegmentName, e);
+                }
+                return v;
             }, executor);
         }, streamSegmentName);
     }
 
     private void handleException(String streamSegmentName, Throwable e) {
-        if (null != e) {
             val ex = Exceptions.unwrap(e);
             if (ex instanceof StorageMetadataWritesFencedOutException) {
                 throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
             }
             throw new CompletionException(ex);
-        }
     }
 
     @Override
@@ -412,6 +429,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "seal", handle);
+            Timer timer = new Timer();
+            log.debug("{} seal - started segment={} latency={}.", logPrefix, handle.getSegmentName());
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
@@ -435,16 +454,14 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                 }
                             }, executor)
                             .thenRunAsync(() -> {
-                                log.debug("{} seal - segment={}.", logPrefix, handle.getSegmentName());
+                                log.debug("{} seal - finished segment={} latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis());
                                 LoggerHelpers.traceLeave(log, "seal", traceId, handle);
-                            }, executor)
-                            .exceptionally(e -> {
-                                val ex = Exceptions.unwrap(e);
-                                if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                    throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                }
-                                throw new CompletionException(ex);
-                            }), executor);
+                            }, executor), executor)
+                    .exceptionally( ex -> {
+                        log.warn("{} seal - exception segment={} latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        handleException(streamSegmentName, ex);
+                        return null;
+                    });
         }, handle.getSegmentName());
     }
 
@@ -499,6 +516,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         }
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "delete", handle);
+            log.debug("{} delete - started segment={}, latency={}.", logPrefix, handle.getSegmentName());
             val timer = new Timer();
             val streamSegmentName = handle.getSegmentName();
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
@@ -509,41 +527,29 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                         checkOwnership(streamSegmentName, segmentMetadata);
 
                         segmentMetadata.setActive(false);
+                        txn.update(segmentMetadata);
+                        // Collect garbage
+                        return garbageCollector.addSegmentToGarbage(txn.getVersion(), streamSegmentName)
+                                .thenComposeAsync(vv -> {
+                                    // Commit metadata.
+                                    return txn.commit()
+                                            .thenRunAsync(() -> {
+                                                // Update the read index.
+                                                readIndexCache.remove(streamSegmentName);
 
-                        // Delete chunks
-                        val chunksToDelete = new ArrayList<String>();
-                        return new ChunkIterator(this, txn, segmentMetadata)
-                                .forEach((metadata, name) -> {
-                                    metadata.setActive(false);
-                                    txn.update(metadata);
-                                    chunksToDelete.add(name);
-                                })
-                                .thenRunAsync(() -> deleteBlockIndexEntriesForChunk(txn, streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()),
-                                        executor)
-                                .thenRunAsync(() -> txn.delete(streamSegmentName), executor)
-                                .thenComposeAsync(v ->
-                                        txn.commit()
-                                                .thenRunAsync(() -> {
-                                                    // Collect garbage
-                                                    garbageCollector.addToGarbage(chunksToDelete);
-
-                                                    // Update the read index.
-                                                    readIndexCache.remove(streamSegmentName);
-
-                                                    val elapsed = timer.getElapsed();
-                                                    SLTS_DELETE_LATENCY.reportSuccessEvent(elapsed);
-                                                    SLTS_DELETE_COUNT.inc();
-                                                    log.debug("{} delete - segment={}, latency={}.", logPrefix, handle.getSegmentName(), elapsed.toMillis());
-                                                    LoggerHelpers.traceLeave(log, "delete", traceId, handle);
-                                                }, executor)
-                                                .exceptionally(e -> {
-                                                    val ex = Exceptions.unwrap(e);
-                                                    if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                                        throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                                    }
-                                                    throw new CompletionException(ex);
-                                                }), executor);
-                    }, executor), executor);
+                                                val elapsed = timer.getElapsed();
+                                                SLTS_DELETE_LATENCY.reportSuccessEvent(elapsed);
+                                                SLTS_DELETE_COUNT.inc();
+                                                log.debug("{} delete - finished segment={}, latency={}.", logPrefix, handle.getSegmentName(), elapsed.toMillis());
+                                                LoggerHelpers.traceLeave(log, "delete", traceId, handle);
+                                            }, executor);
+                                }, executor);
+                    }, executor), executor)
+                    .exceptionally( ex -> {
+                        log.warn("{} delete - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        handleException(streamSegmentName, ex);
+                        return null;
+                    });
         }, handle.getSegmentName());
     }
 
@@ -579,8 +585,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
+            val timer = new Timer();
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} openRead - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn ->
                             txn.get(streamSegmentName).thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -593,24 +601,25 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                     // In case of a fail-over, length recorded in metadata will be lagging behind its actual length in the storage.
                                     // This can happen with lazy commits that were still not committed at the time of fail-over.
                                     f = executeSerialized(() ->
-                                        claimOwnership(txn, segmentMetadata)
-                                            .exceptionally(e -> {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof StorageMetadataWritesFencedOutException) {
-                                                    throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
-                                                }
-                                                throw new CompletionException(ex);
-                                            }), streamSegmentName);
+                                        claimOwnership(txn, segmentMetadata), streamSegmentName);
                                 } else {
                                     f = CompletableFuture.completedFuture(null);
                                 }
                                 return f.thenApplyAsync(v -> {
                                     val retValue = SegmentStorageHandle.readHandle(streamSegmentName);
+                                    log.debug("{} openRead - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                     LoggerHelpers.traceLeave(log, "openRead", traceId, retValue);
                                     return retValue;
                                 }, executor);
                             }, executor),
-                    executor);
+                    executor)
+                    .handleAsync( (v, ex) -> {
+                        if (null != ex) {
+                            log.debug("{} openRead - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
+                            handleException(streamSegmentName, ex);
+                        }
+                        return v;
+                    }, executor);
         }, streamSegmentName);
     }
 
@@ -625,14 +634,14 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
+            log.debug("{} getStreamSegmentInfo - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(true, streamSegmentName), txn ->
                     txn.get(streamSegmentName)
                             .thenApplyAsync(storageMetadata -> {
                                 SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-                                if (null == segmentMetadata) {
-                                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                                }
+                                checkSegmentExists(streamSegmentName, segmentMetadata);
                                 segmentMetadata.checkInvariants();
 
                                 val retValue = StreamSegmentInformation.builder()
@@ -642,9 +651,18 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                         .startOffset(segmentMetadata.getStartOffset())
                                         .lastModified(new ImmutableDate(segmentMetadata.getLastModified()))
                                         .build();
+                                log.debug("{} getStreamSegmentInfo - finished segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis());
                                 LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, retValue);
                                 return retValue;
-                            }, executor), executor);
+                            }, executor),
+                    executor)
+                    .handleAsync( (v, ex) -> {
+                        if (null != ex) {
+                            log.debug("{} getStreamSegmentInfo - exception segment={}.", logPrefix, streamSegmentName, ex);
+                            handleException(streamSegmentName, ex);
+                        }
+                        return v;
+                    }, executor);
         }, streamSegmentName);
     }
 
@@ -678,7 +696,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
-        close("chunkStorage", this.chunkStorage);
+        // taskQueue is per instance so safe to close this here.
+        close("taskQueue", this.taskQueue);
         this.reporter.cancel(true);
         this.closed.set(true);
     }
@@ -725,10 +744,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Delete block index entries for given chunk.
      */
     void deleteBlockIndexEntriesForChunk(MetadataTransaction txn, String segmentName, long startOffset, long endOffset) {
-        val firstBlock = startOffset / config.getIndexBlockSize();
-        for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
-            txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
-        }
+        this.garbageCollector.deleteBlockIndexEntriesForChunk(txn, segmentName, startOffset, endOffset);
     }
 
     /**
@@ -754,7 +770,14 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * */
     private <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... segmentNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.taskProcessor.add(Arrays.asList(segmentNames), () -> executeExclusive(operation, segmentNames));
+        if (segmentNames.length == 1 && this.systemJournal.isStorageSystemSegment(segmentNames[0])) {
+            // To maintain consistency of snapshot, all operations on any of the storage system segments are linearized
+            // on the entire group.
+            val segments = this.systemJournal.getSystemSegments();
+            return this.taskProcessor.add(Arrays.asList(segments), () -> executeExclusive(operation, segments));
+        } else {
+            return this.taskProcessor.add(Arrays.asList(segmentNames), () -> executeExclusive(operation, segmentNames));
+        }
     }
 
     /**

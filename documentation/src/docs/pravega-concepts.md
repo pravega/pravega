@@ -42,7 +42,7 @@ Next, we overview the key concepts in Pravega. For a concise definition of key t
 
 ## Streams
 
-Pravega organizes data into Streams. A Stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  A Pravega Stream is
+Pravega organizes data into Streams. A Stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency. A Pravega Stream is
 similar to but more flexible than a "topic" in popular message oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
 
 Pravega Streams are based on an append-only log data structure. By using append-only logs, Pravega rapidly ingests data into durable storage. It supports a large variety of application use cases:
@@ -79,15 +79,15 @@ machine). A Routing Key is important in defining the read and write semantics th
 ![Reader Client](img/producer.consumer.client.new.png)
 
 Pravega provides a client library, written in Java, that implements a convenient
-API for Writer and Reader applications.  The Pravega Java Client Library
+API for Writer and Reader applications. The Pravega Java Client Library
 encapsulates the Wire Protocol used to communicate Pravega clients and
 servers.
 
 - **Writer:** An application that creates Events and writes them into a Stream.
 All data is written by appending to the tail (front) of a Stream.
 
-- **Reader:** An application that reads Events from a Stream.  Readers can read
-from any point in the Stream.  Many Readers will be reading Events from the tail
+- **Reader:** An application that reads Events from a Stream. Readers can read
+from any point in the Stream. Many Readers will be reading Events from the tail
 of the Stream. Tail reads corresponding to recently written Events are immediately delivered to Readers.
 Some Readers will read from earlier parts of the Stream (called **catch-up reads**). The application developer has control over the Reader's start position in the Stream.
 
@@ -100,7 +100,7 @@ Reader is created through the Pravega data plane API, the developer includes the
 name of the Reader Group associated with it. Pravega guarantees that each Event published
 to a Stream is sent to exactly one Reader within the Reader Group. There could
 be one or more Readers in the Reader Group and there could be many different Reader Groups simultaneously reading from any given Stream. A Reader Group can be considered as a "composite Reader" or "distributed Reader", that allows a distributed application to read and process Stream data
-in parallel. A large amount of Stream data can be consumed by a coordinated group of Readers in a Reader Group.  For example, a collection of Flink tasks processing Stream data in parallel using Reader Group.
+in parallel. A large amount of Stream data can be consumed by a coordinated group of Readers in a Reader Group. For example, a collection of Flink tasks processing Stream data in parallel using Reader Group.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
 Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
@@ -135,7 +135,7 @@ and time.
 
 ![Stream Segment](img/segment.split.merge.overtime.new.png) 
 
-- A Stream starts at time **t0** with a configurable number of Stream Segments.  If the
+- A Stream starts at time **t0** with a configurable number of Stream Segments. If the
 rate of data written to the Stream is constant, there will be no change in the number of Stream Segments. 
 
 - At time **t1**, the system noted an increase in the ingestion rate and splits Stream **Segment 1** into two parts. This process is referred as **Scale-Up** Event.
@@ -144,9 +144,9 @@ rate of data written to the Stream is constant, there will be no change in the n
 space (i.e., values ranging from **200-399**) would be placed in Stream **Segment 1** and those that hash into the
 lower part of the key space (i.e., values ranging from **0-199**) would be placed in Stream **Segment 0**.
 
-- After **t1**, Stream **Segment 1** is split into Stream **Segment 2** and Stream **Segment 3**. The Stream **Segment 1** is sealed and stops accepting writes.  At this point in time, Events with Routing Key **300** and _above_ are written to Stream **Segment 3** and those between **200** and **299** would be written into Stream **Segment 2**.
+- After **t1**, Stream **Segment 1** is split into Stream **Segment 2** and Stream **Segment 3**. The Stream **Segment 1** is sealed and stops accepting writes. At this point in time, Events with Routing Key **300** and _above_ are written to Stream **Segment 3** and those between **200** and **299** would be written into Stream **Segment 2**.
 
-- Stream **Segment 0** continues accepting the same range of Events as before **t1**.  
+- Stream **Segment 0** continues accepting the same range of Events as before **t1**.
 
 - Another scale-up Event occurs at time **t2**, as Stream **Segment 0**’s range of Routing
 Key is split into Stream **Segment 5** and Stream **Segment 4**. Also at this time, Stream **Segment 0** is sealed
@@ -159,7 +159,7 @@ accommodate a decrease in the load on the Stream.
 When a Stream is created, it is configured with a **Scaling Policy** that
 determines how a Stream handles the varying changes in its load. Pravega has three kinds of Scaling Policy:
 
-1.  **Fixed**:  The number of Stream Segments does not vary with load.
+1.  **Fixed**: The number of Stream Segments does not vary with load.
 
 2.  **Data-based**: Pravega splits a Stream Segment into multiple ones (i.e., Scale-up Event) if the number of bytes per second written to that Stream Segment increases beyond a defined threshold. Similarly, Pravega merges two adjacent Stream Segments (i.e., Scale-down Event) if the number of bytes written to them fall below a defined threshold. Note that, even if the load for a Stream Segment reaches the defined threshold, Pravega does not immediately trigger a Scale-up/down Event. Instead, the load should be satisfying the scaling policy threshold for a [sufficient amount of time](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java).
 
@@ -174,7 +174,7 @@ As mentioned earlier in this section, that an Event is written into one of the S
 
 It is also worth emphasizing that Events are written only on the active Stream
 Segments. Stream Segments that are sealed do not accept writes. In the figure above,
-at time **now**, only Stream **Segments 3**, **6** and **4** are active and the entire key space is covered between those three Stream Segments.  
+at time **now**, only Stream **Segments 3**, **6** and **4** are active and the entire key space is covered between those three Stream Segments.
 
 ### Stream Segments and Reader Groups
 
@@ -220,7 +220,7 @@ This results in the following ordering guarantees:
 ## Reader Group Checkpoints
 
 Pravega provides the ability for an application to initiate a **Checkpoint** on a
-Reader Group.  The idea with a Checkpoint is to create a consistent "point in
+Reader Group. The idea with a Checkpoint is to create a consistent "point in
 time" persistence of the state of each Reader in the Reader Group, by using a
 specialized Event (_Checkpoint Event_) to signal each Reader to preserve its
 state. Once a Checkpoint has been completed, the application can use the
@@ -241,9 +241,9 @@ time window, the Flink job can commit the Transaction and therefore
 make the results of the processing available for downstream processing, or in
 the case of an error, the Transaction is aborted and the results disappear.
 
-A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a Transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the Transaction are _not_ visible to Readers until the Transaction is committed by the Writer. A Transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
-Transaction, the Event itself is appended to a Stream Segment of the
-Transaction. 
+
+A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a Transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the Transaction are _not_ visible to Readers until the Transaction is committed by the Writer. A Transaction is similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a 
+Transaction, the Event itself is appended to a Stream Segment of the Transaction. 
 
 For example, a Stream has five Stream Segments, when a Transaction is created on that
 Stream, conceptually that Transaction also has five Stream Segments. When an Event is
@@ -265,7 +265,7 @@ mechanism for state shared between multiple processes running in a cluster and m
 
 State Synchronizer could be used to maintain a single, shared copy of an
 application's configuration property across all instances of that application in
-a cloud.  State Synchronizer could also be used to store one piece of data or a
+a cloud. State Synchronizer could also be used to store one piece of data or a
 map with thousands of different key value pairs. In Pravega, managing the state of Reader Groups and distribution of Readers throughout the network is implemented using State Synchronizer.
 
 An application developer creates a State Synchronizer on a Stream similar to the creation of a Writer. The State Synchronizer keeps a local copy of the shared state and allows faster access to the data for the application. State Synchronizer keeps track of all the changes happening in the shared state and it is responsible for performing any modification to the shared state in the Stream. Each application instance uses the State Synchronizer, to remain updated with the
@@ -291,14 +291,14 @@ The following figure depicts the components deployed by Pravega:
 ![pravega high level architecture](img/pravega.arch.new.png)
 
 Pravega is deployed as a distributed system – a cluster of servers and storage
-coordinated to run Pravega called a **Pravega cluster**.  
+coordinated to run Pravega called a **Pravega cluster**.
 
 Pravega presents a software-defined storage (SDS) architecture formed by **Controller** instances
 (_control plane_) and Pravega Servers (_data plane_). The set of Pravega Servers is collectively known as the **Segment Store**. 
 
 The set of Controller instances together forms the control plane of Pravega, providing
 functionality to _create, update_ and _delete_ Streams. Further, it extends the functionality to retrieve information about the Streams, monitor the health of the Pravega cluster, gather metrics, etc.  There
-are usually multiple (recommended at least 3) Controller instances running in a running in a cluster for high availability.  
+are usually multiple (recommended at least 3) Controller instances running in a running in a cluster for high availability.
 
 The [Segment Store](segment-store-service.md) implements the Pravega data plane.
 Pravega Servers provide the API to read and write data in Streams. Data storage is comprised of two tiers:
@@ -310,7 +310,7 @@ Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster.
 Storage tiering allows Pravega to achieve a sweet spot in the latency vs throughput trade-off. This makes Pravega an ideal storage substrate for serving data to both real-time and batch (analytics) applications. Moreover, as data in Tier 1 Storage ages, it is automatically moved into Tier 2 Storage. Thus, Pravega can store vasts amounts of Stream data and applications can read it at any time, while being oblivious to its actual location.
 
 Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
-coordination mechanism for the components in the Pravega cluster.  
+coordination mechanism for the components in the Pravega cluster.
 
 Pravega is a distributed storage system providing the Stream primitive first and foremost. Pravega is
 carefully designed to take advantage of software-defined storage, so that the
@@ -329,57 +329,56 @@ The concepts in Pravega are depicted in the following figure:
 
 ![State synchroner](img/putting.all.together.new.png) 
 
--   Pravega clients are Writers and Readers.  Writers write Events into a
+-   Pravega clients are Writers and Readers. Writers write Events into a
     Stream. Readers read Events from a Stream. Readers are grouped into
     Reader Groups to read from a Stream in parallel.
 
 -   The Controller is a server-side component that manages the control plane of
-    Pravega.  Streams are created, updated and listed using the Controller API.
+    Pravega. Streams are created, updated and listed using the Controller API.
 
 -   The Pravega Server is a server-side component that implements reads, writes
     and other data plane operations.
 
--   Streams are the fundamental storage primitive in Pravega.  Streams contain a
-    set of data elements called Events.  Events are appended to the “tail” of
-    the Stream by Writers.  Readers can read Events from anywhere in the Stream.
+-   Streams are the fundamental storage primitive in Pravega. Streams contain a
+    set of data elements called Events. Events are appended to the “tail” of
+    the Stream by Writers. Readers can read Events from anywhere in the Stream.
 
 -   A Stream is partitioned into a set of Stream Segments. The number of Stream
-    Segments in a Stream can change over time.  Events are written into exactly
-    one of the Stream Segments based on Routing Key.  For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
+    Segments in a Stream can change over time. Events are written into exactly
+    one of the Stream Segments based on Routing Key. For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
     Reader Group. 
 
--   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. 
-    The tail of the Stream Segment is stored in Tier 1 providing low latency reads and
+-   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. The tail of the Stream Segment is stored in Tier 1 providing low latency reads and
     writes. The rest of the Stream Segment is stored in Tier 2, providing high
     throughput read access with horizontal scalability and low cost. 
 
 ## A Note on Tiered Storage
 
 To deliver an efficient implementation of Streams, Pravega is based on a tiered
-storage model.  Events are persisted in low latency/high IOPS storage (Tier 1
+storage model. Events are persisted in low latency/high IOPS storage (Tier 1
 Storage, write-ahead log) and higher throughput Tier 2 storage (e.g., file system, object store). Writers and Readers are oblivious to the tiered storage model from an API perspective. 
 
-In Pravega, Tier 1 is based on an append-only **Log** data structure.  As Leigh Stewart
+In Pravega, Tier 1 is based on an append-only **Log** data structure. As Leigh Stewart
 [observed](https://blog.twitter.com/2015/building-distributedlog-twitter-s-high-performance-replicated-log-service),
 there are really three data access mechanisms in a Log:
 
 ![State synchroner](img/anatomy.of.log.png) 
 
 All of the write activity, and much of the read activity happens at the tail of
-the log.  Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real-time access to the published data by Readers.
+the log. Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real-time access to the published data by Readers.
 
 Please note that not all Readers read from the tail of the log. Some Readers read
-by starting at some arbitrary position in the log.  These reads are known as
-**catch-up reads**.  Access to historical data traditionally was done by batch
-analytics jobs, often using HDFS and Map/Reduce.  However with new streaming
+by starting at some arbitrary position in the log. These reads are known as
+**catch-up reads**. Access to historical data traditionally was done by batch
+analytics jobs, often using HDFS and Map/Reduce. However with new streaming
 applications, we can access historical data as well as current data by just
-accessing the log.  One approach would be to store all the historical data in
+accessing the log. One approach would be to store all the historical data in
 SSDs similar to tail data operations, but that leads to an expensive task and force
 customers to economize by deleting historical data.
 
 Pravega offers a mechanism that allows customers to use cost-effective, highly-scalable, high-throughput
 storage for the historical part of the log, that way they won’t have to decide on
-when to delete historical data.  Basically, if storage is cheap enough, why not
+when to delete historical data. Basically, if storage is cheap enough, why not
 keep all of the history?
 
 Tier 1 Storage aids in faster writes to the Streams by assuring durability and makes reading from the tail of a Stream much quicker. Tier 1 Storage is based on the open source Apache BookKeeper Project. Though not essential, we presume that the Tier 1 Storage will be typically implemented on faster SSDs or

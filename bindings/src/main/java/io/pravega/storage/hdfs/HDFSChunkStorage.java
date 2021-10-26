@@ -59,7 +59,7 @@ import org.apache.hadoop.ipc.RemoteException;
  */
 
 @Slf4j
-class HDFSChunkStorage extends BaseChunkStorage {
+public class HDFSChunkStorage extends BaseChunkStorage {
     private static final FsPermission READWRITE_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
 

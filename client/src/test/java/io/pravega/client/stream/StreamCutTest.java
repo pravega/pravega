@@ -90,7 +90,7 @@ public class StreamCutTest {
                                         (out, offset) -> out.writeCompactLong(offset));
         }
 
-        private void read00(RevisionDataInput revisionDataInput, StreamCutInternal target) throws IOException {
+        private void read00(RevisionDataInput revisionDataInput, StreamCutInternal target) {
             // NOP.
         }
     }

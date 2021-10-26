@@ -25,6 +25,7 @@ import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -65,17 +66,22 @@ public class SegmentNotifier extends AbstractPollingNotifier<SegmentNotification
     private void checkAndTriggerSegmentNotification() {
         this.synchronizer.fetchUpdates();
         ReaderGroupState state = this.synchronizer.getState();
-        int newNumberOfSegments = state.getNumberOfSegments();
-        checkState(newNumberOfSegments > 0, "Number of segments cannot be zero");
+        if (state == null ) {
+            log.warn("Current state of StateSynchronizer {} is null, will try again.", synchronizer);
+        } else {
+            int newNumberOfSegments = state.getNumberOfSegments();
+            log.debug("Number of segments in {} is {}", synchronizer, newNumberOfSegments);
+            checkState(newNumberOfSegments > 0, "Number of segments cannot be zero");
 
-        //Trigger a notification with the initial number of segments.
-        //Subsequent notifications are triggered only if there is a change in the number of segments.
-        if (this.numberOfSegments != newNumberOfSegments) {
-            this.numberOfSegments = newNumberOfSegments;
-            SegmentNotification notification = SegmentNotification.builder().numOfSegments(state.getNumberOfSegments())
-                                                           .numOfReaders(state.getOnlineReaders().size())
-                                                           .build();
-            notifySystem.notify(notification);
+            //Trigger a notification with the initial number of segments.
+            //Subsequent notifications are triggered only if there is a change in the number of segments.
+            if (this.numberOfSegments != newNumberOfSegments) {
+                this.numberOfSegments = newNumberOfSegments;
+                SegmentNotification notification = SegmentNotification.builder().numOfSegments(state.getNumberOfSegments())
+                                                                      .numOfReaders(state.getOnlineReaders().size())
+                                                                      .build();
+                notifySystem.notify(notification);
+            }
         }
     }
 }

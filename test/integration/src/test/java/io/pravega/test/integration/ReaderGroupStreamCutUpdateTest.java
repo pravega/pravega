@@ -135,7 +135,7 @@ public class ReaderGroupStreamCutUpdateTest extends ThreadPooledTestSuite {
                 new JavaSerializer<>(), ReaderConfig.builder().build());
 
         Map<Stream, StreamCut> currentStreamcuts = readerGroup.getStreamCuts();
-        EventRead eventRead;
+        EventRead<Double> eventRead;
         int lastIteration = 0, iteration = 0;
         int assertionFrequency = checkpointingIntervalMs / readerSleepInterval;
         do {

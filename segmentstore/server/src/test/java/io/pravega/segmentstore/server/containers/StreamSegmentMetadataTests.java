@@ -23,15 +23,12 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -153,7 +150,7 @@ public class StreamSegmentMetadataTests {
         expectedValues.put(coreAttributeId, 1000L);
         metadata.updateAttributes(Collections.singletonMap(coreAttributeId, 1000L));
         for (int i = 0; i < attributeCount; i++) {
-            AttributeId attributeId = AttributeId.uuid(0, (long) i);
+            AttributeId attributeId = AttributeId.uuid(0, i);
             extendedAttributes.add(attributeId);
             metadata.setLastUsed(i);
             metadata.updateAttributes(Collections.singletonMap(attributeId, (long) i));
@@ -218,7 +215,7 @@ public class StreamSegmentMetadataTests {
      * StreamSegmentMetadata maps are being modified.
      */
     @Test
-    public void testAttributeConcurrentOperations() throws ExecutionException, InterruptedException, TimeoutException {
+    public void testAttributeConcurrentOperations() {
         StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
 
         metadata.updateAttributes(generateAttributes(new Random(0)));

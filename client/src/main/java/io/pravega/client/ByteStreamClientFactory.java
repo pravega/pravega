@@ -58,7 +58,11 @@ public interface ByteStreamClientFactory extends AutoCloseable {
     }
 
     /**
-     * Creates a new ByteStreamReader on the specified stream initialized to offset 0.
+     * Creates a new ByteStreamReader on the specified stream initialized with the last offset which was passed to
+     * ByteStreamWriter::truncateDataBefore(offset), or 0 if truncateDataBefore has not ever been called on this stream.
+     *
+     * The first byte read from the return value of this method will be the first available byte in the stream,
+     * considering any possible truncation.
      * 
      * @param streamName the stream to read from.
      * @return A new ByteStreamReader

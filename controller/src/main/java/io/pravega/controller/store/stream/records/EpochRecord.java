@@ -121,6 +121,7 @@ public class EpochRecord {
             return this;
         }
 
+        @Override
         public EpochRecord build() {
             return new EpochRecord(epoch, referenceEpoch, segments, creationTime, splits, merges);
         }
