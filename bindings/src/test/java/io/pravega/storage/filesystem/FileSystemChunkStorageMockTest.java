@@ -163,6 +163,16 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testGetUsageException() {
+        val fs = spy(FileSystemWrapper.class);
+        doThrow(new RuntimeException("Intentional")).when(fs).getUsedSpace(any());
+        FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
+        AssertExtensions.assertFutureThrows("should throw ChunkStorageException exception",
+                storage.getUsedSpace(),
+                ex -> ex instanceof ChunkStorageException);
+    }
+
+    @Test
     public void doReadTest() throws Exception {
         doReadTest(0, 1);
 

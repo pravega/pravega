@@ -42,10 +42,13 @@ public class StorageFullException extends StreamSegmentException {
         this(streamSegmentName, null, cause);
     }
 
-    public StorageFullException(String streamSegmentName, String message) {
-        this(streamSegmentName, message, null);
-    }
-
+    /**
+     * Creates a new instance of the StorageFullException class.
+     *
+     * @param streamSegmentName The name of the segment for which operation was called.
+     * @param message           Message.
+     * @param cause             The causing exception.
+     */
     public StorageFullException(String streamSegmentName, String message, Throwable cause) {
         super(streamSegmentName, "The current instance is full." + (message == null ? "" : " " + message),
                 cause);

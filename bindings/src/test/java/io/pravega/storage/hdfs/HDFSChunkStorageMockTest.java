@@ -15,6 +15,7 @@
  */
 package io.pravega.storage.hdfs;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -69,6 +70,17 @@ public class HDFSChunkStorageMockTest extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
                 storage.getInfo("test"),
                 ex -> ex instanceof ChunkStorageFullException);
+    }
+
+    @Test
+    public void testGetUsedException() throws Exception {
+        val mockFs = spy(FileSystem.get(new Configuration()));
+        HDFSChunkStorage storage = new MockHDFSChunkStorage(storageConfig, executorService(), mockFs);
+        storage.initialize();
+        doThrow(new IOException("Intentional")).when(mockFs).getUsed();
+        AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
+                storage.getUsedSpace(),
+                ex -> ex instanceof ChunkStorageException);
     }
 
     private static class MockHDFSChunkStorage extends HDFSChunkStorage {

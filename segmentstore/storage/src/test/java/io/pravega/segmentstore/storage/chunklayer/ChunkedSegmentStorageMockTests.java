@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
@@ -40,7 +41,15 @@ import java.util.concurrent.CompletionException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 42;
 
@@ -362,7 +371,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
 
         // Step 2: Inject fault.
-        Exception exceptionToThrow = new ChunkStorageFullException("Test");
+        Exception exceptionToThrow = new ChunkStorageFullException("Test", new IntentionalException());
         val clazz = StorageFullException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
 
@@ -403,6 +412,26 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 "write succeeded when exception was expected.",
                 chunkedSegmentStorage.concat(h1, 10, "source", null),
                 ex -> clazz.equals(ex.getClass()));
+    }
+
+    @Test
+    public void testUpdateStorageStatsException() throws Exception {
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        val spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
+        Exception exceptionToThrow = new ChunkStorageException("Intentional", "Intentional");
+        doReturn(CompletableFuture.failedFuture(exceptionToThrow)).when(spyChunkStorage).doGetUsedSpaceAsync(any());
+
+        // Should not throw an exception
+        chunkedSegmentStorage.updateStorageStats().get();
     }
 
     @Test
