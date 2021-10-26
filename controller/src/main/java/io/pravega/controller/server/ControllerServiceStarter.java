@@ -37,10 +37,7 @@ import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.BucketServiceFactory;
-import io.pravega.controller.server.bucket.PeriodicRetention;
-import io.pravega.controller.server.bucket.PeriodicWatermarking;
+import io.pravega.controller.server.bucket.*;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
@@ -109,6 +106,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     private ScheduledExecutorService eventExecutor;
     private ScheduledExecutorService retentionExecutor;
     private ScheduledExecutorService watermarkingExecutor;
+    private ScheduledExecutorService txnGCExecutor;
 
     private ConnectionFactory connectionFactory;
     private ConnectionPool connectionPool;
@@ -120,6 +118,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     private BucketManager retentionService;
     private BucketManager watermarkingService;
     private PeriodicWatermarking watermarkingWork;
+    private BucketManager transactionGCService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
@@ -200,6 +199,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
                                                                                "watermarkingpool");
+
+            txnGCExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.TRANSACTION_GC_THREAD_POOL_SIZE, "txngcpool");
             
             log.info("Creating the bucket store");
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
@@ -272,16 +273,28 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
-            Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
 
+            Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 
-            log.info("starting background periodic service for retention");
+            log.info("Starting background periodic service for retention.");
             retentionService.startAsync();
             retentionService.awaitRunning();
             RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
             healthServiceManager.register(retentionServiceHC);
+
+            if (serviceConfig.isTransactionGCServiceEnabled()) {
+                Duration transactionGCFrequency = serviceConfig.getTransactionGCFrequency();
+                PeriodicTxnGC txnGCWork = new PeriodicTxnGC(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
+                transactionGCService = bucketServiceFactory.createRetentionService(transactionGCFrequency, txnGCWork::txnGC, txnGCExecutor);
+
+                log.info("Starting background periodic service for transactions GC.");
+                transactionGCService.startAsync();
+                transactionGCService.awaitRunning();
+                //RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
+                //healthServiceManager.register(retentionServiceHC);
+            }
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
@@ -289,11 +302,12 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
-            log.info("starting background periodic service for watermarking");
+            log.info("Starting background periodic service for watermarking");
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
             healthServiceManager.register(watermarkingServiceHC);
+
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and

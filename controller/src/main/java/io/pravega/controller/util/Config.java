@@ -177,6 +177,15 @@ public final class Config {
     public static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named(
             "retention.thread.count", 1, "retention.threadCount");
 
+    public static final Property<Long> PROPERTY_TXN_GC_FREQUENCY_MINUTES = Property.named(
+            "retention.frequency.minutes", 60L, "transaction.gc.frequencyMinutes");
+
+    public static final Property<Integer> PROPERTY_TXN_GC_BUCKET_COUNT = Property.named(
+            "retention.bucket.count", 5, "transaction.gc.bucketCount");
+
+    public static final Property<Integer> PROPERTY_TXN_GC_THREAD_COUNT = Property.named(
+            "retention.thread.count", 5, "transaction.gc.threadCount");
+
     public static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named(
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
@@ -277,6 +286,11 @@ public final class Config {
     public static final int RETENTION_BUCKET_COUNT;
     public static final int RETENTION_THREAD_POOL_SIZE;
 
+    // Retention Configuration
+    public static final long TRANSACTION_GC_SERVICE_FREQUENCY_IN_MINUTES;
+    public static final int TRANSACTION_GC_BUCKET_COUNT;
+    public static final int TRANSACTION_GC_THREAD_POOL_SIZE;
+
     // Watermarking Configuration
     public static final int MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS;
     public static final int WATERMARKING_BUCKET_COUNT;
@@ -369,6 +383,10 @@ public final class Config {
 
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
         HEALTH_CHECK_FREQUENCY = p.getInt(PROPERTY_HEALTH_CHECK_FREQUENCY);
+
+        TRANSACTION_GC_SERVICE_FREQUENCY_IN_MINUTES = p.getLong(PROPERTY_TXN_GC_FREQUENCY_MINUTES);
+        TRANSACTION_GC_BUCKET_COUNT = p.getInt(PROPERTY_TXN_GC_BUCKET_COUNT);
+        TRANSACTION_GC_THREAD_POOL_SIZE = p.getInt(PROPERTY_TXN_GC_THREAD_COUNT);
     }
 
     private static Properties loadConfiguration() {

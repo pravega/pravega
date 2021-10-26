@@ -56,8 +56,13 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final Duration healthCheckFrequency;
 
     private final Duration retentionFrequency;
+
+    private final Duration transactionGCFrequency;
+
     @Getter
     private final Duration shutdownTimeout;
+
+    private final boolean isTransactionGCServiceEnabled;
 
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
@@ -70,8 +75,9 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
                                 final Duration retentionFrequency,
+                                final Duration txnGCFrequency,
                                 final Duration healthCheckFrequency,
-                                final Duration shutdownTimeout) {
+                                final Duration shutdownTimeout, final boolean transactionGCEnabled) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
@@ -107,5 +113,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                 : retentionFrequency;
         this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(Config.HEALTH_CHECK_FREQUENCY) : healthCheckFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
+        this.transactionGCFrequency = txnGCFrequency == null ? Duration.ofMinutes(Config.TRANSACTION_GC_SERVICE_FREQUENCY_IN_MINUTES) : retentionFrequency;
+        this.isTransactionGCServiceEnabled = transactionGCEnabled;
     }
 }

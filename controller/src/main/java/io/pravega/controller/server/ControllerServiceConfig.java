@@ -121,4 +121,17 @@ public interface ControllerServiceConfig {
      * @return Graceful shutdown timeout.
      */
     Duration getShutdownTimeout();
+
+    /**
+     * Fetches whether the transaction GC Service is enabled.
+     *
+     * @return Whether the transaction GC Service is enabled.
+     */
+    boolean isTransactionGCServiceEnabled();
+
+    /**
+     * Frequency at which periodic transaction GC should be performed for each stream.
+     * @return Duration for transaction GC frequency.
+     */
+    Duration getTransactionGCFrequency();
 }
