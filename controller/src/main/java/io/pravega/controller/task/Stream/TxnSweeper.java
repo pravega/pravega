@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
@@ -187,7 +187,7 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.info("Host = {}, failing over aborting transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return transactionMetadataTasks.writeAbortEvent(new AbortEvent(scope, stream, epoch, txnId, ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong()))
+        return transactionMetadataTasks.writeAbortEvent(new AbortEvent(scope, stream, epoch, txnId, ControllerService.nextRequestId()))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
@@ -197,7 +197,7 @@ public class TxnSweeper implements FailoverSweeper {
         UUID txnId = txn.getTxnId();
         log.info("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
-                .thenCompose(txnData -> transactionMetadataTasks.pingTxn(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong()))
+                .thenCompose(txnData -> transactionMetadataTasks.pingTxn(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerService.nextRequestId()))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 }

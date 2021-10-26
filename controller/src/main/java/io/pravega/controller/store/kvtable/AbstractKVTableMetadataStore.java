@@ -21,7 +21,7 @@ import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
@@ -35,7 +35,6 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -51,7 +50,6 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     @Getter
     private final HostIndex hostTaskIndex;
-    private final Random requestIdGenerator = new Random();
     
     protected AbstractKVTableMetadataStore(HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -142,7 +140,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     OperationContext getOperationContext(OperationContext context) {
         return context != null ? context : new OperationContext() {
-            private final long requestId = ControllerServiceImpl.REQUEST_ID_GENERATOR.nextLong();
+            private final long requestId = ControllerService.nextRequestId();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {
