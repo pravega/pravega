@@ -22,7 +22,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
