@@ -46,7 +46,6 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class FailingRequestProcessorTest {
 
-
     private static final Event EMPTY_EVENT = new Event(Unpooled.wrappedBuffer(new byte[1]));
 
     private final RequestProcessor rp = new FailingRequestProcessor();
