@@ -353,7 +353,7 @@ public class ControllerService {
 
         Timer timer = new Timer();
         try {
-            NameUtils.validateStreamName(stream);
+            NameUtils.validateUserStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
             log.error(requestId, "Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
