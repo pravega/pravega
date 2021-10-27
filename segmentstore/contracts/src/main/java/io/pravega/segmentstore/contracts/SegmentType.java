@@ -37,6 +37,10 @@ public class SegmentType {
      * General Table Segment with no special roles.
      */
     public static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
+    /**
+     * General Transient Segment with no special roles.
+     */
+    public static final SegmentType TRANSIENT_SEGMENT = SegmentType.builder().transientSegment().build();
 
     //endregion
 
@@ -60,7 +64,8 @@ public class SegmentType {
     static final long ROLE_SYSTEM = 0b0010_0000L | ROLE_INTERNAL;
     @VisibleForTesting
     static final long ROLE_CRITICAL = 0b0100_0000L;
-
+    @VisibleForTesting
+    static final long ROLE_TRANSIENT = 0b1000_0000L;
     private final long flags;
 
     //endregion
@@ -110,6 +115,15 @@ public class SegmentType {
     }
 
     /**
+     * Whether this {@link SegmentType} refers to a Transient Segment.
+     *
+     * @return True if Transient Segment, false otherwise.
+     */
+    public boolean isTransientSegment() {
+        return (this.flags & ROLE_TRANSIENT) == ROLE_TRANSIENT;
+    }
+
+    /**
      * Whether this {@link SegmentType} refers to a Segment (regardless of Format) that is for exclusive internal access.
      * If so, external requests may be denied on such Segments.
      *
@@ -150,6 +164,10 @@ public class SegmentType {
             result.append(", Table Segment (Fixed-Key-Length)");
         } else if (isTableSegment()) {
             result.append(", Table Segment");
+        }
+
+        if (isTransientSegment()) {
+            result.append(", Transient");
         }
 
         if (isSystem()) {
@@ -244,6 +262,11 @@ public class SegmentType {
 
         public Builder fixedKeyLengthTableSegment() {
             this.flags |= FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT;
+            return this;
+        }
+
+        public Builder transientSegment() {
+            this.flags |= ROLE_TRANSIENT;
             return this;
         }
 
