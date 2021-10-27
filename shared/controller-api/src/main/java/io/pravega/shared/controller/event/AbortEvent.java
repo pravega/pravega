@@ -15,7 +15,6 @@
  */
 package io.pravega.shared.controller.event;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -42,15 +41,6 @@ public class AbortEvent implements ControllerEvent {
     private final int epoch;
     private final UUID txid;
     private final long requestId;
-
-    @VisibleForTesting
-    AbortEvent(String scope, String stream, int epoch, UUID txnId) {
-        this.scope = scope;
-        this.stream = stream;
-        this.epoch = epoch;
-        this.txid = txnId;
-        this.requestId = 0L;
-    }
 
     @Override
     public String getKey() {
