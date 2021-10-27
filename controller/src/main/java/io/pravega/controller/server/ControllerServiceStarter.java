@@ -200,18 +200,18 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
                                                                                "watermarkingpool");
-            
-            log.info("Creating the bucket store");
+
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
+            log.info("Created the bucket store.");
 
-            log.info("Creating the task store");
             taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
+            log.info("Created the task store.");
 
-            log.info("Creating the host store");
             hostStore = HostStoreFactory.createStore(serviceConfig.getHostMonitorConfig(), storeClient);
+            log.info("Created the host store.");
 
-            log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
+            log.info("Created the checkpoint store.");
 
             // Initialize Stream and Transaction metrics.
             StreamMetrics.initialize();
@@ -234,8 +234,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
                         new UniformContainerBalancer(),
                         serviceConfig.getHostMonitorConfig().getHostMonitorMinRebalanceInterval());
-                log.info("Starting segment container monitor");
                 monitor.startAsync();
+                log.info("Started Segment Container Monitor service.");
                 SegmentContainerMonitorHealthContributor segmentContainerMonitorHC = new SegmentContainerMonitorHealthContributor("segmentContainerMonitor", monitor );
                 healthServiceManager.register(segmentContainerMonitorHC);
             }
@@ -262,8 +262,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                                                            grpcServerConfig.getTokenSigningKey(),
                                                            grpcServerConfig.getAccessTokenTTLInSeconds());
 
-            log.info("Creating the stream store");
             streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            log.info("Created the stream store.");
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,
@@ -279,7 +279,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             retentionService.startAsync();
             retentionService.awaitRunning();
-            log.info("Started background periodic service for retention.");
+            log.info("Started background periodic service for Retention.");
             RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
             healthServiceManager.register(retentionServiceHC);
 
@@ -291,7 +291,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
-            log.info("Started background periodic service for watermarking.");
+            log.info("Started background periodic service for Watermarking.");
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
             healthServiceManager.register(watermarkingServiceHC);
 
@@ -410,12 +410,12 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     @Override
     protected void shutDown() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
-        log.info("Initiating controller service shutDown");
+        log.info("Initiating controller service shutDown....");
 
         try {
             if (healthServiceManager != null) {
-                log.info("Stopping the HealthService.");
                 healthServiceManager.close();
+                log.info("HealthService shutdown.");
             }
 
             if (restServer != null) {
@@ -425,75 +425,70 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 grpcServer.stopAsync();
             }
             if (controllerEventProcessors != null) {
-                log.info("Stopping controller event processors");
                 controllerEventProcessors.stopAsync();
             }
             if (monitor != null) {
-                log.info("Stopping the segment container monitor");
                 monitor.stopAsync();
             }
             if (controllerClusterListener != null) {
-                log.info("Stopping controller cluster listener");
                 controllerClusterListener.stopAsync();
-                log.info("Controller cluster listener shutdown");
             }
 
             if (retentionService != null) {
-                log.info("Stopping auto retention service");
                 retentionService.stopAsync();
+
             }
 
             if (watermarkingService != null) {
-                log.info("Stopping watermarking service");
                 watermarkingService.stopAsync();
             }
 
             close(watermarkingWork);
 
             if (streamMetadataTasks != null) {
-                log.info("Closing stream metadata tasks");
                 streamMetadataTasks.close();
+                log.debug("StreamMetadataTasks closed.");
             }
 
             if (streamTransactionMetadataTasks != null) {
-                log.info("Closing stream transaction metadata tasks");
                 streamTransactionMetadataTasks.close();
+                log.debug("StreamTransactionMetadataTasks closed.");
             }
 
             // Await termination of all services
             if (restServer != null) {
-                log.info("Awaiting termination of REST server");
                 restServer.awaitTerminated();
+                log.info("REST Server shutdown.");
             }
 
             if (grpcServer != null) {
-                log.info("Awaiting termination of gRPC server");
                 grpcServer.awaitTerminated();
+                log.info("GRPC Server shutdown.");
             }
 
             if (controllerEventProcessors != null) {
-                log.info("Awaiting termination of controller event processors");
                 controllerEventProcessors.awaitTerminated();
+                log.info("Controller Event Processors shutdown.");
             }
 
             if (monitor != null) {
-                log.info("Awaiting termination of segment container monitor");
                 monitor.awaitTerminated();
+                log.info("Segment Container Monitor shutdown.");
             }
 
             if (controllerClusterListener != null) {
-                log.info("Awaiting termination of controller cluster listener");
                 controllerClusterListener.awaitTerminated();
+                log.info("Controller Cluster Listener shutdown.");
             }
 
             if (retentionService != null) {
-                log.info("Awaiting termination of auto retention");
                 retentionService.awaitTerminated();
+                log.info("Retention service shutdown.");
             }
 
             if (watermarkingService != null) {
-                log.info("Awaiting termination of watermarking service");
                 watermarkingService.awaitTerminated();
+                log.info("Watermarking service shutdown.");
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -503,41 +498,38 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             // lingering threads that prevent our process from exiting.
 
             // Next stop all executors
-            log.info("Stopping controller executors");
+            log.debug("Shutting down executor thread pools....");
             ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
 
             if (cluster != null) {
-                log.info("Closing controller cluster instance");
                 cluster.close();
+                log.debug("Closed controller cluster instance.");
             }
 
             if (segmentHelper != null) {
-                log.info("closing segment helper");
                 segmentHelper.close();
+                log.debug("Closed segment helper.");
             }
 
             close(kvtMetadataStore);
             close(kvtMetadataTasks);
-
-            log.info("Closing connection pool");
+            log.debug("Closed KVT Store and Tasks.");
             close(connectionPool);
-
-            log.info("Closing connection factory");
+            log.debug("Closed connection pool.");
             close(connectionFactory);
-
-            log.info("Closing storeClient");
+            log.debug("Closed connection factory.");
             close(storeClient);
-
-            log.info("Closing store");
+            log.debug("Closing storeClient");
             close(streamStore);
-
+            log.debug("Closed stream store.");
             close(controllerEventProcessors);
+            log.debug("Closed controllerEventProcessors.");
 
             // Close metrics.
             StreamMetrics.reset();
             TransactionMetrics.reset();
 
-            log.info("Finishing controller service shutDown");
+            log.info("Completed controller service shutDown.");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }
