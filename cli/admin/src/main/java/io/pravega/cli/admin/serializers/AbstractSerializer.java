@@ -43,7 +43,11 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @param value   The value of the field.
      */
     public static void appendField(StringBuilder builder, String name, String value) {
-        builder.append(name).append("=").append(value).append(";");
+        appendField(builder, name, value, ";", "=");
+    }
+
+    public static void appendField(StringBuilder builder, String name, String value, String pairDelimiter, String valueDelimiter) {
+        builder.append(name).append(valueDelimiter).append(value).append(pairDelimiter);
     }
 
     /**
@@ -53,9 +57,13 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A map containing all the key-value pairs parsed from the string.
      */
     public static Map<String, String> parseStringData(String stringData) {
+        return parseStringData(stringData, ";", "=");
+    }
+
+    public static Map<String, String> parseStringData(String stringData, String pairDelimiter, String valueDelimiter) {
         Map<String, String> parsedData = new LinkedHashMap<>();
-        Arrays.stream(stringData.split(";")).forEachOrdered(kv -> {
-            List<String> pair = Arrays.asList(kv.split("="));
+        Arrays.stream(stringData.split(pairDelimiter)).forEachOrdered(kv -> {
+            List<String> pair = Arrays.asList(kv.split(valueDelimiter));
             Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in %s", kv));
             if (!parsedData.containsKey(pair.get(0))) {
                 parsedData.put(pair.get(0), pair.get(1));

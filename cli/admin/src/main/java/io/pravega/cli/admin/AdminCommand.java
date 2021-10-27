@@ -36,6 +36,7 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
+import io.pravega.cli.admin.controller.metadata.GetControllerMetadataEntryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
@@ -302,6 +303,7 @@ public abstract class AdminCommand {
                         .put(SetSerializerCommand::descriptor, SetSerializerCommand::new)
                         .put(ListTableSegmentKeysCommand::descriptor, ListTableSegmentKeysCommand::new)
                         .put(ModifyTableSegmentEntry::descriptor, ModifyTableSegmentEntry::new)
+                        .put(GetControllerMetadataEntryCommand::descriptor, GetControllerMetadataEntryCommand::new)
                         .build());
 
         /**
