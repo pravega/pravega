@@ -15,8 +15,6 @@
  */
 package io.pravega.shared.controller.event;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.ArrayList;
@@ -35,7 +33,11 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
-import lombok.*;
+import lombok.Builder;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -68,10 +70,6 @@ public class ControllerEventSerializerTests {
         @Override
         public CompletableFuture<Void> process(RequestProcessor processor) {
             return CompletableFuture.completedFuture(null);
-        }
-        @SneakyThrows(IOException.class)
-        public static AbortEventV0 fromBytes(final byte[] data) {
-            return SERIALIZER.deserialize(data);
         }
 
         @SneakyThrows(IOException.class)
@@ -121,7 +119,7 @@ public class ControllerEventSerializerTests {
 
         // Test that we are able to decode a message with a previous version
         AbortEventV0 oldEvent = new AbortEventV0(SCOPE, STREAM, 2, UUID.randomUUID());
-        byte [] serializedEvent = oldEvent.toBytes();
+        byte[] serializedEvent = oldEvent.toBytes();
         AbortEvent deserializedEvent = AbortEvent.fromBytes(serializedEvent);
         Assert.assertEquals(deserializedEvent.getScope(), oldEvent.scope);
         Assert.assertEquals(deserializedEvent.getStream(), oldEvent.stream);
