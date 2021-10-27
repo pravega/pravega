@@ -31,6 +31,8 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -58,6 +60,8 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -141,6 +145,10 @@ public abstract class MetadataStore implements AutoCloseable {
      * </ul>
      */
     CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
+        if (segmentType.isTransientSegment() && !NameUtils.isTransientSegment(segmentName)) {
+            return Futures.failedFuture(new IllegalArgumentException(String.format("Invalid name %s for SegmentType: %s", segmentName, segmentType)));
+        }
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createSegment", segmentName);
         long segmentId = this.connector.containerMetadata.getStreamSegmentId(segmentName, true);
         if (isValidSegmentId(segmentId)) {
@@ -149,7 +157,10 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, segmentType, attributes));
-        CompletableFuture<Void> result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
+        CompletableFuture<Void> result = segmentType.isTransientSegment() ?
+                createTransientSegment(segmentName, attributes, timeout) :
+                createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
+
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createSegment", traceId, segmentName));
         }
@@ -166,6 +177,20 @@ public abstract class MetadataStore implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
      */
     protected abstract CompletableFuture<Void> createSegment(String segmentName, ArrayView segmentInfo, TimeoutTimer timer);
+
+    /**
+     * Creates a new Transient Segment with given name.
+     *
+     * @param segmentName The case-sensitive Segment Name.
+     * @param attributes  The initial attributes for the StreamSegment, if any.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the TransientSegment has been created.
+     */
+    private CompletableFuture<Void> createTransientSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+        AttributeUpdateCollection attrs = AttributeUpdateCollection.from(attributes);
+        attrs.add(new AttributeUpdate(Attributes.CREATION_EPOCH, AttributeUpdateType.None, this.connector.containerMetadata.getContainerEpoch()));
+        return Futures.toVoid(submitAssignmentWithRetry(newSegment(segmentName, SegmentType.TRANSIENT_SEGMENT, attrs), timeout));
+    }
 
     //endregion
 
@@ -471,9 +496,10 @@ public abstract class MetadataStore implements AutoCloseable {
             completeAssignment(properties.getName(), existingSegmentId);
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
+            String streamSegmentName = properties.getName();
             return this.connector.getMapSegmentId()
-                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
-                                 .thenApply(id -> completeAssignment(properties.getName(), id));
+                                 .apply(segmentInfo.getSegmentId(), properties, pin, timeout)
+                                 .thenApply(id -> completeAssignment(streamSegmentName, id));
         }
     }
 
@@ -800,7 +826,6 @@ public abstract class MetadataStore implements AutoCloseable {
                 output.writeLong(sp.getLength());
                 output.writeLong(sp.getStartOffset());
                 output.writeBoolean(sp.isSealed());
-
                 // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
                 output.writeMap(Attributes.getCoreNonNullAttributes(sp.getAttributes()), this::writeAttributeId00, RevisionDataOutput::writeLong);
             }
