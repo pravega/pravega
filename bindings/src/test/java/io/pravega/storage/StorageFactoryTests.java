@@ -25,18 +25,25 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageFactoryCreator;
+import io.pravega.storage.filesystem.FileSystemChunkStorage;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageFactoryCreator;
+import io.pravega.storage.hdfs.HDFSChunkStorage;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageFactoryCreator;
+import io.pravega.storage.s3.S3ChunkStorage;
+import io.pravega.storage.s3.S3SimpleStorageFactory;
+import io.pravega.storage.s3.S3StorageConfig;
+import io.pravega.storage.s3.S3StorageFactoryCreator;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
@@ -83,7 +90,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
-
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof HDFSChunkStorage);
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
         when(configSetup2.getConfig(any())).thenReturn(HDFSStorageConfig.builder().build());
@@ -96,6 +103,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -130,6 +142,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof ExtendedS3ChunkStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
@@ -144,6 +157,49 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testS3StorageFactoryCreator() {
+        StorageFactoryCreator factoryCreator = new S3StorageFactoryCreator();
+        val expected = new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("S3")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build()
+        };
+
+        val factoryInfoList = factoryCreator.getStorageFactories();
+        Assert.assertEquals(1, factoryInfoList.length);
+        Assert.assertArrayEquals(expected, factoryInfoList);
+
+        // Simple Storage
+        ConfigSetup configSetup1 = mock(ConfigSetup.class);
+        val config = S3StorageConfig.builder()
+                .with(S3StorageConfig.CONFIGURI, "http://127.0.0.1")
+                .with(S3StorageConfig.BUCKET, "bucket")
+                .with(S3StorageConfig.PREFIX, "samplePrefix")
+                .with(S3StorageConfig.ACCESS_KEY, "user")
+                .with(S3StorageConfig.SECRET_KEY, "secret")
+                .build();
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
+        Assert.assertTrue(factory1 instanceof S3SimpleStorageFactory);
+
+        @Cleanup
+        Storage storage1 = ((S3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof S3ChunkStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -173,6 +229,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof FileSystemChunkStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
@@ -186,6 +243,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
