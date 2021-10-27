@@ -17,6 +17,8 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -25,20 +27,34 @@ import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DataFrameBuilder;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
-import io.pravega.segmentstore.server.logs.operations.*;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.val;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 /**
@@ -93,7 +109,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         @Cleanup
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
         @Cleanup
-        val bkLog = originalDataLog.asReadOnly();
+        val originalDataLogReadOnly = originalDataLog.asReadOnly();
 
         // Disable the original log, if not disabled already.
         originalDataLog.disable();
@@ -102,28 +118,38 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         @Cleanup
         DurableDataLog backupDataLog = dataLogFactory.createDurableDataLog(BACKUP_LOG_ID);
         backupDataLog.initialize(TIMEOUT);
-        DataFrameBuilder.Args args = new DataFrameBuilder.Args(a -> {}, b -> {}, (c, d) -> {}, executorService);
-        @Cleanup
-        DataFrameBuilder<Operation> dataFrameBuilderBackup = new DataFrameBuilder<>(backupDataLog, OperationSerializer.DEFAULT, args);
 
-        // Define the callbacks that will backup the original contents into the backup log.
-        BackupState backupState = new BackupState(dataFrameBuilderBackup);
+        val datFrameBuilderArgsBarrier = new DataFrameBuilderArgsBarrier(executorService);
+        DataFrameBuilder<Operation> dataFrameBuilderBackup = new DataFrameBuilder<>(backupDataLog, OperationSerializer.DEFAULT, datFrameBuilderArgsBarrier.getArgs());
+
+        // Define the callbacks that will back up the original contents into the backup log.
+        BackupState backupState = new BackupState(dataFrameBuilderBackup, executorService);
         int operationsReadFromOriginalLog = 0;
         try {
-            operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupState, containerId, bkLog);
+            operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupState, containerId, originalDataLogReadOnly);
             assert !backupState.isFailed;
         } catch (Exception e) {
             e.printStackTrace();
             // TODO: Safely rollback here.
         }
+        datFrameBuilderArgsBarrier.getFinishedProcessingWrites().join();
+        datFrameBuilderArgsBarrier.reset();
+        // Close data frame builder to write any possible remaining data left.
+        dataFrameBuilderBackup.flush();
+        dataFrameBuilderBackup.close();
 
         // Validate that the original and backup logs have the same number of operations.
-        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) -> {}, containerId, backupDataLog);
+        @Cleanup
+        val backupDataLog2 = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID);
+        @Cleanup
+        val backupDataLog2ReadOnly = backupDataLog2.asReadOnly();
+        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) -> System.err.println("Reading after backing up " + a), BACKUP_LOG_ID, backupDataLog2ReadOnly);
         outputInfo("Original DurableLog operations read: " + operationsReadFromOriginalLog +
                 ", Backup DurableLog operations read: " + backupLogReadOperations);
         // FIXME: We need to ensure that we read everything from original log once disabled (flushing?)
         //assert operationsReadFromOriginalLog == readDurableDataLogWithCustomCallback((a, b) -> {}, containerId, backupDataLog);
 
+        System.exit(0);
         output("Original DurableLog has been backed up correctly.");
         if (!this.testMode && !confirmContinue()) {
             output("Not editing original DurableLog this time.");
@@ -155,13 +181,15 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         DurableDataLog editedDataLog = dataLogFactory.createDurableDataLog(REPAIR_LOG_ID);
         editedDataLog.initialize(TIMEOUT);
         @Cleanup
-        DataFrameBuilder<Operation> dataFrameBuilderEdit = new DataFrameBuilder<>(editedDataLog, OperationSerializer.DEFAULT, args);
+        DataFrameBuilder<Operation> dataFrameBuilderEdit = new DataFrameBuilder<>(editedDataLog, OperationSerializer.DEFAULT, datFrameBuilderArgsBarrier.getArgs());
 
         // Define the callbacks that will backup the original contents into the backup log.
-        LogEditingState logEditState = new LogEditingState(dataFrameBuilderEdit, durableLogEdits);
+        LogEditingState logEditState = new LogEditingState(dataFrameBuilderEdit, durableLogEdits, executorService);
         try {
             int readBackupLogAgain = readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
-            dataFrameBuilderEdit.flush();
+            datFrameBuilderArgsBarrier.getFinishedProcessingWrites().join();
+            datFrameBuilderArgsBarrier.reset();
+            dataFrameBuilderEdit.close();
             outputInfo("Backup DurableLog operations read on first attempt: " + backupLogReadOperations +
                     ", Backup DurableLog operations read on second attempt: " + readBackupLogAgain);
             assert !logEditState.isFailed;
@@ -171,8 +199,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             // TODO: Safely rollback here.
         }
 
-        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) -> System.out.println(op), REPAIR_LOG_ID, editedDataLog);
-        outputInfo("Edited DurableLog Operations: " + editedDurableLogOperations);
+        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) -> System.out.println("EDITED LOG OPS: " + op), REPAIR_LOG_ID, editedDataLog);
+        outputInfo("Edited DurableLog Operations read: " + editedDurableLogOperations);
 
         // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
         @Cleanup
@@ -314,43 +342,93 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return attributeUpdates;
     }
 
-    class BackupState implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> {
+    abstract static class AbstractDurableLogProcessingState implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>>, AutoCloseable {
+        protected boolean isFailed = false;
+        private final CompletableFuture<Void> queueProcessor;
+        @Getter
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final PriorityBlockingQueue<ComparableOperation> operationQueue = new PriorityBlockingQueue<>();
+        private final ScheduledExecutorService executor;
 
+        AbstractDurableLogProcessingState(ScheduledExecutorService executor) {
+            this.executor = executor;
+            this.queueProcessor = Futures.loop(() -> !isClosed(),
+                    () -> CompletableFuture.supplyAsync(this.operationQueue::poll, this.executor)
+                            .thenAcceptAsync(this::processOperation, this.executor),
+                    this.executor);
+        }
+
+        abstract void processOperation(ComparableOperation operation);
+
+        public void accept(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
+            System.err.println("Queueing up operation: (" + this.operationQueue.size() + "): " + op);
+            System.err.println("Added? " + this.operationQueue.add(new ComparableOperation(op)));
+        }
+
+        public void close() {
+            if (this.closed.compareAndSet(false, true)) {
+                Futures.await(this.queueProcessor);
+            }
+        }
+
+        private boolean isClosed() {
+            return this.closed.get();
+        }
+    }
+
+    @Data
+    static class ComparableOperation implements Comparable<Operation> {
+        private final Operation operation;
+
+        @Override
+        public int compareTo(Operation operation) {
+            return Long.compare(this.operation.getSequenceNumber(), operation.getSequenceNumber());
+        }
+    }
+
+    class BackupState extends AbstractDurableLogProcessingState {
         @NonNull
         private final DataFrameBuilder<Operation> backupLogFrameBuilder;
-        private boolean isFailed = false;
 
-        BackupState(DataFrameBuilder<Operation> backupLogFrameBuilder) {
+        BackupState(DataFrameBuilder<Operation> backupLogFrameBuilder, ScheduledExecutorService executor) {
+            super(executor);
             this.backupLogFrameBuilder = backupLogFrameBuilder;
         }
 
-        public void accept(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
-            try {
-                System.err.println("Backing up " + op);
-                backupLogFrameBuilder.append(op);
-                backupLogFrameBuilder.flush();
-            } catch (Exception e) {
-                outputError("Error serializing operation " + op);
-                e.printStackTrace();
-                isFailed = true;
+        void processOperation(ComparableOperation comparableOperation) {
+            Operation operation = comparableOperation.getOperation();
+            System.err.println("BACKING UP OPERATION " + operation);
+            if (operation != null) {
+                try {
+                    backupLogFrameBuilder.append(operation);
+                    backupLogFrameBuilder.flush();
+                    System.err.println("Backing up " + operation);
+                } catch (Exception e) {
+                    outputError("Error serializing operation " + operation);
+                    e.printStackTrace();
+                    isFailed = true;
+                }
+            } else {
+                Exceptions.handleInterrupted(() -> Thread.sleep(500));
             }
         }
     }
 
-    class LogEditingState implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> {
+    class LogEditingState extends AbstractDurableLogProcessingState {
         @NonNull
         private final DataFrameBuilder<Operation> editedDataLog;
         @NonNull
         private final List<LogEditOperation> durableLogEdits;
         private long newSequenceNumber = 1;
-        private boolean isFailed = false;
 
-        LogEditingState(DataFrameBuilder<Operation> editedDataLog, List<LogEditOperation> durableLogEdits) {
+        LogEditingState(DataFrameBuilder<Operation> editedDataLog, List<LogEditOperation> durableLogEdits, ScheduledExecutorService executor) {
+            super(executor);
             this.editedDataLog = editedDataLog;
             this.durableLogEdits = durableLogEdits;
         }
 
-        public void accept(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
+        void processOperation(ComparableOperation comparableOperation) {
+            Operation op = comparableOperation.getOperation();
             try {
                 // Nothing to edit, just write the Operations from the original log to the edited one.
                 if (!hasEditsToApply(op)) {
@@ -461,6 +539,38 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         private final long initialOperationId;
         private final long finalOperationId;
         private final Operation newOperation;
+    }
+
+    static class DataFrameBuilderArgsBarrier {
+        private final AtomicInteger beforeCommit = new AtomicInteger();
+        private final AtomicInteger commitSuccess = new AtomicInteger();
+        private final AtomicInteger commitFailure = new AtomicInteger();
+        @Getter
+        private final DataFrameBuilder.Args args;
+        @Getter
+        private CompletableFuture<Void> finishedProcessingWrites = new CompletableFuture<>();
+
+        DataFrameBuilderArgsBarrier(ScheduledExecutorService executorService) {
+            this.args = new DataFrameBuilder.Args(a -> beforeCommit.getAndIncrement(),
+                    b -> commitSuccess.getAndIncrement(),
+                    (c, d) -> commitFailure.getAndIncrement(),
+                    executorService);
+
+            // Check periodically whether we have completed a write iteration.
+            executorService.scheduleAtFixedRate(() -> {
+                if (beforeCommit.get() > 0 && !finishedProcessingWrites.isDone() && beforeCommit.get() == commitSuccess.get() + commitFailure.get()) {
+                    System.err.println("COMPLETED WRITING: beforeCommit " + beforeCommit.get() + ", commitSuccess " + commitSuccess.get() + ", commitFailure " + commitFailure.get());
+                    finishedProcessingWrites.complete(null);
+                }
+            }, 1, 1, TimeUnit.SECONDS);
+        }
+
+        public void reset() {
+            this.finishedProcessingWrites = new CompletableFuture<>();
+            this.beforeCommit.set(0);
+            this.commitSuccess.set(0);
+            this.commitFailure.set(0);
+        }
     }
 
     public static CommandDescriptor descriptor() {
