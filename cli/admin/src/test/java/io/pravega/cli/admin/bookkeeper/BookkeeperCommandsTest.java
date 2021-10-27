@@ -42,6 +42,7 @@ import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -103,10 +104,12 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     @Override
     @After
+    @SneakyThrows
     public void tearDown() {
         System.setOut(originalOut);
         System.setIn(originalIn);
         STATE.get().close();
+        super.tearDown();
     }
 
     @Test
