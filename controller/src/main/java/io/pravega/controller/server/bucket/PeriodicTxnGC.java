@@ -58,9 +58,7 @@ public class PeriodicTxnGC {
         OperationContext context = streamMetadataStore.createStreamContext(stream.getScope(), stream.getStreamName(),
                 requestId);
 
-        log.debug(requestId, "Periodic background processing for retention called for stream {}/{}",
-                stream.getScope(), stream.getStreamName());
-
+        log.info(requestId, "Periodic background processing for transaction GC called for stream {}/{}", stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), 
                 stream.getStreamName(), context, executor)
                          .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),

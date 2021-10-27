@@ -64,8 +64,7 @@ public class BucketServiceFactory {
             case Zookeeper:
                 ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
                 Function<Integer, BucketService> zkSupplier = bucket ->
-                        new ZooKeeperBucketService(BucketStore.ServiceType.RetentionService, bucket, zkBucketStore, executorService,
-                                maxConcurrentExecutions, executionDuration, work);
+                        new ZooKeeperBucketService(BucketStore.ServiceType.TransactionGC, bucket, zkBucketStore, executorService, maxConcurrentExecutions, executionDuration, work);
 
                 return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.RetentionService, executorService, zkSupplier);
             case InMemory:

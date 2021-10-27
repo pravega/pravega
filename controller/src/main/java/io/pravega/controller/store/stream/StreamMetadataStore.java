@@ -1234,11 +1234,11 @@ public interface StreamMetadataStore extends AutoCloseable {
     /**
      * Api to return if a cold marker is set.
      *
-     * @param scope    scope for stream
-     * @param stream   name of stream
-     * @param segmentId   segment nunmber
-     * @param context  context in which this operation is taking place.
-     * @param executor callers executor
+     * @param scope     scope for stream
+     * @param stream    name of stream
+     * @param segmentId segment number
+     * @param context   context in which this operation is taking place.
+     * @param executor  callers executor
      * @return Completable future Optional of marker's creation time.
      */
     CompletableFuture<Boolean> isCold(final String scope, final String stream, final long segmentId,

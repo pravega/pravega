@@ -290,8 +290,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             if (serviceConfig.isTransactionGCServiceEnabled()) {
                 Duration transactionGCFrequency = serviceConfig.getTransactionGCFrequency();
-                PeriodicTxnGC txnGCWork = new PeriodicTxnGC(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
-                transactionGCService = bucketServiceFactory.createRetentionService(transactionGCFrequency, txnGCWork::txnGC, txnGCExecutor);
+                PeriodicTxnGC txnGCWork = new PeriodicTxnGC(streamStore, streamMetadataTasks, txnGCExecutor, requestTracker);
+                transactionGCService = bucketServiceFactory.createTransactionGCService(transactionGCFrequency, txnGCWork::txnGC, txnGCExecutor);
 
                 log.info("Starting background periodic service for transactions GC.");
                 transactionGCService.startAsync();
@@ -311,7 +311,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             watermarkingService.awaitRunning();
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
             healthServiceManager.register(watermarkingServiceHC);
-
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
