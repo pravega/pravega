@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.controller.event;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -26,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.SneakyThrows;
 
 @Builder
 @Data
@@ -39,6 +41,17 @@ public class AbortEvent implements ControllerEvent {
     private final UUID txid;
     private final long requestId;
 
+    @VisibleForTesting
+    AbortEvent (String scope, String stream, int epoch, UUID txnId) {
+        this.scope = scope;
+        this.stream = stream;
+        this.epoch = epoch;
+        this.txid = txnId;
+        this.requestId = 0L;
+    }
+
+    public static final Serializer SERIALIZER = new Serializer();
+
     @Override
     public String getKey() {
         return String.format("%s/%s", scope, stream);
@@ -47,6 +60,16 @@ public class AbortEvent implements ControllerEvent {
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
         return ((StreamRequestProcessor) processor).processAbortTxnRequest(this);
+    }
+
+    @SneakyThrows(IOException.class)
+    public static AbortEvent fromBytes(final byte[] data) {
+        return SERIALIZER.deserialize(data);
+    }
+
+    @SneakyThrows(IOException.class)
+    public byte[] toBytes() {
+        return SERIALIZER.serialize(this).getCopy();
     }
 
     //region Serialization

@@ -24,11 +24,14 @@ import java.util.HashMap;
 
 import java.util.function.Supplier;
 import com.google.common.collect.ImmutableSet;
+
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Unit tests for the {@link ControllerEventSerializer} class.
@@ -42,6 +45,10 @@ public class ControllerEventSerializerTests {
     @Test
     public void testAbortEvent() {
         testClass(() -> new AbortEvent(SCOPE, STREAM, 123, UUID.randomUUID(), 21L));
+        AbortEvent oldAbortEvent = new AbortEvent(SCOPE, STREAM, 2, UUID.randomUUID());
+        byte[] serializedEvent = oldAbortEvent.toBytes();
+        AbortEvent deserialized = AbortEvent.fromBytes(serializedEvent);
+        assertEquals(oldAbortEvent, deserialized);
     }
 
     @Test
