@@ -35,6 +35,8 @@ import lombok.SneakyThrows;
 public class AbortEvent implements ControllerEvent {
     @SuppressWarnings("unused")
     private static final long serialVersionUID = 1L;
+    private static final Serializer SERIALIZER = new Serializer();
+    
     private final String scope;
     private final String stream;
     private final int epoch;
@@ -42,15 +44,13 @@ public class AbortEvent implements ControllerEvent {
     private final long requestId;
 
     @VisibleForTesting
-    AbortEvent (String scope, String stream, int epoch, UUID txnId) {
+    AbortEvent(String scope, String stream, int epoch, UUID txnId) {
         this.scope = scope;
         this.stream = stream;
         this.epoch = epoch;
         this.txid = txnId;
         this.requestId = 0L;
     }
-
-    public static final Serializer SERIALIZER = new Serializer();
 
     @Override
     public String getKey() {
