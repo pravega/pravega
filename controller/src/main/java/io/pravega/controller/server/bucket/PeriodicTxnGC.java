@@ -22,6 +22,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import org.slf4j.LoggerFactory;
 
@@ -33,16 +34,16 @@ import java.util.function.Supplier;
 public class PeriodicTxnGC {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicTxnGC.class));
 
-    private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTxnMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
     private final ScheduledExecutorService executor;
     private final RequestTracker requestTracker;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    public PeriodicTxnGC(StreamMetadataStore streamMetadataStore, StreamMetadataTasks streamMetadataTasks,
+    public PeriodicTxnGC(StreamMetadataStore streamMetadataStore, StreamTransactionMetadataTasks streamTxnMetadataTasks,
                          ScheduledExecutorService executor,
                          RequestTracker requestTracker) {
-        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTxnMetadataTasks = streamTxnMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.executor = executor;
         this.requestTracker = requestTracker;
@@ -64,7 +65,7 @@ public class PeriodicTxnGC {
                              if(openTxnsData.isEmpty()) {
                                  return CompletableFuture.completedFuture(null);
                              }
-                             return streamMetadataTasks.transactionGC(stream.getScope(), stream.getStreamName(), openTxnsData, context, this.streamMetadataTasks.retrieveDelegationToken());
+                             return streamTxnMetadataTasks.transactionGC(stream.getScope(), stream.getStreamName(), openTxnsData, context);
                          })
                          .exceptionally(e -> {
                              log.warn(requestId, "Exception thrown while performing transaction garbage collection for stream {} ", stream, e);

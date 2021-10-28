@@ -290,7 +290,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             if (serviceConfig.isTransactionGCServiceEnabled()) {
                 Duration transactionGCFrequency = serviceConfig.getTransactionGCFrequency();
-                PeriodicTxnGC txnGCWork = new PeriodicTxnGC(streamStore, streamMetadataTasks, txnGCExecutor, requestTracker);
+                PeriodicTxnGC txnGCWork = new PeriodicTxnGC(streamStore, streamTransactionMetadataTasks, txnGCExecutor, requestTracker);
                 transactionGCService = bucketServiceFactory.createTransactionGCService(transactionGCFrequency, txnGCWork::txnGC, txnGCExecutor);
 
                 log.info("Starting background periodic service for transactions GC.");

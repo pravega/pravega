@@ -24,6 +24,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -35,6 +36,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
@@ -49,10 +51,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -698,6 +697,30 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }
             }).thenApply(x -> status);
         }, executor);
+    }
+
+    /**
+     * Method to garbage collect (abort) open transactions that have lived past their lease period.
+     * @param scope scope
+     * @param stream stream
+     * @param openTransactionData Metadata for open transactions on the Stream
+     * @param contextOpt operation context
+     * @return future.
+     */
+    public CompletableFuture<Void> transactionGC(final String scope, final String stream, final Map<UUID, ActiveTxnRecord> openTransactionData,
+                                                 final OperationContext contextOpt) {
+        Preconditions.checkNotNull(contextOpt);
+        Preconditions.checkNotNull(openTransactionData);
+        List<CompletableFuture<Void>> txnFuturesList = openTransactionData.entrySet().stream().map(txnEntry -> {
+            final long currentTime = System.currentTimeMillis();
+            if (txnEntry.getValue().getMaxExecutionExpiryTime() < currentTime) {
+                // transaction is past its expiry time so abort it.
+                return abortTxn(scope, stream, txnEntry.getKey(), null, contextOpt)
+                        .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
+            }
+            return Futures.toVoid(CompletableFuture.completedFuture(null));
+        }).collect(Collectors.toList());
+        return Futures.allOf(txnFuturesList);
     }
 
     public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {

@@ -113,7 +113,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -906,27 +905,6 @@ public class StreamMetadataTasks extends TaskBase {
                                    });
                         });
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
-    }
-
-    /**
-     * Method to garbage collect (abort) open transactions that have lived past their lease period.
-     * @param scope scope
-     * @param stream stream
-     * @param openTransactionData Metadata for open transactions on the Stream
-     * @param contextOpt operation context
-     * @param delegationToken token to be sent to segmentstore to authorize this operation.
-     * @return future.
-     */
-    public CompletableFuture<Void> transactionGC(final String scope, final String stream, final Map<UUID, ActiveTxnRecord> openTransactionData,
-                                             final OperationContext contextOpt,
-                                             final String delegationToken) {
-        Preconditions.checkNotNull(openTransactionData);
-        final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
-
-        return
-                .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
-
     }
 
     /**
