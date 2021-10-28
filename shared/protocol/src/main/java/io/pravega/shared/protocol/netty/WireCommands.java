@@ -1306,6 +1306,40 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class CreateTransientSegment implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.CREATE_TRANSIENT_SEGMENT;
+        final long requestId;
+        final UUID writerId;
+        final String parentSegment;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.createTransientSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeUTF(parentSegment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            String parentSegment = in.readUTF();
+            String delegationToken = in.readUTF();
+
+            return new CreateTransientSegment(requestId, writerId, parentSegment, delegationToken);
+        }
+    }
+
+    @Data
     public static final class UpdateSegmentPolicy implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;

@@ -363,7 +363,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
         streamStore.close();
     }
-    
+
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
     public void testConcurrentIdempotentRollingTxnRequest() {
