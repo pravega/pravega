@@ -22,7 +22,6 @@ import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -47,8 +46,6 @@ public class EpochTransitionRecordSerializer extends AbstractSerializer {
                             convertMapToString(r.getNewSegmentsWithRange(), String::valueOf, v -> v.getKey() + "-" + v.getValue()))
                     .build();
 
-    private static final EpochTransitionRecord.EpochTransitionRecordSerializer SERIALIZER = new EpochTransitionRecord.EpochTransitionRecordSerializer();
-
     @Override
     public String getName() {
         return "EpochTransitionRecord";
@@ -56,41 +53,31 @@ public class EpochTransitionRecordSerializer extends AbstractSerializer {
 
     @Override
     public ByteBuffer serialize(String value) {
-        ByteBuffer buf;
-        try {
-            Map<String, String> data = parseStringData(value);
+        Map<String, String> data = parseStringData(value);
 
-            Set<Long> segmentsToSeal = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_SEGMENTS_TO_SEAL), Long::parseLong));
-            Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange =
-                    convertStringToMap(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE), Long::parseLong, s -> {
-                        List<String> pair = Arrays.asList(s.split("-"));
-                        Preconditions.checkArgument(pair.size() == 2,
-                                String.format("Incomplete key-value pair provided in the EpochTransitionRecord.%s map", EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE));
-                        return Map.entry(Double.parseDouble(pair.get(0)), Double.parseDouble(pair.get(1)));
-                        }, "EpochTransitionRecord." + EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE);
+        Set<Long> segmentsToSeal = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_SEGMENTS_TO_SEAL), Long::parseLong));
+        Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange =
+                convertStringToMap(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE), Long::parseLong, s -> {
+                    List<String> pair = Arrays.asList(s.split("-"));
+                    Preconditions.checkArgument(pair.size() == 2,
+                            String.format("Incomplete key-value pair provided in the %s.%s map", getName(), EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE));
+                    return Map.entry(Double.parseDouble(pair.get(0)), Double.parseDouble(pair.get(1)));
+                    }, getName() + EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE);
 
-            EpochTransitionRecord record = new EpochTransitionRecord(
-                    Integer.parseInt(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_ACTIVE_EPOCH)),
-                    Long.parseLong(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_TIME)),
-                    ImmutableSet.copyOf(segmentsToSeal),
-                    ImmutableMap.copyOf(newSegmentsWithRange));
-            buf = SERIALIZER.serialize(record).asByteBuffer();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return buf;
+        EpochTransitionRecord record = new EpochTransitionRecord(
+                Integer.parseInt(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_ACTIVE_EPOCH)),
+                Long.parseLong(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_TIME)),
+                ImmutableSet.copyOf(segmentsToSeal),
+                ImmutableMap.copyOf(newSegmentsWithRange));
+        return new ByteArraySegment(record.toBytes()).asByteBuffer();
     }
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
         StringBuilder stringValueBuilder;
-        try {
-            EpochTransitionRecord data = SERIALIZER.deserialize(new ByteArraySegment(serializedValue).getReader());
-            stringValueBuilder = new StringBuilder();
-            EPOCH_TRANSITION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        EpochTransitionRecord data = EpochTransitionRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
+        stringValueBuilder = new StringBuilder();
+        EPOCH_TRANSITION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
         return stringValueBuilder.toString();
     }
 }

@@ -23,9 +23,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Map;
 import java.util.function.Function;
 
 public class StreamConfigurationRecordSerializer extends AbstractSerializer {
@@ -98,8 +97,6 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                     })
                     .build();
 
-    private static final StreamConfigurationRecord.ConfigurationRecordSerializer SERIALIZER = new StreamConfigurationRecord.ConfigurationRecordSerializer();
-
     @Override
     public String getName() {
         return "StreamConfigurationRecord";
@@ -107,34 +104,24 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
 
     @Override
     public ByteBuffer serialize(String value) {
-        ByteBuffer buf;
-        try {
-            Map<String, String> data = parseStringData(value);
-            StreamConfigurationRecord record = StreamConfigurationRecord.builder()
-                    .scope(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_SCOPE))
-                    .streamName(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_STREAM_NAME))
-                    .updating(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_UPDATING)))
-                    .tagOnlyUpdate(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE)))
-                    .removeTags(convertStringToCollection(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_REMOVE_TAGS), s -> s))
-                    .streamConfiguration(getStreamConfigurationFromData(data))
-                    .build();
-            buf = SERIALIZER.serialize(record).asByteBuffer();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return buf;
+        Map<String, String> data = parseStringData(value);
+        StreamConfigurationRecord record = StreamConfigurationRecord.builder()
+                .scope(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_SCOPE))
+                .streamName(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_STREAM_NAME))
+                .updating(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_UPDATING)))
+                .tagOnlyUpdate(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE)))
+                .removeTags(convertStringToCollection(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_REMOVE_TAGS), s -> s))
+                .streamConfiguration(getStreamConfigurationFromData(data))
+                .build();
+        return new ByteArraySegment(record.toBytes()).asByteBuffer();
     }
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
         StringBuilder stringValueBuilder;
-        try {
-            StreamConfigurationRecord data = SERIALIZER.deserialize(new ByteArraySegment(serializedValue).getReader());
-            stringValueBuilder = new StringBuilder();
-            STREAM_CONFIGURATION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        StreamConfigurationRecord data = StreamConfigurationRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
+        stringValueBuilder = new StringBuilder();
+        STREAM_CONFIGURATION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
         return stringValueBuilder.toString();
     }
 

@@ -87,7 +87,7 @@ public class EpochTransitionRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
     
-    public static class EpochTransitionRecordSerializer
+    private static class EpochTransitionRecordSerializer
             extends VersionedSerializer.WithBuilder<EpochTransitionRecord, EpochTransitionRecord.EpochTransitionRecordBuilder> {
         @Override
         protected byte getWriteVersion() {

@@ -220,7 +220,7 @@ public class StreamConfigurationRecord {
         }
     }
 
-    public static class ConfigurationRecordSerializer
+    private static class ConfigurationRecordSerializer
             extends VersionedSerializer.WithBuilder<StreamConfigurationRecord,
             StreamConfigurationRecordBuilder> {
         @Override

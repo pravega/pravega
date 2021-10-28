@@ -16,7 +16,9 @@
 package io.pravega.cli.admin.serializers;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 
 import java.util.*;
 import java.util.function.Function;
@@ -27,8 +29,23 @@ import java.util.stream.Collectors;
  */
 public abstract class AbstractSerializer implements Serializer<String> {
 
+    public static final String STREAM_SEGMENT_RECORD_SEGMENT_NUMBER = "segmentNumber";
+    public static final String STREAM_SEGMENT_RECORD_CREATION_EPOCH = "creationEpoch";
+    public static final String STREAM_SEGMENT_RECORD_CREATION_TIME = "creationTime";
+    public static final String STREAM_SEGMENT_RECORD_KEY_START = "keyStart";
+    public static final String STREAM_SEGMENT_RECORD_KEY_END = "keyEnd";
+
     protected static final String EMPTY = "EMPTY";
     private static final String KEY_VALUE_SEPARATOR = ":";
+
+    private static final Map<String, Function<StreamSegmentRecord, String>> STREAM_SEGMENT_RECORD_FIELD_MAP =
+            ImmutableMap.<String, Function<StreamSegmentRecord, String>>builder()
+                    .put(STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, r -> String.valueOf(r.getSegmentNumber()))
+                    .put(STREAM_SEGMENT_RECORD_CREATION_EPOCH, r -> String.valueOf(r.getCreationEpoch()))
+                    .put(STREAM_SEGMENT_RECORD_CREATION_TIME, r -> String.valueOf(r.getCreationTime()))
+                    .put(STREAM_SEGMENT_RECORD_KEY_START, r -> String.valueOf(r.getKeyStart()))
+                    .put(STREAM_SEGMENT_RECORD_KEY_END, r -> String.valueOf(r.getKeyEnd()))
+                    .build();
 
     /**
      * Method to return the name of the metadata being serialized.
@@ -98,7 +115,7 @@ public abstract class AbstractSerializer implements Serializer<String> {
     }
 
     public static <T, U> String convertMapToString(Map<T, U> map, Function<T, String> keyConverter, Function<U, String> valueConverter) {
-        return convertCollectionToString(map.entrySet()
+        return map.isEmpty() ? EMPTY : convertCollectionToString(map.entrySet()
                 .stream()
                 .map(entry -> keyConverter.apply(entry.getKey()) + KEY_VALUE_SEPARATOR + valueConverter.apply(entry.getValue()))
                 .collect(Collectors.toList()), s -> s);
@@ -106,11 +123,29 @@ public abstract class AbstractSerializer implements Serializer<String> {
 
     public static <T, U> Map<T, U> convertStringToMap(String mapString, Function<String, T> keyConverter, Function<String, U> valueConverter, String name) {
         Map<T, U> map = new HashMap<>();
-        convertStringToCollection(mapString, s -> s).forEach(s -> {
-            List<String> pair = Arrays.asList(s.split(KEY_VALUE_SEPARATOR));
-            Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in the map field: %s", name));
-            map.put(keyConverter.apply(pair.get(0)), valueConverter.apply(pair.get(1)));
-        });
+        if (!mapString.equalsIgnoreCase(EMPTY)) {
+            convertStringToCollection(mapString, s -> s).forEach(s -> {
+                List<String> pair = Arrays.asList(s.split(KEY_VALUE_SEPARATOR));
+                Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in the map field: %s", name));
+                map.put(keyConverter.apply(pair.get(0)), valueConverter.apply(pair.get(1)));
+            });
+        }
         return map;
+    }
+
+    public static String convertStreamSegmentRecordToString(StreamSegmentRecord segmentRecord) {
+        StringBuilder segmentStringBuilder = new StringBuilder();
+        STREAM_SEGMENT_RECORD_FIELD_MAP.forEach((name, f) -> appendField(segmentStringBuilder, name, f.apply(segmentRecord), "|", "-"));
+        return segmentStringBuilder.toString();
+    }
+
+    public static StreamSegmentRecord convertStringToStreamSegmentRecord(String segmentString) {
+        Map<String, String> segmentDataMap = parseStringData(segmentString, "|", "-");
+        return StreamSegmentRecord.newSegmentRecord(
+                Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER)),
+                Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_CREATION_EPOCH)),
+                Long.parseLong(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_CREATION_TIME)),
+                Double.parseDouble(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_KEY_START)),
+                Double.parseDouble(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_KEY_END)));
     }
 }
