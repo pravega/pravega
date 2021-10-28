@@ -18,23 +18,19 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.DeleteScopeFailedException;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import org.slf4j.LoggerFactory;
@@ -63,8 +59,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     private final KVTableMetadataStore kvtMetadataStore;
     private final ScheduledExecutorService executor;
 
-    public DeleteScopeTask(final StreamMetadataStore streamMetaStore,
-                           final StreamMetadataTasks streamMetadataTasks,
+    public DeleteScopeTask(final StreamMetadataTasks streamMetadataTasks,
+                           final StreamMetadataStore streamMetaStore,
                            final KVTableMetadataStore kvtMetadataStore,
                            final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetaStore);

@@ -117,7 +117,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executorService),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executorService),
                 executorService);
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());

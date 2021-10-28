@@ -879,7 +879,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -933,7 +933,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -986,7 +986,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1089,7 +1089,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1141,7 +1141,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
