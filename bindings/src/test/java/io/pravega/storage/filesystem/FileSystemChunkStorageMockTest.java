@@ -17,9 +17,11 @@ package io.pravega.storage.filesystem;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.val;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,6 +44,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -147,6 +150,26 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ChunkStorageException
                         && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
 
+    }
+
+    @Test
+    public void testStorageFull() throws Exception {
+        val fs = spy(FileSystemWrapper.class);
+        doThrow(new IOException("No space left on device")).when(fs).getFileSize(any());
+        FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
+        AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
+                storage.getInfo("test"),
+                ex -> ex instanceof ChunkStorageFullException);
+    }
+
+    @Test
+    public void testGetUsageException() {
+        val fs = spy(FileSystemWrapper.class);
+        doThrow(new RuntimeException("Intentional")).when(fs).getUsedSpace(any());
+        FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
+        AssertExtensions.assertFutureThrows("should throw ChunkStorageException exception",
+                storage.getUsedSpace(),
+                ex -> ex instanceof ChunkStorageException);
     }
 
     @Test

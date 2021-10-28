@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,7 @@ import java.util.concurrent.Executor;
 
 @Slf4j
 public class FileSystemChunkStorage extends BaseChunkStorage {
+    public static final String NO_SPACE_LEFT_ON_DEVICE = "No space left on device";
     //region members
 
     private final FileSystemStorageConfig config;
@@ -125,7 +127,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                     .length(chunkSize)
                     .build();
         } catch (IOException e) {
-            throw  convertExeption(chunkName, "doGetInfo", e);
+            throw  convertException(chunkName, "doGetInfo", e);
         }
     }
 
@@ -141,7 +143,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             fileSystem.createFile(fileAttributes, path);
 
         } catch (IOException e) {
-            throw convertExeption(chunkName, "doCreate", e);
+            throw convertException(chunkName, "doCreate", e);
         }
 
         return ChunkHandle.writeHandle(chunkName);
@@ -157,7 +159,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
         try {
             fileSystem.delete(getFilePath(handle.getChunkName()));
         } catch (IOException e) {
-            throw convertExeption(handle.getChunkName(), "doDelete", e);
+            throw convertException(handle.getChunkName(), "doDelete", e);
         }
     }
 
@@ -202,7 +204,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                         "current size of chunk (%d).", fromOffset, fileSize));
             }
         } catch (IOException e) {
-            throw convertExeption(handle.getChunkName(), "doRead", e);
+            throw convertException(handle.getChunkName(), "doRead", e);
         }
 
         try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.READ)) {
@@ -218,7 +220,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             } while (length > 0);
             return totalBytesRead;
         } catch (IOException e) {
-            throw convertExeption(handle.getChunkName(), "doRead", e);
+            throw convertException(handle.getChunkName(), "doRead", e);
         }
     }
 
@@ -245,7 +247,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             }
             channel.force(true);
         } catch (IOException e) {
-            throw convertExeption(handle.getChunkName(), "doWrite", e);
+            throw convertException(handle.getChunkName(), "doWrite", e);
         }
         return (int) totalBytesWritten;
     }
@@ -278,7 +280,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             }
             return totalBytesConcated;
         } catch (IOException e) {
-            throw convertExeption(chunks[0].getName(), "doConcat", e);
+            throw convertException(chunks[0].getName(), "doConcat", e);
         }
     }
 
@@ -289,21 +291,35 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             path = getFilePath(handle.getChunkName());
             fileSystem.setPermissions(path, isReadOnly ? FileSystemWrapper.READ_ONLY_PERMISSION : FileSystemWrapper.READ_WRITE_PERMISSION);
         } catch (IOException e) {
-            throw convertExeption(path.toString(), "doSetReadOnly", e);
+            throw convertException(path.toString(), "doSetReadOnly", e);
         }
     }
 
-    private ChunkStorageException convertExeption(String chunkName, String message, Exception e) {
+    @Override
+    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException  {
+        try {
+            return fileSystem.getUsedSpace(Paths.get(config.getRoot()));
+        } catch (Exception e) {
+            throw convertException("", "doGetUsedSpace", e);
+        }
+    }
+
+    private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         if (e instanceof ChunkStorageException) {
             return (ChunkStorageException) e;
         }
+        ChunkStorageException toRet = null;
         if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
-            return new ChunkNotFoundException(chunkName, message, e);
+            toRet = new ChunkNotFoundException(chunkName, message, e);
+        } else if (e instanceof FileAlreadyExistsException) {
+            toRet = new ChunkAlreadyExistsException(chunkName, message, e);
+        } else if (e instanceof IOException && e.getMessage().contains(NO_SPACE_LEFT_ON_DEVICE)) {
+            toRet = new ChunkStorageFullException(message, e);
+        } else {
+            toRet = new ChunkStorageException(chunkName, message, e);
         }
-        if (e instanceof FileAlreadyExistsException) {
-            return  new ChunkAlreadyExistsException(chunkName, message, e);
-        }
-        return new ChunkStorageException(chunkName, message, e);
+        return toRet;
+
     }
 
     private Path getFilePath(String chunkName) {
