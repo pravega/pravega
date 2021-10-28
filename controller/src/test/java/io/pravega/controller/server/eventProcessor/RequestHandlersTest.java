@@ -46,6 +46,8 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTa
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -119,6 +121,7 @@ public abstract class RequestHandlersTest {
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
     private StreamMetadataTasks streamMetadataTasks;
+    private KVTableMetadataStore kvtStore;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
@@ -164,7 +167,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-
+        this.kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, executor);
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
@@ -876,7 +879,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore, executor),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -930,7 +933,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore, executor),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -983,7 +986,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore, executor),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1086,7 +1089,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore, executor),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1138,7 +1141,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
-                new DeleteScopeTask(streamStore, executor),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();

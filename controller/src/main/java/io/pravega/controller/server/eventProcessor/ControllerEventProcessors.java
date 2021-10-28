@@ -174,7 +174,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new DeleteReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
-                new DeleteScopeTask(streamMetadataStore, executor),
+                new DeleteScopeTask(streamMetadataStore,streamMetadataTasks, kvtMetadataStore, executor),
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, bucketStore, executor);

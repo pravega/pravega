@@ -133,7 +133,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
-                new DeleteScopeTask(streamStore, executorService),
+                new DeleteScopeTask(streamStore,streamMetadataTasks, kvtStore, executorService),
                 executorService));
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));

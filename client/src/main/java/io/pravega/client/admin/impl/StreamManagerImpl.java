@@ -188,7 +188,6 @@ public class StreamManagerImpl implements StreamManager {
     public boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope recursively: {}", scopeName);
-        deleteScopeContent(scopeName);
         return Futures.getThrowingException(controller.deleteScopeRecursive(scopeName));
     }
 
@@ -204,12 +203,6 @@ public class StreamManagerImpl implements StreamManager {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
         if (forceDelete) {
-            deleteScopeContent(scopeName);
-        }
-        return Futures.getThrowingException(controller.deleteScope(scopeName));
-    }
-
-    public void deleteScopeContent(String scopeName) throws DeleteScopeFailedException {
             List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
@@ -257,6 +250,8 @@ public class StreamManagerImpl implements StreamManager {
                 }
             }
         }
+        return Futures.getThrowingException(controller.deleteScope(scopeName));
+    }
 
     @Override
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
