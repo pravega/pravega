@@ -22,6 +22,7 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -83,7 +84,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                                         sourceSegmentMetadata = (SegmentMetadata) storageMetadata2;
                                         return performConcat(txn);
                                     }, chunkedSegmentStorage.getExecutor());
-                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor());
+                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor())
+                .exceptionally(ex -> handleException(ex));
     }
 
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
@@ -125,6 +127,9 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         val ex = Exceptions.unwrap(e);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(targetHandle.getSegmentName(), ex));
+        }
+        if (ex instanceof ChunkStorageFullException) {
+            throw new CompletionException(new StorageFullException(targetHandle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
     }
