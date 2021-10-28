@@ -150,4 +150,14 @@ public class FailingRequestProcessor implements RequestProcessor {
         throw new IllegalStateException("Unexpected operation");
     }
 
+    @Override
+    public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void connectionDropped() {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
 }

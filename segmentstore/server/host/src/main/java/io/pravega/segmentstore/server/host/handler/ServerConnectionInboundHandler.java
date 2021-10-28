@@ -102,6 +102,10 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
                 // wait for all messages to be sent before closing the channel.
                 ch.eventLoop().execute(() -> ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE));
             }
+            RequestProcessor rp = processor.get();
+            if (rp != null) {
+                rp.connectionDropped();
+            }
         }
     }
 
