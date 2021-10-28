@@ -167,7 +167,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        this.kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, executor);
+        this.kvtStore = null;
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
