@@ -429,9 +429,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (null == handle) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
-        if (config.isSafeStorageSizeCheckEnabled() && isStorageFull.get()
-                && !handle.getSegmentName().startsWith(INTERNAL_SCOPE_PREFIX)) {
-            return CompletableFuture.failedFuture( new StorageFullException(handle.getSegmentName()));
+        if (isStorageFull() && !isSegmentInSystemScope(handle)) {
+            return CompletableFuture.failedFuture(new StorageFullException(handle.getSegmentName()));
         }
         return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
     }
@@ -496,9 +495,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (null == sourceSegment) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment must not be null"));
         }
-        if (config.isSafeStorageSizeCheckEnabled() && isStorageFull.get()
-                && !targetHandle.getSegmentName().startsWith(INTERNAL_SCOPE_PREFIX)) {
-            return CompletableFuture.failedFuture( new StorageFullException(targetHandle.getSegmentName()));
+        if (isStorageFull() && !isSegmentInSystemScope(targetHandle)) {
+            return CompletableFuture.failedFuture(new StorageFullException(targetHandle.getSegmentName()));
         }
 
         return executeSerialized(new ConcatOperation(this, targetHandle, offset, sourceSegment), targetHandle.getSegmentName(), sourceSegment);
@@ -734,7 +732,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                         if (!isStorageFull.get()) {
                             log.warn("{} STORAGE FULL. ENTERING READ ONLY MODE. Any non-critical writes will be rejected.", logPrefix);
                         }
-                        log.warn("{} STORAGE FULL -  used={} total={}.", logPrefix, used, config.getMaxSafeStorageSize());
+                        log.warn("{} STORAGE FULL - used={} total={}.", logPrefix, used, config.getMaxSafeStorageSize());
                     } else {
                         if (isStorageFull.get()) {
                             log.info("{} STORAGE AVAILABLE. LEAVING READ ONLY MODE. Restoring normal writes", logPrefix);
@@ -964,6 +962,14 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (segmentMetadata.isSealed()) {
             throw new CompletionException(new StreamSegmentSealedException(streamSegmentName));
         }
+    }
+
+    boolean isStorageFull() {
+        return config.isSafeStorageSizeCheckEnabled() && isStorageFull.get();
+    }
+
+    boolean isSegmentInSystemScope(SegmentHandle handle) {
+        return handle.getSegmentName().startsWith(INTERNAL_SCOPE_PREFIX);
     }
 
     private void checkInitialized() {
