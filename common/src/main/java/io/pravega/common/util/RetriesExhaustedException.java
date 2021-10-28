@@ -26,4 +26,8 @@ public class RetriesExhaustedException extends RuntimeException {
     public RetriesExhaustedException(Throwable last) {
         super(last);
     }
+    
+    public RetriesExhaustedException(String message, Throwable last) {
+        super(message, last);
+    }
 }
