@@ -49,8 +49,7 @@ public class PeriodicTxnGC {
     }
     
     public CompletableFuture<Void> txnGC(Stream stream) {
-
-        // Track the new request for this automatic truncation.
+        // Track the new request for this automatic transaction GC.
         long requestId = requestIdGenerator.get();
         String requestDescriptor = RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
                 stream.getStreamName());
@@ -59,19 +58,21 @@ public class PeriodicTxnGC {
                 requestId);
 
         log.info(requestId, "Periodic background processing for transaction GC called for stream {}/{}", stream.getScope(), stream.getStreamName());
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), 
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getOpenTxns(stream.getScope(),
                 stream.getStreamName(), context, executor)
-                         .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
-                                 config.getRetentionPolicy(), System.currentTimeMillis(), context,
-                                 this.streamMetadataTasks.retrieveDelegationToken()))
+                         .thenCompose(openTxnsData -> {
+                             if(openTxnsData.isEmpty()) {
+                                 return CompletableFuture.completedFuture(null);
+                             }
+                             return streamMetadataTasks.transactionGC(stream.getScope(), stream.getStreamName(), openTxnsData, context, this.streamMetadataTasks.retrieveDelegationToken());
+                         })
                          .exceptionally(e -> {
-                             log.warn(requestId, "Exception thrown while performing auto retention for stream {} ",
-                                     stream, e);
+                             log.warn(requestId, "Exception thrown while performing transaction garbage collection for stream {} ", stream, e);
                              throw new CompletionException(e);
                          }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                           .exceptionally(e -> {
-                              log.warn(requestId, "Unable to perform retention for stream {}. " +
-                                      "Ignoring, retention will be attempted in next cycle.", stream, e);
+                              log.warn(requestId, "Unable to perform transaction garbage collection for stream {}. " +
+                                      "Ignoring, transaction garbage collection will be attempted again in the next cycle.", stream, e);
                               return null;
                           }).thenRun(() -> requestTracker.untrackRequest(requestDescriptor));
     }

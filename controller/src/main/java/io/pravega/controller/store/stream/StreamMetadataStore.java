@@ -1106,6 +1106,18 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
+     * Method to retrive all currently active transactions from the metadata store.
+     *
+     * @param scope    scope of stream
+     * @param stream   name of stream
+     * @param context  operation context
+     * @param executor callers executor
+     * @return map of txId to TxRecord
+     */
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getOpenTxns(final String scope, final String stream,
+                                                              final OperationContext context, final Executor executor);
+
+    /**
      * Adds specified resource as a child of current host's hostId node.
      * This is idempotent operation.
      *

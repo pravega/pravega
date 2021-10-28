@@ -49,15 +49,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.*;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
@@ -914,6 +906,27 @@ public class StreamMetadataTasks extends TaskBase {
                                    });
                         });
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+
+    /**
+     * Method to garbage collect (abort) open transactions that have lived past their lease period.
+     * @param scope scope
+     * @param stream stream
+     * @param openTransactionData Metadata for open transactions on the Stream
+     * @param contextOpt operation context
+     * @param delegationToken token to be sent to segmentstore to authorize this operation.
+     * @return future.
+     */
+    public CompletableFuture<Void> transactionGC(final String scope, final String stream, final Map<UUID, ActiveTxnRecord> openTransactionData,
+                                             final OperationContext contextOpt,
+                                             final String delegationToken) {
+        Preconditions.checkNotNull(openTransactionData);
+        final OperationContext context = contextOpt != null ? contextOpt :
+                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+
+        return
+                .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
+
     }
 
     /**
