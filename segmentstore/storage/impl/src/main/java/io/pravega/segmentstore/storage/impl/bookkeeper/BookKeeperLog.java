@@ -326,6 +326,7 @@ class BookKeeperLog implements DurableDataLog {
             if (ex != null) {
                 handleWriteException(ex);
             } else {
+                System.err.println(Thread.currentThread() + " BOOKKEEPER LOG COMPLETED WRITE " + address);
                 // Update metrics and take care of other logging tasks.
                 this.metrics.writeCompleted(timer.getElapsed());
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, data.getLength(), address);
