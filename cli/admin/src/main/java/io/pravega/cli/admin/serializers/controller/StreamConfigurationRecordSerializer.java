@@ -51,7 +51,6 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
     public static final String RETENTION_POLICY_RETENTION_PARAM = "retentionParam";
     public static final String RETENTION_POLICY_RETENTION_MAX = "retentionMax";
 
-    private static final String EMPTY_SET = "EMPTY_SET";
     private static final String NO_POLICY = "NO_POLICY";
 
     private static final Map<String, Function<ScalingPolicy, String>> SCALING_POLICY_FIELD_MAP =
@@ -64,7 +63,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
 
     private static final Map<String, Function<RetentionPolicy, String>> RETENTION_POLICY_FIELD_MAP =
             ImmutableMap.<String, Function<RetentionPolicy, String>>builder()
-                    .put(RETENTION_POLICY_RETENTION_TYPE, rp -> rp.getRetentionType().toString() + "(" + rp.getRetentionType().ordinal() + ")")
+                    .put(RETENTION_POLICY_RETENTION_TYPE, rp -> rp.getRetentionType().toString())
                     .put(RETENTION_POLICY_RETENTION_PARAM, rp -> String.valueOf(rp.getRetentionParam()))
                     .put(RETENTION_POLICY_RETENTION_MAX, rp -> String.valueOf(rp.getRetentionMax()))
                     .build();
@@ -75,14 +74,10 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                     .put(STREAM_CONFIGURATION_RECORD_STREAM_NAME, StreamConfigurationRecord::getStreamName)
                     .put(STREAM_CONFIGURATION_RECORD_UPDATING, r -> String.valueOf(r.isUpdating()))
                     .put(STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE, r -> String.valueOf(r.isTagOnlyUpdate()))
-                    .put(STREAM_CONFIGURATION_RECORD_REMOVE_TAGS, r ->
-                            r.getRemoveTags().isEmpty() ? EMPTY_SET : String.join(",", r.getRemoveTags()))
-                    .put(STREAM_CONFIGURATION_TAGS, r ->
-                            r.getStreamConfiguration().getTags().isEmpty() ? EMPTY_SET : String.join(",", r.getStreamConfiguration().getTags()))
-                    .put(STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES, r ->
-                            String.valueOf(r.getStreamConfiguration().getRolloverSizeBytes()))
-                    .put(STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT, r ->
-                            String.valueOf(r.getStreamConfiguration().getTimestampAggregationTimeout()))
+                    .put(STREAM_CONFIGURATION_RECORD_REMOVE_TAGS, r -> convertCollectionToString(r.getRemoveTags(), s -> s))
+                    .put(STREAM_CONFIGURATION_TAGS, r -> convertCollectionToString(r.getStreamConfiguration().getTags(), s -> s))
+                    .put(STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES, r -> String.valueOf(r.getStreamConfiguration().getRolloverSizeBytes()))
+                    .put(STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT, r -> String.valueOf(r.getStreamConfiguration().getTimestampAggregationTimeout()))
                     .put(SCALING_POLICY, r -> {
                         ScalingPolicy sp = r.getStreamConfiguration().getScalingPolicy();
                         if (sp != null) {
@@ -120,7 +115,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                     .streamName(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_STREAM_NAME))
                     .updating(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_UPDATING)))
                     .tagOnlyUpdate(Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE)))
-                    .removeTags(getSetFromData(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_REMOVE_TAGS)))
+                    .removeTags(convertStringToCollection(getAndRemoveIfExists(data, STREAM_CONFIGURATION_RECORD_REMOVE_TAGS), s -> s))
                     .streamConfiguration(getStreamConfigurationFromData(data))
                     .build();
             buf = SERIALIZER.serialize(record).asByteBuffer();
@@ -147,7 +142,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
         return StreamConfiguration.builder()
                 .rolloverSizeBytes(Long.parseLong(getAndRemoveIfExists(data, STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES)))
                 .timestampAggregationTimeout(Long.parseLong(getAndRemoveIfExists(data, STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT)))
-                .tags(getSetFromData(getAndRemoveIfExists(data, STREAM_CONFIGURATION_TAGS)))
+                .tags(convertStringToCollection(getAndRemoveIfExists(data, STREAM_CONFIGURATION_TAGS), s -> s))
                 .scalingPolicy(getScalingPolicyFromData(getAndRemoveIfExists(data, SCALING_POLICY)))
                 .retentionPolicy(getRetentionPolicyFromData(getAndRemoveIfExists(data, RETENTION_POLICY)))
                 .build();
@@ -176,13 +171,5 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                 .retentionParam(Long.parseLong(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_PARAM)))
                 .retentionMax(Long.parseLong(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_MAX)))
                 .build();
-    }
-
-    private Set<String> getSetFromData(String setData) {
-        Set<String> set = new HashSet<>();
-        if (!setData.equalsIgnoreCase(EMPTY_SET)) {
-            Collections.addAll(set, setData.split(","));
-        }
-        return set;
     }
 }

@@ -18,15 +18,17 @@ package io.pravega.cli.admin.serializers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Serializer;
 
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Base class for serializers.
  */
 public abstract class AbstractSerializer implements Serializer<String> {
+
+    protected static final String EMPTY = "EMPTY";
+    private static final String KEY_VALUE_SEPARATOR = ":";
 
     /**
      * Method to return the name of the metadata being serialized.
@@ -85,5 +87,30 @@ public abstract class AbstractSerializer implements Serializer<String> {
         String value = data.remove(key);
         Preconditions.checkArgument(value != null, String.format("%s not provided.", key));
         return value;
+    }
+
+    public static <T> String convertCollectionToString(Collection<T> collection, Function<T, String> converter) {
+        return collection.isEmpty() ? EMPTY : collection.stream().map(converter).collect(Collectors.joining(","));
+    }
+
+    public static <T> Collection<T> convertStringToCollection(String collectionString, Function<String, T> converter) {
+        return collectionString.equalsIgnoreCase(EMPTY) ? new ArrayList<>() : Arrays.stream(collectionString.split(",")).map(converter).collect(Collectors.toList());
+    }
+
+    public static <T, U> String convertMapToString(Map<T, U> map, Function<T, String> keyConverter, Function<U, String> valueConverter) {
+        return convertCollectionToString(map.entrySet()
+                .stream()
+                .map(entry -> keyConverter.apply(entry.getKey()) + KEY_VALUE_SEPARATOR + valueConverter.apply(entry.getValue()))
+                .collect(Collectors.toList()), s -> s);
+    }
+
+    public static <T, U> Map<T, U> convertStringToMap(String mapString, Function<String, T> keyConverter, Function<String, U> valueConverter, String name) {
+        Map<T, U> map = new HashMap<>();
+        convertStringToCollection(mapString, s -> s).forEach(s -> {
+            List<String> pair = Arrays.asList(s.split(KEY_VALUE_SEPARATOR));
+            Preconditions.checkArgument(pair.size() == 2, String.format("Incomplete key-value pair provided in the map field: %s", name));
+            map.put(keyConverter.apply(pair.get(0)), valueConverter.apply(pair.get(1)));
+        });
+        return map;
     }
 }
