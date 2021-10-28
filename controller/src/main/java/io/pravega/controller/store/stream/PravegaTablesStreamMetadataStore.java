@@ -102,7 +102,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
+    public PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
                                      Duration gcPeriod, PravegaTablesStoreHelper helper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);

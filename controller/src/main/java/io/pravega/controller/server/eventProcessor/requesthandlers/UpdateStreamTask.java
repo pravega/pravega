@@ -29,6 +29,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 
 import java.util.AbstractMap;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -78,19 +80,31 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                .thenCompose(versionedState -> streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
-                        .thenCompose(versionedMetadata -> {
-                            if (!versionedMetadata.getObject().isUpdating()) {
-                                if (versionedState.getObject().equals(State.UPDATING)) {
-                                    return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                            versionedState, context, executor));
+                .thenCompose(versionedState -> {
+                    if (versionedState.getObject().equals(State.SEALED)) {
+                        // updating the stream should not be allowed since it has been SEALED
+                        // hence, we need to update the configuration in the store with updating flag = false
+                        // and then throw an exception
+                        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                                .thenCompose(versionedMetadata -> streamMetadataStore.completeUpdateConfiguration(scope, stream, versionedMetadata, context, executor)
+                                        .thenAccept(v -> {
+                                            throw new UnsupportedOperationException("Cannot update a sealed stream: " + NameUtils.getScopedStreamName(scope, stream));
+                                        }));
+                    }
+                    return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                            .thenCompose(versionedMetadata -> {
+                                if (!versionedMetadata.getObject().isUpdating()) {
+                                    if (versionedState.getObject().equals(State.UPDATING)) {
+                                        return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                                versionedState, context, executor));
+                                    } else {
+                                        return CompletableFuture.completedFuture(null);
+                                    }
                                 } else {
-                                    return CompletableFuture.completedFuture(null);
+                                    return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);
                                 }
-                            } else {
-                                return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);
-                            }
-                        }));
+                            });
+                });
     }
 
     private CompletableFuture<Void> processUpdate(String scope, String stream, VersionedMetadata<StreamConfigurationRecord> record,

@@ -80,6 +80,28 @@ public class EndOfDataNotifierTest {
         verify(system, times(1)).removeListeners(EndOfDataNotification.class.getSimpleName());
     }
 
+    @Test(timeout = 10000)
+    public void endOfStreamNotifierWithEmptyState() throws Exception {
+        AtomicBoolean listenerInvoked = new AtomicBoolean();
+
+        when(state.isEndOfData()).thenReturn(false).thenReturn(true);
+        when(sync.getState()).thenReturn(null).thenReturn(state);
+
+        Listener<EndOfDataNotification> listener1 = notification -> {
+            log.info("listener 1 invoked");
+            listenerInvoked.set(true);
+        };
+
+        EndOfDataNotifier notifier = new EndOfDataNotifier(system, sync, executor);
+        notifier.registerListener(listener1);
+        verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), eq(0L), anyLong(), any(TimeUnit.class));
+        notifier.pollNow();
+        verify(state, times(1)).isEndOfData();
+        notifier.pollNow();
+        verify(state, times(2)).isEndOfData();
+        assertTrue(listenerInvoked.get());
+    }
+
     @After
     public void cleanup() {
         ExecutorServiceHelpers.shutdown(executor);
