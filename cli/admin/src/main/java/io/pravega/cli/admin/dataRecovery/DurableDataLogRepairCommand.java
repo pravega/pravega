@@ -17,7 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.common.Exceptions;
+import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -137,6 +137,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         int operationsReadFromOriginalLog = 0;
         try {
             operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupState, containerId, originalDataLogReadOnly);
+            // Ugly, but it ensures that the last write done in the DataFrameBuilder is actually persisted.
+            backupDataLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
             // The number of processed operation should match the number of read operations from DebugRecoveryProcessor.
             assert backupState.getProcessedOperations() == operationsReadFromOriginalLog;
             assert !backupState.isFailed;
@@ -154,7 +156,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ", Backup DurableLog operations read: " + backupLogReadOperations);
 
         // FIXME: We need to ensure that we read everything from original log once disabled. Currently the last entry is missing.
-        //assert operationsReadFromOriginalLog == backupLogReadOperations;
+        assert operationsReadFromOriginalLog == backupLogReadOperations;
 
         output("Original DurableLog has been backed up correctly.");
         if (!this.testMode && !confirmContinue()) {
@@ -191,6 +193,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         LogEditingState logEditState = new LogEditingState(editedDataLog, durableLogEdits, executorService);
         try {
             int readBackupLogAgain = readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
+            // Ugly, but it ensures that the last write done in the DataFrameBuilder is actually persisted.
+            editedDataLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
             outputInfo("Backup DurableLog operations read on first attempt: " + backupLogReadOperations +
                     ", Backup DurableLog operations read on second attempt: " + readBackupLogAgain);
             assert !logEditState.isFailed;
@@ -349,27 +353,29 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     }
 
     abstract static class AbstractLogProcessor implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>>, AutoCloseable {
+        protected final AtomicLong processedOperations = new AtomicLong(0);
+        protected final Map<Long, CompletableFuture<Void>> operationProcessingTracker = new ConcurrentHashMap<>();
+        @NonNull
+        protected final DataFrameBuilder<Operation> dataFrameBuilder;
+        @Getter
         protected boolean isFailed = false;
         @Getter
         private final AtomicBoolean closed = new AtomicBoolean();
-        protected final AtomicLong processedOperations = new AtomicLong(0);
-        protected final Map<Long, CompletableFuture<Void>> operationProcessingTracker = new ConcurrentHashMap<>();
-        private final ScheduledExecutorService executor;
-        @NonNull
-        protected final DataFrameBuilder<Operation> dataFrameBuilder;
         private final AtomicInteger beforeCommit = new AtomicInteger();
         private final AtomicInteger commitSuccess = new AtomicInteger();
         private final AtomicInteger commitFailure = new AtomicInteger();
 
         AbstractLogProcessor(DurableDataLog durableDataLog, ScheduledExecutorService executor) {
-            this.executor = executor;
-            DataFrameBuilder.Args args = new DataFrameBuilder.Args(a -> beforeCommit.getAndIncrement(),
+            DataFrameBuilder.Args args = new DataFrameBuilder.Args(a -> this.beforeCommit.getAndIncrement(),
                     b -> {
-                        commitSuccess.getAndIncrement();
                         operationProcessingTracker.get(b.getLastFullySerializedSequenceNumber()).complete(null);
-                        System.err.println("COMMIT SUCCESS CALLBACK DATAFRAMEBUILDER: " + b.getLastFullySerializedSequenceNumber());
+                        this.commitSuccess.getAndIncrement();
                     },
-                    (c, d) -> commitFailure.getAndIncrement(),
+                    (c, d) -> {
+                        operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
+                        isFailed = true; // Consider a single failed write as a failure in the whole process.
+                        commitFailure.getAndIncrement();
+                    },
                     executor);
             this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         }
@@ -408,9 +414,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         public void accept(Operation operation, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
-                System.err.println(Thread.currentThread() + " BACKUP OPERATION BEFORE " + operation);
                 writeAndConfirm(operation);
-                System.err.println(Thread.currentThread() + " BACKUP OPERATION AFTER " + operation);
                 processedOperations.incrementAndGet();
             } catch (Exception e) {
                 outputError("Error serializing operation " + operation);
@@ -459,16 +463,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                             // Example: Original Log = [1, 2, 3, 4, 5]
                             //          delete 2-4
                             //          Result Log = [1, 2 (4), 3 (5)] (former operation sequence number)
-                            outputInfo("Deleting operation from DurableLog: " + operation);
-                            if (logEdit.getFinalOperationId() == operation.getSequenceNumber() + 1) {
-                                // Once reached the end of the Delete Edit Operation range, remove it from the list.
-                                try {
-                                    durableLogEdits.remove(0);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                                outputInfo("Completed Delete Edit Operation on DurableLog: " + logEdit);
-                            }
+                            applyDeleteEditOperation(operation, logEdit);
                             break;
                         case ADD_OPERATION:
                             // An Add Edit Operation on a DurableLog consists of appending the desired Operation
@@ -478,17 +473,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                             // Example: Original Log = [1, 2, 3, 4, 5]
                             //          add 2, opA, opB, opC
                             //          Result Log = [1, 2 (opA), 3 (opB), 4 (opC), 5 (2), 6 (3), 7 (4), 8 (5)] (former operation sequence number)
-                            long currentInitialAddOperation = logEdit.getInitialOperationId();
-                            while (!durableLogEdits.isEmpty() && logEdit.getType().equals(LogEditType.ADD_OPERATION)
-                                    && logEdit.getInitialOperationId() == currentInitialAddOperation) {
-                                logEdit = durableLogEdits.get(0);
-                                logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
-                                writeAndConfirm(logEdit.getNewOperation());
-                                durableLogEdits.remove(0);
-                            }
-                            // After all the additions are done, add the current log operation.
-                            operation.resetSequenceNumber(newSequenceNumber++);
-                            writeAndConfirm(operation);
+                            applyAddEditOperation(operation, logEdit);
                             break;
                         case REPLACE_OPERATION:
                             // A Replace Edit Operation on a DurableLog consists of deleting the current Operation and
@@ -496,9 +481,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                             // Example: Original Log = [1, 2, 3, 4, 5]
                             //          replace 2, opA
                             //          Result Log = [1, 2 (opA), 3, 4, 5] (former operation sequence number)
-                            logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
-                            writeAndConfirm(logEdit.getNewOperation());
-                            durableLogEdits.remove(0);
+                            applyReplaceEditOperation(logEdit);
                             break;
                         default:
                             outputError("Unknown DurableLog edit type: " + durableLogEdits.get(0).getType());
@@ -508,6 +491,39 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 outputError("Error serializing operation " + operation);
                 e.printStackTrace();
                 isFailed = true;
+            }
+        }
+
+        private void applyReplaceEditOperation(LogEditOperation logEdit) throws IOException {
+            logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
+            writeAndConfirm(logEdit.getNewOperation());
+            durableLogEdits.remove(0);
+        }
+
+        private void applyAddEditOperation(Operation operation, LogEditOperation logEdit) throws IOException {
+            long currentInitialAddOperation = logEdit.getInitialOperationId();
+            while (!durableLogEdits.isEmpty() && logEdit.getType().equals(LogEditType.ADD_OPERATION)
+                    && logEdit.getInitialOperationId() == currentInitialAddOperation) {
+                logEdit = durableLogEdits.get(0);
+                logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
+                writeAndConfirm(logEdit.getNewOperation());
+                durableLogEdits.remove(0);
+            }
+            // After all the additions are done, add the current log operation.
+            operation.resetSequenceNumber(newSequenceNumber++);
+            writeAndConfirm(operation);
+        }
+
+        private void applyDeleteEditOperation(Operation operation, LogEditOperation logEdit) {
+            outputInfo("Deleting operation from DurableLog: " + operation);
+            if (logEdit.getFinalOperationId() == operation.getSequenceNumber() + 1) {
+                // Once reached the end of the Delete Edit Operation range, remove it from the list.
+                try {
+                    durableLogEdits.remove(0);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                outputInfo("Completed Delete Edit Operation on DurableLog: " + logEdit);
             }
         }
 
