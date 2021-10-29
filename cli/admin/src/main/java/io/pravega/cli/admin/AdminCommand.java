@@ -206,6 +206,13 @@ public abstract class AdminCommand {
         return s.nextInt();
     }
 
+    protected boolean getBooleanUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextBoolean();
+    }
+
     //endregion
 
     //region Arguments
