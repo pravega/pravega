@@ -59,8 +59,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.awt.print.Book;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;

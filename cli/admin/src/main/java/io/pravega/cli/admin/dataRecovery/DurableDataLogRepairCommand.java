@@ -270,37 +270,45 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
     @VisibleForTesting
     Operation createUserDefinedOperation() {
+        Operation result;
         final String operations = "[DeleteSegmentOperation|MergeSegmentOperation|MetadataCheckpointOperation|" +
                 "StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|" +
                 "StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]";
         switch (getStringUserInput("Type one of the following Operations to instantiate: " + operations)) {
             case "DeleteSegmentOperation":
                 long segmentId = getLongUserInput("Introduce Segment Id for DeleteSegmentOperation:");
-                return new DeleteSegmentOperation(segmentId);
+                result = new DeleteSegmentOperation(segmentId);
+                break;
             case "MergeSegmentOperation":
                 long targetSegmentId = getLongUserInput("Introduce Target Segment Id for MergeSegmentOperation:");
                 long sourceSegmentId = getLongUserInput("Introduce Source Segment Id for MergeSegmentOperation:");
-                return new MergeSegmentOperation(targetSegmentId, sourceSegmentId, createAttributeUpdateCollection());
+                result = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, createAttributeUpdateCollection());
+                break;
             case "MetadataCheckpointOperation":
             case "StorageMetadataCheckpointOperation":
             case "StreamSegmentAppendOperation":
                 throw new UnsupportedOperationException();
             case "StreamSegmentMapOperation":
-                return new StreamSegmentMapOperation(createSegmentProperties());
+                result = new StreamSegmentMapOperation(createSegmentProperties());
+                break;
             case "StreamSegmentSealOperation":
                 segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentSealOperation:");
-                return new StreamSegmentSealOperation(segmentId);
+                result = new StreamSegmentSealOperation(segmentId);
+                break;
             case "StreamSegmentTruncateOperation":
                 segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentTruncateOperation:");
                 long offset = getLongUserInput("Introduce Offset for StreamSegmentTruncateOperation:");
-                return new StreamSegmentTruncateOperation(segmentId, offset);
+                result = new StreamSegmentTruncateOperation(segmentId, offset);
+                break;
             case "UpdateAttributesOperation":
                 segmentId = getLongUserInput("Introduce Segment Id for UpdateAttributesOperation:");
-                return new UpdateAttributesOperation(segmentId, createAttributeUpdateCollection());
+                result = new UpdateAttributesOperation(segmentId, createAttributeUpdateCollection());
+                break;
             default:
                 output("Invalid operation, please select one of " + operations);
+                throw new UnsupportedOperationException();
         }
-        throw new UnsupportedOperationException();
+        return result;
     }
 
     @VisibleForTesting
@@ -322,10 +330,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 AttributeId attributeId = AttributeId.fromUUID(UUID.fromString(getStringUserInput("Introduce UUID for this Attribute: ")));
                 long value = getLongUserInput("Introduce the Value for this Attribute:");
                 attributes.put(attributeId, value);
-            } catch(NumberFormatException ex){
+            } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 ex.printStackTrace();
-            } catch(Exception ex){
+            } catch (Exception ex) {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
             }
@@ -352,10 +360,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 long value = getLongUserInput("Introduce the Value for this AttributeUpdate:");
                 long comparisonValue = getLongUserInput("Introduce the comparison Value for this AttributeUpdate:");
                 attributeUpdates.add(new AttributeUpdate(attributeId, type, value, comparisonValue));
-            } catch(NumberFormatException ex){
+            } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 ex.printStackTrace();
-            } catch(Exception ex){
+            } catch (Exception ex) {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
             }
@@ -430,6 +438,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             return processedOperations.get();
         }
 
+        @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
                 this.dataFrameBuilder.flush();
@@ -453,7 +462,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         private void trackOperation(Operation operation) {
-            if (this.operationProcessingTracker.containsKey(operation.getSequenceNumber()) {
+            if (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
                 outputError("WARNING: Duplicate Operation being written " + operation);
                 return;
             }
@@ -466,12 +475,16 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
+    /**
+     * Writes all the {@link Operation}s passed in the callback to the target {@link DurableDataLog}.
+     */
     class BackupLogProcessor extends AbstractLogProcessor {
 
         BackupLogProcessor(DurableDataLog backupDataLog, ScheduledExecutorService executor) {
             super(backupDataLog, executor);
         }
 
+        @Override
         public void accept(Operation operation, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
                 writeAndConfirm(operation);
@@ -484,6 +497,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
+    /**
+     * Given a list of sorted {@link LogEditOperation}, writes to the target {@link DurableDataLog} the {@link Operation}s
+     * passed in the callback plus the result of applying the {@link LogEditOperation}.
+     */
     class EditingLogProcessor extends AbstractLogProcessor {
         @NonNull
         private final List<LogEditOperation> durableLogEdits;
@@ -494,6 +511,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             this.durableLogEdits = durableLogEdits;
         }
 
+        @Override
         public void accept(Operation operation, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
                 // Nothing to edit, just write the Operations from the original log to the edited one.

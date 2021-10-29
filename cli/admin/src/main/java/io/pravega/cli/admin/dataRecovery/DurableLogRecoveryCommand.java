@@ -17,43 +17,19 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.WriterFactory;
-import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
-import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
-import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
-import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
-import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
-import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
-import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.server.tables.ContainerTableExtension;
-import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
-import io.pravega.segmentstore.server.tables.TableExtensionConfig;
-import io.pravega.segmentstore.server.writer.StorageWriterFactory;
-import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
-import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.val;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**

@@ -40,7 +40,6 @@ import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -750,7 +749,7 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
     @VisibleForTesting
-    public LogMetadata loadMetadata() throws DataLogInitializationException {
+    LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
