@@ -102,7 +102,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         UUID txid = UUID.randomUUID();
         String scope = "test";
         String stream = "test";
-        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
+        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid, 21L);
         CommitEvent commitEvent = new CommitEvent(scope, stream, 0);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");

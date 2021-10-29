@@ -244,4 +244,15 @@ public interface ChunkStorage extends AutoCloseable, StatsReporter {
      *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly);
+
+    /**
+     * Get used space in bytes.
+     *
+     * @return A CompletableFuture that, when completed, will return the total size of storage used in bytes.
+     * If the operation failed, it will contain the cause of the failure.
+     * @throws UnsupportedOperationException If this operation is not supported by this provider.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    CompletableFuture<Long> getUsedSpace();
 }

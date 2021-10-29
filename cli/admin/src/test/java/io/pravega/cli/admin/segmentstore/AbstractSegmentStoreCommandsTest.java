@@ -16,6 +16,10 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.serializers.ContainerKeySerializer;
+import io.pravega.cli.admin.serializers.ContainerMetadataSerializer;
+import io.pravega.cli.admin.serializers.SltsKeySerializer;
+import io.pravega.cli.admin.serializers.SltsMetadataSerializer;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
@@ -48,6 +52,18 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.ENTRY_COUNT;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.KEY_LENGTH;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.LENGTH;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.SEGMENT_NAME;
+import static io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand.START_OFFSET;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_ID;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_LENGTH;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_NAME;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_SEALED;
+import static io.pravega.cli.admin.serializers.ContainerMetadataSerializer.SEGMENT_PROPERTIES_START_OFFSET;
+import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
 
@@ -225,6 +241,134 @@ public abstract class AbstractSegmentStoreCommandsTest {
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testSetSerializerCommand() throws Exception {
+        Assert.assertNull(STATE.get().getKeySerializer());
+        Assert.assertNull(STATE.get().getValueSerializer());
+
+        String commandResult = TestUtils.executeCommand("table-segment set-serializer dummy", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers named dummy do not exist."));
+        Assert.assertNull(STATE.get().getKeySerializer());
+        Assert.assertNull(STATE.get().getValueSerializer());
+
+        commandResult = TestUtils.executeCommand("table-segment set-serializer slts", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers changed to slts successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof SltsKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof SltsMetadataSerializer);
+
+        commandResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(commandResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+    }
+
+    @Test
+    public void testGetTableSegmentInfoCommand() throws Exception {
+        String tableSegmentName = getMetadataSegmentName(0);
+        String commandResult = TestUtils.executeCommand("table-segment get-info " + tableSegmentName + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(tableSegmentName));
+        Assert.assertTrue(commandResult.contains(SEGMENT_NAME));
+        Assert.assertTrue(commandResult.contains(START_OFFSET));
+        Assert.assertTrue(commandResult.contains(LENGTH));
+        Assert.assertTrue(commandResult.contains(ENTRY_COUNT));
+        Assert.assertTrue(commandResult.contains(KEY_LENGTH));
+    }
+
+    @Test
+    public void testListTableSegmentKeysCommand() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        int keyCount = 5;
+        String commandResult = TestUtils.executeCommand("table-segment list-keys " + tableSegmentName + " " + keyCount + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("List of at most " + keyCount + " keys in " + tableSegmentName));
+    }
+
+    @Test
+    public void testGetTableSegmentEntryCommand() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        String commandResult = TestUtils.executeCommand("table-segment get " + tableSegmentName + " " + key + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("container metadata info:"));
+        Assert.assertTrue(commandResult.contains(SEGMENT_ID));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_NAME));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_SEALED));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_START_OFFSET));
+        Assert.assertTrue(commandResult.contains(SEGMENT_PROPERTIES_LENGTH));
+    }
+    
+    @Test
+    public void testPutTableSegmentEntryCommand() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        StringBuilder newValueBuilder = new StringBuilder();
+        appendField(newValueBuilder, SEGMENT_ID, "1");
+        appendField(newValueBuilder, SEGMENT_PROPERTIES_NAME, key);
+        appendField(newValueBuilder, SEGMENT_PROPERTIES_SEALED, "false");
+        appendField(newValueBuilder, SEGMENT_PROPERTIES_START_OFFSET, "0");
+        appendField(newValueBuilder, SEGMENT_PROPERTIES_LENGTH, "10");
+        appendField(newValueBuilder, "80000000-0000-0000-0000-000000000000", "1632728432718");
+
+        String commandResult = TestUtils.executeCommand("table-segment put " + tableSegmentName + " localhost " +
+                        key + " " + newValueBuilder.toString(),
+                STATE.get());
+        Assert.assertTrue(commandResult.contains("Successfully updated the key " + key + " in table " + tableSegmentName));
+    }
+
+    @Test
+    public void testModifyTableSegmentEntryCommandValidFieldCase() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        StringBuilder newFieldValueBuilder = new StringBuilder();
+        appendField(newFieldValueBuilder, SEGMENT_PROPERTIES_START_OFFSET, "20");
+        appendField(newFieldValueBuilder, SEGMENT_PROPERTIES_LENGTH, "30");
+        appendField(newFieldValueBuilder, "80000000-0000-0000-0000-000000000000", "1632728432718");
+        appendField(newFieldValueBuilder, "dummy_field", "dummy");
+
+        String commandResult = TestUtils.executeCommand("table-segment modify " + tableSegmentName + " localhost " +
+                        key + " " + newFieldValueBuilder.toString(),
+                STATE.get());
+        Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
+        Assert.assertTrue(commandResult.contains("Successfully modified the following fields in the value for key " + key + " in table " + tableSegmentName));
+    }
+
+    @Test
+    public void testModifyTableSegmentEntryCommandInValidFieldCase() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        StringBuilder newFieldValueBuilder = new StringBuilder();
+        appendField(newFieldValueBuilder, "dummy_field", "dummy");
+
+        String commandResult = TestUtils.executeCommand("table-segment modify " + tableSegmentName + " localhost " +
+                        key + " " + newFieldValueBuilder.toString(),
+                STATE.get());
+        Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
+        Assert.assertTrue(commandResult.contains("No fields provided to modify."));
     }
 
     @After

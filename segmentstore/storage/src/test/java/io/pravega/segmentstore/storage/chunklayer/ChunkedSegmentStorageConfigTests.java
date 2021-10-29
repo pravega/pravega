@@ -48,6 +48,9 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_BUFFER.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "15");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_CACHE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "16");
         props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "17");
+        props.setProperty(ChunkedSegmentStorageConfig.MAX_SAFE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "18");
+        props.setProperty(ChunkedSegmentStorageConfig.ENABLE_SAFE_SIZE_CHECK.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
+        props.setProperty(ChunkedSegmentStorageConfig.SAFE_SIZE_CHECK_FREQUENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "19");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -71,6 +74,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxEntriesInTxnBuffer(), 15);
         Assert.assertEquals(config.getMaxEntriesInCache(), 16);
         Assert.assertEquals(config.getGarbageCollectionTransactionBatchSize(), 17);
+        Assert.assertEquals(config.getMaxSafeStorageSize(), 18);
+        Assert.assertFalse(config.isSafeStorageSizeCheckEnabled());
+        Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), 19);
     }
 
     @Test
@@ -103,6 +109,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxEntriesInTxnBuffer(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxEntriesInTxnBuffer());
         Assert.assertEquals(config.getMaxEntriesInCache(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxEntriesInCache());
         Assert.assertEquals(config.getGarbageCollectionTransactionBatchSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionTransactionBatchSize());
+        Assert.assertEquals(config.getMaxSafeStorageSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSafeStorageSize());
+        Assert.assertEquals(config.isSafeStorageSizeCheckEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSafeStorageSizeCheckEnabled());
+        Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getSafeStorageSizeCheckFrequencyInSeconds());
     }
 
     @Test

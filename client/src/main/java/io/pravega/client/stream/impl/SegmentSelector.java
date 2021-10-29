@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -64,6 +65,7 @@ public class SegmentSelector {
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
     private final EventWriterConfig config;
     private final DelegationTokenProvider tokenProvider;
+    private final AtomicBoolean sealed = new AtomicBoolean(false);
 
     /**
      * Selects which segment an event should be written to.
@@ -116,6 +118,7 @@ public class SegmentSelector {
             Exception e = new IllegalStateException("Writes cannot proceed since the stream is sealed");
             removeAllWriters().forEach(pendingEvent -> pendingEvent.getAckFuture()
                                                                    .completeExceptionally(e));
+            sealed.set(true);
             return Collections.emptyList();
         } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
@@ -150,6 +153,7 @@ public class SegmentSelector {
             segmentSealedCallBack) {
         Preconditions.checkState(newStreamSegments.getNumberOfSegments() > 0,
                 "Writers cannot proceed writing since the stream %s is sealed", stream);
+        Preconditions.checkState(!isStreamSealed(), "Writers cannot proceed writing since the stream %s is sealed", stream);
         currentSegments = newStreamSegments;
         createMissingWriters(segmentSealedCallBack);
 
@@ -215,6 +219,16 @@ public class SegmentSelector {
     @Synchronized
     public Map<Segment, SegmentOutputStream> getWriters() {
         return new HashMap<>(writers);
+    }
+
+    /**
+     * A flag that is used to determine if the stream has been sealed. Note: This flag only returns true if
+     * the seal has been detected as a result of calling {@link #refreshSegmentEventWritersUponSealed}.
+     *
+     * @return Whether the stream seal has been detected for this stream.
+     */
+    public boolean isStreamSealed() {
+        return sealed.get();
     }
 
 }

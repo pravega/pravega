@@ -65,7 +65,6 @@ public class RESTServer extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
-            log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
             if (restServerConfig.isTlsEnabled()) {
                 SSLContextConfigurator contextConfigurator = new SSLContextConfigurator();
                 contextConfigurator.setKeyStoreFile(restServerConfig.getKeyFilePath());
@@ -76,6 +75,7 @@ public class RESTServer extends AbstractIdleService {
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }
+            log.info("Started REST server listening on port: {}", this.restServerConfig.getPort());
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
