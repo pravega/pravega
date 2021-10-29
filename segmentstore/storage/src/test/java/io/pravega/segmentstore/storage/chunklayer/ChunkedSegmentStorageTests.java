@@ -291,6 +291,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 testContext.chunkedSegmentStorage.truncate(SegmentStorageHandle.writeHandle(testSegmentName), 0, null),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
+        AssertExtensions.assertFutureThrows(
+                "Defrag succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.defrag(SegmentStorageHandle.writeHandle(testSegmentName), null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
     @Test
@@ -1783,6 +1787,22 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test concat with invalid arguments.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testDefragInvalidParameters() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext();
+
+        AssertExtensions.assertFutureThrows(
+                "defrag succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.defrag(null, null),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    /**
      * Test write with invalid arguments.
      *
      * @throws Exception Exception if any.
@@ -2173,6 +2193,73 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 new long[]{25},
                 0);
     }
+
+    @Test
+    public void testBaseDefrag() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxFragmentedChunkCount(0)
+                .indexBlockSize(3)
+                .build());
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
+
+        // Populate segments
+        testBaseDefrag(testContext, 1024,
+                new long[]{10, 1, 2, 3, 4, 5},
+                new long[]{25},
+                0);
+
+        // Populate segments
+        testBaseDefrag(testContext, 1024,
+                new long[]{1, 2, 3, 4, 5, 10},
+                new long[]{25},
+                0);
+
+        testBaseDefrag(testContext, 1024,
+                new long[]{1, 2, 3, 4, 5, 10},
+                new long[]{1, 2, 3, 4, 15},
+                4);
+
+        // Populate segments
+        testBaseDefrag(testContext, 1024,
+                new long[]{1, 2, 3, 4, 5, 6, 7},
+                new long[]{28},
+                0);
+
+        testBaseDefrag(testContext, 1024,
+                new long[]{1, 2, 3, 4, 5, 6, 7},
+                new long[]{1, 27},
+                1);
+
+        // Only one object
+        testBaseDefrag(testContext, 1024,
+                new long[]{10, 15},
+                new long[]{25},
+                0);
+    }
+
+    private void testBaseDefrag(TestContext testContext, long maxRollingLength, long[] layout, long[] resultLayout, int fragmentationStart) throws Exception {
+        val segmentName = "test";
+        val target = testContext.insertMetadata(segmentName, maxRollingLength, 1, layout, fragmentationStart);
+        HashSet<String> chunksBefore = new HashSet<>();
+        chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, segmentName));
+
+        // Concat.
+        val targetInfo = testContext.chunkedSegmentStorage.getStreamSegmentInfo(segmentName, null).join();
+        testContext.chunkedSegmentStorage.defrag(SegmentStorageHandle.writeHandle(segmentName), null).join();
+
+        // Validate.
+        TestUtils.checkSegmentLayout(testContext.metadataStore, segmentName, resultLayout);
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, segmentName);
+        TestUtils.checkSegmentBounds(testContext.metadataStore, segmentName, 0, Arrays.stream(resultLayout).sum());
+        TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, segmentName, 0, Arrays.stream(resultLayout).sum(), true);
+        HashSet<String> chunksAfter = new HashSet<>();
+        chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, segmentName));
+        TestUtils.checkGarbageCollectionQueue(testContext.chunkedSegmentStorage, chunksBefore, chunksAfter);
+        // Cleanup
+        testContext.chunkedSegmentStorage.delete(SegmentStorageHandle.writeHandle(segmentName), null).join();
+    }
+
     /// endregion
 
     ///region Truncate Tests
@@ -3403,6 +3490,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertFutureThrows("conact() should throw an exception",
                 testContext.chunkedSegmentStorage.concat(h, 10, "A", TIMEOUT),
+                ex -> ex instanceof StorageFullException);
+
+        AssertExtensions.assertFutureThrows("defrag() should throw an exception",
+                testContext.chunkedSegmentStorage.defrag(h, TIMEOUT),
                 ex -> ex instanceof StorageFullException);
 
         // Remove storage full
