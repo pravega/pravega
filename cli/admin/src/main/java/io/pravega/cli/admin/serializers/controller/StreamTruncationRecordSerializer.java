@@ -15,11 +15,37 @@
  */
 package io.pravega.cli.admin.serializers.controller;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.cli.admin.serializers.AbstractSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 public class StreamTruncationRecordSerializer extends AbstractSerializer {
+
+    public static final String STREAM_TRUNCATION_RECORD_STREAM_CUT = "streamCut";
+    public static final String STREAM_TRUNCATION_RECORD_SPAN = "span";
+    public static final String STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS = "deletedSegments";
+    public static final String STREAM_TRUNCATION_RECORD_TO_DELETE = "toDelete";
+    public static final String STREAM_TRUNCATION_RECORD_SIZE_TILL = "sizeTill";
+    public static final String STREAM_TRUNCATION_RECORD_UPDATING = "updating";
+
+    private static final Map<String, Function<StreamTruncationRecord, String>> STREAM_TRUNCATION_RECORD_FIELD_MAP =
+            ImmutableMap.<String, Function<StreamTruncationRecord, String>>builder()
+                    .put(STREAM_TRUNCATION_RECORD_STREAM_CUT, r -> convertMapToString(r.getStreamCut(), String::valueOf, String::valueOf))
+                    .put(STREAM_TRUNCATION_RECORD_SPAN, r -> convertMapToString(r.getSpan(), AbstractSerializer::convertStreamSegmentRecordToString, String::valueOf))
+                    .put(STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS, r -> convertCollectionToString(r.getDeletedSegments(), String::valueOf))
+                    .put(STREAM_TRUNCATION_RECORD_TO_DELETE, r -> convertCollectionToString(r.getToDelete(), String::valueOf))
+                    .put(STREAM_TRUNCATION_RECORD_SIZE_TILL, r -> String.valueOf(r.getSizeTill()))
+                    .put(STREAM_TRUNCATION_RECORD_UPDATING, r -> String.valueOf(r.isUpdating()))
+                    .build();
 
     @Override
     public String getName() {
@@ -28,11 +54,27 @@ public class StreamTruncationRecordSerializer extends AbstractSerializer {
 
     @Override
     public ByteBuffer serialize(String value) {
-        return null;
+        Map<String, String> data = parseStringData(value);
+        Map<Long, Long> streamCut = convertStringToMap(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_STREAM_CUT),
+                Long::parseLong, Long::parseLong, getName() + STREAM_TRUNCATION_RECORD_STREAM_CUT);
+        Map<StreamSegmentRecord, Integer> span = convertStringToMap(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_SPAN),
+                AbstractSerializer::convertStringToStreamSegmentRecord, Integer::parseInt, getName() + STREAM_TRUNCATION_RECORD_SPAN);
+        Set<Long> deletedSegments = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS), Long::parseLong));
+        Set<Long> toDelete = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_TO_DELETE), Long::parseLong));
+
+        StreamTruncationRecord record = new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), ImmutableMap.copyOf(span),
+                ImmutableSet.copyOf(deletedSegments), ImmutableSet.copyOf(toDelete),
+                Long.parseLong(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_SIZE_TILL)),
+                Boolean.parseBoolean(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_UPDATING)));
+        return new ByteArraySegment(record.toBytes()).asByteBuffer();
     }
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        return null;
+        StringBuilder stringValueBuilder;
+        StreamTruncationRecord data = StreamTruncationRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
+        stringValueBuilder = new StringBuilder();
+        STREAM_TRUNCATION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
+        return stringValueBuilder.toString();
     }
 }
