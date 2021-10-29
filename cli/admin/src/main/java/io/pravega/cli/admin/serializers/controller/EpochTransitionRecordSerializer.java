@@ -62,7 +62,7 @@ public class EpochTransitionRecordSerializer extends AbstractSerializer {
                     Preconditions.checkArgument(pair.size() == 2,
                             String.format("Incomplete key-value pair provided in the %s.%s map", getName(), EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE));
                     return Map.entry(Double.parseDouble(pair.get(0)), Double.parseDouble(pair.get(1)));
-                    }, getName() + EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE);
+                    }, getName() + "." + EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE);
 
         EpochTransitionRecord record = new EpochTransitionRecord(
                 Integer.parseInt(getAndRemoveIfExists(data, EPOCH_TRANSITION_RECORD_ACTIVE_EPOCH)),
@@ -74,10 +74,6 @@ public class EpochTransitionRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        EpochTransitionRecord data = EpochTransitionRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        EPOCH_TRANSITION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, EpochTransitionRecord::fromBytes, EPOCH_TRANSITION_RECORD_FIELD_MAP);
     }
 }

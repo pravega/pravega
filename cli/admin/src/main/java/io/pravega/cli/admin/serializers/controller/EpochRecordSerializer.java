@@ -69,10 +69,6 @@ public class EpochRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        EpochRecord data = EpochRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        EPOCH_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, EpochRecord::fromBytes, EPOCH_RECORD_FIELD_MAP);
     }
 }

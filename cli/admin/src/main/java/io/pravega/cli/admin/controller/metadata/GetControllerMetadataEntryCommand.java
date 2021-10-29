@@ -17,12 +17,8 @@ package io.pravega.cli.admin.controller.metadata;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.tables.impl.TableSegmentKey;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
-
-import java.util.Collections;
 
 public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand {
 
@@ -36,7 +32,7 @@ public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand
     }
 
     @Override
-    public void execute() throws Exception {
+    public void execute() {
         ensureArgCount(3);
 
         final String controllerMetadataTableSegmentName = getArg(0);
@@ -46,11 +42,5 @@ public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-
-        adminSegmentHelper.readTable(controllerMetadataTableSegmentName,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
-                Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
-                super.authHelper.retrieveMasterToken(), 0L);
-
     }
 }

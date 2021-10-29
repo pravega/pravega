@@ -69,10 +69,6 @@ public class HistoryTimeSeriesRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        HistoryTimeSeriesRecord data = HistoryTimeSeriesRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        HISTORY_TIME_SERIES_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, HistoryTimeSeriesRecord::fromBytes, HISTORY_TIME_SERIES_RECORD_FIELD_MAP);
     }
 }

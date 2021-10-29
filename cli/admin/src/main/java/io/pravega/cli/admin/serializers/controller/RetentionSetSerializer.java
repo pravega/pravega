@@ -72,10 +72,6 @@ public class RetentionSetSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        RetentionSet data = RetentionSet.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        RETENTION_SET_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, RetentionSet::fromBytes, RETENTION_SET_FIELD_MAP);
     }
 }

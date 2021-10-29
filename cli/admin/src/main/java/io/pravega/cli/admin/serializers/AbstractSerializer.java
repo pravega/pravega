@@ -18,9 +18,17 @@ package io.pravega.cli.admin.serializers;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Serializer;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,6 +73,15 @@ public abstract class AbstractSerializer implements Serializer<String> {
         appendField(builder, name, value, ";", "=");
     }
 
+    /**
+     * Append the given field name-value in a user-friendly format to the StringBuilder.
+     *
+     * @param builder        The StringBuilder to append to.
+     * @param name           The name of the field.
+     * @param value          The value of the field.
+     * @param pairDelimiter  The delimiter between different fields.
+     * @param valueDelimiter The delimiter between the field name and value.
+     */
     public static void appendField(StringBuilder builder, String name, String value, String pairDelimiter, String valueDelimiter) {
         builder.append(name).append(valueDelimiter).append(value).append(pairDelimiter);
     }
@@ -79,6 +96,14 @@ public abstract class AbstractSerializer implements Serializer<String> {
         return parseStringData(stringData, ";", "=");
     }
 
+    /**
+     * Parse the given string into a map of keys and values.
+     *
+     * @param stringData     The string to parse.
+     * @param pairDelimiter  The delimiter between different fields.
+     * @param valueDelimiter The delimiter between the field name and value.
+     * @return A map containing all the key-value pairs parsed from the string.
+     */
     public static Map<String, String> parseStringData(String stringData, String pairDelimiter, String valueDelimiter) {
         Map<String, String> parsedData = new LinkedHashMap<>();
         Arrays.stream(stringData.split(pairDelimiter)).forEachOrdered(kv -> {
@@ -106,14 +131,57 @@ public abstract class AbstractSerializer implements Serializer<String> {
         return value;
     }
 
+    /**
+     * Applies the provided deserializer on the serialized record and parses it into a string using the provided field map.
+     *
+     * @param serializedRecord {@link ByteBuffer} containing the serialized record.
+     * @param deserializer    A function to deserialize the byte[] into the record.
+     * @param fieldMap        A mapping from field name to a method to convert said field into a string, for the record.
+     * @param <T>             The type of the record to deserialized.
+     * @return A user-friendly string containing the contents of the deserialized record.
+     */
+    public static <T> String applyDeserializer(ByteBuffer serializedRecord, Function<byte[], T> deserializer, Map<String, Function<T, String>> fieldMap) {
+        StringBuilder stringValueBuilder;
+        T data = deserializer.apply(new ByteArraySegment(serializedRecord).getCopy());
+        stringValueBuilder = new StringBuilder();
+        fieldMap.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
+        return stringValueBuilder.toString();
+    }
+
+    /**
+     * A method to convert a {@link Collection} of objects into a user readable string.
+     *
+     * @param collection The {@link Collection} of objects.
+     * @param converter  A method to convert the object into a string.
+     * @param <T>        The type of the object.
+     * @return A string containing the contents of the provided {@link Collection}.
+     */
     public static <T> String convertCollectionToString(Collection<T> collection, Function<T, String> converter) {
         return collection.isEmpty() ? EMPTY : collection.stream().map(converter).collect(Collectors.joining(","));
     }
 
+    /**
+     * A method to parse a string into a {@link Collection} of objects.
+     *
+     * @param collectionString The string containing the objects.
+     * @param converter        A method to convert the string into the object.
+     * @param <T>              The type of the object.
+     * @return A {@link Collection} containing the objects.
+     */
     public static <T> Collection<T> convertStringToCollection(String collectionString, Function<String, T> converter) {
         return collectionString.equalsIgnoreCase(EMPTY) ? new ArrayList<>() : Arrays.stream(collectionString.split(",")).map(converter).collect(Collectors.toList());
     }
 
+    /**
+     * A method to convert a {@link Map} of objects into a user readable string.
+     *
+     * @param map            The {@link Map}.
+     * @param keyConverter   A method to convert the keys in the map into strings.
+     * @param valueConverter A method to convert the values in the map into strings.
+     * @param <T>            The type of the keys.
+     * @param <U>            The type of the values.
+     * @return A string containing the contents of the provided {@link Map}.
+     */
     public static <T, U> String convertMapToString(Map<T, U> map, Function<T, String> keyConverter, Function<U, String> valueConverter) {
         return map.isEmpty() ? EMPTY : convertCollectionToString(map.entrySet()
                 .stream()
@@ -121,6 +189,17 @@ public abstract class AbstractSerializer implements Serializer<String> {
                 .collect(Collectors.toList()), s -> s);
     }
 
+    /**
+     * A method to parse a string into a {@link Map}.
+     *
+     * @param mapString      The string containing the map.
+     * @param keyConverter   A method to convert a string into the type of the key.
+     * @param valueConverter A method to convert a string into the type of the value.
+     * @param name           Name of the map.
+     * @param <T>            The type of the keys.
+     * @param <U>            The type of the values.
+     * @return A {@link Map} containing the contents of the string.
+     */
     public static <T, U> Map<T, U> convertStringToMap(String mapString, Function<String, T> keyConverter, Function<String, U> valueConverter, String name) {
         Map<T, U> map = new HashMap<>();
         if (!mapString.equalsIgnoreCase(EMPTY)) {
@@ -133,12 +212,24 @@ public abstract class AbstractSerializer implements Serializer<String> {
         return map;
     }
 
+    /**
+     * A method to convert a {@link StreamSegmentRecord} into a user readable string.
+     *
+     * @param segmentRecord The {@link StreamSegmentRecord}.
+     * @return A user readable string containing the contents of the {@link StreamSegmentRecord}.
+     */
     public static String convertStreamSegmentRecordToString(StreamSegmentRecord segmentRecord) {
         StringBuilder segmentStringBuilder = new StringBuilder();
         STREAM_SEGMENT_RECORD_FIELD_MAP.forEach((name, f) -> appendField(segmentStringBuilder, name, f.apply(segmentRecord), "|", "-"));
         return segmentStringBuilder.toString();
     }
 
+    /**
+     * A method to parse a string into a {@link StreamSegmentRecord}.
+     *
+     * @param segmentString The string containing the {@link StreamSegmentRecord}.
+     * @return A {@link StreamSegmentRecord}.
+     */
     public static StreamSegmentRecord convertStringToStreamSegmentRecord(String segmentString) {
         Map<String, String> segmentDataMap = parseStringData(segmentString, "|", "-");
         return StreamSegmentRecord.newSegmentRecord(

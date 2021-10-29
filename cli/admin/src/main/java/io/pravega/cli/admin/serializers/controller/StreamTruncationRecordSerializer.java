@@ -58,7 +58,7 @@ public class StreamTruncationRecordSerializer extends AbstractSerializer {
         Map<Long, Long> streamCut = convertStringToMap(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_STREAM_CUT),
                 Long::parseLong, Long::parseLong, getName() + STREAM_TRUNCATION_RECORD_STREAM_CUT);
         Map<StreamSegmentRecord, Integer> span = convertStringToMap(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_SPAN),
-                AbstractSerializer::convertStringToStreamSegmentRecord, Integer::parseInt, getName() + STREAM_TRUNCATION_RECORD_SPAN);
+                AbstractSerializer::convertStringToStreamSegmentRecord, Integer::parseInt, getName() + "." + STREAM_TRUNCATION_RECORD_SPAN);
         Set<Long> deletedSegments = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS), Long::parseLong));
         Set<Long> toDelete = new HashSet<>(convertStringToCollection(getAndRemoveIfExists(data, STREAM_TRUNCATION_RECORD_TO_DELETE), Long::parseLong));
 
@@ -71,10 +71,6 @@ public class StreamTruncationRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        StreamTruncationRecord data = StreamTruncationRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        STREAM_TRUNCATION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, StreamTruncationRecord::fromBytes, STREAM_TRUNCATION_RECORD_FIELD_MAP);
     }
 }

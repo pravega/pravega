@@ -118,11 +118,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        StreamConfigurationRecord data = StreamConfigurationRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        STREAM_CONFIGURATION_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, StreamConfigurationRecord::fromBytes, STREAM_CONFIGURATION_RECORD_FIELD_MAP);
     }
 
     private StreamConfiguration getStreamConfigurationFromData(Map<String, String> data) {

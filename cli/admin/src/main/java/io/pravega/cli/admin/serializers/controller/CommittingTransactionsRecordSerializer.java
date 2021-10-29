@@ -59,10 +59,6 @@ public class CommittingTransactionsRecordSerializer extends AbstractSerializer {
 
     @Override
     public String deserialize(ByteBuffer serializedValue) {
-        StringBuilder stringValueBuilder;
-        CommittingTransactionsRecord data = CommittingTransactionsRecord.fromBytes(new ByteArraySegment(serializedValue).getCopy());
-        stringValueBuilder = new StringBuilder();
-        COMMITTING_TRANSACTIONS_RECORD_FIELD_MAP.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
-        return stringValueBuilder.toString();
+        return applyDeserializer(serializedValue, CommittingTransactionsRecord::fromBytes, COMMITTING_TRANSACTIONS_RECORD_FIELD_MAP);
     }
 }
