@@ -41,6 +41,8 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
@@ -131,10 +133,31 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
         originalDataLog.disable();
 
+        // Make sure that the reserved id for Backup log is free before making any further progress.
+        try (DebugLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID)) {
+            ReadOnlyLogMetadata oldBackupMetadata = backupDataLogDebugLogWrapper.fetchMetadata();
+            if (oldBackupMetadata != null && oldBackupMetadata.getLedgers() != null && !oldBackupMetadata.getLedgers().isEmpty()) {
+                outputInfo("We found data in the Backup log, probably from a previous repair operation. " +
+                        "To continue, we need to delete the data of that Backup log.");
+                if (!this.testMode && !confirmContinue()) {
+                    output("Not deleting the existing Backup Log this time.");
+                    return;
+                }
+                // Delete everything related to the old Backup Log.
+                backupDataLogDebugLogWrapper.destroyDurableDataLog();
+            }
+        }
+
+        // Create a new Backup Log to store the Original Log contents.
+        @Cleanup
+        DurableDataLog backupDataLog = dataLogFactory.createDurableDataLog(BACKUP_LOG_ID);
+        backupDataLog.initialize(TIMEOUT);
+
         // Get user input of operations to skip, replace, or delete.
         if (this.durableLogEdits == null) {
             this.durableLogEdits = getDurableLogEditsFromUser();
         }
+
         // Edit Operations need to be sorted, and they should involve only one actual Operations (e.g., we do not allow 2
         // edits on the same operation id).
         checkDurableLogEdits(this.durableLogEdits);
@@ -142,11 +165,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         // Show the edits to be committed to the original durable log so the user can confirm.
         output("The following edits will be used to edit the Original Log:");
         durableLogEdits.forEach(System.out::println);
-
-        // Create a new Backup Log to store the Original Log contents.
-        @Cleanup
-        DurableDataLog backupDataLog = dataLogFactory.createDurableDataLog(BACKUP_LOG_ID);
-        backupDataLog.initialize(TIMEOUT);
 
         // Instantiate the processor that will back up the Original Log contents into the Backup Log.
         int operationsReadFromOriginalLog = 0;
@@ -158,9 +176,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             assert backupLogProcessor.getProcessedOperations() == operationsReadFromOriginalLog;
             assert !backupLogProcessor.isFailed;
         } catch (Exception e) {
-            e.printStackTrace();
-            // TODO: Safely rollback here.
+            outputError("There have been errors while creating the Backup Log.");
+            throw e;
         }
+
         // Validate that the Original and Backup logs have the same number of operations.
         @Cleanup
         val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID);
@@ -194,8 +213,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             assert !logEditState.isFailed;
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
-            ex.printStackTrace();
-            // TODO: Safely rollback here.
+            throw ex;
         }
 
         int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) -> System.out.println("EDITED LOG OPS: " + op), REPAIR_LOG_ID, editedDataLog);
@@ -210,17 +228,18 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
 
         // Read the edited contents that are now reachable from the original log id.
-        try {
-            @Cleanup
-            val finalEditedLog = originalDataLog.asReadOnly();
+        try (val finalEditedLog = originalDataLog.asReadOnly()) {
             int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) -> System.out.println(op), containerId, finalEditedLog);
             outputInfo("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
         } catch (Exception ex) {
             outputError("Problem reading Original DurableLog after editing.");
             ex.printStackTrace();
         }
+        output("Deleting medatadata from Repair Log (not needed anymore)");
+        // Delete the generated Edited log metadata, as its contents are already pointed by the Original Log metadata.
+        editedLogWrapper.deleteDurableLogMetadata();
 
-        // TODO: Cleanup Edited and Backup Logs
+        output("Process complete successfully!");
     }
 
     @VisibleForTesting
