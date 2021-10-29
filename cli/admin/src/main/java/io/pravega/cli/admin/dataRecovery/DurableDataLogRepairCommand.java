@@ -137,7 +137,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try (DebugLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID)) {
             ReadOnlyLogMetadata oldBackupMetadata = backupDataLogDebugLogWrapper.fetchMetadata();
             if (oldBackupMetadata != null && oldBackupMetadata.getLedgers() != null && !oldBackupMetadata.getLedgers().isEmpty()) {
-                outputInfo("We found data in the Backup log, probably from a previous repair operation. " +
+                output("We found data in the Backup log, probably from a previous repair operation. " +
                         "To continue, we need to delete the data of that Backup log.");
                 if (!this.testMode && !confirmContinue()) {
                     output("Not deleting the existing Backup Log this time.");
@@ -164,7 +164,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         // Show the edits to be committed to the original durable log so the user can confirm.
         output("The following edits will be used to edit the Original Log:");
-        durableLogEdits.forEach(System.out::println);
+        durableLogEdits.forEach(e -> output(e.toString()));
 
         // Instantiate the processor that will back up the Original Log contents into the Backup Log.
         int operationsReadFromOriginalLog = 0;
@@ -185,8 +185,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID);
         @Cleanup
         val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
-        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) -> output("Reading: " + a), BACKUP_LOG_ID, validationBackupDataLogReadOnly);
-        outputInfo("Original DurableLog operations read: " + operationsReadFromOriginalLog +
+        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) ->
+                output("Reading: " + a), BACKUP_LOG_ID, validationBackupDataLogReadOnly);
+        output("Original DurableLog operations read: " + operationsReadFromOriginalLog +
                 ", Backup DurableLog operations read: " + backupLogReadOperations);
 
         // Ensure that the Original log contains the same number of Operations than the Backup log upon a new log read.
@@ -208,16 +209,16 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             int readBackupLogAgain = readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
             // Ugly, but it ensures that the last write done in the DataFrameBuilder is actually persisted.
             editedDataLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
-            outputInfo("Backup DurableLog operations read on first attempt: " + backupLogReadOperations +
-                    ", Backup DurableLog operations read on second attempt: " + readBackupLogAgain);
+            assert backupLogReadOperations == readBackupLogAgain;
             assert !logEditState.isFailed;
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
             throw ex;
         }
 
-        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) -> System.out.println("EDITED LOG OPS: " + op), REPAIR_LOG_ID, editedDataLog);
-        outputInfo("Edited DurableLog Operations read: " + editedDurableLogOperations);
+        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) ->
+                output("Repair Log Operations: " + op), REPAIR_LOG_ID, editedDataLog);
+        output("Edited DurableLog Operations read: " + editedDurableLogOperations);
 
         // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
         @Cleanup
@@ -229,8 +230,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         // Read the edited contents that are now reachable from the original log id.
         try (val finalEditedLog = originalDataLog.asReadOnly()) {
-            int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) -> System.out.println(op), containerId, finalEditedLog);
-            outputInfo("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
+            int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) ->
+                    output("Original Log Operations after repair: " + op), containerId, finalEditedLog);
+            output("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
         } catch (Exception ex) {
             outputError("Problem reading Original DurableLog after editing.");
             ex.printStackTrace();
@@ -263,7 +265,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                         initialOpId = getLongUserInput("At which Operation sequence number would you like to add new Operations?");
                         do {
                             durableLogEdits.add(new LogEditOperation(LogEditType.ADD_OPERATION, initialOpId, initialOpId, createUserDefinedOperation()));
-                            outputInfo("You can add more Operations at this sequence number or not.");
+                            output("You can add more Operations at this sequence number or not.");
                         } while (confirmContinue());
                         break;
                     case "replace":
@@ -280,7 +282,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
             }
-            outputInfo("You can continue adding edits to the original DurableLog.");
+            output("You can continue adding edits to the original DurableLog.");
             finishInputCommands = confirmContinue();
         }
 
@@ -340,7 +342,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         boolean sealedInStorage = getBooleanUserInput("Is the Segment sealed in storage? [true/false]: ");
         boolean deleted = getBooleanUserInput("Is the Segment deleted? [true/false]: ");
         boolean deletedInStorage = getBooleanUserInput("Is the Segment deleted in storage? [true/false]: ");
-        outputInfo("You are about to start adding Attributes to the SegmentProperties instance.");
+        output("You are about to start adding Attributes to the SegmentProperties instance.");
         boolean finishInputCommands = confirmContinue();
         Map<AttributeId, Long> attributes = new HashMap<>();
         while (!finishInputCommands) {
@@ -356,7 +358,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
             }
-            outputInfo("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
+            output("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
             finishInputCommands = confirmContinue();
         }
         long lastModified = getLongUserInput("Introduce last modified timestamp for the Segment (milliseconds): ");
@@ -368,7 +370,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     @VisibleForTesting
     AttributeUpdateCollection createAttributeUpdateCollection() {
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
-        outputInfo("You are about to start adding AttributeUpdates to the AttributeUpdateCollection.");
+        output("You are about to start adding AttributeUpdates to the AttributeUpdateCollection.");
         boolean finishInputCommands = confirmContinue();
         while (!finishInputCommands) {
             output("Creating an AttributeUpdateCollection for this operation.");
@@ -386,7 +388,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
             }
-            outputInfo("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
+            output("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
             finishInputCommands = confirmContinue();
         }
         return attributeUpdates;
@@ -639,7 +641,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
          *                numbers of the {@link Operation}s to do not write to the target log.
          */
         private void applyDeleteEditOperation(Operation operation, LogEditOperation logEdit) {
-            outputInfo("Deleting operation from DurableLog: " + operation);
+            output("Deleting operation from DurableLog: " + operation);
             if (logEdit.getFinalOperationId() == operation.getSequenceNumber() + 1) {
                 // Once reached the end of the Delete Edit Operation range, remove it from the list.
                 try {
@@ -647,7 +649,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                outputInfo("Completed Delete Edit Operation on DurableLog: " + logEdit);
+                output("Completed Delete Edit Operation on DurableLog: " + logEdit);
             }
         }
 

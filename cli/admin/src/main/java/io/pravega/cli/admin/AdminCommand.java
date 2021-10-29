@@ -104,6 +104,11 @@ public abstract class AdminCommand {
     @Setter(AccessLevel.PUBLIC)
     private PrintStream out = System.out;
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PUBLIC)
+    @Setter(AccessLevel.PUBLIC)
+    private PrintStream err = System.err;
+
     //endregion
 
     //region Constructor
@@ -161,8 +166,24 @@ public abstract class AdminCommand {
         return zkClient;
     }
 
+    /**
+     * Outputs the message to the console.
+     *
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
+     */
     protected void output(String messageTemplate, Object... args) {
-        this.out.println(String.format(messageTemplate, args));
+        this.out.printf(messageTemplate + "%n", args);
+    }
+
+    /**
+     * Outputs the message to the console (error out).
+     *
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
+     */
+    protected void outputError(String messageTemplate, Object... args) {
+        this.err.printf(messageTemplate + "%n", args);
     }
 
     protected void prettyJSONOutput(String jsonString) {

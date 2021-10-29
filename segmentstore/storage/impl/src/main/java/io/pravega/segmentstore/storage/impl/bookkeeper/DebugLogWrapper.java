@@ -243,7 +243,8 @@ public class DebugLogWrapper implements AutoCloseable {
      *
      * @param metadata New metadata to set in the original BookkeeperLog metadata path.
      * @return Result from metadata operation against Zookeeper.
-     * @throws Exception
+     *
+     * @throws Exception in case there is a problem managing metadata from Zookeeper.
      */
     public Stat forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws Exception {
         byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
@@ -254,7 +255,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * Delete the metadata of the BookkeeperLog in Zookeeper. CAUTION: This is a destructive operation and should be
      * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
      *
-     * @throws Exception
+     * @throws Exception in case there is a problem managing metadata from Zookeeper.
      */
     public void deleteDurableLogMetadata() throws Exception {
         this.log.getZkClient().delete().forPath(this.log.getLogNodePath());
@@ -264,7 +265,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * Delete the data and metadata of the BookkeeperLog in Zookeeper. CAUTION: This is a destructive operation and
      * should be used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
      *
-     * @throws Exception
+     * @throws Exception in case there is a problem destroying the {@link DurableDataLog}.
      */
     public void destroyDurableDataLog() throws Exception {
         this.log.truncate(new LedgerAddress(Long.MAX_VALUE, Long.MAX_VALUE), Duration.ofSeconds(30)).join();
