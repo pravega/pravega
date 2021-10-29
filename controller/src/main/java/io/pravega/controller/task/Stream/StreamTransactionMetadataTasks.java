@@ -51,7 +51,11 @@ import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -714,7 +718,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         List<CompletableFuture<Void>> txnFuturesList = openTransactionData.entrySet().stream().map(txnEntry -> {
             final long currentTime = System.currentTimeMillis();
             if (txnEntry.getValue().getMaxExecutionExpiryTime() < currentTime) {
-                // transaction is past its expiry time so abort it.
+                // the transaction is past its expiry, so abort it.
                 return abortTxn(scope, stream, txnEntry.getKey(), null, contextOpt)
                         .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
             }
@@ -749,7 +753,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status, long requestId) {
-        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
+        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId, requestId);
         return TaskStepsRetryHelper.withRetries(() -> writeAbortEvent(event)
                 .handle((r, e) -> {
                     if (e != null) {

@@ -175,6 +175,8 @@ public final class MetricsNames {
     public static final String SLTS_GC_SEGMENT_RETRY = PREFIX + "segmentstore.storage.slts.GC.segment_retry_count";         // Counter
     public static final String SLTS_GC_SEGMENT_FAILED = PREFIX + "segmentstore.storage.slts.GC.segment_failed_count";       // Counter
 
+    public static final String SLTS_STORAGE_USED_BYTES = PREFIX + "segmentstore.storage.used_bytes";
+
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
     public static final String STORAGE_METADATA_NUM_CHUNKS = PREFIX + "segmentstore.storage.num_chunks.";
@@ -343,6 +345,9 @@ public final class MetricsNames {
     // Stream retention operations
     public static final String RETENTION_FREQUENCY = PREFIX + "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = PREFIX + "controller.retention.truncated_size";   // Per-stream Gauge
+
+    // Stream transaction gc operations
+    public static final String TRANSACTION_GC_COUNT = PREFIX + "controller.retention.frequency";   // Per-stream Counter
 
     // Zookeeper connectivity metrics
     public static final String CONTROLLER_ZK_SESSION_EXPIRATION = PREFIX + "controller.zookeeper.session_expiration";  // Counter

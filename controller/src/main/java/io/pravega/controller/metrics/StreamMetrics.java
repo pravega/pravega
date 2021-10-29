@@ -34,6 +34,7 @@ import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
+import static io.pravega.shared.MetricsNames.TRANSACTION_GC_COUNT;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
@@ -461,6 +462,16 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      */
     public static void reportRetentionEvent(String scope, String streamName) {
         DYNAMIC_LOGGER.recordMeterEvents(RETENTION_FREQUENCY, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * This method increments the Stream-specific counter of retention operations.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     */
+    public static void reportTxnGCEvent(String scope, String streamName) {
+        DYNAMIC_LOGGER.recordMeterEvents(TRANSACTION_GC_COUNT, 1, streamTags(scope, streamName));
     }
 
     /**

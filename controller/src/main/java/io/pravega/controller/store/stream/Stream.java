@@ -523,6 +523,13 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context);
 
     /**
+     * Api to get all open transactions as a map of transaction id to Active transaction record
+     * @return A future which upon completion has a map of transaction ids to transaction metadata for all active transactions
+     * on the stream.
+     */
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getOpenTxns(OperationContext context);
+
+    /**
      * Returns the currently active stream epoch.
      *
      * @param ignoreCached if ignore cache is set to true then fetch the value from the store. 
@@ -610,15 +617,6 @@ interface Stream {
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
                                                            OperationContext context,
                                                            Map<String, TxnWriterMark> writerMarks);
-
-    /**
-     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
-     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
-     * @param txnId transaction id
-     * @param commitOffsets segment to offset position where transaction was committed
-     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
-     */
-    CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets, OperationContext context);
     
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

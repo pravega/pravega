@@ -174,6 +174,10 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
         return handle;
     }
 
+    @Override
+    protected CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext) {
+        return execute(() -> doGetUsedSpace(opContext), opContext);
+    }
 
     /**
      * Determines whether named chunk exists in underlying storage.
@@ -276,5 +280,16 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
      */
     protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get used space.
+     *
+     * @param opContext Context for the given operation.
+     * @return Return the total size of storage used in bytes. 0 should be returned if not supported.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
+     */
+    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException {
+        return 0;
     }
 }

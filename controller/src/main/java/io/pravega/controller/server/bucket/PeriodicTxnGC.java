@@ -21,7 +21,6 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import org.slf4j.LoggerFactory;
@@ -60,9 +59,8 @@ public class PeriodicTxnGC {
 
         log.info(requestId, "Periodic background processing for transaction GC called for stream {}/{}", stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getOpenTxns(stream.getScope(),
-                stream.getStreamName(), context, executor)
-                         .thenCompose(openTxnsData -> {
-                             if(openTxnsData.isEmpty()) {
+                stream.getStreamName(), context, executor).thenCompose(openTxnsData -> {
+                             if (openTxnsData.isEmpty()) {
                                  return CompletableFuture.completedFuture(null);
                              }
                              return streamTxnMetadataTasks.transactionGC(stream.getScope(), stream.getStreamName(), openTxnsData, context);
@@ -73,7 +71,7 @@ public class PeriodicTxnGC {
                          }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                           .exceptionally(e -> {
                               log.warn(requestId, "Unable to perform transaction garbage collection for stream {}. " +
-                                      "Ignoring, transaction garbage collection will be attempted again in the next cycle.", stream, e);
+                                      "Ignoring, transaction garbage collection will be re-attempted again in the next cycle.", stream, e);
                               return null;
                           }).thenRun(() -> requestTracker.untrackRequest(requestDescriptor));
     }
