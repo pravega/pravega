@@ -237,6 +237,14 @@ public class DebugLogWrapper implements AutoCloseable {
         return changed;
     }
 
+    /**
+     * Allows to overwrite the metadata of a BookkeeperLog. CAUTION: This is a destructive operation and should be
+     * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
+     *
+     * @param metadata New metadata to set in the original BookkeeperLog metadata path.
+     * @return Result from metadata operation against Zookeeper.
+     * @throws Exception
+     */
     public Stat forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws Exception {
         byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
         return this.log.getZkClient().setData().forPath(this.log.getLogNodePath(), serializedMetadata);

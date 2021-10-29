@@ -90,8 +90,8 @@ public abstract class Operation implements SequencedElement {
     }
 
     /**
-     * Allows to overwrite the Sequence NUmber of this operation. This may be dangerous operation and should be used
-     * only for admin purposes when repairing a log of Operations is needed.
+     * Allows to overwrite the Sequence Number of this operation. This may be a dangerous action and should be used
+     * carefully only for admin purposes when repairing a log of Operations is needed.
      *
      * @param value The Sequence Number to set.
      * @throws IllegalArgumentException If the Sequence Number is negative.

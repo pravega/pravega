@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -94,9 +96,9 @@ class BookKeeperLog implements DurableDataLog {
     private static final long REPORT_INTERVAL = 1000;
     @Getter
     private final int logId;
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private final String logNodePath;
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
     private final BookKeeperConfig config;
