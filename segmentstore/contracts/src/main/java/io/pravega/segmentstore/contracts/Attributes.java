@@ -126,6 +126,12 @@ public class Attributes {
     public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 12);
 
     /**
+     * Defines an attribute that is used to store the current epoch that the segment was created in. This is used to clean
+     * up any transient segments that were not able to be cleaned up during normal shutdown/close procedures.
+     */
+    public static final AttributeId CREATION_EPOCH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 15);
+
+    /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
      *
      * @param attributeId The Attribute Id to check.

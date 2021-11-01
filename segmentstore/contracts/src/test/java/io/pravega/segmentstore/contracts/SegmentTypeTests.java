@@ -41,6 +41,7 @@ public class SegmentTypeTests {
         checkBuilder(SegmentType.builder().internal().build(), SegmentType.ROLE_INTERNAL, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().system().build(), SegmentType.ROLE_SYSTEM, SegmentType::isSystem, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().critical().build(), SegmentType.ROLE_CRITICAL, SegmentType::isCritical);
+        checkBuilder(SegmentType.builder().transientSegment().build(), SegmentType.ROLE_TRANSIENT, SegmentType::isTransientSegment);
     }
 
     /**

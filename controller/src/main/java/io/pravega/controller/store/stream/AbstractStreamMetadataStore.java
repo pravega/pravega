@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -66,7 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -96,7 +96,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Getter
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
-    private final Random requestIdGenerator = new Random();
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -1225,7 +1224,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     OperationContext getOperationContext(OperationContext context) {
         // if null context is supplied make sure we create a context with a new request id.
         return context != null ? context : new OperationContext() {
-            private final long requestId = requestIdGenerator.nextLong();
+            private final long requestId = ControllerService.nextRequestId();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

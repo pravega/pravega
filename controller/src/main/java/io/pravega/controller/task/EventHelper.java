@@ -130,7 +130,6 @@ public class EventHelper implements AutoCloseable {
                                             if (e != null) {
                                                 throw new CompletionException(e);
                                             } else {
-                                                log.info("Successfully submitted event {}", event.getClass().getName());
                                                 return r;
                                             }
                                         });
@@ -158,17 +157,15 @@ public class EventHelper implements AutoCloseable {
                 eventExecutor)
                 .whenComplete((r, e) -> {
                     if (e != null) {
-                        log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
+                        log.warn("Exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                         if (e instanceof TaskExceptions.ProcessingDisabledException) {
                             result.completeExceptionally(e);
                         } else {
-                            // transform any other event write exception to retryable
-                            // exception
-                            result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
-                                    e));
+                            // transform any other event write exception to retryable exception
+                            result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
                         }
                     } else {
-                        log.info("event posted successfully");
+                        log.info("Successfully posted event {}", event);
                         result.complete(null);
                     }
                 });
