@@ -43,6 +43,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
@@ -58,18 +59,22 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOpera
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Before;
@@ -1642,6 +1647,31 @@ public class ContainerMetadataUpdateTransactionTests {
                 expected + 2, txn2.getActiveSegmentCount());
     }
 
+    @Test
+    public void testOperationConcurrentSerializationDeletion() throws ContainerException, StreamSegmentException {
+        CompletableFuture<Void> deletion = new CompletableFuture<>();
+
+        InstrumentedContainerMetadata metadata = new InstrumentedContainerMetadata(CONTAINER_ID, 1000, deletion);
+        // Add some segments to the metadata.
+        populateMetadata(metadata);
+
+        metadata.getGetAllStreamSegmentIdsFuture().thenRun(() -> {
+            // Cannot call getStreamSegmentMetadata because it is instrumented and will block, so we must manually construct it.
+            UpdateableSegmentMetadata segment = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, 0);
+            // Ensures it is eligible for eviction.
+            segment.markDeleted();
+            metadata.cleanup(Set.of(segment), SEGMENT_LENGTH);
+        }).thenRun(() -> {
+            deletion.complete(null);
+        });
+
+        ContainerMetadataUpdateTransaction transaction = createUpdateTransaction(metadata);
+        StorageMetadataCheckpointOperation checkpoint = createStorageMetadataCheckpoint();
+
+        // If successful this operation should not throw a NullPointerException.
+        transaction.preProcessOperation(checkpoint);
+    }
+
     /**
      * Tests that a Transient Segment may only have {@link SegmentMetadataUpdateTransaction#TRANSIENT_ATTRIBUTE_LIMIT}
      * or fewer Extended Attributes.
@@ -1708,8 +1738,7 @@ public class ContainerMetadataUpdateTransactionTests {
         return new MetadataBuilder(CONTAINER_ID).build();
     }
 
-    private UpdateableContainerMetadata createMetadata() {
-        UpdateableContainerMetadata metadata = createBlankMetadata();
+    private UpdateableContainerMetadata populateMetadata(UpdateableContainerMetadata metadata) {
         UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
         segmentMetadata.setLength(SEGMENT_LENGTH);
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
@@ -1743,6 +1772,12 @@ public class ContainerMetadataUpdateTransactionTests {
         segmentMetadata.updateAttributes(attributes);
         segmentMetadata.refreshDerivedProperties();
 
+        return metadata;
+    }
+
+    private UpdateableContainerMetadata createMetadata() {
+        UpdateableContainerMetadata metadata = createBlankMetadata();
+        populateMetadata(metadata);
         return metadata;
     }
 
@@ -1902,4 +1937,47 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     //endregion
+
+    private static class InstrumentedContainerMetadata extends StreamSegmentContainerMetadata {
+
+        // This future is provided by the caller to ensure that the getStreamSegmentMetadata call will not make progress
+        // until the caller performs its intended duties.
+        CompletableFuture<Void> deletion;
+
+        // This future is made visible to allow the caller to ensure that it does not make progress until the
+        // getAllStreamSegmentIds call is complete.
+        final CompletableFuture<Void> getAllStreamSegmentIdsFuture = new CompletableFuture<>();
+
+        /**
+         * Creates a new instance of the StreamSegmentContainerMetadata.
+         *
+         * @param streamSegmentContainerId The ID of the StreamSegmentContainer.
+         * @param maxActiveSegmentCount    The maximum number of segments that can be registered in this metadata at any given time.
+         */
+        public InstrumentedContainerMetadata(int streamSegmentContainerId, int maxActiveSegmentCount, CompletableFuture<Void> deletion) {
+            super(streamSegmentContainerId, maxActiveSegmentCount);
+            this.deletion = deletion;
+        }
+
+        public CompletableFuture<Void> getGetAllStreamSegmentIdsFuture() {
+            return this.getAllStreamSegmentIdsFuture;
+        }
+
+        @Override
+        public Collection<Long> getAllStreamSegmentIds() {
+            Collection<Long> ids = super.getAllStreamSegmentIds();
+            // Complete the future to signal this event has happened.
+            getAllStreamSegmentIdsFuture.complete(null);
+
+            return ids;
+        }
+
+        @Override
+        public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
+            // Wait for the deletion event to happen.
+            return deletion.thenApply(empty -> super.getStreamSegmentMetadata(streamSegmentId)).join();
+        }
+
+    }
+
 }
