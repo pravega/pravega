@@ -128,6 +128,13 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return Futures.completeOn(checkScopeExists(scope, context, executor)
                 .thenCompose(exists -> {
                     if (exists) {
+                        checkScopeInDeletingTable(scope, context, executor)
+                                .thenCompose(exist -> {
+                                    if (exist) {
+                                        throw new IllegalArgumentException("Scope already in deleting state: " + scope);
+                                    }
+                                    return null;
+                                });
                         // Create kvtable may fail if scope is deleted as we attempt to create the table under scope.
                         return getSafeStartingSegmentNumberFor(scope, name, context, executor)
                                 .thenCompose(startingSegmentNumber -> getKVTable(scope, name, context)

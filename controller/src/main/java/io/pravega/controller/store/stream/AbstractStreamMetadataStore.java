@@ -1221,6 +1221,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.completeOn(checkScopeExists(scope, context, executor)
                    .thenCompose(exists -> {
                    if (exists) {
+                       checkScopeInDeletingTable(scope, context, executor)
+                               .thenCompose(exist -> {
+                                   if (exist) {
+                                       throw new IllegalArgumentException("Scope already in deleting state: " + scope);
+                                   }
+                                   return null;
+                               });
                      // Create reader group may fail, if scope is deleted as we attempt to create the reader group under scope.
                      return getReaderGroup(scope, rgName, context)
                                     .create(configuration, createTimestamp, context);

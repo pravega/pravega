@@ -92,6 +92,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         return scopes.containsKey(scopeName);
     }
 
+    @Synchronized
+    public boolean scopeInDeletingTable(String scopeName) {
+        return deletingScopes.containsKey(scopeName);
+    }
+
     @Override
     @Synchronized
     Stream newStream(String scopeName, String name) {

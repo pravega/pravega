@@ -30,6 +30,7 @@ import io.pravega.controller.store.stream.StoreException;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
+import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
@@ -128,6 +129,14 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
+                false), executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext context, Executor executor) {
+        long requestId = getOperationContext(context).getRequestId();
+        return Futures.completeOn(storeHelper.expectingDataNotFound(
+                storeHelper.getEntry(DELETING_SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
                 false), executor);
     }
 
