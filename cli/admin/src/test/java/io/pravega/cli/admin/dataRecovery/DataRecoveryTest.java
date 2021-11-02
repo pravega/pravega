@@ -28,6 +28,13 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -70,8 +77,11 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -381,13 +391,51 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testRepairLogEditOperationCreateSegmentProperties() {
-        // TODO
+    public void testRepairLogEditOperationCreateSegmentProperties() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        // Create a SegmentProperties object via the command logic and verify that it is equal to the expected one.
+        long timestamp = System.currentTimeMillis();
+        Map<AttributeId, Long> attributes = new HashMap<>();
+        UUID uuid = UUID.randomUUID();
+        attributes.put(AttributeId.fromUUID(uuid), 10L);
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("test").doReturn(uuid.toString()).when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false).when(command).getBooleanUserInput(Mockito.any());
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder().name("test").startOffset(2).length(3).storageLength(1)
+                .sealed(true).deleted(false).sealedInStorage(true).deletedInStorage(false)
+                .attributes(attributes).lastModified(new ImmutableDate(timestamp)).build();
+        Assert.assertEquals(segmentProperties, command.createSegmentProperties());
     }
 
     @Test
-    public void testRepairLogEditOperationCreateAttributeUpdateCollection() {
-        // TODO
+    public void testRepairLogEditOperationCreateAttributeUpdateCollection() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        // Create an AttributeUpdateCollection via the command logic and check the expected output.
+        AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
+        UUID uuid = UUID.randomUUID();
+        attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(uuid), AttributeUpdateType.Replace, 1, 2));
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(uuid.toString()).when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn(1L).doReturn(2L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn((int) AttributeUpdateType.Replace.getTypeId()).when(command).getIntUserInput(Mockito.any());
+        Assert.assertArrayEquals(attributeUpdates.getUUIDAttributeUpdates().toArray(), command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
     }
 
     /**

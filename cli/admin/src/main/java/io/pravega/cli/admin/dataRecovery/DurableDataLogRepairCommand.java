@@ -388,7 +388,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         boolean deleted = getBooleanUserInput("Is the Segment deleted? [true/false]: ");
         boolean deletedInStorage = getBooleanUserInput("Is the Segment deleted in storage? [true/false]: ");
         output("You are about to start adding Attributes to the SegmentProperties instance.");
-        boolean finishInputCommands = confirmContinue();
+        boolean finishInputCommands = !confirmContinue();
         Map<AttributeId, Long> attributes = new HashMap<>();
         while (!finishInputCommands) {
             output("Creating an AttributeUpdateCollection for this operation.");
@@ -404,7 +404,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ex.printStackTrace();
             }
             output("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
-            finishInputCommands = confirmContinue();
+            finishInputCommands = !confirmContinue();
         }
         long lastModified = getLongUserInput("Introduce last modified timestamp for the Segment (milliseconds): ");
         return StreamSegmentInformation.builder().name(segmentName).startOffset(offset).length(length).storageLength(storageLength)
@@ -416,7 +416,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     AttributeUpdateCollection createAttributeUpdateCollection() {
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
         output("You are about to start adding AttributeUpdates to the AttributeUpdateCollection.");
-        boolean finishInputCommands = confirmContinue();
+        boolean finishInputCommands = !confirmContinue();
         while (!finishInputCommands) {
             output("Creating an AttributeUpdateCollection for this operation.");
             try {
@@ -434,7 +434,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ex.printStackTrace();
             }
             output("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
-            finishInputCommands = confirmContinue();
+            finishInputCommands = !confirmContinue();
         }
         return attributeUpdates;
     }
@@ -740,7 +740,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         @Override
         public boolean equals(Object objToCompare) {
-            if (objToCompare == null) {
+            if (!(objToCompare instanceof LogEditOperation)) {
                 return false;
             }
             if (objToCompare == this) {
