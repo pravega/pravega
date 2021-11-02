@@ -221,6 +221,7 @@ message UpdateStreamStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
+        STREAM_SEALED = 4;
     }
     Status status = 1;
 }

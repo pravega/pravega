@@ -132,13 +132,13 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         //Truncate data before offset 5
         writer.truncateDataBefore(5);
 
-        // seek to offset 4 and verify if truncation is successful.
-        reader.seekToOffset(4);
+        // seek to an invalid truncated offset and verify if truncation is successful.
+        reader.seekToOffset(reader.fetchHeadOffset() - 1);
         assertThrows(SegmentTruncatedException.class, reader::read);
 
-        // seek to offset 5 and verify if we are able to read the data.
+        // seek to the new head and verify if we are able to read the data.
         byte[] data = new byte[]{5, 6, 7, 8, 9};
-        reader.seekToOffset(5);
+        reader.seekToOffset(reader.fetchHeadOffset());
         byte[] readBuffer1 = new byte[5];
         int bytesRead = reader.read(readBuffer1);
         assertEquals(5, bytesRead);

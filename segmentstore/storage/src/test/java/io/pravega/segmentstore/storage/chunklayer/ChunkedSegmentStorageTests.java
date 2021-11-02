@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
@@ -73,7 +74,7 @@ import org.junit.rules.Timeout;
  */
 @Slf4j
 public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
     private static final int OWNER_EPOCH = 100;
     protected final Random rnd = new Random(0);
@@ -168,7 +169,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(metadataStore, chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
         Assert.assertNotNull(chunkedSegmentStorage.getSystemJournal());
-        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getStorageMetadataRollingPolicy(), chunkedSegmentStorage.getConfig().getStorageMetadataRollingPolicy());
+        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getStorageMetadataRollingPolicy(),
+                chunkedSegmentStorage.getConfig().getStorageMetadataRollingPolicy());
         Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
         Assert.assertEquals(CONTAINER_ID, chunkedSegmentStorage.getContainerId());
         Assert.assertEquals(0, chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat());
@@ -1676,49 +1678,144 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testBaseConcatWithDefragWithMinMaxLimits() throws Exception {
         // Set limits.
+        val maxRollingSize = 30;
         ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .maxSizeLimitForConcat(12)
-                .minSizeLimitForConcat(2)
+                .maxSizeLimitForConcat(20)
+                .minSizeLimitForConcat(10)
                 .build();
         @Cleanup
         TestContext testContext = getTestContext(config);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
 
-        // Populate segments
-        testBaseConcat(testContext, 1024,
+        // no-op.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{1},
+                new long[]{21, 21, 21},
+                new long[]{1, 21, 21, 21});
+
+        // no-op - max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{29, 2},
+                new long[]{30, 29, 2});
+        // no-op - max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{1, 2, 3, 4},
+                new long[]{30, 10});
+
+        // small chunks followed by normal chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{1, 1, 1, 3, 1, 1, 3, 1, 3},  // small chunks followed by normal chunks.
+                new long[]{1, 1, 1, 3, 1, 1, 3, 1, 3},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // normal chunks followed by small chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{3, 1, 1, 1, 3, 1, 1, 3, 1}, // normal chunks followed by small chunks.
+                new long[]{3, 1, 1, 1, 3, 1, 1, 3, 1},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // consecutive normal.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{1, 3, 3, 3, 1, 2, 2}, // consecutive normal.
+                new long[]{1, 3, 3, 3, 1, 2, 2},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{5, 5, 5}, // all large chunks.
+                new long[]{5, 5, 5},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // all small chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{2, 2, 2, 2, 2, 2, 2, 1}, // all small chunks.
+                new long[]{2, 2, 2, 2, 2, 2, 2, 1},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{12, 3}, // all concats possible.
+                new long[]{12, 3},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{13, 2}, // not all concats possible.
-                new long[]{10, 15});
+                new long[]{13, 2},
+                new long[]{25});
+
+        // First chunk is greater than max concat size
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{13},
+                new long[]{11, 1},
+                new long[]{25});
+
+        // First chunk is greater than max concat size
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{13},
+                new long[]{10, 2},
+                new long[]{25});
+    }
+
+    @Test
+    public void testBaseConcatWithDefragWithMinMaxLimitsNoAppends() throws Exception {
+        // Set limits.
+        val maxRollingSize = 30;
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxSizeLimitForConcat(20)
+                .minSizeLimitForConcat(10)
+                .appendEnabled(false)
+                .build();
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
+
+        // Normal case.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12},
+                new long[]{23});
+
+        // Bigger than max allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{10},
+                new long[]{20},
+                new long[]{10, 20});
+
+        // Target is bigger than max allowed after first concat.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12, 13},
+                new long[]{23, 13});
+
+        // One of the chunks in the middle is smaller than min size allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12, 5, 13},
+                new long[]{23, 5, 13});
+
+        // All chunks are smaller, resultant chunk gets bigger than max size allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{2, 2, 2, 2, 2, 2},
+                new long[]{21, 2});
+
+        // Chunks are already at max rolling size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{2, 30, 2, 30, 2, 30},
+                new long[]{30, 2, 30, 2, 30, 2, 30});
+
+        // Test max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{9, 10},
+                new long[]{30});
+
+        // Test max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{20},
+                new long[]{10, 10},
+                new long[]{30, 10});
     }
 
     /**
@@ -2775,7 +2872,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testConcatHugeChunks() throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .minSizeLimitForConcat(10L * Integer.MAX_VALUE)
+                .minSizeLimitForConcat(Integer.MAX_VALUE)
                 .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
                 .build());
         testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
@@ -2847,6 +2944,70 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testMetadataStore.setWriteCallback(null);
 
         checkDataRead(testSegmentName, testContext, 0, data.length, data);
+    }
+
+    @Test
+    public void testFullStorage() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxSafeStorageSize(1000)
+                .build());
+
+        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+        val h = testContext.chunkedSegmentStorage.create("test", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(h, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+
+        testContext.chunkedSegmentStorage.create("segment", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.create("_system/something", TIMEOUT).get();
+
+        // Simulate storage full.
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(1000);
+        testContext.chunkedSegmentStorage.updateStorageStats().join();
+
+        Assert.assertTrue(testContext.chunkedSegmentStorage.isSafeMode());
+
+        // These operations should pass
+        Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
+        checkDataRead("test", testContext, 0, 10);
+
+        val h3 = testContext.chunkedSegmentStorage.create("A", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.seal(h3, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.delete(h3, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("_system/something"),
+                0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+
+        // These operations should fail
+        AssertExtensions.assertFutureThrows("write() should throw an exception",
+                testContext.chunkedSegmentStorage.write(h, 10, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT),
+                ex -> ex instanceof StorageFullException);
+
+        AssertExtensions.assertFutureThrows("conact() should throw an exception",
+                testContext.chunkedSegmentStorage.concat(h, 10, "A", TIMEOUT),
+                ex -> ex instanceof StorageFullException);
+
+        // Remove storage full
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(50);
+        testContext.chunkedSegmentStorage.updateStorageStats().join();
+        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("test"), 10,
+                new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("segment"), 0,
+                new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("_system/something"),
+                10, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        Assert.assertEquals(20, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
+        Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("segment", TIMEOUT).get().getLength());
+        Assert.assertEquals(20, testContext.chunkedSegmentStorage.getStreamSegmentInfo("_system/something", TIMEOUT).get().getLength());
+
+        checkDataRead("test", testContext, 0, 20);
+        checkDataRead("segment", testContext, 0, 10);
+
+        val h4 = testContext.chunkedSegmentStorage.create("B", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.delete(h4, TIMEOUT).get();
+
+        testContext.chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle("segment"), TIMEOUT).get();
+        testContext.chunkedSegmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 20, "segment", TIMEOUT).get();
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {

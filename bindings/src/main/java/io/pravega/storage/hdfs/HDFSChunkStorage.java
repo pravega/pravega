@@ -32,6 +32,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.SneakyThrows;
@@ -46,8 +47,10 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.ipc.RemoteException;
+import org.apache.hadoop.util.DiskChecker;
 
 /***
  *  {@link ChunkStorage} for HDFS based storage.
@@ -59,7 +62,7 @@ import org.apache.hadoop.ipc.RemoteException;
  */
 
 @Slf4j
-class HDFSChunkStorage extends BaseChunkStorage {
+public class HDFSChunkStorage extends BaseChunkStorage {
     private static final FsPermission READWRITE_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
 
@@ -276,6 +279,15 @@ class HDFSChunkStorage extends BaseChunkStorage {
         }
     }
 
+    @Override
+    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException {
+        try {
+            return this.fileSystem.getUsed();
+        } catch (IOException e) {
+            throw convertException("", "doGetUsedSpace", e);
+        }
+    }
+
     //endregion
 
     //region Storage Implementation
@@ -301,7 +313,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
         log.info("Initialized (HDFSHost = '{}'", this.config.getHdfsHostURL());
     }
 
-    private FileSystem openFileSystem(Configuration conf) throws IOException {
+    protected FileSystem openFileSystem(Configuration conf) throws IOException {
         return FileSystem.get(conf);
     }
     //endregion
@@ -348,6 +360,9 @@ class HDFSChunkStorage extends BaseChunkStorage {
         }
         if (e instanceof FileNotFoundException) {
             return new ChunkNotFoundException(chunkName, message, e);
+        }
+        if (e instanceof DiskChecker.DiskOutOfSpaceException || e instanceof QuotaExceededException) {
+            return new ChunkStorageFullException(message, e);
         }
         return new ChunkStorageException(chunkName, message, e);
     }

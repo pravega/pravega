@@ -74,6 +74,7 @@ public class HealthServiceManager implements AutoCloseable {
     public void start() {
         this.updater.startAsync();
         this.updater.awaitRunning();
+        log.info("Started HealthServiceManager.");
     }
 
     /**
