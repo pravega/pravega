@@ -198,7 +198,8 @@ public abstract class AdminCommand {
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
-    protected boolean confirmContinue() {
+    @VisibleForTesting
+    public boolean confirmContinue() {
         output("Do you want to continue?[yes|no]");
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
@@ -206,28 +207,32 @@ public abstract class AdminCommand {
         return input.equals("yes");
     }
 
-    protected String getStringUserInput(String message) {
+    @VisibleForTesting
+    public String getStringUserInput(String message) {
         output(message);
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         return s.nextLine();
     }
 
-    protected long getLongUserInput(String message) {
+    @VisibleForTesting
+    public long getLongUserInput(String message) {
         output(message);
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         return s.nextLong();
     }
 
-    protected long getIntUserInput(String message) {
+    @VisibleForTesting
+    public int getIntUserInput(String message) {
         output(message);
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         return s.nextInt();
     }
 
-    protected boolean getBooleanUserInput(String message) {
+    @VisibleForTesting
+    public boolean getBooleanUserInput(String message) {
         output(message);
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);

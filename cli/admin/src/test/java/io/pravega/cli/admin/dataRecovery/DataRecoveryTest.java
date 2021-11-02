@@ -31,6 +31,7 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -58,14 +59,17 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -286,9 +290,104 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Execute basic command workflow for repairing DurableLog.
         CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
-        List<DurableDataLogRepairCommand.LogEditOperation> durableLogEdits = new ArrayList<>();
-        DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args, durableLogEdits);
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        // The test will exercise editing the Container 0 log with an operation of each type.
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false).doReturn(true).when(command).confirmContinue();
+        Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete").doReturn("add").doReturn("DeleteSegmentOperation").when(command).getStringUserInput(Mockito.any());
+
         command.execute();
+    }
+
+    @Test
+    public void testRepairLogEditOperationCorrectness() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args);
+
+        // Check when no commands are available.
+        command.checkDurableLogEdits(new ArrayList<>());
+
+        // Check adding Edit Operations with sequence numbers lower than 0.
+        AssertExtensions.assertThrows("Edit Operations should have initial sequence ids > 0.",
+                () -> command.checkDurableLogEdits(Arrays.asList(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, -1, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 0, 10, new DeleteSegmentOperation(0)))),
+                ex -> ex instanceof AssertionError);
+
+        // A Delete Edit Operation should have an initial sequence number lower than the final one.
+        AssertExtensions.assertThrows("Edit Operations should have initial sequence ids > 0.",
+                () -> command.checkDurableLogEdits(List.of(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 2, 2, null))),
+                ex -> ex instanceof AssertionError);
+
+        // Add one Add Edit and one Replace Edit on the same sequence number. This is expected to fail.
+        AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
+                () -> command.checkDurableLogEdits(Arrays.asList(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 10, 10, new DeleteSegmentOperation(0)))),
+                ex -> ex instanceof AssertionError);
+
+        // We can have multiple Add Edit Operations on the same sequence number.
+        command.checkDurableLogEdits(Arrays.asList(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0))));
+        AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
+                () -> command.checkDurableLogEdits(Arrays.asList(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 10, 10, new DeleteSegmentOperation(0)))),
+                ex -> ex instanceof AssertionError);
+        AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
+                () -> command.checkDurableLogEdits(Arrays.asList(
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 10, null),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 5, 20, null))),
+                ex -> ex instanceof AssertionError);
+    }
+
+    @Test
+    public void testRepairLogEditOperationUserInput() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        // Case 1: Input a Delete Edit Operation with wrong initial/final ids. Then retry with correct ids.
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(1L).doReturn(1L).doReturn(1L).doReturn(2L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete").when(command).getStringUserInput(Mockito.any());
+        Assert.assertEquals(List.of(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, null)), command.getDurableLogEditsFromUser());
+
+        // Case 2: Input an Add Edit Operation with a wrong operation type. Then retry with correct operation type.
+        Mockito.doReturn(true).doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(1L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("add").doReturn("wrong").doReturn("add").doReturn("DeleteSegmentOperation").when(command).getStringUserInput(Mockito.any());
+        DeleteSegmentOperation deleteOperationAdded = new DeleteSegmentOperation(1);
+        List<DurableDataLogRepairCommand.LogEditOperation> editOps = new ArrayList<>();
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, deleteOperationAdded));
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, deleteOperationAdded));
+        Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
+    }
+
+    @Test
+    public void testRepairLogEditOperationCreateSegmentProperties() {
+        // TODO
+    }
+
+    @Test
+    public void testRepairLogEditOperationCreateAttributeUpdateCollection() {
+        // TODO
     }
 
     /**
