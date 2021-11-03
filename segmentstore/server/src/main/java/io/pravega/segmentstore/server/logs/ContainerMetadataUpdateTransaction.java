@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -637,7 +638,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
             val toSerialize = t.realMetadata.getAllStreamSegmentIds().stream()
-                                            .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
+                    .map(t.realMetadata::getStreamSegmentMetadata)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
             output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
 
