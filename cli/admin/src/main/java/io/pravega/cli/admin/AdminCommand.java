@@ -50,6 +50,7 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
+import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
 import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
@@ -377,6 +378,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataTablesInfoCommand::descriptor, ControllerMetadataTablesInfoCommand::new)
                         .put(ControllerMetadataListKeysCommand::descriptor, ControllerMetadataListKeysCommand::new)
                         .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
+                        .put(ParseReaderGroupStreamCommand::descriptor, ParseReaderGroupStreamCommand::new)
                         .build());
 
         /**
