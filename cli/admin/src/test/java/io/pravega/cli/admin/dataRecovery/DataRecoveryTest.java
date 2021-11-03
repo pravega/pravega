@@ -603,10 +603,32 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, null).hashCode(),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, new DeleteSegmentOperation(1)).hashCode());
 
+        // Other cases for equality of operations.
+        Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null));
+        Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+        // Equality of payload operations are checked by type and sequence number, which are the common attributes of Operation class.
+        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(2));
+        Assert.assertEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+        deleteOp.getNewOperation().resetSequenceNumber(123);
+        Assert.assertNotEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+
+        // Test the cases for the same object reference and for null comparison.
+        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1));
+        Assert.assertEquals(sameOp, sameOp);
+        Assert.assertNotEquals(sameOp, null);
+
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null).hashCode(),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)).hashCode());
+        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 1, 2, null),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 2, 2, new DeleteSegmentOperation(1)));
+        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, new DeleteSegmentOperation(1)));
     }
 
     /**
