@@ -516,7 +516,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         newFactory.initialize();
         @Cleanup
         DebugLogWrapper debugLogWrapper0 = newFactory.createDebugLogWrapper(0);
-        int container0LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> {}, 0, debugLogWrapper0.asReadOnly());
+        int container0LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, 0, debugLogWrapper0.asReadOnly());
         Assert.assertTrue(container0LogEntries > 0);
         ReadOnlyLogMetadata metadata0 = debugLogWrapper0.fetchMetadata();
         Assert.assertNotNull(metadata0);
@@ -533,7 +533,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Overwrite metadata of repair container with metadata of container 0.
         debugLogWrapperRepair.forceMetadataOverWrite(metadata0);
         // Now the amount of log entries read should be equal to the ones of container 0.
-        int newContainer1LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> {}, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
+        int newContainer1LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
         ReadOnlyLogMetadata newMetadata1 = debugLogWrapperRepair.fetchMetadata();
         Assert.assertEquals(container0LogEntries, newContainer1LogEntries);
         Assert.assertEquals(metadata0.getLedgers(), newMetadata1.getLedgers());
@@ -541,6 +541,27 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Destroy contents of Container 0.
         debugLogWrapper0.deleteDurableLogMetadata();
         Assert.assertNull(debugLogWrapper0.fetchMetadata());
+    }
+
+    @Test
+    public void testLogEditOperationObject() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Delete Edit Operations should not take into account the newOperation field doing equality.
+        Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, null),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+        Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, null).hashCode(),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, new DeleteSegmentOperation(1)).hashCode());
+
+        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
+        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null).hashCode(),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)).hashCode());
     }
 
     /**

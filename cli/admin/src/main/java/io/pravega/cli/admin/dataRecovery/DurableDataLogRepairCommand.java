@@ -751,7 +751,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             return this.type == opToCompare.getType()
                     && this.initialOperationId == opToCompare.getInitialOperationId()
                     && this.finalOperationId == opToCompare.getFinalOperationId()
-                    && compareOperations(opToCompare.getNewOperation());
+                    && (this.type == LogEditType.DELETE_OPERATION || compareOperations(opToCompare.getNewOperation()));
         }
 
         private boolean compareOperations(Operation newOperationToCompare) {
@@ -771,7 +771,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             int hash = 7;
             hash = 31 * hash + Long.hashCode(initialOperationId) + Long.hashCode(finalOperationId);
             hash = 31 * hash + (type == null ? 0 : type.hashCode());
-            hash = 31 * hash + (newOperation == null ? 0 : Long.hashCode(newOperation.getSequenceNumber()) + newOperation.getType().hashCode());
+            hash = 31 * hash + (newOperation == null || type == LogEditType.DELETE_OPERATION ? 0 :
+                    Long.hashCode(newOperation.getSequenceNumber()) + newOperation.getType().hashCode());
             return hash;
         }
     }
