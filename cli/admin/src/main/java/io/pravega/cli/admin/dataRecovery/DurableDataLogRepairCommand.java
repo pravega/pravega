@@ -344,6 +344,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             case "DeleteSegmentOperation":
                 long segmentId = getLongUserInput("Introduce Segment Id for DeleteSegmentOperation:");
                 result = new DeleteSegmentOperation(segmentId);
+                long offset = getLongUserInput("Introduce Segment Offset for StreamSegmentSealOperation:");
+                ((DeleteSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MergeSegmentOperation":
                 long targetSegmentId = getLongUserInput("Introduce Target Segment Id for MergeSegmentOperation:");
@@ -360,10 +362,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             case "StreamSegmentSealOperation":
                 segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentSealOperation:");
                 result = new StreamSegmentSealOperation(segmentId);
+                offset = getLongUserInput("Introduce Segment Offset for StreamSegmentSealOperation:");
+                ((StreamSegmentSealOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "StreamSegmentTruncateOperation":
                 segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentTruncateOperation:");
-                long offset = getLongUserInput("Introduce Offset for StreamSegmentTruncateOperation:");
+                offset = getLongUserInput("Introduce Offset for StreamSegmentTruncateOperation:");
                 result = new StreamSegmentTruncateOperation(segmentId, offset);
                 break;
             case "UpdateAttributesOperation":
@@ -691,11 +695,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             output("Deleting operation from DurableLog: " + operation);
             if (logEdit.getFinalOperationId() == operation.getSequenceNumber() + 1) {
                 // Once reached the end of the Delete Edit Operation range, remove it from the list.
-                try {
-                    durableLogEdits.remove(0);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                durableLogEdits.remove(0);
                 output("Completed Delete Edit Operation on DurableLog: " + logEdit);
             }
         }

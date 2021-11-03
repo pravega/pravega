@@ -308,10 +308,35 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
 
         // The test will exercise editing the Container 0 log with an operation of each type.
-        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false).doReturn(true).when(command).confirmContinue();
-        Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("delete").doReturn("add").doReturn("DeleteSegmentOperation").when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).when(command).confirmContinue();
+        Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete").doReturn("add").doReturn("DeleteSegmentOperation")
+                .when(command).getStringUserInput(Mockito.any());
+        command.execute();
 
+        // Now, re-execute the command to exercise the case in which there is an existing backup log.
+        Mockito.doReturn(1).when(command).getIntUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).when(command).confirmContinue();
+        Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete").doReturn("add").doReturn("DeleteSegmentOperation")
+                .when(command).getStringUserInput(Mockito.any());
+        command.execute();
+
+        // Re-execute, now adding a replace operation and not destroying previous backup log.
+        Mockito.doReturn(2).when(command).getIntUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(true)
+                .when(command).confirmContinue();
+        Mockito.doReturn(900L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("replace").doReturn("StreamSegmentSealOperation").doReturn("replace")
+                .doReturn("StreamSegmentSealOperation").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+
+        // Do nothing if we find an existing backup log.
+        Mockito.doReturn(3).when(command).getIntUserInput(Mockito.any());
         command.execute();
     }
 
@@ -332,38 +357,51 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Check adding Edit Operations with sequence numbers lower than 0.
         AssertExtensions.assertThrows("Edit Operations should have initial sequence ids > 0.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, -1, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 0, 10, new DeleteSegmentOperation(0)))),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                -1, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
+                                0, 10, new DeleteSegmentOperation(0)))),
                 ex -> ex instanceof AssertionError);
 
         // A Delete Edit Operation should have an initial sequence number lower than the final one.
         AssertExtensions.assertThrows("Edit Operations should have initial sequence ids > 0.",
                 () -> command.checkDurableLogEdits(List.of(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 2, 2, null))),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
+                                2, 2, null))),
                 ex -> ex instanceof AssertionError);
 
         // Add one Add Edit and one Replace Edit on the same sequence number. This is expected to fail.
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 10, 10, new DeleteSegmentOperation(0)))),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)))),
                 ex -> ex instanceof AssertionError);
 
         // We can have multiple Add Edit Operations on the same sequence number.
         command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0))));
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0))));
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 10, 10, new DeleteSegmentOperation(0)))),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
+                                10, 10, new DeleteSegmentOperation(0)))),
                 ex -> ex instanceof AssertionError);
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 10, null),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 5, 20, null))),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
+                                1, 10, null),
+                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
+                                5, 20, null))),
                 ex -> ex instanceof AssertionError);
     }
 
@@ -380,18 +418,23 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Case 1: Input a Delete Edit Operation with wrong initial/final ids. Then retry with correct ids.
         Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(1L).doReturn(1L).doReturn(2L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(1L).doReturn(1L).doReturn(1L).doReturn(2L)
+                .when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("delete").when(command).getStringUserInput(Mockito.any());
-        Assert.assertEquals(List.of(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION, 1, 2, null)), command.getDurableLogEditsFromUser());
+        Assert.assertEquals(List.of(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
+                1, 2, null)), command.getDurableLogEditsFromUser());
 
         // Case 2: Input an Add Edit Operation with a wrong operation type. Then retry with correct operation type.
         Mockito.doReturn(true).doReturn(true).doReturn(false).when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("add").doReturn("wrong").doReturn("add").doReturn("DeleteSegmentOperation").when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn("add").doReturn("wrong").doReturn("add")
+                .doReturn("DeleteSegmentOperation").when(command).getStringUserInput(Mockito.any());
         DeleteSegmentOperation deleteOperationAdded = new DeleteSegmentOperation(1);
         List<DurableDataLogRepairCommand.LogEditOperation> editOps = new ArrayList<>();
-        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, deleteOperationAdded));
-        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, deleteOperationAdded));
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, deleteOperationAdded));
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, deleteOperationAdded));
         Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
     }
 
@@ -412,9 +455,11 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         UUID uuid = UUID.randomUUID();
         attributes.put(AttributeId.fromUUID(uuid), 10L);
         Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
-        Mockito.doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L)
+                .doReturn(timestamp).when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("test").doReturn(uuid.toString()).when(command).getStringUserInput(Mockito.any());
-        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false).when(command).getBooleanUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .when(command).getBooleanUserInput(Mockito.any());
         SegmentProperties segmentProperties = StreamSegmentInformation.builder().name("test").startOffset(2).length(3).storageLength(1)
                 .sealed(true).deleted(false).sealedInStorage(true).deletedInStorage(false)
                 .attributes(attributes).lastModified(new ImmutableDate(timestamp)).build();
@@ -440,7 +485,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn(uuid.toString()).when(command).getStringUserInput(Mockito.any());
         Mockito.doReturn(1L).doReturn(2L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn((int) AttributeUpdateType.Replace.getTypeId()).when(command).getIntUserInput(Mockito.any());
-        Assert.assertArrayEquals(attributeUpdates.getUUIDAttributeUpdates().toArray(), command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
+        Assert.assertArrayEquals(attributeUpdates.getUUIDAttributeUpdates().toArray(),
+                command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
     }
 
     @Test
@@ -528,14 +574,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         repairLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
         @Cleanup
         DebugLogWrapper debugLogWrapperRepair = newFactory.createDebugLogWrapper(0);
-        ReadOnlyLogMetadata metadataRepair = debugLogWrapperRepair.fetchMetadata();
 
         // Overwrite metadata of repair container with metadata of container 0.
         debugLogWrapperRepair.forceMetadataOverWrite(metadata0);
         // Now the amount of log entries read should be equal to the ones of container 0.
-        int newContainer1LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
+        int newContainerRepairLogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
         ReadOnlyLogMetadata newMetadata1 = debugLogWrapperRepair.fetchMetadata();
-        Assert.assertEquals(container0LogEntries, newContainer1LogEntries);
+        Assert.assertEquals(container0LogEntries, newContainerRepairLogEntries);
         Assert.assertEquals(metadata0.getLedgers(), newMetadata1.getLedgers());
 
         // Destroy contents of Container 0.
