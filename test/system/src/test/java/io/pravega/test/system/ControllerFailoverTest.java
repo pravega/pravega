@@ -16,11 +16,18 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -30,6 +37,8 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+
+import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +47,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -179,10 +190,109 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         Assert.assertEquals(2, streamSegments.getSegments().size());
     }
 
+    @Test
+    public void sweepOverTest() throws InterruptedException, ExecutionException {
+        String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
+        String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
+        String readerGroupName = "testSweepOverRG" + RandomStringUtils.randomAlphabetic(5);
+        int initialSegments = 1;
+        List<Long> segmentsToSeal = Collections.singletonList(0L);
+        Map<Double, Double> newRangesToCreate = new HashMap<>();
+        newRangesToCreate.put(0.0, 1.0);
+
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        // Connect with controller instance
+        final Controller controller = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConfig)
+                        .build(), executorService);
+
+        // Create scope, stream, and a transaction with high timeout value.
+        controller.createScope(scope).join();
+        log.info("Scope {} created successfully", scope);
+
+        createStream(controller, scope, stream, ScalingPolicy.fixed(initialSegments));
+        log.info("Stream {}/{} created successfully", scope, stream);
+
+        StreamImpl stream1 = new StreamImpl(scope, stream);
+
+        // Initiate scale operation. It will block until ongoing transaction is complete.
+        controller.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
+
+        // Initiate and Create RG instances
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        readerGroupManager.createReaderGroup(readerGroupName,
+                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(scope, stream)).build());
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
+
+        int startInclusive = 1;
+        int endExclusive = 500;
+        log.info("Write events with range [{},{})", startInclusive, endExclusive);
+        writeEvents(scope, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()), stream);
+
+        // Now stop the controller instance executing scale operation.
+        Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
+        log.info("Successfully stopped one instance of controller service");
+
+        // restart controller service
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+        log.info("Successfully stopped one instance of controller service");
+
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
+
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);
+        // Connect to another controller instance.
+        @Cleanup
+        final Controller controller2 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConf)
+                        .build(), executorService);
+
+        // Note: if scale does not complete within desired time, test will timeout.
+        boolean scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
+        while (!scaleStatus) {
+            scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
+            Thread.sleep(30000);
+        }
+
+        startInclusive = 501;
+        endExclusive = 600;
+        writeEvents(scope, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()), stream);
+
+        log.info("Checking whether scale operation succeeded by fetching current segments");
+        StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
+        log.info("Current segment count= {}", streamSegments.getSegments().size());
+        Assert.assertEquals(2, streamSegments.getSegments().size());
+
+    }
+
     private void createStream(Controller controller, String scope, String stream, ScalingPolicy scalingPolicy) {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
                 .build();
         controller.createStream(scope, stream, config).join();
+    }
+
+    private <T extends Serializable> void writeEvents(final String scope, final List<T> events, final String stream) {
+
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+             EventStreamWriter<T> writer = clientFactory.createEventWriter(stream,
+                     new JavaSerializer<T>(),
+                     EventWriterConfig.builder().build())) {
+            for (T event : events) {
+                String routingKey = String.valueOf(event);
+                log.info("Writing message: {} with routing-key: {} to stream {}", event, routingKey, stream);
+                writer.writeEvent(routingKey, event);
+            }
+        }
     }
 }
