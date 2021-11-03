@@ -135,14 +135,14 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * Applies the provided deserializer on the serialized record and parses it into a string using the provided field map.
      *
      * @param serializedRecord {@link ByteBuffer} containing the serialized record.
-     * @param deserializer    A function to deserialize the byte[] into the record.
-     * @param fieldMap        A mapping from field name to a method to convert said field into a string, for the record.
-     * @param <T>             The type of the record to deserialized.
+     * @param fromBytes        A function to deserialize the byte[] into the record.
+     * @param fieldMap         A mapping from field name to a method to convert said field into a string, for the record.
+     * @param <T>              The type of the record to deserialized.
      * @return A user-friendly string containing the contents of the deserialized record.
      */
-    public static <T> String applyDeserializer(ByteBuffer serializedRecord, Function<byte[], T> deserializer, Map<String, Function<T, String>> fieldMap) {
+    public static <T> String applyDeserializer(ByteBuffer serializedRecord, Function<byte[], T> fromBytes, Map<String, Function<T, String>> fieldMap) {
         StringBuilder stringValueBuilder;
-        T data = deserializer.apply(new ByteArraySegment(serializedRecord).getCopy());
+        T data = fromBytes.apply(new ByteArraySegment(serializedRecord).getCopy());
         stringValueBuilder = new StringBuilder();
         fieldMap.forEach((name, f) -> appendField(stringValueBuilder, name, f.apply(data)));
         return stringValueBuilder.toString();

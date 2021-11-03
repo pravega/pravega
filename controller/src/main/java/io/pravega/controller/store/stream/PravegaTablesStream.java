@@ -72,11 +72,28 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.LONG_TO_BYTES
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_EMPTY_PREDICATE;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMMITTING_TRANSACTIONS_RECORD_KEY;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.CONFIGURATION_KEY;
+import static io.pravega.shared.NameUtils.CREATION_TIME_KEY;
+import static io.pravega.shared.NameUtils.CURRENT_EPOCH_KEY;
+import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
+import static io.pravega.shared.NameUtils.EPOCH_RECORD_KEY_FORMAT;
+import static io.pravega.shared.NameUtils.EPOCH_TRANSITION_KEY;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.METADATA_TABLE;
+import static io.pravega.shared.NameUtils.RETENTION_SET_KEY;
+import static io.pravega.shared.NameUtils.SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT;
+import static io.pravega.shared.NameUtils.SEGMENT_MARKER_PATH_FORMAT;
+import static io.pravega.shared.NameUtils.SEGMENT_SEALED_EPOCH_KEY_FORMAT;
+import static io.pravega.shared.NameUtils.SEPARATOR;
+import static io.pravega.shared.NameUtils.STATE_KEY;
+import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.TRUNCATION_KEY;
+import static io.pravega.shared.NameUtils.WAITING_REQUEST_PROCESSOR_PATH;
+import static io.pravega.shared.NameUtils.WRITERS_POSITIONS_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
@@ -90,27 +107,9 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 class PravegaTablesStream extends PersistentStreamBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStream.class));
 
-    private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
-    private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
-    private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
-    private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
-
     // metadata keys
-    private static final String CREATION_TIME_KEY = "creationTime";
-    private static final String CONFIGURATION_KEY = "configuration";
-    private static final String TRUNCATION_KEY = "truncation";
-    private static final String STATE_KEY = "state";
-    private static final String EPOCH_TRANSITION_KEY = "epochTransition";
-    private static final String RETENTION_SET_KEY = "retention";
     private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
-    private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
-    private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
     private static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%d";
-    private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%d";
-    private static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%d"; // segment id
-    private static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
-    private static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
-    private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
