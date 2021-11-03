@@ -28,6 +28,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -43,11 +44,14 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -68,6 +72,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -436,6 +441,106 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn(1L).doReturn(2L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn((int) AttributeUpdateType.Replace.getTypeId()).when(command).getIntUserInput(Mockito.any());
         Assert.assertArrayEquals(attributeUpdates.getUUIDAttributeUpdates().toArray(), command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
+    }
+
+    @Test
+    public void testUserInputMethods() throws Exception {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args);
+
+        System.setIn(new ByteArrayInputStream("true".getBytes()));
+        Assert.assertTrue(command.getBooleanUserInput("Test message"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        Assert.assertEquals("yes", command.getStringUserInput("Test message"));
+        System.setIn(new ByteArrayInputStream("1".getBytes()));
+        Assert.assertEquals(1, command.getIntUserInput("Test message"));
+        System.setIn(new ByteArrayInputStream("2".getBytes()));
+        Assert.assertEquals(2L, command.getLongUserInput("Test message"));
+    }
+
+    @Test
+    public void testForceMetadataOverWrite() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        @Cleanup
+        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testDataRecoveryCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for repairing DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        // Test the DurableLogWrapper options to get, overwrite and destroy logs.
+        @Cleanup
+        val newFactory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        newFactory.initialize();
+        @Cleanup
+        DebugLogWrapper debugLogWrapper0 = newFactory.createDebugLogWrapper(0);
+        int container0LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> {}, 0, debugLogWrapper0.asReadOnly());
+        Assert.assertTrue(container0LogEntries > 0);
+        ReadOnlyLogMetadata metadata0 = debugLogWrapper0.fetchMetadata();
+        Assert.assertNotNull(metadata0);
+
+        // Create a Repair log with some random content.
+        @Cleanup
+        DurableDataLog repairLog = newFactory.createDurableDataLog(DataRecoveryCommand.REPAIR_LOG_ID);
+        repairLog.initialize(TIMEOUT);
+        repairLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
+        @Cleanup
+        DebugLogWrapper debugLogWrapperRepair = newFactory.createDebugLogWrapper(0);
+        ReadOnlyLogMetadata metadataRepair = debugLogWrapperRepair.fetchMetadata();
+
+        // Overwrite metadata of repair container with metadata of container 0.
+        debugLogWrapperRepair.forceMetadataOverWrite(metadata0);
+        // Now the amount of log entries read should be equal to the ones of container 0.
+        int newContainer1LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> {}, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
+        ReadOnlyLogMetadata newMetadata1 = debugLogWrapperRepair.fetchMetadata();
+        Assert.assertEquals(container0LogEntries, newContainer1LogEntries);
+        Assert.assertEquals(metadata0.getLedgers(), newMetadata1.getLedgers());
+
+        // Destroy contents of Container 0.
+        debugLogWrapper0.deleteDurableLogMetadata();
+        Assert.assertNull(debugLogWrapper0.fetchMetadata());
     }
 
     /**

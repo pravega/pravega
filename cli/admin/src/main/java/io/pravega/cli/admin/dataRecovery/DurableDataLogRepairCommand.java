@@ -127,7 +127,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 case 1:
                     // Delete everything related to the old Backup Log.
                     try (DebugLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID)) {
-                        backupDataLogDebugLogWrapper.destroyDurableDataLog();
+                        backupDataLogDebugLogWrapper.deleteDurableLogMetadata();
                     }
                     break;
                 case 2:
@@ -449,7 +449,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * @return Number of {@link Operation}s read.
      * @throws Exception
      */
-    private int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
+    @VisibleForTesting
+    int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
                                                      int containerId, DurableDataLog durableDataLog) throws Exception {
         val logReaderCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
                 callback,

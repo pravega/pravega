@@ -261,17 +261,6 @@ public class DebugLogWrapper implements AutoCloseable {
         this.log.getZkClient().delete().forPath(this.log.getLogNodePath());
     }
 
-    /**
-     * Delete the data and metadata of the BookkeeperLog in Zookeeper. CAUTION: This is a destructive operation and
-     * should be used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
-     *
-     * @throws Exception in case there is a problem destroying the {@link DurableDataLog}.
-     */
-    public void destroyDurableDataLog() throws Exception {
-        this.log.truncate(new LedgerAddress(Long.MAX_VALUE, Long.MAX_VALUE), Duration.ofSeconds(30)).join();
-        deleteDurableLogMetadata();
-    }
-
     private void initialize() throws DurableDataLogException {
         if (this.initialized.compareAndSet(false, true)) {
             try {
