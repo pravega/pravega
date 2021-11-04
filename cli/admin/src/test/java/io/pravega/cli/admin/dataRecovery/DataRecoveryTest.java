@@ -28,6 +28,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -41,6 +42,9 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
@@ -496,6 +500,54 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testRepairLogEditOperationsWithContent() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+        List<DurableDataLogRepairCommand.LogEditOperation> editOps = new ArrayList<>();
+
+        // Case 1: Input Add Edit Operations for a MetadataCheckpointOperation and StorageMetadataCheckpointOperation operations
+        // with payload operation with zeros as content.
+        Mockito.doReturn(true).doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(100).when(command).getIntUserInput(Mockito.any());
+        Mockito.doReturn("add").doReturn("MetadataCheckpointOperation").doReturn("zero")
+                .doReturn("StorageMetadataCheckpointOperation").doReturn("zero")
+                .when(command).getStringUserInput(Mockito.any());
+        MetadataCheckpointOperation metadataCheckpointOperation = new MetadataCheckpointOperation();
+        metadataCheckpointOperation.setContents(new ByteArraySegment(new byte[100]));
+        StorageMetadataCheckpointOperation storageMetadataCheckpointOperation = new StorageMetadataCheckpointOperation();
+        storageMetadataCheckpointOperation.setContents(new ByteArraySegment(new byte[100]));
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, metadataCheckpointOperation));
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, storageMetadataCheckpointOperation));
+        Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
+
+        // Case 2: Input an Add Edit Operation for a StreamSegmentAppendOperation with content loaded from a file.
+        editOps.clear();
+        byte[] content = new byte[]{1, 2, 3, 4, 5};
+        File tmpFile = File.createTempFile("operationContent", "bin");
+        Files.write(tmpFile.toPath(), content);
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(1).doReturn(10).when(command).getIntUserInput(Mockito.any());
+        Mockito.doReturn("wrong").doReturn("add").doReturn("StreamSegmentAppendOperation")
+                .doReturn("file").doReturn(tmpFile.toString())
+                .when(command).getStringUserInput(Mockito.any());
+        StreamSegmentAppendOperation appendOperation = new StreamSegmentAppendOperation(1, 20, new ByteArraySegment(content), new AttributeUpdateCollection());
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, appendOperation));
+        Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
+        Files.delete(tmpFile.toPath());
+    }
+
+    @Test
     public void testRepairLogEditOperationCreateSegmentProperties() throws IOException {
         // Setup command object.
         STATE.set(new AdminCommandState());
@@ -544,7 +596,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
                 .when(command).getBooleanUserInput(Mockito.any());
         Assert.assertEquals(segmentProperties, command.createSegmentProperties());
-
     }
 
     @Test
@@ -570,6 +621,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
 
         // Induce exceptions during the process to check error handling.
+        Mockito.doReturn(true).doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doThrow(NumberFormatException.class).doThrow(NullPointerException.class).when(command).getStringUserInput(Mockito.any());
+        Assert.assertArrayEquals(new Object[0], command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
     }
 
     @Test
@@ -600,7 +654,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int containerCount = 1;
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
+        pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
                 .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())

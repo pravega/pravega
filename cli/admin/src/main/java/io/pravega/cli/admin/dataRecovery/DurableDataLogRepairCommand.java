@@ -17,6 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -30,8 +31,11 @@ import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
@@ -50,6 +54,8 @@ import lombok.NonNull;
 import lombok.val;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -199,7 +205,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         // Delete the generated Edited log metadata, as its contents are already pointed by the Original Log metadata.
         editedLogWrapper.deleteDurableLogMetadata();
 
-        output("Process complete successfully!");
+        output("Process completed successfully!");
     }
 
     /**
@@ -354,9 +360,18 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ((MergeSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MetadataCheckpointOperation":
+                result = new MetadataCheckpointOperation();
+                ((MetadataCheckpointOperation) result).setContents(createOperationContents());
+                break;
             case "StorageMetadataCheckpointOperation":
+                result = new StorageMetadataCheckpointOperation();
+                ((StorageMetadataCheckpointOperation) result).setContents(createOperationContents());
+                break;
             case "StreamSegmentAppendOperation":
-                throw new UnsupportedOperationException();
+                segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentAppendOperation:");
+                offset = getLongUserInput("Introduce Segment Offset for StreamSegmentAppendOperation:");
+                result = new StreamSegmentAppendOperation(segmentId, offset, createOperationContents(), createAttributeUpdateCollection());
+                break;
             case "StreamSegmentMapOperation":
                 result = new StreamSegmentMapOperation(createSegmentProperties());
                 break;
@@ -380,6 +395,32 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 throw new UnsupportedOperationException();
         }
         return result;
+    }
+
+    @VisibleForTesting
+    ByteArraySegment createOperationContents() {
+        ByteArraySegment content = null;
+        do {
+            try {
+                switch (getStringUserInput("You are about to create the content for the new Operation. " +
+                        "The available options are i) generating 0s as payload (zero), ii) load the contents from a provided file (file): [zero|file]")) {
+                    case "zero":
+                        int contentLength = getIntUserInput("Introduce length of the Operation content: ");
+                        content = new ByteArraySegment(new byte[contentLength]);
+                        break;
+                    case "file":
+                        String path = getStringUserInput("Introduce the path for the file to use as Operation content:");
+                        content = new ByteArraySegment(Files.readAllBytes(Path.of(path)));
+                        break;
+                    default:
+                        output("Wrong option. Please, select one of the following options: [zero|file]");
+                }
+            } catch (Exception ex) {
+                outputError("Some problem has happened.");
+                ex.printStackTrace();
+            }
+        } while (content == null);
+        return content;
     }
 
     @VisibleForTesting
@@ -623,7 +664,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                             applyReplaceEditOperation(logEdit);
                             break;
                         default:
-                            outputError("Unknown DurableLog edit type: " + durableLogEdits.get(0).getType());
+                            outputError("Unknown DurableLog edit type, deleting edit operation: " + durableLogEdits.get(0).getType());
+                            durableLogEdits.remove(0);
                     }
                 }
             } catch (Exception e) {
@@ -635,6 +677,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         @VisibleForTesting
         boolean checkDuplicateOperation(Operation operation) {
+            // TODO: Test this one
             if (operation.getSequenceNumber() < durableLogEdits.get(0).getInitialOperationId()) {
                 outputError("Found an Operation with a lower sequence number than the initial" +
                         "id of the next edit to apply. This may be symptom of a duplicated DataFrame and will" +
