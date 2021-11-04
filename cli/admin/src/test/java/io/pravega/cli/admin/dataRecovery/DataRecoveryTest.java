@@ -522,7 +522,28 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .attributes(attributes).lastModified(new ImmutableDate(timestamp)).build();
         Assert.assertEquals(segmentProperties, command.createSegmentProperties());
 
-        // Induce exceptions during the process to check error handling.
+        // Induce exceptions during the process of creating attributes to check error handling.
+        segmentProperties = StreamSegmentInformation.builder().name("test").startOffset(2).length(3).storageLength(1)
+                .sealed(true).deleted(false).sealedInStorage(true).deletedInStorage(false)
+                .attributes(new HashMap<>()).lastModified(new ImmutableDate(timestamp)).build();
+
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(2L).doReturn(3L).doReturn(1L).doReturn(timestamp)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("test").doThrow(NumberFormatException.class).when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .when(command).getBooleanUserInput(Mockito.any());
+        Assert.assertEquals(segmentProperties, command.createSegmentProperties());
+
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(2L).doReturn(3L).doReturn(1L).doReturn(timestamp)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("test").doThrow(NullPointerException.class).when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .when(command).getBooleanUserInput(Mockito.any());
+        Assert.assertEquals(segmentProperties, command.createSegmentProperties());
 
     }
 
