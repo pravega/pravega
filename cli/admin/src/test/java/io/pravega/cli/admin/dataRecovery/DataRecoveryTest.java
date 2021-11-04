@@ -40,6 +40,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -436,6 +440,59 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
                 1, 1, deleteOperationAdded));
         Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
+
+        // Case 3: Create rest of operation types without payload (MergeSegmentOperation, StreamSegmentMapOperation, StreamSegmentTruncateOperation, UpdateAttributesOperation)
+        long timestamp = System.currentTimeMillis();
+        UUID uuid = UUID.randomUUID();
+        editOps.clear();
+
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false)
+                .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doReturn(1L).doReturn(1L).doReturn(2L).doReturn(1L).doReturn(2L).doReturn(123L)
+                .doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
+                .doReturn(3L).doReturn(3L)
+                .doReturn(4L).doReturn(4L).doReturn(3L).doReturn(1L).doReturn(2L)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("add").doReturn("MergeSegmentOperation").doReturn(uuid.toString())
+                .doReturn("add").doReturn("StreamSegmentMapOperation").doReturn("test").doReturn(uuid.toString())
+                .doReturn("add").doReturn("StreamSegmentTruncateOperation")
+                .doReturn("add").doReturn("UpdateAttributesOperation").doReturn(uuid.toString())
+                .when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn((int) AttributeUpdateType.Replace.getTypeId()).when(command).getIntUserInput(Mockito.any());
+        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .when(command).getBooleanUserInput(Mockito.any());
+
+        AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
+        attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(uuid), AttributeUpdateType.Replace, 1, 2));
+        MergeSegmentOperation mergeSegmentOperation =  new MergeSegmentOperation(1, 2, attributeUpdates);
+        mergeSegmentOperation.setStreamSegmentOffset(123);
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                1, 1, mergeSegmentOperation));
+
+        Map<AttributeId, Long> attributes = new HashMap<>();
+        attributes.put(AttributeId.fromUUID(uuid), 10L);
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder().name("test").startOffset(2).length(3).storageLength(1)
+                .sealed(true).deleted(false).sealedInStorage(true).deletedInStorage(false)
+                .attributes(attributes).lastModified(new ImmutableDate(timestamp)).build();
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                2, 2, new StreamSegmentMapOperation(segmentProperties)));
+
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                3, 3, new StreamSegmentTruncateOperation(3, 3)));
+
+        editOps.add(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                4, 4, new UpdateAttributesOperation(4, attributeUpdates)));
+
+        Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
+
+        // Case 4: Add wrong inputs.
+        Mockito.doReturn(true).doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doThrow(NumberFormatException.class).doThrow(NullPointerException.class).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("wrong").doReturn("replace").doReturn("replace").when(command).getStringUserInput(Mockito.any());
+        command.getDurableLogEditsFromUser();
     }
 
     @Test
@@ -464,6 +521,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .sealed(true).deleted(false).sealedInStorage(true).deletedInStorage(false)
                 .attributes(attributes).lastModified(new ImmutableDate(timestamp)).build();
         Assert.assertEquals(segmentProperties, command.createSegmentProperties());
+
+        // Induce exceptions during the process to check error handling.
+
     }
 
     @Test
@@ -487,6 +547,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn((int) AttributeUpdateType.Replace.getTypeId()).when(command).getIntUserInput(Mockito.any());
         Assert.assertArrayEquals(attributeUpdates.getUUIDAttributeUpdates().toArray(),
                 command.createAttributeUpdateCollection().getUUIDAttributeUpdates().toArray());
+
+        // Induce exceptions during the process to check error handling.
     }
 
     @Test

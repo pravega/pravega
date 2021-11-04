@@ -351,6 +351,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 long targetSegmentId = getLongUserInput("Introduce Target Segment Id for MergeSegmentOperation:");
                 long sourceSegmentId = getLongUserInput("Introduce Source Segment Id for MergeSegmentOperation:");
                 result = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, createAttributeUpdateCollection());
+                offset = getLongUserInput("Introduce Segment Offset for MergeSegmentOperation:");
+                ((MergeSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MetadataCheckpointOperation":
             case "StorageMetadataCheckpointOperation":
@@ -478,7 +480,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * provides counters to inform about the state of the processing as well as closing the resources.
      */
     abstract class AbstractLogProcessor implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>>, AutoCloseable {
-        protected final AtomicLong processedOperations = new AtomicLong(0);
         protected final Map<Long, CompletableFuture<Void>> operationProcessingTracker = new ConcurrentHashMap<>();
         @NonNull
         protected final DataFrameBuilder<Operation> dataFrameBuilder;
@@ -503,10 +504,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                     },
                     executor);
             this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
-        }
-
-        public long getProcessedOperations() {
-            return processedOperations.get();
         }
 
         @Override
@@ -534,7 +531,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         private void trackOperation(Operation operation) {
             if (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
-                outputError("WARNING: Duplicate Operation being written " + operation);
+                outputError("WARNING: Found duplicate Operation to be written " + operation + ". Skipping (not writing it to target log).");
                 return;
             }
             CompletableFuture<Void> confirmedWrite = new CompletableFuture<>();
@@ -559,7 +556,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         public void accept(Operation operation, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
                 writeAndConfirm(operation);
-                processedOperations.incrementAndGet();
             } catch (Exception e) {
                 outputError("Error serializing operation " + operation);
                 e.printStackTrace();
@@ -575,7 +571,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     class EditingLogProcessor extends AbstractLogProcessor {
         @NonNull
         private final List<LogEditOperation> durableLogEdits;
-        private long newSequenceNumber = 1;
+        private long newSequenceNumber = 1; // Operation sequence numbers start by 1.
 
         EditingLogProcessor(DurableDataLog editedDataLog, List<LogEditOperation> durableLogEdits, ScheduledExecutorService executor) {
             super(editedDataLog, executor);
@@ -594,14 +590,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                     // have been applied. The only case in which we can find a DurableLog Operation with a sequence
                     // number lower than the next DurableLog edit is that the data corruption issue we are trying to
                     // repair induces duplication of DataFrames.
-                    if (operation.getSequenceNumber() < durableLogEdits.get(0).getInitialOperationId()) {
-                        outputError("Found an Operation with a lower sequence number than the initial" +
-                                "id of the next edit to apply. This may be symptom of a duplicated DataFrame and will" +
-                                "also duplicate the associated edit: " + operation);
-                        if (!confirmContinue()) {
-                            output("Not editing original DurableLog for this operation.");
-                            return;
-                        }
+                    if (checkDuplicateOperation(operation)) {
+                        // Skip processing of this operation.
+                        return;
                     }
                     // We have edits to do.
                     LogEditOperation logEdit = durableLogEdits.get(0);
@@ -641,6 +632,17 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 e.printStackTrace();
                 isFailed = true;
             }
+        }
+
+        @VisibleForTesting
+        boolean checkDuplicateOperation(Operation operation) {
+            if (operation.getSequenceNumber() < durableLogEdits.get(0).getInitialOperationId()) {
+                outputError("Found an Operation with a lower sequence number than the initial" +
+                        "id of the next edit to apply. This may be symptom of a duplicated DataFrame and will" +
+                        "also duplicate the associated edit: " + operation);
+                return true;
+            }
+            return false;
         }
 
         /**
