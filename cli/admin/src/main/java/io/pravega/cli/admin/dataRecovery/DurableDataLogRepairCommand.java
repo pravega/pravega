@@ -84,8 +84,6 @@ import java.util.function.BiConsumer;
 public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
-    @VisibleForTesting
-    private List<LogEditOperation> durableLogEdits;
 
     /**
      * Creates a new instance of the DurableLogRepairCommand class.
@@ -151,7 +149,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         // Get user input of operations to skip, replace, or delete.
-        this.durableLogEdits = getDurableLogEditsFromUser();
+        List<LogEditOperation> durableLogEdits = getDurableLogEditsFromUser();
         // Show the edits to be committed to the original durable log so the user can confirm.
         output("The following edits will be used to edit the Original Log:");
         durableLogEdits.forEach(e -> output(e.toString()));
@@ -171,8 +169,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try (EditingLogProcessor logEditState = new EditingLogProcessor(editedDataLog, durableLogEdits, executorService);
              DurableDataLog backupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID).asReadOnly()) {
             readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
-            // Ugly, but it ensures that the last write done in the DataFrameBuilder is actually persisted.
-            //editedDataLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
             assert !logEditState.isFailed;
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
@@ -213,7 +209,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      *
      * @param dataLogFactory Factory to instantiate {@link DurableDataLog} instances.
      * @return Whether there is metadata for an existing Backup Log.
-     * @throws DataLogInitializationException
+     * @throws DataLogInitializationException If there is an error initializing the {@link DurableDataLog}.
      */
     private boolean existsBackupLog(BookKeeperLogFactory dataLogFactory) throws DataLogInitializationException {
         try (DebugLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID)) {
@@ -228,7 +224,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * @param dataLogFactory Factory to instantiate {@link DurableDataLog} instances.
      * @param containerId Container id for the source log.
      * @param originalDataLog Source log.
-     * @throws Exception
+     * @throws Exception If there is an error during backing up process.
      */
     private void createBackupLog(BookKeeperLogFactory dataLogFactory, int containerId, DebugLogWrapper originalDataLog) throws Exception {
         // Create a new Backup Log to store the Original Log contents.
@@ -241,10 +237,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try (BackupLogProcessor backupLogProcessor = new BackupLogProcessor(backupDataLog, executorService);
              DurableDataLog originalDataLogReadOnly = originalDataLog.asReadOnly()) {
             operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupLogProcessor, containerId, originalDataLogReadOnly);
-            // Ugly, but it ensures that the last write done in the DataFrameBuilder is actually persisted.
-            //backupDataLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
             // The number of processed operation should match the number of read operations from DebugRecoveryProcessor.
-            //assert backupLogProcessor.getProcessedOperations() == operationsReadFromOriginalLog;
+            assert backupLogProcessor.getBeforeCommit().get() == backupLogProcessor.getCommitSuccess().get();
+            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog;
             assert !backupLogProcessor.isFailed;
         } catch (Exception e) {
             outputError("There have been errors while creating the Backup Log.");
@@ -493,7 +488,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * @param containerId Container id to read from.
      * @param durableDataLog {@link DurableDataLog} of the Container to be read.
      * @return Number of {@link Operation}s read.
-     * @throws Exception
+     * @throws Exception If there is a problem reading the {@link DurableDataLog}.
      */
     @VisibleForTesting
     int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
@@ -527,8 +522,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         protected boolean isFailed = false;
         @Getter
         private final AtomicBoolean closed = new AtomicBoolean();
+        @Getter
         private final AtomicInteger beforeCommit = new AtomicInteger();
+        @Getter
         private final AtomicInteger commitSuccess = new AtomicInteger();
+        @Getter
         private final AtomicInteger commitFailure = new AtomicInteger();
 
         AbstractLogProcessor(DurableDataLog durableDataLog, ScheduledExecutorService executor) {
@@ -560,7 +558,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
          * callbacks are invoked after the operation is written to the target {@link DurableDataLog}.
          *
          * @param operation {@link Operation} to be written and completed before continue with further writes.
-         * @throws IOException
+         * @throws IOException If there is a problem writing the {@link Operation} to the target {@link DurableDataLog}.
          */
         protected void writeAndConfirm(Operation operation) throws IOException {
             trackOperation(operation);
@@ -609,11 +607,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * passed in the callback plus the result of applying the {@link LogEditOperation}.
      */
     class EditingLogProcessor extends AbstractLogProcessor {
-        @NonNull
         private final List<LogEditOperation> durableLogEdits;
         private long newSequenceNumber = 1; // Operation sequence numbers start by 1.
 
-        EditingLogProcessor(DurableDataLog editedDataLog, List<LogEditOperation> durableLogEdits, ScheduledExecutorService executor) {
+        EditingLogProcessor(DurableDataLog editedDataLog, @NonNull List<LogEditOperation> durableLogEdits, ScheduledExecutorService executor) {
             super(editedDataLog, executor);
             this.durableLogEdits = durableLogEdits;
         }
@@ -693,7 +690,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
          *
          * @param logEdit @{@link LogEditOperation} of type {@link LogEditType#REPLACE_OPERATION} to be added to the target
          *                replacing the original {@link Operation}.
-         * @throws IOException
+         * @throws IOException If there is an error applying the "replace" {@link LogEditOperation}.
          */
         private void applyReplaceEditOperation(LogEditOperation logEdit) throws IOException {
             logEdit.getNewOperation().setSequenceNumber(newSequenceNumber++);
@@ -710,7 +707,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
          * @param operation {@link Operation} read from the log.
          * @param logEdit @{@link LogEditOperation} of type {@link LogEditType#ADD_OPERATION} to be added to the target
          *                log before the input {@link Operation}.
-         * @throws IOException
+         * @throws IOException If there is an error applying the "add" {@link LogEditOperation}.
          */
         private void applyAddEditOperation(Operation operation, LogEditOperation logEdit) throws IOException {
             long currentInitialAddOperation = logEdit.getInitialOperationId();

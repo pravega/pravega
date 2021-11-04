@@ -276,7 +276,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int containerCount = 1;
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
+        pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
                 .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
