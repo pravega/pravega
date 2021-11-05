@@ -43,6 +43,7 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
@@ -117,7 +118,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             output("Not disabling Original Log this time.");
             return;
         }
-        originalDataLog.disable();
+        try {
+            originalDataLog.disable();
+        } catch (DurableDataLogException ex) {
+            outputError("Problem while disabling the Original Log. It may be disabled already.");
+            ex.printStackTrace();
+        }
 
         // Make sure that the reserved id for Backup log is free before making any further progress.
         boolean createNewBackupLog = true;
@@ -147,6 +153,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         if (createNewBackupLog) {
             createBackupLog(dataLogFactory, containerId, originalDataLog);
         }
+        int backupLogRadOperations = validateBackupLog(dataLogFactory, containerId, originalDataLog);
 
         // Get user input of operations to skip, replace, or delete.
         List<LogEditOperation> durableLogEdits = getDurableLogEditsFromUser();
@@ -160,14 +167,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             return;
         }
 
-        // Create a new Repair log to store the result of edits applied to the Original Log.
-        @Cleanup
-        DurableDataLog editedDataLog = dataLogFactory.createDurableDataLog(REPAIR_LOG_ID);
-        editedDataLog.initialize(TIMEOUT);
-
-        // Instantiate the processor that will write the edited contents into the Repair Log.
-        try (EditingLogProcessor logEditState = new EditingLogProcessor(editedDataLog, durableLogEdits, executorService);
+        // Create a new Repair log to store the result of edits applied to the Original Log and instantiate the processor
+        // that will write the edited contents into the Repair Log.
+        try (DurableDataLog editedDataLog = dataLogFactory.createDurableDataLog(REPAIR_LOG_ID);
+             EditingLogProcessor logEditState = new EditingLogProcessor(editedDataLog, durableLogEdits, executorService);
              DurableDataLog backupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID).asReadOnly()) {
+            editedDataLog.initialize(TIMEOUT);
             readDurableDataLogWithCustomCallback(logEditState, BACKUP_LOG_ID, backupDataLog);
             assert !logEditState.isFailed;
         } catch (Exception ex) {
@@ -176,9 +181,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             throw ex;
         }
 
-        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) ->
-                output("Repair Log Operations: " + op), REPAIR_LOG_ID, editedDataLog);
-        output("Edited DurableLog Operations read: " + editedDurableLogOperations);
+        // Validate the contents of the newly created Repair Log.
+        int editedDurableLogOperations = validateRepairLog(dataLogFactory, backupLogRadOperations, durableLogEdits);
 
         // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
         @Cleanup
@@ -193,6 +197,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) ->
                     output("Original Log Operations after repair: " + op), containerId, finalEditedLog);
             output("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
+            assert editedDurableLogOperations == finalEditedLogReadOps : "Repair Log operations not matching before (" +
+                    editedDurableLogOperations + ") and after the metadata overwrite (" + finalEditedLogReadOps + ")";
         } catch (Exception ex) {
             outputError("Problem reading Original DurableLog after editing.");
             ex.printStackTrace();
@@ -202,6 +208,39 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         editedLogWrapper.deleteDurableLogMetadata();
 
         output("Process completed successfully!");
+    }
+
+    private int validateRepairLog(BookKeeperLogFactory dataLogFactory, int backupLogRadOperations, List<LogEditOperation> durableLogEdits) throws Exception {
+        @Cleanup
+        DurableDataLog editedDebugDataLogReadOnly = dataLogFactory.createDebugLogWrapper(REPAIR_LOG_ID).asReadOnly();
+        int editedDurableLogOperations = readDurableDataLogWithCustomCallback((op, list) ->
+                output("Repair Log Operations: " + op), REPAIR_LOG_ID, editedDebugDataLogReadOnly);
+        output("Edited DurableLog Operations read: " + editedDurableLogOperations);
+        long expectedEditedLogOperations = backupLogRadOperations +
+                durableLogEdits.stream().filter(edit -> edit.type.equals(LogEditType.ADD_OPERATION)).count() -
+                durableLogEdits.stream().filter(edit -> edit.type.equals(LogEditType.DELETE_OPERATION))
+                        .map(edit -> edit.finalOperationId - edit.initialOperationId).reduce(Long::sum).orElse(0L);
+        assert expectedEditedLogOperations == editedDurableLogOperations : "Expected (" + expectedEditedLogOperations +
+                ") and actual (" + editedDurableLogOperations + ") operations in Edited Log do not match";
+        return editedDurableLogOperations;
+    }
+
+    private int validateBackupLog(BookKeeperLogFactory dataLogFactory, int containerId, DebugLogWrapper originalDataLog) throws Exception {
+        // Validate that the Original and Backup logs have the same number of operations.
+        int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) -> { }, containerId, originalDataLog.asReadOnly());
+        @Cleanup
+        val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID);
+        @Cleanup
+        val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
+        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) ->
+                output("Reading: " + a), BACKUP_LOG_ID, validationBackupDataLogReadOnly);
+        output("Original DurableLog operations read: " + operationsReadFromOriginalLog +
+                ", Backup DurableLog operations read: " + backupLogReadOperations);
+
+        // Ensure that the Original log contains the same number of Operations than the Backup log upon a new log read.
+        assert operationsReadFromOriginalLog == backupLogReadOperations : "Operations read from Backup Log (" + backupLogReadOperations +
+                ") differ from Original Log ones (" + operationsReadFromOriginalLog + ") ";
+        return backupLogReadOperations;
     }
 
     /**
@@ -238,26 +277,16 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
              DurableDataLog originalDataLogReadOnly = originalDataLog.asReadOnly()) {
             operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupLogProcessor, containerId, originalDataLogReadOnly);
             // The number of processed operation should match the number of read operations from DebugRecoveryProcessor.
-            assert backupLogProcessor.getBeforeCommit().get() == backupLogProcessor.getCommitSuccess().get();
-            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog;
-            assert !backupLogProcessor.isFailed;
+            assert backupLogProcessor.getBeforeCommit().get() == backupLogProcessor.getCommitSuccess().get() :
+                    "BackupLogProcessor has different number of processed (" + backupLogProcessor.getBeforeCommit().get() +
+                            ") and successful operations (" + backupLogProcessor.getCommitSuccess().get() + ")";
+            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog : "BackupLogProcessor successful" +
+                    "operations (" + backupLogProcessor.getCommitSuccess().get() + ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
+            assert !backupLogProcessor.isFailed : "BackupLogProcessor has failed";
         } catch (Exception e) {
             outputError("There have been errors while creating the Backup Log.");
             throw e;
         }
-
-        // Validate that the Original and Backup logs have the same number of operations.
-        @Cleanup
-        val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(BACKUP_LOG_ID);
-        @Cleanup
-        val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
-        int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) ->
-                output("Reading: " + a), BACKUP_LOG_ID, validationBackupDataLogReadOnly);
-        output("Original DurableLog operations read: " + operationsReadFromOriginalLog +
-                ", Backup DurableLog operations read: " + backupLogReadOperations);
-
-        // Ensure that the Original log contains the same number of Operations than the Backup log upon a new log read.
-        //assert operationsReadFromOriginalLog == backupLogReadOperations;
     }
 
     @VisibleForTesting
@@ -530,10 +559,14 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         private final AtomicInteger commitFailure = new AtomicInteger();
 
         AbstractLogProcessor(DurableDataLog durableDataLog, ScheduledExecutorService executor) {
-            DataFrameBuilder.Args args = new DataFrameBuilder.Args(a -> this.beforeCommit.getAndIncrement(),
+            DataFrameBuilder.Args args = new DataFrameBuilder.Args(
+                    a -> {
+                        this.beforeCommit.getAndIncrement();
+                    },
                     b -> {
                         operationProcessingTracker.get(b.getLastFullySerializedSequenceNumber()).complete(null);
                         this.commitSuccess.getAndIncrement();
+                        operationProcessingTracker.remove(b.getLastFullySerializedSequenceNumber());
                     },
                     (c, d) -> {
                         operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
@@ -568,6 +601,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         private void trackOperation(Operation operation) {
+            // FIXME: Change this to detect duplicate entries
             if (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
                 outputError("WARNING: Found duplicate Operation to be written " + operation + ". Skipping (not writing it to target log).");
                 return;
@@ -593,9 +627,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         @Override
         public void accept(Operation operation, List<DataFrameRecord.EntryInfo> frameEntries) {
             try {
+                output("Backing up: " + operation);
                 writeAndConfirm(operation);
             } catch (Exception e) {
-                outputError("Error serializing operation " + operation);
+                outputError("Error writing Operation to Backup Log " + operation);
                 e.printStackTrace();
                 isFailed = true;
             }
