@@ -280,8 +280,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             assert backupLogProcessor.getBeforeCommit().get() == backupLogProcessor.getCommitSuccess().get() :
                     "BackupLogProcessor has different number of processed (" + backupLogProcessor.getBeforeCommit().get() +
                             ") and successful operations (" + backupLogProcessor.getCommitSuccess().get() + ")";
-            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog : "BackupLogProcessor successful" +
-                    "operations (" + backupLogProcessor.getCommitSuccess().get() + ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
+            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" +
+                    backupLogProcessor.getCommitSuccess().get() + ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
             assert !backupLogProcessor.isFailed : "BackupLogProcessor has failed";
         } catch (Exception e) {
             outputError("There have been errors while creating the Backup Log.");
