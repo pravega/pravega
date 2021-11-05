@@ -294,7 +294,7 @@ public abstract class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()), () -> false)));
+        assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID(), 11L), () -> false)));
     }
 
     @Test(timeout = 30000)

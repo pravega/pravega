@@ -26,6 +26,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -68,6 +69,8 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
+
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -92,6 +95,8 @@ import org.slf4j.LoggerFactory;
 @AllArgsConstructor
 public class ControllerService {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerService.class));
+    // Generator for new request identifiers
+    private static final SecureRandom REQUEST_ID_GENERATOR = RandomFactory.createSecure();
 
     private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
@@ -103,6 +108,10 @@ public class ControllerService {
     private final Executor executor;
     private final Cluster cluster;
     private final RequestTracker requestTracker;
+
+    public static long nextRequestId() {
+        return REQUEST_ID_GENERATOR.nextLong();
+    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {

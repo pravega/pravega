@@ -26,7 +26,6 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
-import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
@@ -90,7 +89,6 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -130,8 +128,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private final boolean isRGStreamWritesWithReadPermEnabled;
 
-    private final Random requestIdGenerator = RandomFactory.create();
-
     private final int pageLimit;
 
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
@@ -156,7 +152,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createReaderGroup(ReaderGroupConfiguration request, StreamObserver<CreateReaderGroupResponse> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroupName();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CREATE_READER_GROUP, scope, rgName);
         log.info(requestTag.getRequestId(), "createReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
         AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
@@ -173,7 +169,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupResponse> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroupName();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 UPDATE_READER_GROUP, scope, rgName);
         log.info(requestTag.getRequestId(), "updateReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
         AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
@@ -190,7 +186,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getReaderGroupConfig(ReaderGroupInfo request, StreamObserver<ReaderGroupConfigResponse> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroup();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_READER_GROUP_CONFIG, scope, rgName);
         log.info(requestTag.getRequestId(), "getReaderGroupConfig called for Reader Group {}/{}.", scope, rgName);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
@@ -204,7 +200,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getScope();
         String rgName = request.getReaderGroup();
         String rgId = request.getReaderGroupId();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 DELETE_READER_GROUP, scope, rgName);
         log.info(requestTag.getRequestId(), "deleteReaderGroup called for Reader Group {}/{}.", scope, rgName);
         AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
@@ -220,7 +216,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createKeyValueTable(KeyValueTableConfig request, StreamObserver<CreateKeyValueTableStatus> responseObserver) {
         String scope = request.getScope();
         String kvt = request.getKvtName();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CREATE_KEY_VALUE_TABLE, scope, kvt);
         log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
@@ -233,7 +229,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getCurrentSegmentsKeyValueTable(KeyValueTableInfo request, StreamObserver<SegmentRanges> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE, request.getScope(), request.getKvtName());
 
         log.info(requestTag.getRequestId(), 
@@ -258,7 +254,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request, 
                                           StreamObserver<Controller.KVTablesInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 LIST_KEY_VALUE_TABLES, scopeName);
         log.info(requestTag.getRequestId(), "listKeyValueTables called for scope {}.", scopeName);
 
@@ -303,7 +299,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getKeyValueTableConfiguration(KeyValueTableInfo request, StreamObserver<Controller.KeyValueTableConfigResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_KEY_VALUE_TABLE_CONFIGURATION, request.getScope(), request.getKvtName());
 
         log.info(requestTag.getRequestId(), "{} called for {}/{}.", GET_KEY_VALUE_TABLE_CONFIGURATION,
@@ -317,7 +313,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteKeyValueTable(KeyValueTableInfo request, StreamObserver<DeleteKVTableStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 DELETE_KEY_VALUE_TABLE, request.getScope(), request.getKvtName());
 
         log.info(requestTag.getRequestId(), "deleteKeyValueTable called for KVTable {}/{}.",
@@ -333,14 +329,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CREATE_STREAM, scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
-
         StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isRGStreamWritesWithReadPermEnabled);
         AuthHandler.Permissions requiredPermission = streamAuthParams.requiredPermissionForWrites();
 
-        log.debug(requestTag.getRequestId(), "requiredPermission is [{}], for scope [{}] and stream [{}]", 
+        log.debug(requestTag.getRequestId(), "Creating stream : requiredPermission is [{}], for scope [{}] and stream [{}]",
                 requiredPermission, scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamsInScope(scope), requiredPermission),
@@ -354,7 +349,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void listSubscribers(StreamInfo request, StreamObserver<SubscribersResponse> responseObserver) {
         String scope = request.getScope();
         String stream = request.getStream();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 LIST_SUBSCRIBERS, scope, stream);
         log.info(requestTag.getRequestId(), "listSubscribers called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -371,7 +366,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String readerGroupId = request.getReaderGroupId();
         long generation = request.getGeneration();
         StreamCut streamCut = request.getStreamCut();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 UPDATE_TRUNCATION_STREAM_CUT, scope, stream);
         log.info(requestTag.getRequestId(), "updateSubscriberStreamCut called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -385,7 +380,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 UPDATE_STREAM, scope, stream);
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
 
@@ -399,7 +394,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 TRUNCATE_STREAM, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info(requestTag.getRequestId(), "truncateStream called for stream {}/{}.",
@@ -414,7 +409,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 SEAL_STREAM, request.getScope(), request.getStream());
 
         log.info(requestTag.getRequestId(), "sealStream called for stream {}/{}.",
@@ -429,7 +424,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 DELETE_STREAM, request.getScope(), request.getStream());
 
         log.info(requestTag.getRequestId(), "deleteStream called for stream {}/{}.",
@@ -450,7 +445,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         final String scope = request.getScope();
         final String stream = request.getStream();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_CURRENT_SEGMENTS, request.getScope(), request.getStream());
 
         log.info(requestTag.getRequestId(), "getCurrentSegments called for stream {}/{}.", scope, stream);
@@ -562,7 +557,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<SegmentRanges> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_EPOCH_SEGMENTS, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                 Integer.toString(request.getEpoch()));
         log.info(requestTag.getRequestId(), "getEpochSegments called for stream {}/{} and epoch {}", 
@@ -587,7 +582,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_SEGMENTS, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         final StreamInfo streamInfo = request.getStreamInfo();
@@ -636,7 +631,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegmentsImmediatelyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
         String segment = NameUtils.getQualifiedStreamSegmentName(segmentId.getStreamInfo().getScope(),
                 segmentId.getStreamInfo().getStream(), segmentId.getSegmentId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_SEGMENTS_IMMEDIATELY_FOLLOWING, segment);
 
         log.info(requestTag.getRequestId(), "getSegmentsImmediatelyFollowing called for segment {} ", segment);
@@ -661,7 +656,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getSegmentsBetween(Controller.StreamCutRange request, 
                                    StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_SEGMENTS_BETWEEN_STREAM_CUTS, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info(requestTag.getRequestId(), "getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", 
@@ -683,7 +678,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 SCALE_STREAM, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), 
                 String.valueOf(request.getScaleTimestamp()));
 
@@ -703,7 +698,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CHECK_SCALE, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Integer.toString(request.getEpoch()));
 
         log.debug(requestTag.getRequestId(), "check scale status called for stream {}/{}.", 
@@ -720,7 +715,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
         String segment = NameUtils.getQualifiedStreamSegmentName(request.getStreamInfo().getScope(), 
                 request.getStreamInfo().getStream(), request.getSegmentId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_URI, segment);
         log.info(requestTag.getRequestId(), "getURI called for segment {}.", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -733,7 +728,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void isSegmentValid(SegmentId request,
                                StreamObserver<SegmentValidityResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 IS_SEGMENT_OPEN, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Long.toString(request.getSegmentId()));
 
         log.info(requestTag.getRequestId(), "isSegmentValid called for segment {}/{}/{}.", 
@@ -753,7 +748,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void isStreamCutValid(Controller.StreamCut request, 
                                  StreamObserver<Controller.StreamCutValidityResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 IS_STREAMCUT_VALID, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info(requestTag.getRequestId(), "isStreamCutValid called for stream {}/{} streamcut {}.", 
@@ -772,7 +767,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CREATE_TRANSACTION, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                 Long.toString(request.getLease()));
         log.info(requestTag.getRequestId(), "createTransaction called for stream {}/{}.",
@@ -796,7 +791,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 COMMIT_TRANSACTION, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
 
         log.info(requestTag.getRequestId(), "commitTransaction called for stream {}/{}, txnId={}.", 
@@ -816,7 +811,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 ABORT_TRANSACTION, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
 
         log.info(requestTag.getRequestId(), "abortTransaction called for stream {}/{}, txnId={}.", 
@@ -834,7 +829,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 PING_TRANSACTION, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
         log.info(requestTag.getRequestId(), "pingTransaction called for stream {}/{}, txnId={}", 
                 request.getStreamInfo().getScope(),
@@ -852,7 +847,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CHECK_TRANSACTION_STATE, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), 
                 txnId.toString());
         log.info(requestTag.getRequestId(), "checkTransactionState called for stream {}/{}, txnId={}.", 
@@ -869,7 +864,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CREATE_SCOPE, request.getScope());
         log.info(requestTag.getRequestId(), "createScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -880,7 +875,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void listScopes(Controller.ScopesRequest request, StreamObserver<Controller.ScopesResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 LIST_SCOPES);
         log.info(requestTag.getRequestId(), "listScope called.");
 
@@ -917,7 +912,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     
     @Override
     public void checkScopeExists(ScopeInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CHECK_SCOPE_EXISTS, request.getScope());
         String scope = request.getScope();
         log.info(requestTag.getRequestId(), "checkScopeExists called for scope {}.", request);
@@ -958,7 +953,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkStreamExists(StreamInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 CHECK_STREAM_EXISTS);
         String scope = request.getScope();
         String stream = request.getStream();
@@ -1002,7 +997,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getStreamConfiguration(StreamInfo request, StreamObserver<StreamConfig> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                                                                             GET_STREAM_CONFIGURATION);
         String scope = request.getScope();
         String stream = request.getStream();
@@ -1041,7 +1036,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, 
                                    StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 LIST_STREAMS_IN_SCOPE, scopeName);
         log.info(requestTag.getRequestId(), "listStream called for scope {}.", scopeName);
 
@@ -1087,7 +1082,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                    StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
         String tag = request.getTag();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                                                                             LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName);
         log.info(requestTag.getRequestId(), "{} called for scope {} and tags {}", LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName, tag);
 
@@ -1130,7 +1125,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 DELETE_SCOPE, request.getScope());
         log.info(requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -1141,7 +1136,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getDelegationToken(StreamInfo request, StreamObserver<DelegationToken> responseObserver)  {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 GET_OR_REFRESH_DELEGATION_TOKEN_FOR, request.getScope(), request.getStream());
         log.info(requestTag.getRequestId(), 
                 "getDelegationToken called for stream {}/{}.", request.getScope(), request.getStream());
@@ -1161,7 +1156,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void noteTimestampFromWriter(Controller.TimestampFromWriter request, 
                                         StreamObserver<Controller.TimestampResponse> responseObserver) {
         StreamInfo streamInfo = request.getPosition().getStreamInfo();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 NOTE_TIMESTAMP_FROM_WRITER, streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
         log.info(requestTag.getRequestId(), "noteWriterMark called for stream {}/{}, writer={} time={}", 
                 streamInfo.getScope(),
@@ -1179,7 +1174,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void removeWriter(Controller.RemoveWriterRequest request, 
                              StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
         StreamInfo streamInfo = request.getStream();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
                 REMOVE_WRITER, streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
         log.info(requestTag.getRequestId(), "writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter());

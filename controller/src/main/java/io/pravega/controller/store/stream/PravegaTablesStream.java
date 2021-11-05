@@ -807,10 +807,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getEpochsWithTransactions(context)
-                .thenCompose(epochsWithTransactions -> {
-                    return Futures.allOfWithResults(epochsWithTransactions.stream().map(x -> 
-                            getTxnInEpoch(x, context)).collect(Collectors.toList()));
-                }).thenApply(list -> {
+                .thenCompose(epochsWithTransactions -> Futures.allOfWithResults(epochsWithTransactions.stream().map(x ->
+                        getTxnInEpoch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
             Map<UUID, ActiveTxnRecord> map = new HashMap<>();
             list.forEach(map::putAll);
             return map;
@@ -925,10 +923,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                     tableName, ActiveTxnRecord::fromBytes, context.getRequestId()).collectRemaining(x -> {
                         result.put(x.getKey(), x.getValue());
                         return true;
-            }).thenApply(v -> {
-                return result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), 
-                        x -> x.getValue().getObject()));
-            }), Collections.emptyMap()));
+            }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
+                    x -> x.getValue().getObject()))), Collections.emptyMap()));
     }
 
     @Override
@@ -950,13 +946,9 @@ class PravegaTablesStream extends PersistentStreamBase {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getEpochsWithTransactionsTable(context)
-                .thenCompose(epochsWithTxnTable -> {
-                    return storeHelper.addNewEntryIfAbsent(epochsWithTxnTable, Integer.toString(epoch), new byte[0], x -> x, 
-                            context.getRequestId());
-                }).thenCompose(epochTxnEntryCreated -> {
-                    return getTransactionsInEpochTable(epoch, context)
-                            .thenCompose(x -> storeHelper.createTable(x, context.getRequestId()));
-                });
+                .thenCompose(epochsWithTxnTable -> storeHelper.addNewEntryIfAbsent(epochsWithTxnTable, Integer.toString(epoch), new byte[0], x -> x,
+                        context.getRequestId())).thenCompose(epochTxnEntryCreated -> getTransactionsInEpochTable(epoch, context)
+                        .thenCompose(x -> storeHelper.createTable(x, context.getRequestId())));
     }
     
     @Override
