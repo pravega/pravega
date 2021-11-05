@@ -68,6 +68,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
 /**
@@ -289,6 +290,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
+    /**
+     * Verifies that the list of {@link LogEditOperation} is correct and complies with a set of rules.
+     *
+     * @param durableLogEdits List of {@link LogEditOperation} to check.
+     */
     @VisibleForTesting
     void checkDurableLogEdits(List<LogEditOperation> durableLogEdits) {
         long previousInitialId = Long.MIN_VALUE;
@@ -318,6 +324,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
+    /**
+     * Guides the users to a set of options for creating {@link LogEditOperation}s that will eventually modify the
+     * contents of the Original Log.
+     *
+     * @return List of {@link LogEditOperation}s.
+     */
     @VisibleForTesting
     List<LogEditOperation> getDurableLogEditsFromUser() {
         List<LogEditOperation> durableLogEdits = new ArrayList<>();
@@ -363,6 +375,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return durableLogEdits;
     }
 
+    /**
+     * Guides the user to generate a new {@link Operation} that will eventually modify the Original Log.
+     *
+     * @return New {@link Operation} to be added in the Original Log.
+     */
     @VisibleForTesting
     Operation createUserDefinedOperation() {
         Operation result;
@@ -421,6 +438,14 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return result;
     }
 
+    /**
+     * Provides two ways of creating the payload of {@link Operation}s with binary content (MetadataCheckpointOperation,
+     * StorageMetadataCheckpointOperation, StreamSegmentAppendOperation): i) zero, which means to provide a content of
+     * a defined length consisting of just 0s, ii) file, which will read the contents of a specified file and use it as
+     * payload for the {@link Operation}.
+     *
+     * @return Binary contents for the {@link Operation}.
+     */
     @VisibleForTesting
     ByteArraySegment createOperationContents() {
         ByteArraySegment content = null;
@@ -447,6 +472,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return content;
     }
 
+    /**
+     * Method to create a {@link SegmentProperties} object to fill a new {@link StreamSegmentMapOperation}.
+     *
+     * @return New {@link SegmentProperties} object with user-defined content.
+     */
     @VisibleForTesting
     SegmentProperties createSegmentProperties() {
         String segmentName = getStringUserInput("Introduce the name of the Segment: ");
@@ -482,6 +512,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 .attributes(attributes).lastModified(new ImmutableDate(lastModified)).build();
     }
 
+    /**
+     * Method to create a {@link AttributeUpdateCollection} object to fill the {@link Operation}s that require it.
+     *
+     * @return New {@link AttributeUpdateCollection} object with user-defined content.
+     */
     @VisibleForTesting
     AttributeUpdateCollection createAttributeUpdateCollection() {
         AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
@@ -544,6 +579,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * provides counters to inform about the state of the processing as well as closing the resources.
      */
     abstract class AbstractLogProcessor implements BiConsumer<Operation, List<DataFrameRecord.EntryInfo>>, AutoCloseable {
+
         protected final Map<Long, CompletableFuture<Void>> operationProcessingTracker = new ConcurrentHashMap<>();
         @NonNull
         protected final DataFrameBuilder<Operation> dataFrameBuilder;
@@ -557,12 +593,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         private final AtomicInteger commitSuccess = new AtomicInteger();
         @Getter
         private final AtomicInteger commitFailure = new AtomicInteger();
+        private final AtomicLong sequenceNumber = new AtomicLong(Long.MIN_VALUE);
 
         AbstractLogProcessor(DurableDataLog durableDataLog, ScheduledExecutorService executor) {
             DataFrameBuilder.Args args = new DataFrameBuilder.Args(
-                    a -> {
-                        this.beforeCommit.getAndIncrement();
-                    },
+                    a -> this.beforeCommit.getAndIncrement(),
                     b -> {
                         operationProcessingTracker.get(b.getLastFullySerializedSequenceNumber()).complete(null);
                         this.commitSuccess.getAndIncrement();
@@ -570,7 +605,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                     },
                     (c, d) -> {
                         operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
-                        //isFailed = true; // Consider a single failed write as a failure in the whole process.
+                        isFailed = true; // Consider a single failed write as a failure in the whole process.
                         commitFailure.getAndIncrement();
                     },
                     executor);
@@ -594,18 +629,20 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
          * @throws IOException If there is a problem writing the {@link Operation} to the target {@link DurableDataLog}.
          */
         protected void writeAndConfirm(Operation operation) throws IOException {
-            trackOperation(operation);
-            this.dataFrameBuilder.append(operation);
-            this.dataFrameBuilder.flush();
-            waitForOperationCommit(operation);
+            sequenceNumber.compareAndSet(Long.MIN_VALUE, operation.getSequenceNumber());
+            // We only consider writing operations with sequence number higher than the expected one.
+            if (operation.getSequenceNumber() >= sequenceNumber.get()) {
+                trackOperation(operation);
+                this.dataFrameBuilder.append(operation);
+                this.dataFrameBuilder.flush();
+                waitForOperationCommit(operation);
+                sequenceNumber.incrementAndGet();
+            } else {
+                outputError("Skipping (i.e., not writing) Operation with wrong Sequence Number: " + operation);
+            }
         }
 
         private void trackOperation(Operation operation) {
-            // FIXME: Change this to detect duplicate entries
-            if (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
-                outputError("WARNING: Found duplicate Operation to be written " + operation + ". Skipping (not writing it to target log).");
-                return;
-            }
             CompletableFuture<Void> confirmedWrite = new CompletableFuture<>();
             this.operationProcessingTracker.put(operation.getSequenceNumber(), confirmedWrite);
         }
@@ -707,6 +744,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             }
         }
 
+        /**
+         * Checks whether the current {@link Operation} to edit is a duplicate.
+         *
+         * @param operation {@link Operation} to check.
+         * @return Whether the current {@link Operation} to edit is a duplicate or not.
+         */
         @VisibleForTesting
         boolean checkDuplicateOperation(Operation operation) {
             if (operation.getSequenceNumber() < durableLogEdits.get(0).getInitialOperationId()) {

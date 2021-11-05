@@ -346,6 +346,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Do nothing if we find an existing backup log.
         Mockito.doReturn(3).when(command).getIntUserInput(Mockito.any());
         command.execute();
+        DurableDataLogRepairCommand.descriptor();
     }
 
     @Test
