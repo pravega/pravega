@@ -570,7 +570,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                     },
                     (c, d) -> {
                         operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
-                        isFailed = true; // Consider a single failed write as a failure in the whole process.
+                        //isFailed = true; // Consider a single failed write as a failure in the whole process.
                         commitFailure.getAndIncrement();
                     },
                     executor);
@@ -709,7 +709,6 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         @VisibleForTesting
         boolean checkDuplicateOperation(Operation operation) {
-            // TODO: Test this one
             if (operation.getSequenceNumber() < durableLogEdits.get(0).getInitialOperationId()) {
                 outputError("Found an Operation with a lower sequence number than the initial" +
                         "id of the next edit to apply. This may be symptom of a duplicated DataFrame and will" +
