@@ -64,6 +64,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -772,6 +773,21 @@ public abstract class RequestHandlersTest {
 
         // verify that mark stream is also deleted
         assertFalse(streamStore.checkStreamExists(scope, markStream, null, executor).join());
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() {
+        DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
+        final String scope = "deleteScope";
+        final String stream = "deleteStream";
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scope, 0L);
+
+        // Create scope and Stream
+        createStreamInStore(stream);
+
+        deleteScopeTask.execute(deleteScopeEvent);
+        // Verify that the scope is deleted
+        assertFalse(streamStore.checkScopeExists(scope, null, executor).join());
     }
 
     @Test
