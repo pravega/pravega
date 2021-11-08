@@ -278,16 +278,29 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
              DurableDataLog originalDataLogReadOnly = originalDataLog.asReadOnly()) {
             operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback(backupLogProcessor, containerId, originalDataLogReadOnly);
             // The number of processed operation should match the number of read operations from DebugRecoveryProcessor.
-            assert backupLogProcessor.getBeforeCommit().get() == backupLogProcessor.getCommitSuccess().get() :
-                    "BackupLogProcessor has different number of processed (" + backupLogProcessor.getBeforeCommit().get() +
-                            ") and successful operations (" + backupLogProcessor.getCommitSuccess().get() + ")";
-            assert backupLogProcessor.getCommitSuccess().get() == operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" +
-                    backupLogProcessor.getCommitSuccess().get() + ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
-            assert !backupLogProcessor.isFailed : "BackupLogProcessor has failed";
+            checkBackupLogAssertions(backupLogProcessor.getBeforeCommit().get(), backupLogProcessor.getCommitSuccess().get(),
+                    operationsReadFromOriginalLog, backupLogProcessor.isFailed);
         } catch (Exception e) {
             outputError("There have been errors while creating the Backup Log.");
             throw e;
         }
+    }
+
+    /**
+     * Performs some basic correctness checks on a backup log.
+     *
+     * @param beforeCommitCalls Number of executions of beforeCommit callbacks during the processing.
+     * @param commitSuccessCalls Number of executions of commitSuccess callbacks during the processing.
+     * @param operationsReadFromOriginalLog Number of {@link Operation}s read from the Original Log.
+     * @param isFailed Whether the {@link BackupLogProcessor} has found any failure during processing.
+     */
+    @VisibleForTesting
+    void checkBackupLogAssertions(long beforeCommitCalls, long commitSuccessCalls, long operationsReadFromOriginalLog, boolean isFailed) {
+        assert beforeCommitCalls == commitSuccessCalls : "BackupLogProcessor has different number of processed (" + beforeCommitCalls +
+                ") and successful operations (" + commitSuccessCalls + ")";
+        assert commitSuccessCalls== operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" + commitSuccessCalls +
+                ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
+        assert !isFailed : "BackupLogProcessor has failed";
     }
 
     /**

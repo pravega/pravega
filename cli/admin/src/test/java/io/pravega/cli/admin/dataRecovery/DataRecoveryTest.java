@@ -315,6 +315,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
         DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
 
+        // First execution, just exit when asking to disable the original log.
+        Mockito.doReturn(false).when(command).confirmContinue();
+        command.execute();
+
         // The test will exercise editing the Container 0 log with an operation of each type.
         Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).when(command).confirmContinue();
@@ -767,6 +771,27 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 2, 2, new DeleteSegmentOperation(1)));
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 1, new DeleteSegmentOperation(1)));
+    }
+
+    @Test
+    public void testCheckBackupLogAssertions() throws IOException {
+        // Setup command object.
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args);
+
+        AssertExtensions.assertThrows("Different beforeCommitCalls and commitSuccessCalls should have thrown an assertion error.",
+                () -> command.checkBackupLogAssertions(1, 0, 1, false), t -> t instanceof AssertionError);
+        AssertExtensions.assertThrows("Different beforeCommitCalls and commitSuccessCalls should have thrown an assertion error.",
+                () -> command.checkBackupLogAssertions(0, 1, 1, false), t -> t instanceof AssertionError);
+        AssertExtensions.assertThrows("Different commitSuccessCalls and originalReads from Original Log should have thrown an assertion error.",
+                () -> command.checkBackupLogAssertions(1, 1, 2, false), t -> t instanceof AssertionError);
+        AssertExtensions.assertThrows("Not successful BackupLogProcessor execution should have thrown an assertion error..",
+                () -> command.checkBackupLogAssertions(1, 1, 1, true), t -> t instanceof AssertionError);
     }
 
     /**
