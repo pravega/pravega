@@ -17,6 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -648,6 +649,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         private void waitForOperationCommit(Operation operation) {
+            while (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
+                Exceptions.handleInterrupted(() -> Thread.sleep(50));
+                output("Write Operation future not available yet, waiting...");
+            }
             this.operationProcessingTracker.get(operation.getSequenceNumber()).join();
         }
     }
