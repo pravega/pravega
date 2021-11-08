@@ -45,7 +45,7 @@ public class RetentionSetSerializer extends AbstractSerializer {
             ImmutableMap.<String, Function<RetentionSet, String>>builder()
                     .put(RETENTION_SET_RETENTION_RECORDS, r -> convertCollectionToString(r.getRetentionRecords(), sr -> {
                         StringBuilder streamCutStringBuilder = new StringBuilder();
-                        STREAM_CUT_REFERENCE_RECORD_FIELD_MAP.forEach((name, f) -> appendField(streamCutStringBuilder, name, f.apply(sr), "|", "-"));
+                        STREAM_CUT_REFERENCE_RECORD_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(streamCutStringBuilder, name, f.apply(sr), "|", "-"));
                         return streamCutStringBuilder.toString();
                     }))
                     .build();
@@ -59,7 +59,7 @@ public class RetentionSetSerializer extends AbstractSerializer {
     public ByteBuffer serialize(String value) {
         Map<String, String> data = parseStringData(value);
         List<StreamCutReferenceRecord> retentionRecords = new ArrayList<>(convertStringToCollection(getAndRemoveIfExists(data, RETENTION_SET_RETENTION_RECORDS), s -> {
-            Map<String, String> streamCutDataMap = parseStringData(s, "|", "-");
+            Map<String, String> streamCutDataMap = parseStringDataWithCustomDelimiters(s, "|", "-");
             return StreamCutReferenceRecord.builder()
                     .recordingTime(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME)))
                     .recordingSize(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE)))

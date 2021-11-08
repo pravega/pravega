@@ -82,14 +82,18 @@ import static io.pravega.shared.NameUtils.CURRENT_EPOCH_KEY;
 import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
 import static io.pravega.shared.NameUtils.EPOCH_RECORD_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.EPOCH_TRANSITION_KEY;
+import static io.pravega.shared.NameUtils.HISTORY_TIMESERIES_CHUNK_FORMAT;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.METADATA_TABLE;
 import static io.pravega.shared.NameUtils.RETENTION_SET_KEY;
+import static io.pravega.shared.NameUtils.RETENTION_STREAM_CUT_RECORD_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENT_MARKER_PATH_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENT_SEALED_EPOCH_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.SEPARATOR;
 import static io.pravega.shared.NameUtils.STATE_KEY;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_KEY_PREFIX;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_SET_KEY;
 import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.TRUNCATION_KEY;
 import static io.pravega.shared.NameUtils.WAITING_REQUEST_PROCESSOR_PATH;
@@ -107,15 +111,9 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 class PravegaTablesStream extends PersistentStreamBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStream.class));
 
-    // metadata keys
-    private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
-    private static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%d";
-
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
-    private static final String SUBSCRIBER_KEY_PREFIX = "subscriber_";
-    private static final String SUBSCRIBER_SET_KEY = "subscriberset";
     
     // non existent records
     private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 

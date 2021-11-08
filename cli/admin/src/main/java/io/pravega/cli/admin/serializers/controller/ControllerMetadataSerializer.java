@@ -17,8 +17,10 @@ package io.pravega.cli.admin.serializers.controller;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.serializers.AbstractSerializer;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -35,12 +37,16 @@ import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
 import static io.pravega.shared.NameUtils.EPOCH_RECORD_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.EPOCH_TRANSITION_KEY;
+import static io.pravega.shared.NameUtils.HISTORY_TIMESERIES_CHUNK_FORMAT;
 import static io.pravega.shared.NameUtils.METADATA_TABLE;
 import static io.pravega.shared.NameUtils.RETENTION_SET_KEY;
+import static io.pravega.shared.NameUtils.RETENTION_STREAM_CUT_RECORD_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENT_MARKER_PATH_FORMAT;
 import static io.pravega.shared.NameUtils.SEGMENT_SEALED_EPOCH_KEY_FORMAT;
 import static io.pravega.shared.NameUtils.STATE_KEY;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_KEY_PREFIX;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_SET_KEY;
 import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.TRUNCATION_KEY;
 import static io.pravega.shared.NameUtils.WAITING_REQUEST_PROCESSOR_PATH;
@@ -59,13 +65,17 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
                     .put(STATE_KEY, new StateRecordSerializer())
                     .put(EPOCH_TRANSITION_KEY, new EpochTransitionRecordSerializer())
                     .put(RETENTION_SET_KEY, new RetentionSetSerializer())
+                    .put(String.format(RETENTION_STREAM_CUT_RECORD_KEY_FORMAT, NUMBER_REGEX), new StreamCutRecordSerializer())
                     .put(CURRENT_EPOCH_KEY, new IntSerializer())
                     .put(String.format(EPOCH_RECORD_KEY_FORMAT, NUMBER_REGEX), new EpochRecordSerializer())
+                    .put(String.format(HISTORY_TIMESERIES_CHUNK_FORMAT, NUMBER_REGEX), new HistoryTimeSeriesSerializer())
                     .put(String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT, NUMBER_REGEX), new SealedSegmentsMapShardSerializer())
                     .put(String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, NUMBER_REGEX), new LongSerializer())
                     .put(COMMITTING_TRANSACTIONS_RECORD_KEY, new CommittingTransactionsRecordSerializer())
                     .put(SEGMENT_MARKER_PATH_FORMAT, new LongSerializer())
-                    .put(WAITING_REQUEST_PROCESSOR_PATH, new ControllerKeySerializer())
+                    .put(WAITING_REQUEST_PROCESSOR_PATH, new StringSerializer())
+                    .put(SUBSCRIBER_KEY_PREFIX, new StreamSubscriberSerializer())
+                    .put(SUBSCRIBER_SET_KEY, new SubscribersSerializer())
                     .build();
 
     /**
@@ -81,7 +91,13 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
      */
     private static final Map<Function<String, Boolean>, Function<String, AbstractSerializer>> SERIALIZERS =
             ImmutableMap.<Function<String, Boolean>, Function<String, AbstractSerializer>>builder()
-                    .put(ControllerMetadataSerializer::isStreamMetadataTableName, STREAM_METADATA_TABLE_SERIALIZERS::get)
+                    .put(ControllerMetadataSerializer::isStreamMetadataTableName,
+                            key -> STREAM_METADATA_TABLE_SERIALIZERS.entrySet().stream()
+                                    .filter(mapEntry -> checkIfPatternExists(key, mapEntry.getKey()))
+                                    .map(Map.Entry::getValue)
+                                    .collect(Collectors.toList()).stream()
+                                    .findFirst()
+                                    .orElseThrow(() -> new IllegalArgumentException(String.format("%s is not a valid metadata key.", key))))
                     .put(ControllerMetadataSerializer::isEpochsWithTransactionsTableName, s -> new IntSerializer())
                     .put(ControllerMetadataSerializer::isWriterPositionsTableName, s -> new WriterMarkSerializer())
                     .put(ControllerMetadataSerializer::isTransactionsInEpochTableName, s -> new ActiveTxnRecordSerializer())
@@ -192,6 +208,23 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
         Pattern r = Pattern.compile(pattern);
         Matcher m = r.matcher(line);
         return m.find();
+    }
+
+    private static class StringSerializer extends AbstractSerializer {
+        @Override
+        public String getName() {
+            return "ControllerString";
+        }
+
+        @Override
+        public ByteBuffer serialize(String value) {
+            return ByteBuffer.wrap(value.getBytes(Charsets.UTF_8));
+        }
+
+        @Override
+        public String deserialize(ByteBuffer serializedValue) {
+            return StandardCharsets.UTF_8.decode(serializedValue).toString();
+        }
     }
 
     private static class IntSerializer extends AbstractSerializer {

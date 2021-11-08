@@ -81,7 +81,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                         ScalingPolicy sp = r.getStreamConfiguration().getScalingPolicy();
                         if (sp != null) {
                             StringBuilder scalingPolicyBuilder = new StringBuilder();
-                            SCALING_POLICY_FIELD_MAP.forEach((name, f) -> appendField(scalingPolicyBuilder, name, f.apply(sp), "|", ":"));
+                            SCALING_POLICY_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(scalingPolicyBuilder, name, f.apply(sp), "|", ":"));
                             return scalingPolicyBuilder.toString();
                         }
                         return NO_POLICY;
@@ -90,7 +90,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                         RetentionPolicy rp = r.getStreamConfiguration().getRetentionPolicy();
                         if (rp != null) {
                             StringBuilder retentionPolicyBuilder = new StringBuilder();
-                            RETENTION_POLICY_FIELD_MAP.forEach((name, f) -> appendField(retentionPolicyBuilder, name, f.apply(rp), "|", ":"));
+                            RETENTION_POLICY_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(retentionPolicyBuilder, name, f.apply(rp), "|", ":"));
                             return retentionPolicyBuilder.toString();
                         }
                         return NO_POLICY;
@@ -135,7 +135,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
         if (scalingPolicyData.equalsIgnoreCase(NO_POLICY)) {
             return null;
         }
-        Map<String, String> scalingPolicyDataMap = parseStringData(scalingPolicyData, "|", ":");
+        Map<String, String> scalingPolicyDataMap = parseStringDataWithCustomDelimiters(scalingPolicyData, "|", ":");
         return ScalingPolicy.builder()
                 .scaleType(ScalingPolicy.ScaleType.valueOf(getAndRemoveIfExists(scalingPolicyDataMap, SCALING_POLICY_SCALE_TYPE).toUpperCase()))
                 .scaleFactor(Integer.parseInt(getAndRemoveIfExists(scalingPolicyDataMap, SCALING_POLICY_SCALE_FACTOR)))
@@ -148,7 +148,7 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
         if (retentionPolicyData.equalsIgnoreCase(NO_POLICY)) {
             return null;
         }
-        Map<String, String> retentionPolicyDataMap = parseStringData(retentionPolicyData, "|", ":");
+        Map<String, String> retentionPolicyDataMap = parseStringDataWithCustomDelimiters(retentionPolicyData, "|", ":");
         return RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.valueOf(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_TYPE).toUpperCase()))
                 .retentionParam(Long.parseLong(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_PARAM)))

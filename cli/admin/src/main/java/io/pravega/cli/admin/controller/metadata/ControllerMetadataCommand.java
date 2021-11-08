@@ -15,12 +15,27 @@
  */
 package io.pravega.cli.admin.controller.metadata;
 
+import io.netty.buffer.ByteBuf;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.controller.ControllerCommand;
+import io.pravega.cli.admin.serializers.controller.ControllerKeySerializer;
+import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
+import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public abstract class ControllerMetadataCommand extends ControllerCommand {
     static final String COMPONENT = "controller-metadata";
+    static final ControllerKeySerializer KEY_SERIALIZER = new ControllerKeySerializer();
+
     protected final GrpcAuthHelper authHelper;
 
     /**
@@ -34,5 +49,39 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
         authHelper = new GrpcAuthHelper(true,
                 "secret",
                 600);
+    }
+
+    /**
+     * Method to get the entry corresponding to the provided key in the table.
+     *
+     * @param tableName          The name of the table.
+     * @param key                The key.
+     * @param segmentStoreHost   The address of the segment store instance.
+     * @param serializer         The valid {@link ControllerMetadataSerializer}.
+     * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
+     * @return A string, obtained through deserialization, containing the contents of the queried table segment entry.
+     */
+    String getTableEntry(String tableName, String key, String segmentStoreHost,
+                         ControllerMetadataSerializer serializer, AdminSegmentHelper adminSegmentHelper) {
+        ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
+
+        CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(tableName,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
+                Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
+                authHelper.retrieveMasterToken(), 0L);
+        return serializer.deserialize(getByteBuffer(reply.join().get(0).getValue()));
+    }
+
+    /**
+     * Method to convert a {@link ByteBuf} to a {@link ByteBuffer}.
+     *
+     * @param byteBuf The {@link ByteBuf} instance.
+     * @return A {@link ByteBuffer} containing the data present in the provided {@link ByteBuf}.
+     */
+    ByteBuffer getByteBuffer(ByteBuf byteBuf) {
+        final byte[] bytes = new byte[byteBuf.readableBytes()];
+        final int readerIndex = byteBuf.readerIndex();
+        byteBuf.getBytes(readerIndex, bytes);
+        return ByteBuffer.wrap(bytes);
     }
 }

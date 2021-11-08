@@ -45,6 +45,9 @@ public abstract class AbstractSerializer implements Serializer<String> {
 
     protected static final String EMPTY = "EMPTY";
     private static final String KEY_VALUE_SEPARATOR = ":";
+    private static final String LIST_ENTRY_SEPARATOR = ",";
+    private static final String STREAM_SEGMENT_RECORD_PAIR_DELIMITER = "|";
+    private static final String STREAM_SEGMENT_RECORD_VALUE_DELIMITER = "-";
 
     private static final Map<String, Function<StreamSegmentRecord, String>> STREAM_SEGMENT_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamSegmentRecord, String>>builder()
@@ -70,11 +73,11 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @param value   The value of the field.
      */
     public static void appendField(StringBuilder builder, String name, String value) {
-        appendField(builder, name, value, ";", "=");
+        appendFieldWithCustomDelimiters(builder, name, value, ";", "=");
     }
 
     /**
-     * Append the given field name-value in a user-friendly format to the StringBuilder.
+     * Append the given field name-value in a user-friendly format to the StringBuilder using the provided delimiters.
      *
      * @param builder        The StringBuilder to append to.
      * @param name           The name of the field.
@@ -82,7 +85,7 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @param pairDelimiter  The delimiter between different fields.
      * @param valueDelimiter The delimiter between the field name and value.
      */
-    public static void appendField(StringBuilder builder, String name, String value, String pairDelimiter, String valueDelimiter) {
+    public static void appendFieldWithCustomDelimiters(StringBuilder builder, String name, String value, String pairDelimiter, String valueDelimiter) {
         builder.append(name).append(valueDelimiter).append(value).append(pairDelimiter);
     }
 
@@ -93,18 +96,18 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A map containing all the key-value pairs parsed from the string.
      */
     public static Map<String, String> parseStringData(String stringData) {
-        return parseStringData(stringData, ";", "=");
+        return parseStringDataWithCustomDelimiters(stringData, ";", "=");
     }
 
     /**
-     * Parse the given string into a map of keys and values.
+     * Parse the given string into a map of keys and values using the provided delimiters.
      *
      * @param stringData     The string to parse.
      * @param pairDelimiter  The delimiter between different fields.
      * @param valueDelimiter The delimiter between the field name and value.
      * @return A map containing all the key-value pairs parsed from the string.
      */
-    public static Map<String, String> parseStringData(String stringData, String pairDelimiter, String valueDelimiter) {
+    public static Map<String, String> parseStringDataWithCustomDelimiters(String stringData, String pairDelimiter, String valueDelimiter) {
         Map<String, String> parsedData = new LinkedHashMap<>();
         Arrays.stream(stringData.split(pairDelimiter)).forEachOrdered(kv -> {
             List<String> pair = Arrays.asList(kv.split(valueDelimiter));
@@ -157,7 +160,20 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A string containing the contents of the provided {@link Collection}.
      */
     public static <T> String convertCollectionToString(Collection<T> collection, Function<T, String> converter) {
-        return collection.isEmpty() ? EMPTY : collection.stream().map(converter).collect(Collectors.joining(","));
+        return convertCollectionToStringWithCustomDelimiter(collection, converter, LIST_ENTRY_SEPARATOR);
+    }
+
+    /**
+     * A method to convert a {@link Collection} of objects into a user readable string using the provided delimiter.
+     *
+     * @param collection          The {@link Collection} of objects.
+     * @param converter           A method to convert the object into a string.
+     * @param listEntryDelimiter  The delimiter to be placed between two list entries.
+     * @param <T>                 The type of the object.
+     * @return A string containing the contents of the provided {@link Collection}.
+     */
+    public static <T> String convertCollectionToStringWithCustomDelimiter(Collection<T> collection, Function<T, String> converter, String listEntryDelimiter) {
+        return collection.isEmpty() ? EMPTY : collection.stream().map(converter).collect(Collectors.joining(listEntryDelimiter));
     }
 
     /**
@@ -169,7 +185,22 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A {@link Collection} containing the objects.
      */
     public static <T> Collection<T> convertStringToCollection(String collectionString, Function<String, T> converter) {
-        return collectionString.equalsIgnoreCase(EMPTY) ? new ArrayList<>() : Arrays.stream(collectionString.split(",")).map(converter).collect(Collectors.toList());
+        return convertStringToCollectionWithCustomDelimiter(collectionString, converter, LIST_ENTRY_SEPARATOR);
+    }
+
+    /**
+     * A method to parse a string into a {@link Collection} of objects.
+     *
+     * @param collectionString    The string containing the objects.
+     * @param converter           A method to convert the string into the object.
+     * @param listEntryDelimiter  The delimiter to be placed between two list entries.
+     * @param <T>                 The type of the object.
+     * @return A {@link Collection} containing the objects.
+     */
+    public static <T> Collection<T> convertStringToCollectionWithCustomDelimiter(String collectionString, Function<String, T> converter, String listEntryDelimiter) {
+        return collectionString.equalsIgnoreCase(EMPTY) ? new ArrayList<>() : Arrays.stream(collectionString.split(listEntryDelimiter))
+                .map(converter)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -220,7 +251,8 @@ public abstract class AbstractSerializer implements Serializer<String> {
      */
     public static String convertStreamSegmentRecordToString(StreamSegmentRecord segmentRecord) {
         StringBuilder segmentStringBuilder = new StringBuilder();
-        STREAM_SEGMENT_RECORD_FIELD_MAP.forEach((name, f) -> appendField(segmentStringBuilder, name, f.apply(segmentRecord), "|", "-"));
+        STREAM_SEGMENT_RECORD_FIELD_MAP.forEach((name, f) ->
+                appendFieldWithCustomDelimiters(segmentStringBuilder, name, f.apply(segmentRecord), STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER));
         return segmentStringBuilder.toString();
     }
 
@@ -231,7 +263,7 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A {@link StreamSegmentRecord}.
      */
     public static StreamSegmentRecord convertStringToStreamSegmentRecord(String segmentString) {
-        Map<String, String> segmentDataMap = parseStringData(segmentString, "|", "-");
+        Map<String, String> segmentDataMap = parseStringDataWithCustomDelimiters(segmentString, STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
         return StreamSegmentRecord.newSegmentRecord(
                 Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER)),
                 Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_CREATION_EPOCH)),

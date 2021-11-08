@@ -101,7 +101,7 @@ public final class NameUtils {
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
 
     /**
-     * Metadata keys.
+     * Controller Metadata keys.
      */
     public static final String CREATION_TIME_KEY = "creationTime";
     public static final String CONFIGURATION_KEY = "configuration";
@@ -109,13 +109,17 @@ public final class NameUtils {
     public static final String STATE_KEY = "state";
     public static final String EPOCH_TRANSITION_KEY = "epochTransition";
     public static final String RETENTION_SET_KEY = "retention";
+    public static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
     public static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
     public static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%s";
+    public static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%s";
     public static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%s";
     public static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%s"; // segment id
     public static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
     public static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
     public static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
+    public static final String SUBSCRIBER_KEY_PREFIX = "subscriber_";
+    public static final String SUBSCRIBER_SET_KEY = "subscriberset";
 
     /**
      * This is used for composing metric tags.
