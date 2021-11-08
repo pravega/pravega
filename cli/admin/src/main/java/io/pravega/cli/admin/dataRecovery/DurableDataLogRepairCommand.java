@@ -298,7 +298,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     void checkBackupLogAssertions(long beforeCommitCalls, long commitSuccessCalls, long operationsReadFromOriginalLog, boolean isFailed) {
         assert beforeCommitCalls == commitSuccessCalls : "BackupLogProcessor has different number of processed (" + beforeCommitCalls +
                 ") and successful operations (" + commitSuccessCalls + ")";
-        assert commitSuccessCalls== operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" + commitSuccessCalls +
+        assert commitSuccessCalls == operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" + commitSuccessCalls +
                 ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
         assert !isFailed : "BackupLogProcessor has failed";
     }
