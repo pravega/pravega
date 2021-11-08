@@ -819,6 +819,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testDeleteScopeRecursive() {
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeRecursiveStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeRecursiveStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteScopeRecursive("testScope").join());
+    }
+
+    @Test
     public void testGetOrRefreshDelegationToken() {
         String token = this.testController.getOrRefreshDelegationTokenFor("scope", "stream", null).join();
          if (this.authEnabled) {

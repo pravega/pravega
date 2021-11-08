@@ -2190,9 +2190,21 @@ public class ControllerImplTest {
     public void testDeleteScopeRecursive() {
         CompletableFuture<Boolean> deleteStatus;
         String scope1 = "scope1";
+        String scope2 = "scope2";
+        String scope3 = "scope3";
+        String scope4 = "scope4";
 
         deleteStatus = controllerClient.deleteScopeRecursive(scope1);
         assertTrue(deleteStatus.join());
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope2);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope3);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope4);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
     }
 
     @Test
