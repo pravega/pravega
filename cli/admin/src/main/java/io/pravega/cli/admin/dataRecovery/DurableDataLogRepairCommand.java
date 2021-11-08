@@ -649,7 +649,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         private void waitForOperationCommit(Operation operation) {
-            while (this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
+            while (!this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
                 Exceptions.handleInterrupted(() -> Thread.sleep(50));
                 output("Write Operation future not available yet, waiting...");
             }
