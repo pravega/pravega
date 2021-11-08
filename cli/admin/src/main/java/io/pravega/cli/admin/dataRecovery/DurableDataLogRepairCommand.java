@@ -600,14 +600,13 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             DataFrameBuilder.Args args = new DataFrameBuilder.Args(
                     a -> this.beforeCommit.getAndIncrement(),
                     b -> {
-                        operationProcessingTracker.get(b.getLastFullySerializedSequenceNumber()).complete(null);
+                        this.operationProcessingTracker.get(b.getLastFullySerializedSequenceNumber()).complete(null);
                         this.commitSuccess.getAndIncrement();
-                        operationProcessingTracker.remove(b.getLastFullySerializedSequenceNumber());
                     },
                     (c, d) -> {
-                        operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
-                        isFailed = true; // Consider a single failed write as a failure in the whole process.
-                        commitFailure.getAndIncrement();
+                        this.operationProcessingTracker.get(d.getLastFullySerializedSequenceNumber()).complete(null);
+                        this.isFailed = true; // Consider a single failed write as a failure in the whole process.
+                        this.commitFailure.getAndIncrement();
                     },
                     executor);
             this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
@@ -644,16 +643,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         private void trackOperation(Operation operation) {
-            CompletableFuture<Void> confirmedWrite = new CompletableFuture<>();
-            this.operationProcessingTracker.put(operation.getSequenceNumber(), confirmedWrite);
+            this.operationProcessingTracker.put(operation.getSequenceNumber(), new CompletableFuture<>());
         }
 
         private void waitForOperationCommit(Operation operation) {
-            while (!this.operationProcessingTracker.containsKey(operation.getSequenceNumber())) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(50));
-                output("Write Operation future not available yet, waiting...");
-            }
             this.operationProcessingTracker.get(operation.getSequenceNumber()).join();
+            this.operationProcessingTracker.remove(operation.getSequenceNumber());
         }
     }
 
