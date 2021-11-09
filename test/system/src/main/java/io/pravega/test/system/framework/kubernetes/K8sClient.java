@@ -67,9 +67,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -666,10 +666,28 @@ public class K8sClient {
      * @return A future which completes once the number of running pods matches the given criteria.
      */
     public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int expectedPodCount) {
+        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, Integer.MAX_VALUE);
+    }
 
-        AtomicBoolean shouldRetry = new AtomicBoolean(true);
+    /**
+     * A method which returns a completed future once the desired number of pod(s) are running with a given label, or
+     * until the number of retries has been exhausted.
+     *
+     * @param namespace Namespace
+     * @param labelName Label name.
+     * @param labelValue Value of the Label.
+     * @param expectedPodCount Number of pods that need to be running.
+     * @param retries The number of retries to attempt.
+     * @return A future which completes once the number of running pods matches the given criteria.
+     */
+    public CompletableFuture<Void> waitUntilPodIsRunningRetries(String namespace, String labelName, String labelValue, int expectedPodCount, int retries) {
+        AtomicInteger retriesRemaining = new AtomicInteger(retries);
+        Supplier<Boolean> shouldRetry = () -> {
+            log.info(" Waiting for pod(s) -- retry attempt {}/{}", retriesRemaining.get(), retries);
+            return retriesRemaining.getAndDecrement() > 0;
+        };
 
-        return Futures.loop(shouldRetry::get,
+        return Futures.loop(shouldRetry,
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
                         .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
                         .thenApply(podStatuses -> podStatuses.stream()
@@ -686,9 +704,21 @@ public class K8sClient {
                 runCount -> { // Number of pods which are running
                     log.info("Expected running pod count of {}:{}, actual running pod count of {}:{}.", labelValue, expectedPodCount, labelValue, runCount);
                     if (runCount == expectedPodCount) {
-                        shouldRetry.set(false);
+                        retriesRemaining.set(0);
+                    } else if (retriesRemaining.get() <= 0) {
+                        retriesRemaining.set(-1);
                     }
-                }, executor);
+                }, executor).thenCompose(v -> {
+                    if (retriesRemaining.get() == -1) {
+                        log.error("Retries exhausted waiting for pod(s): {}", labelValue);
+                    }
+                    // Always printing the information for a set of pods with a given label (after each scale event)
+                    // will help make it easier to keep track of the active set of pods during a particular moment
+                    // in any given system test. It also allows one to get pod state in event of a scale failure.
+                    return getPodsWithLabel(namespace, labelName, labelValue).thenAccept(pods -> {
+                        log.info("{}", pods);
+                    });
+        });
     }
 
     /**
