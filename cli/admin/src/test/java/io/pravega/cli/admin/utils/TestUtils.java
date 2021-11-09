@@ -277,6 +277,16 @@ public final class TestUtils {
         }
     }
 
+    /**
+     * Generate a StreamSegmentRecord string using the provided parameters.
+     *
+     * @param sn segment number
+     * @param ce creation epoch
+     * @param ct creation time
+     * @param ks key start
+     * @param ke key end
+     * @return A string containing a StreamSegmentRecord generated using the above parameters.
+     */
     public static String generateStreamSegmentRecordString(int sn, int ce, long ct, double ks, double ke) {
         StringBuilder builder = new StringBuilder();
         appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, String.valueOf(sn),

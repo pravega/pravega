@@ -34,6 +34,9 @@ public class RetentionSetSerializer extends AbstractSerializer {
 
     static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME = "recordingTime";
     static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE = "recordingSize";
+    static final String STREAM_CUT_REFERENCE_RECORD_PAIR_DELIMITER = "|";
+    static final String STREAM_CUT_REFERENCE_RECORD_PAIR_DELIMITER_REGEX = "\\|";
+    static final String STREAM_CUT_REFERENCE_RECORD_VALUE_DELIMITER = "-";
 
     private static final Map<String, Function<StreamCutReferenceRecord, String>> STREAM_CUT_REFERENCE_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamCutReferenceRecord, String>>builder()
@@ -45,7 +48,9 @@ public class RetentionSetSerializer extends AbstractSerializer {
             ImmutableMap.<String, Function<RetentionSet, String>>builder()
                     .put(RETENTION_SET_RETENTION_RECORDS, r -> convertCollectionToString(r.getRetentionRecords(), sr -> {
                         StringBuilder streamCutStringBuilder = new StringBuilder();
-                        STREAM_CUT_REFERENCE_RECORD_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(streamCutStringBuilder, name, f.apply(sr), "|", "-"));
+                        STREAM_CUT_REFERENCE_RECORD_FIELD_MAP.forEach((name, f) ->
+                                appendFieldWithCustomDelimiters(streamCutStringBuilder, name, f.apply(sr),
+                                        STREAM_CUT_REFERENCE_RECORD_PAIR_DELIMITER, STREAM_CUT_REFERENCE_RECORD_VALUE_DELIMITER));
                         return streamCutStringBuilder.toString();
                     }))
                     .build();
@@ -59,7 +64,7 @@ public class RetentionSetSerializer extends AbstractSerializer {
     public ByteBuffer serialize(String value) {
         Map<String, String> data = parseStringData(value);
         List<StreamCutReferenceRecord> retentionRecords = new ArrayList<>(convertStringToCollection(getAndRemoveIfExists(data, RETENTION_SET_RETENTION_RECORDS), s -> {
-            Map<String, String> streamCutDataMap = parseStringDataWithCustomDelimiters(s, "\\|", "-");
+            Map<String, String> streamCutDataMap = parseStringDataWithCustomDelimiters(s, STREAM_CUT_REFERENCE_RECORD_PAIR_DELIMITER_REGEX, STREAM_CUT_REFERENCE_RECORD_VALUE_DELIMITER);
             return StreamCutReferenceRecord.builder()
                     .recordingTime(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME)))
                     .recordingSize(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE)))
