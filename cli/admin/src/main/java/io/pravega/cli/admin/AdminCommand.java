@@ -36,7 +36,9 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataTablesInfoCommand;
 import io.pravega.cli.admin.controller.metadata.GetControllerMetadataEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ListControllerMetadataEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ListControllerMetadataKeysCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
@@ -305,7 +307,9 @@ public abstract class AdminCommand {
                         .put(ListTableSegmentKeysCommand::descriptor, ListTableSegmentKeysCommand::new)
                         .put(ModifyTableSegmentEntry::descriptor, ModifyTableSegmentEntry::new)
                         .put(GetControllerMetadataEntryCommand::descriptor, GetControllerMetadataEntryCommand::new)
+                        .put(ControllerMetadataTablesInfoCommand::descriptor, ControllerMetadataTablesInfoCommand::new)
                         .put(ListControllerMetadataKeysCommand::descriptor, ListControllerMetadataKeysCommand::new)
+                        .put(ListControllerMetadataEntriesCommand::descriptor, ListControllerMetadataEntriesCommand::new)
                         .build());
 
         /**

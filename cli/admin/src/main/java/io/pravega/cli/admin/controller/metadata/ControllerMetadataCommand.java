@@ -30,7 +30,10 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringData;
 
 public abstract class ControllerMetadataCommand extends ControllerCommand {
     static final String COMPONENT = "controller-metadata";
@@ -70,6 +73,23 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
                 Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
                 authHelper.retrieveMasterToken(), 0L);
         return serializer.deserialize(getByteBuffer(reply.join().get(0).getValue()));
+    }
+
+    /**
+     * Print the provided data in a user-friendly manner.
+     *
+     * @param data The data to be printed.
+     * @param name A name describing the data.
+     */
+    void userFriendlyOutput(String data, String name) {
+        Map<String, String> dataMap = parseStringData(data);
+        // Case of primitive value eg: int, long, String, etc.
+        if (dataMap.containsKey(name)) {
+            output(dataMap.get(name));
+            return;
+        }
+        output("%s metadata info: ", name);
+        dataMap.forEach((k, v) -> output("%s = %s;", k, v));
     }
 
     /**

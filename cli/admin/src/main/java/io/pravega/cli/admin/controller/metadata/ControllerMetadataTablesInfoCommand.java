@@ -34,7 +34,7 @@ import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.WRITERS_POSITIONS_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
-public class ListControllerMetadataTablesCommand extends ControllerMetadataCommand {
+public class ControllerMetadataTablesInfoCommand extends ControllerMetadataCommand {
 
     private static final String TEST_SCOPE = "testScope";
     private static final String TEST_STREAM = "testStream";
@@ -94,17 +94,14 @@ public class ListControllerMetadataTablesCommand extends ControllerMetadataComma
      *
      * @param args The arguments for the command.
      */
-    public ListControllerMetadataTablesCommand(CommandArgs args) {
+    public ControllerMetadataTablesInfoCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
     public void execute() {
         Preconditions.checkArgument(getCommandArgs().getArgs().size() == 0, "Not expecting any arguments.");
-        TABLE_NAMES.forEach((name, info) -> {
-            printTableInfo(name, info.get(0), info.get(2), info.get(1));
-            output("");
-        });
+        TABLE_NAMES.forEach((name, info) -> printTableInfo(name, info.get(0), info.get(2), info.get(1)));
     }
 
     public static CommandDescriptor descriptor() {
@@ -114,6 +111,6 @@ public class ListControllerMetadataTablesCommand extends ControllerMetadataComma
     private void printTableInfo(String tableName, String tableFormat, String tableInfo, String tableExample) {
         output(String.format("%s --> Table name format: '%s'.", tableName, tableFormat));
         output(tableInfo);
-        output("eg: %s", tableExample);
+        output("eg: %s\n", tableExample);
     }
 }

@@ -21,10 +21,6 @@ import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.Map;
-
-import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringData;
-
 public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand {
 
     /**
@@ -58,11 +54,5 @@ public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be queried."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
-    }
-
-    private void userFriendlyOutput(String data, String name) {
-        Map<String, String> dataMap = parseStringData(data);
-        output("%s metadata info: ", name);
-        dataMap.forEach((k, v) -> output("%s = %s;", k, v));
     }
 }
