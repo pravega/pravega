@@ -80,7 +80,7 @@ public class ListControllerMetadataEntriesCommand extends ControllerMetadataComm
                 "Unsupported for stream metadata tables.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
-                new ArgDescriptor("key-count", "The upper limit for the number of entries to be listed."),
+                new ArgDescriptor("entry-count", "The upper limit for the number of entries to be listed."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

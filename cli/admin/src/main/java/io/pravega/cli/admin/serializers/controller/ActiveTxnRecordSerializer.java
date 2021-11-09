@@ -27,14 +27,14 @@ import java.util.function.Function;
 
 public class ActiveTxnRecordSerializer extends AbstractSerializer {
 
-    public static final String ACTIVE_TXN_RECORD_TX_CREATION_TIMESTAMP = "txCreationTimestamp";
-    public static final String ACTIVE_TXN_RECORD_LEASE_EXPIRY_TIME = "leaseExpiryTime";
-    public static final String ACTIVE_TXN_RECORD_MAX_EXECUTION_EXPIRY_TIME = "maxExecutionExpiryTime";
-    public static final String ACTIVE_TXN_RECORD_TXN_STATUS = "txnStatus";
-    public static final String ACTIVE_TXN_RECORD_WRITER_ID = "writerId";
-    public static final String ACTIVE_TXN_RECORD_COMMIT_TIME = "commitTime";
-    public static final String ACTIVE_TXN_RECORD_COMMIT_ORDER = "commitOrder";
-    public static final String ACTIVE_TXN_RECORD_COMMIT_OFFSETS = "commitOffsets";
+    static final String ACTIVE_TXN_RECORD_TX_CREATION_TIMESTAMP = "txCreationTimestamp";
+    static final String ACTIVE_TXN_RECORD_LEASE_EXPIRY_TIME = "leaseExpiryTime";
+    static final String ACTIVE_TXN_RECORD_MAX_EXECUTION_EXPIRY_TIME = "maxExecutionExpiryTime";
+    static final String ACTIVE_TXN_RECORD_TXN_STATUS = "txnStatus";
+    static final String ACTIVE_TXN_RECORD_WRITER_ID = "writerId";
+    static final String ACTIVE_TXN_RECORD_COMMIT_TIME = "commitTime";
+    static final String ACTIVE_TXN_RECORD_COMMIT_ORDER = "commitOrder";
+    static final String ACTIVE_TXN_RECORD_COMMIT_OFFSETS = "commitOffsets";
 
     private static final Map<String, Function<ActiveTxnRecord, String>> ACTIVE_TXN_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<ActiveTxnRecord, String>>builder()

@@ -26,12 +26,10 @@ import java.util.function.Function;
 
 public class SealedSegmentsMapShardSerializer extends AbstractSerializer {
 
-    public static final String SEALED_SEGMENTS_MAP_SHARD_SHARD_NUMBER = "shardNumber";
-    public static final String SEALED_SEGMENTS_MAP_SHARD_SEALED_SEGMENTS_SIZE_MAP = "sealedSegmentsSizeMap";
+    static final String SEALED_SEGMENTS_MAP_SHARD_SEALED_SEGMENTS_SIZE_MAP = "sealedSegmentsSizeMap";
 
     private static final Map<String, Function<SealedSegmentsMapShard, String>> SEALED_SEGMENTS_MAP_SHARD_FIELD_MAP =
             ImmutableMap.<String, Function<SealedSegmentsMapShard, String>>builder()
-                    .put(SEALED_SEGMENTS_MAP_SHARD_SHARD_NUMBER, r -> String.valueOf(r.getShardNumber()))
                     .put(SEALED_SEGMENTS_MAP_SHARD_SEALED_SEGMENTS_SIZE_MAP, r -> convertMapToString(r.getSealedSegmentsSizeMap(), String::valueOf, String::valueOf))
                     .build();
 
@@ -47,7 +45,6 @@ public class SealedSegmentsMapShardSerializer extends AbstractSerializer {
                 Long::parseLong, Long::parseLong, getName() + "." + SEALED_SEGMENTS_MAP_SHARD_SEALED_SEGMENTS_SIZE_MAP);
 
         SealedSegmentsMapShard record = SealedSegmentsMapShard.builder()
-                .shardNumber(Integer.parseInt(getAndRemoveIfExists(data, SEALED_SEGMENTS_MAP_SHARD_SHARD_NUMBER)))
                 .sealedSegmentsSizeMap(ImmutableMap.copyOf(sealedSegmentsSizeMap))
                 .build();
         return new ByteArraySegment(record.toBytes()).asByteBuffer();

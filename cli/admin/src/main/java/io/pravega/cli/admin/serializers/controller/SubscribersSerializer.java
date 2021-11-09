@@ -29,7 +29,7 @@ import java.util.function.Function;
 
 public class SubscribersSerializer extends AbstractSerializer {
 
-    public static final String SUBSCRIBERS_SUBSCRIBERS = "subscribers";
+    static final String SUBSCRIBERS_SUBSCRIBERS = "subscribers";
 
     private static final Map<String, Function<Subscribers, String>> SUBSCRIBERS_FIELD_MAP =
             ImmutableMap.<String, Function<Subscribers, String>>builder()

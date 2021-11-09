@@ -30,12 +30,12 @@ import java.util.function.Function;
 
 public class StreamTruncationRecordSerializer extends AbstractSerializer {
 
-    public static final String STREAM_TRUNCATION_RECORD_STREAM_CUT = "streamCut";
-    public static final String STREAM_TRUNCATION_RECORD_SPAN = "span";
-    public static final String STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS = "deletedSegments";
-    public static final String STREAM_TRUNCATION_RECORD_TO_DELETE = "toDelete";
-    public static final String STREAM_TRUNCATION_RECORD_SIZE_TILL = "sizeTill";
-    public static final String STREAM_TRUNCATION_RECORD_UPDATING = "updating";
+    static final String STREAM_TRUNCATION_RECORD_STREAM_CUT = "streamCut";
+    static final String STREAM_TRUNCATION_RECORD_SPAN = "span";
+    static final String STREAM_TRUNCATION_RECORD_DELETED_SEGMENTS = "deletedSegments";
+    static final String STREAM_TRUNCATION_RECORD_TO_DELETE = "toDelete";
+    static final String STREAM_TRUNCATION_RECORD_SIZE_TILL = "sizeTill";
+    static final String STREAM_TRUNCATION_RECORD_UPDATING = "updating";
 
     private static final Map<String, Function<StreamTruncationRecord, String>> STREAM_TRUNCATION_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamTruncationRecord, String>>builder()

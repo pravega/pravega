@@ -43,11 +43,13 @@ public abstract class AbstractSerializer implements Serializer<String> {
     public static final String STREAM_SEGMENT_RECORD_KEY_START = "keyStart";
     public static final String STREAM_SEGMENT_RECORD_KEY_END = "keyEnd";
 
+    public static final String STREAM_SEGMENT_RECORD_PAIR_DELIMITER = "|";
+    public static final String STREAM_SEGMENT_RECORD_VALUE_DELIMITER = "-";
+
     protected static final String EMPTY = "EMPTY";
+    private static final String STREAM_SEGMENT_RECORD_PAIR_DELIMITER_REGEX = "\\" + STREAM_SEGMENT_RECORD_PAIR_DELIMITER;
     private static final String KEY_VALUE_SEPARATOR = ":";
     private static final String LIST_ENTRY_SEPARATOR = ",";
-    private static final String STREAM_SEGMENT_RECORD_PAIR_DELIMITER = "|";
-    private static final String STREAM_SEGMENT_RECORD_VALUE_DELIMITER = "-";
 
     private static final Map<String, Function<StreamSegmentRecord, String>> STREAM_SEGMENT_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamSegmentRecord, String>>builder()
@@ -263,7 +265,8 @@ public abstract class AbstractSerializer implements Serializer<String> {
      * @return A {@link StreamSegmentRecord}.
      */
     public static StreamSegmentRecord convertStringToStreamSegmentRecord(String segmentString) {
-        Map<String, String> segmentDataMap = parseStringDataWithCustomDelimiters(segmentString, STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        Map<String, String> segmentDataMap = parseStringDataWithCustomDelimiters(segmentString, STREAM_SEGMENT_RECORD_PAIR_DELIMITER_REGEX,
+                STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
         return StreamSegmentRecord.newSegmentRecord(
                 Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER)),
                 Integer.parseInt(getAndRemoveIfExists(segmentDataMap, STREAM_SEGMENT_RECORD_CREATION_EPOCH)),

@@ -27,7 +27,7 @@ import java.util.function.Function;
 
 public class StateRecordSerializer extends AbstractSerializer {
 
-    public static final String STATE_RECORD_STATE = "state";
+    static final String STATE_RECORD_STATE = "state";
 
     private static final Map<String, Function<StateRecord, String>> STATE_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StateRecord, String>>builder()

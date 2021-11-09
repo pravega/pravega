@@ -30,10 +30,10 @@ import java.util.function.Function;
 
 public class RetentionSetSerializer extends AbstractSerializer {
 
-    public static final String RETENTION_SET_RETENTION_RECORDS = "retentionRecords";
+    static final String RETENTION_SET_RETENTION_RECORDS = "retentionRecords";
 
-    public static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME = "recordingTime";
-    public static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE = "recordingSize";
+    static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME = "recordingTime";
+    static final String STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE = "recordingSize";
 
     private static final Map<String, Function<StreamCutReferenceRecord, String>> STREAM_CUT_REFERENCE_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamCutReferenceRecord, String>>builder()
@@ -59,7 +59,7 @@ public class RetentionSetSerializer extends AbstractSerializer {
     public ByteBuffer serialize(String value) {
         Map<String, String> data = parseStringData(value);
         List<StreamCutReferenceRecord> retentionRecords = new ArrayList<>(convertStringToCollection(getAndRemoveIfExists(data, RETENTION_SET_RETENTION_RECORDS), s -> {
-            Map<String, String> streamCutDataMap = parseStringDataWithCustomDelimiters(s, "|", "-");
+            Map<String, String> streamCutDataMap = parseStringDataWithCustomDelimiters(s, "\\|", "-");
             return StreamCutReferenceRecord.builder()
                     .recordingTime(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_TIME)))
                     .recordingSize(Long.parseLong(getAndRemoveIfExists(streamCutDataMap, STREAM_CUT_REFERENCE_RECORD_RECORDING_SIZE)))

@@ -30,9 +30,9 @@ import java.util.function.Function;
 
 public class CommittingTransactionsRecordSerializer extends AbstractSerializer {
 
-    public static final String COMMITTING_TRANSACTIONS_RECORD_EPOCH = "epoch";
-    public static final String COMMITTING_TRANSACTIONS_RECORD_TRANSACTIONS_TO_COMMIT = "transactionsToCommit";
-    public static final String COMMITTING_TRANSACTIONS_RECORD_ACTIVE_EPOCH = "activeEpoch";
+    static final String COMMITTING_TRANSACTIONS_RECORD_EPOCH = "epoch";
+    static final String COMMITTING_TRANSACTIONS_RECORD_TRANSACTIONS_TO_COMMIT = "transactionsToCommit";
+    static final String COMMITTING_TRANSACTIONS_RECORD_ACTIVE_EPOCH = "activeEpoch";
 
     private static final Map<String, Function<CommittingTransactionsRecord, String>> COMMITTING_TRANSACTIONS_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<CommittingTransactionsRecord, String>>builder()

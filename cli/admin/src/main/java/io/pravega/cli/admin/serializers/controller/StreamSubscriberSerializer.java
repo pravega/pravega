@@ -26,10 +26,10 @@ import java.util.function.Function;
 
 public class StreamSubscriberSerializer extends AbstractSerializer {
 
-    public static final String STREAM_SUBSCRIBER_SUBSCRIBER = "subscriber";
-    public static final String STREAM_SUBSCRIBER_GENERATION = "generation";
-    public static final String STREAM_SUBSCRIBER_TRUNCATION_STREAM_CUT = "truncationStreamCut";
-    public static final String STREAM_SUBSCRIBER_UPDATE_TIME = "updateTime";
+    static final String STREAM_SUBSCRIBER_SUBSCRIBER = "subscriber";
+    static final String STREAM_SUBSCRIBER_GENERATION = "generation";
+    static final String STREAM_SUBSCRIBER_TRUNCATION_STREAM_CUT = "truncationStreamCut";
+    static final String STREAM_SUBSCRIBER_UPDATE_TIME = "updateTime";
 
     private static final Map<String, Function<StreamSubscriber, String>> STREAM_SUBSCRIBER_FIELD_MAP =
             ImmutableMap.<String, Function<StreamSubscriber, String>>builder()

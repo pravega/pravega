@@ -61,6 +61,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Arrays;
 
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_CREATION_EPOCH;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_CREATION_TIME;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_KEY_END;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_KEY_START;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_PAIR_DELIMITER;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_SEGMENT_NUMBER;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_VALUE_DELIMITER;
+import static io.pravega.cli.admin.serializers.AbstractSerializer.appendFieldWithCustomDelimiters;
+
 /**
  * Class to contain convenient utilities for writing test cases.
  */
@@ -266,5 +275,20 @@ public final class TestUtils {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
         }
+    }
+
+    public static String generateStreamSegmentRecordString(int sn, int ce, long ct, double ks, double ke) {
+        StringBuilder builder = new StringBuilder();
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, String.valueOf(sn),
+                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_EPOCH, String.valueOf(ce),
+                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_TIME, String.valueOf(ct),
+                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_START, String.valueOf(ks),
+                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_END, String.valueOf(ke),
+                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
+        return builder.toString();
     }
 }

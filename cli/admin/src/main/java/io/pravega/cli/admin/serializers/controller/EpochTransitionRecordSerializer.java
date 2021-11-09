@@ -32,10 +32,10 @@ import java.util.function.Function;
 
 public class EpochTransitionRecordSerializer extends AbstractSerializer {
 
-    public static final String EPOCH_TRANSITION_RECORD_ACTIVE_EPOCH = "activeEpoch";
-    public static final String EPOCH_TRANSITION_RECORD_TIME = "time";
-    public static final String EPOCH_TRANSITION_RECORD_SEGMENTS_TO_SEAL = "segmentsToSeal";
-    public static final String EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE = "newSegmentsWithRange";
+    static final String EPOCH_TRANSITION_RECORD_ACTIVE_EPOCH = "activeEpoch";
+    static final String EPOCH_TRANSITION_RECORD_TIME = "time";
+    static final String EPOCH_TRANSITION_RECORD_SEGMENTS_TO_SEAL = "segmentsToSeal";
+    static final String EPOCH_TRANSITION_RECORD_NEW_SEGMENTS_WITH_RANGE = "newSegmentsWithRange";
 
     private static final Map<String, Function<EpochTransitionRecord, String>> EPOCH_TRANSITION_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<EpochTransitionRecord, String>>builder()

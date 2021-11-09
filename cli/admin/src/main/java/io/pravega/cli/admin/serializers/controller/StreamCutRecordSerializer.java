@@ -26,9 +26,9 @@ import java.util.function.Function;
 
 public class StreamCutRecordSerializer extends AbstractSerializer {
 
-    public static final String STREAM_CUT_RECORD_RECORDING_TIME = "recordingTime";
-    public static final String STREAM_CUT_RECORD_RECORDING_SIZE = "recordingSize";
-    public static final String STREAM_CUT_RECORD_STREAM_CUT = "streamCut";
+    static final String STREAM_CUT_RECORD_RECORDING_TIME = "recordingTime";
+    static final String STREAM_CUT_RECORD_RECORDING_SIZE = "recordingSize";
+    static final String STREAM_CUT_RECORD_STREAM_CUT = "streamCut";
 
     private static final Map<String, Function<StreamCutRecord, String>> STREAM_CUT_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<StreamCutRecord, String>>builder()

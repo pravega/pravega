@@ -30,12 +30,12 @@ import java.util.function.Function;
 
 public class EpochRecordSerializer extends AbstractSerializer {
 
-    public static final String EPOCH_RECORD_EPOCH = "epoch";
-    public static final String EPOCH_RECORD_REFERENCE_EPOCH = "referenceEpoch";
-    public static final String EPOCH_RECORD_SEGMENTS = "segments";
-    public static final String EPOCH_RECORD_CREATION_TIME = "creationTime";
-    public static final String EPOCH_RECORD_SPLITS = "splits";
-    public static final String EPOCH_RECORD_MERGES = "merges";
+    static final String EPOCH_RECORD_EPOCH = "epoch";
+    static final String EPOCH_RECORD_REFERENCE_EPOCH = "referenceEpoch";
+    static final String EPOCH_RECORD_SEGMENTS = "segments";
+    static final String EPOCH_RECORD_CREATION_TIME = "creationTime";
+    static final String EPOCH_RECORD_SPLITS = "splits";
+    static final String EPOCH_RECORD_MERGES = "merges";
 
     private static final Map<String, Function<EpochRecord, String>> EPOCH_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<EpochRecord, String>>builder()

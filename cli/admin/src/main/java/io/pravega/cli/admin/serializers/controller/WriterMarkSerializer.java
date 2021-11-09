@@ -26,9 +26,9 @@ import java.util.function.Function;
 
 public class WriterMarkSerializer extends AbstractSerializer {
 
-    public static final String WRITER_MARK_TIMESTAMP = "timestamp";
-    public static final String WRITER_MARK_POSITION = "position";
-    public static final String WRITER_MARK_IS_ALIVE = "isAlive";
+    static final String WRITER_MARK_TIMESTAMP = "timestamp";
+    static final String WRITER_MARK_POSITION = "position";
+    static final String WRITER_MARK_IS_ALIVE = "isAlive";
 
     private static final Map<String, Function<WriterMark, String>> WRITER_MARK_FIELD_MAP =
             ImmutableMap.<String, Function<WriterMark, String>>builder()

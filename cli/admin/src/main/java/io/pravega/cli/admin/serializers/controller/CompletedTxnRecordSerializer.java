@@ -27,8 +27,8 @@ import java.util.function.Function;
 
 public class CompletedTxnRecordSerializer extends AbstractSerializer {
 
-    public static final String COMPLETED_TXN_RECORD_COMPLETE_TIME = "completeTime";
-    public static final String COMPLETED_TXN_RECORD_COMPLETION_STATUS = "completionStatus";
+    static final String COMPLETED_TXN_RECORD_COMPLETE_TIME = "completeTime";
+    static final String COMPLETED_TXN_RECORD_COMPLETION_STATUS = "completionStatus";
 
     private static final Map<String, Function<CompletedTxnRecord, String>> COMPLETED_TXN_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<CompletedTxnRecord, String>>builder()
