@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -56,8 +57,10 @@ public class PravegaTablesScopeTest extends ThreadPooledTestSuite {
     @SuppressWarnings("unchecked")
     public void testRemoveTagsUnderScope() {
         // Setup Mocks.
+        GrpcAuthHelper authHelper = mock(GrpcAuthHelper.class);
+        when(authHelper.retrieveMasterToken()).thenReturn("");
         SegmentHelper segmentHelper = mock(SegmentHelper.class);
-        PravegaTablesStoreHelper storeHelper = setUpMocks();
+        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
         PravegaTablesScope tablesScope = spy(new PravegaTablesScope(scope, storeHelper));
         doReturn(CompletableFuture.completedFuture(indexTable)).when(tablesScope)
                                                                .getAllStreamTagsInScopeTableNames(stream, context);
@@ -84,15 +87,15 @@ public class PravegaTablesScopeTest extends ThreadPooledTestSuite {
 
     @Test
     public void testDeleteScopeRecursive() {
-        PravegaTablesStoreHelper storeHelper = setUpMocks();
-        PravegaTablesScope tablesScope = spy(new PravegaTablesScope(scope, storeHelper));
-        doAnswer( x -> null).when(tablesScope).deleteScopeRecursive(context);
-    }
-
-    private PravegaTablesStoreHelper setUpMocks() {
         GrpcAuthHelper authHelper = mock(GrpcAuthHelper.class);
         when(authHelper.retrieveMasterToken()).thenReturn("");
         SegmentHelper segmentHelper = mock(SegmentHelper.class);
-        return new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
+        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
+        PravegaTablesScope tablesScope = spy(new PravegaTablesScope(scope, storeHelper));
+        tablesScope.deleteScopeRecursive(context);
+        verify(tablesScope, times(1)).getStreamsInScopeTableName(true, context);
+        verify(tablesScope, times(1)).getReaderGroupsInScopeTableName(context);
+        verify(tablesScope, times(1)).getKVTablesInScopeTableName(context);
+        verify(tablesScope, times(1)).getAllStreamTagsInScopeTableNames(context);
     }
 }

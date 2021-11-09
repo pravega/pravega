@@ -262,7 +262,8 @@ public class PravegaTablesScope implements Scope {
                                     Futures.allOf(deleteTagTablesFut))
                             .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
                                     kvtsInScopeTableName, rgsInScopeTableName));
-                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPES_TABLE, scopeName, context.getRequestId()));
+                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPES_TABLE, scopeName, context.getRequestId()))
+                .thenCompose(x -> storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId()));
     }
 
     @Override
