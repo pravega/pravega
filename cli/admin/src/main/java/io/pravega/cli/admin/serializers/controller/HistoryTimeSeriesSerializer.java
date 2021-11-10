@@ -31,16 +31,19 @@ import java.util.function.Function;
 
 public class HistoryTimeSeriesSerializer extends AbstractSerializer {
 
-    public static final String HISTORY_TIME_SERIES_HISTORY_RECORDS = "historyRecords";
+    static final String HISTORY_TIME_SERIES_HISTORY_RECORDS = "historyRecords";
 
-    public static final String HISTORY_TIME_SERIES_RECORD_EPOCH = "epoch";
-    public static final String HISTORY_TIME_SERIES_RECORD_REFERENCE_EPOCH = "referenceEpoch";
-    public static final String HISTORY_TIME_SERIES_RECORD_SEGMENTS_SEALED = "segmentsSealed";
-    public static final String HISTORY_TIME_SERIES_RECORD_SEGMENTS_CREATED = "segmentsCreated";
-    public static final String HISTORY_TIME_SERIES_RECORD_SCALE_TIME = "scaleTime";
+    static final String HISTORY_TIME_SERIES_RECORD_EPOCH = "epoch";
+    static final String HISTORY_TIME_SERIES_RECORD_REFERENCE_EPOCH = "referenceEpoch";
+    static final String HISTORY_TIME_SERIES_RECORD_SEGMENTS_SEALED = "segmentsSealed";
+    static final String HISTORY_TIME_SERIES_RECORD_SEGMENTS_CREATED = "segmentsCreated";
+    static final String HISTORY_TIME_SERIES_RECORD_SCALE_TIME = "scaleTime";
 
-    private static final String HISTORY_TIME_SERIES_RECORD_PAIR_DELIMITER = "[]";
-    private static final String HISTORY_TIME_SERIES_RECORD_VALUE_DELIMITER = "->";
+    static final String HISTORY_TIME_SERIES_RECORD_LIST_ENTRY_DELIMITER = "\n";
+
+    static final String HISTORY_TIME_SERIES_RECORD_PAIR_DELIMITER = "[]";
+    static final String HISTORY_TIME_SERIES_RECORD_VALUE_DELIMITER = "->";
+    private static final String HISTORY_TIME_SERIES_RECORD_PAIR_DELIMITER_REGEX = "\\[]";
 
     private static final Map<String, Function<HistoryTimeSeriesRecord, String>> HISTORY_TIME_SERIES_RECORD_FIELD_MAP =
             ImmutableMap.<String, Function<HistoryTimeSeriesRecord, String>>builder()
@@ -54,7 +57,7 @@ public class HistoryTimeSeriesSerializer extends AbstractSerializer {
     private static final Map<String, Function<HistoryTimeSeries, String>> HISTORY_TIME_SERIES_FIELD_MAP =
             ImmutableMap.<String, Function<HistoryTimeSeries, String>>builder()
                     .put(HISTORY_TIME_SERIES_HISTORY_RECORDS, r -> convertCollectionToStringWithCustomDelimiter(r.getHistoryRecords(),
-                            HistoryTimeSeriesSerializer::convertHistoryTimeSeriesRecordToString, "\n"))
+                            HistoryTimeSeriesSerializer::convertHistoryTimeSeriesRecordToString, HISTORY_TIME_SERIES_RECORD_LIST_ENTRY_DELIMITER))
                     .build();
 
     @Override
@@ -67,7 +70,7 @@ public class HistoryTimeSeriesSerializer extends AbstractSerializer {
         Map<String, String> data = parseStringData(value);
         List<HistoryTimeSeriesRecord> historyRecords = new ArrayList<>(
                 convertStringToCollectionWithCustomDelimiter(getAndRemoveIfExists(data, HISTORY_TIME_SERIES_HISTORY_RECORDS),
-                HistoryTimeSeriesSerializer::convertStringToHistoryTimeSeriesRecord, "\n"));
+                HistoryTimeSeriesSerializer::convertStringToHistoryTimeSeriesRecord, HISTORY_TIME_SERIES_RECORD_LIST_ENTRY_DELIMITER));
 
         HistoryTimeSeries record = new HistoryTimeSeries(ImmutableList.copyOf(historyRecords));
         return new ByteArraySegment(record.toBytes()).asByteBuffer();
@@ -87,7 +90,8 @@ public class HistoryTimeSeriesSerializer extends AbstractSerializer {
     }
 
     private static HistoryTimeSeriesRecord convertStringToHistoryTimeSeriesRecord(String recordString) {
-        Map<String, String> data = parseStringDataWithCustomDelimiters(recordString, HISTORY_TIME_SERIES_RECORD_PAIR_DELIMITER, HISTORY_TIME_SERIES_RECORD_VALUE_DELIMITER);
+        Map<String, String> data = parseStringDataWithCustomDelimiters(recordString, HISTORY_TIME_SERIES_RECORD_PAIR_DELIMITER_REGEX, 
+                HISTORY_TIME_SERIES_RECORD_VALUE_DELIMITER);
         List<StreamSegmentRecord> segmentsSealed = new ArrayList<>(convertStringToCollection(getAndRemoveIfExists(data, HISTORY_TIME_SERIES_RECORD_SEGMENTS_SEALED),
                 AbstractSerializer::convertStringToStreamSegmentRecord));
         List<StreamSegmentRecord> segmentsCreated = new ArrayList<>(convertStringToCollection(getAndRemoveIfExists(data, HISTORY_TIME_SERIES_RECORD_SEGMENTS_CREATED),

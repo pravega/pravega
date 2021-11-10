@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.serializers.controller;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.common.util.BitConverter;
@@ -212,7 +213,8 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
         return m.find();
     }
 
-    private static class StringSerializer extends AbstractSerializer {
+    @VisibleForTesting
+    static class StringSerializer extends AbstractSerializer {
         @Override
         public String getName() {
             return "ControllerString";
@@ -232,7 +234,8 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
         }
     }
 
-    private static class IntSerializer extends AbstractSerializer {
+    @VisibleForTesting
+    static class IntSerializer extends AbstractSerializer {
         @Override
         public String getName() {
             return "ControllerInt";
@@ -241,20 +244,21 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
         @Override
         public ByteBuffer serialize(String value) {
             Map<String, String> data = parseStringData(value);
-            ByteBuffer b = ByteBuffer.allocate(4);
-            b.putInt(Integer.parseInt(getAndRemoveIfExists(data, getName())));
-            return b;
+            byte[] bytes = new byte[Integer.BYTES];
+            BitConverter.writeInt(bytes, 0, Integer.parseInt(getAndRemoveIfExists(data, getName())));
+            return ByteBuffer.wrap(bytes);
         }
 
         @Override
         public String deserialize(ByteBuffer serializedValue) {
             Map<String, Function<Integer, String>> fieldMap = new HashMap<>();
             fieldMap.put(getName(), String::valueOf);
-            return applyDeserializer(serializedValue, bytes -> BitConverter.readInt(bytes, 0), fieldMap);
+            return applyDeserializer(serializedValue, bytes -> serializedValue.getInt(), fieldMap);
         }
     }
 
-    private static class LongSerializer extends AbstractSerializer {
+    @VisibleForTesting
+    static class LongSerializer extends AbstractSerializer {
         @Override
         public String getName() {
             return "ControllerLong";
@@ -263,16 +267,16 @@ public class ControllerMetadataSerializer extends AbstractSerializer {
         @Override
         public ByteBuffer serialize(String value) {
             Map<String, String> data = parseStringData(value);
-            ByteBuffer b = ByteBuffer.allocate(8);
-            b.putLong(Long.parseLong(getAndRemoveIfExists(data, getName())));
-            return b;
+            byte[] bytes = new byte[Long.BYTES];
+            BitConverter.writeLong(bytes, 0, Long.parseLong(getAndRemoveIfExists(data, getName())));
+            return ByteBuffer.wrap(bytes);
         }
 
         @Override
         public String deserialize(ByteBuffer serializedValue) {
             Map<String, Function<Long, String>> fieldMap = new HashMap<>();
             fieldMap.put(getName(), String::valueOf);
-            return applyDeserializer(serializedValue, bytes -> BitConverter.readLong(bytes, 0), fieldMap);
+            return applyDeserializer(serializedValue, bytes -> serializedValue.getLong(), fieldMap);
         }
     }
 }

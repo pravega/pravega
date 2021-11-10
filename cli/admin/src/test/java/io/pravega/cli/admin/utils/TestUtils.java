@@ -280,24 +280,25 @@ public final class TestUtils {
     /**
      * Generate a StreamSegmentRecord string using the provided parameters.
      *
-     * @param sn segment number
-     * @param ce creation epoch
-     * @param ct creation time
-     * @param ks key start
-     * @param ke key end
+     * @param segmentNumber segment number
+     * @param creationEpoch creation epoch
+     * @param creationTime creation time
+     * @param keyStart key start
+     * @param keyEnd key end
      * @return A string containing a StreamSegmentRecord generated using the above parameters.
      */
-    public static String generateStreamSegmentRecordString(int sn, int ce, long ct, double ks, double ke) {
+    public static String generateStreamSegmentRecordString(int segmentNumber, int creationEpoch, long creationTime,
+                                                           double keyStart, double keyEnd) {
         StringBuilder builder = new StringBuilder();
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, String.valueOf(sn),
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, String.valueOf(segmentNumber),
                 STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_EPOCH, String.valueOf(ce),
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_EPOCH, String.valueOf(creationEpoch),
                 STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_TIME, String.valueOf(ct),
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_TIME, String.valueOf(creationTime),
                 STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_START, String.valueOf(ks),
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_START, String.valueOf(keyStart),
                 STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_END, String.valueOf(ke),
+        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_END, String.valueOf(keyEnd),
                 STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
         return builder.toString();
     }

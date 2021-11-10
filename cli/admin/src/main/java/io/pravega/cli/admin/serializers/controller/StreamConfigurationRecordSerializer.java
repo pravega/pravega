@@ -29,27 +29,31 @@ import java.util.function.Function;
 
 public class StreamConfigurationRecordSerializer extends AbstractSerializer {
 
-    public static final String STREAM_CONFIGURATION_RECORD_SCOPE = "scope";
-    public static final String STREAM_CONFIGURATION_RECORD_STREAM_NAME = "streamName";
-    public static final String STREAM_CONFIGURATION_RECORD_UPDATING = "updating";
-    public static final String STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE = "tagOnlyUpdate";
-    public static final String STREAM_CONFIGURATION_RECORD_REMOVE_TAGS = "removeTags";
+    static final String STREAM_CONFIGURATION_RECORD_SCOPE = "scope";
+    static final String STREAM_CONFIGURATION_RECORD_STREAM_NAME = "streamName";
+    static final String STREAM_CONFIGURATION_RECORD_UPDATING = "updating";
+    static final String STREAM_CONFIGURATION_RECORD_TAG_ONLY_UPDATE = "tagOnlyUpdate";
+    static final String STREAM_CONFIGURATION_RECORD_REMOVE_TAGS = "removeTags";
 
-    public static final String STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES = "rolloverSizeBytes";
-    public static final String STREAM_CONFIGURATION_TAGS = "tags";
-    public static final String STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT = "timestampAggregationTimeout";
+    static final String STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES = "rolloverSizeBytes";
+    static final String STREAM_CONFIGURATION_TAGS = "tags";
+    static final String STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT = "timestampAggregationTimeout";
 
-    public static final String SCALING_POLICY = "scalingPolicy";
-    public static final String SCALING_POLICY_SCALE_TYPE = "scaleType";
-    public static final String SCALING_POLICY_SCALE_FACTOR = "scaleFactor";
-    public static final String SCALING_POLICY_MIN_NUM_SEGMENTS = "minNumSegments";
-    public static final String SCALING_POLICY_TARGET_RATE = "targetRate";
+    static final String SCALING_POLICY = "scalingPolicy";
+    static final String SCALING_POLICY_SCALE_TYPE = "scaleType";
+    static final String SCALING_POLICY_SCALE_FACTOR = "scaleFactor";
+    static final String SCALING_POLICY_MIN_NUM_SEGMENTS = "minNumSegments";
+    static final String SCALING_POLICY_TARGET_RATE = "targetRate";
 
-    public static final String RETENTION_POLICY = "retentionPolicy";
-    public static final String RETENTION_POLICY_RETENTION_TYPE = "retentionType";
-    public static final String RETENTION_POLICY_RETENTION_PARAM = "retentionParam";
-    public static final String RETENTION_POLICY_RETENTION_MAX = "retentionMax";
+    static final String RETENTION_POLICY = "retentionPolicy";
+    static final String RETENTION_POLICY_RETENTION_TYPE = "retentionType";
+    static final String RETENTION_POLICY_RETENTION_PARAM = "retentionParam";
+    static final String RETENTION_POLICY_RETENTION_MAX = "retentionMax";
 
+    static final String POLICY_PAIR_DELIMITER = "|";
+    static final String POLICY_VALUE_DELIMITER = ":";
+
+    private static final String POLICY_PAIR_DELIMITER_REGEX = "\\|";
     private static final String NO_POLICY = "NO_POLICY";
 
     private static final Map<String, Function<ScalingPolicy, String>> SCALING_POLICY_FIELD_MAP =
@@ -77,24 +81,8 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                     .put(STREAM_CONFIGURATION_TAGS, r -> convertCollectionToString(r.getStreamConfiguration().getTags(), s -> s))
                     .put(STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES, r -> String.valueOf(r.getStreamConfiguration().getRolloverSizeBytes()))
                     .put(STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT, r -> String.valueOf(r.getStreamConfiguration().getTimestampAggregationTimeout()))
-                    .put(SCALING_POLICY, r -> {
-                        ScalingPolicy sp = r.getStreamConfiguration().getScalingPolicy();
-                        if (sp != null) {
-                            StringBuilder scalingPolicyBuilder = new StringBuilder();
-                            SCALING_POLICY_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(scalingPolicyBuilder, name, f.apply(sp), "|", ":"));
-                            return scalingPolicyBuilder.toString();
-                        }
-                        return NO_POLICY;
-                    })
-                    .put(RETENTION_POLICY, r -> {
-                        RetentionPolicy rp = r.getStreamConfiguration().getRetentionPolicy();
-                        if (rp != null) {
-                            StringBuilder retentionPolicyBuilder = new StringBuilder();
-                            RETENTION_POLICY_FIELD_MAP.forEach((name, f) -> appendFieldWithCustomDelimiters(retentionPolicyBuilder, name, f.apply(rp), "|", ":"));
-                            return retentionPolicyBuilder.toString();
-                        }
-                        return NO_POLICY;
-                    })
+                    .put(SCALING_POLICY, r -> convertPolicyToString(r.getStreamConfiguration().getScalingPolicy(), SCALING_POLICY_FIELD_MAP))
+                    .put(RETENTION_POLICY, r -> convertPolicyToString(r.getStreamConfiguration().getRetentionPolicy(), RETENTION_POLICY_FIELD_MAP))
                     .build();
 
     @Override
@@ -121,7 +109,17 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
         return applyDeserializer(serializedValue, StreamConfigurationRecord::fromBytes, STREAM_CONFIGURATION_RECORD_FIELD_MAP);
     }
 
-    private StreamConfiguration getStreamConfigurationFromData(Map<String, String> data) {
+    private static <T> String convertPolicyToString(T policy, Map<String, Function<T, String>> fieldMap) {
+        if (policy != null) {
+            StringBuilder policyBuilder = new StringBuilder();
+            fieldMap.forEach((name, f) -> appendFieldWithCustomDelimiters(policyBuilder, name, f.apply(policy),
+                    POLICY_PAIR_DELIMITER, POLICY_VALUE_DELIMITER));
+            return policyBuilder.toString();
+        }
+        return NO_POLICY;
+    }
+
+    private static StreamConfiguration getStreamConfigurationFromData(Map<String, String> data) {
         return StreamConfiguration.builder()
                 .rolloverSizeBytes(Long.parseLong(getAndRemoveIfExists(data, STREAM_CONFIGURATION_ROLLOVER_SIZE_BYTES)))
                 .timestampAggregationTimeout(Long.parseLong(getAndRemoveIfExists(data, STREAM_CONFIGURATION_TIMESTAMP_AGGREGATION_TIMEOUT)))
@@ -131,11 +129,11 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                 .build();
     }
 
-    private ScalingPolicy getScalingPolicyFromData(String scalingPolicyData) {
+    private static ScalingPolicy getScalingPolicyFromData(String scalingPolicyData) {
         if (scalingPolicyData.equalsIgnoreCase(NO_POLICY)) {
             return null;
         }
-        Map<String, String> scalingPolicyDataMap = parseStringDataWithCustomDelimiters(scalingPolicyData, "|", ":");
+        Map<String, String> scalingPolicyDataMap = parseStringDataWithCustomDelimiters(scalingPolicyData, POLICY_PAIR_DELIMITER_REGEX, POLICY_VALUE_DELIMITER);
         return ScalingPolicy.builder()
                 .scaleType(ScalingPolicy.ScaleType.valueOf(getAndRemoveIfExists(scalingPolicyDataMap, SCALING_POLICY_SCALE_TYPE).toUpperCase()))
                 .scaleFactor(Integer.parseInt(getAndRemoveIfExists(scalingPolicyDataMap, SCALING_POLICY_SCALE_FACTOR)))
@@ -144,11 +142,11 @@ public class StreamConfigurationRecordSerializer extends AbstractSerializer {
                 .build();
     }
 
-    private RetentionPolicy getRetentionPolicyFromData(String retentionPolicyData) {
+    private static RetentionPolicy getRetentionPolicyFromData(String retentionPolicyData) {
         if (retentionPolicyData.equalsIgnoreCase(NO_POLICY)) {
             return null;
         }
-        Map<String, String> retentionPolicyDataMap = parseStringDataWithCustomDelimiters(retentionPolicyData, "|", ":");
+        Map<String, String> retentionPolicyDataMap = parseStringDataWithCustomDelimiters(retentionPolicyData, POLICY_PAIR_DELIMITER_REGEX, POLICY_VALUE_DELIMITER);
         return RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.valueOf(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_TYPE).toUpperCase()))
                 .retentionParam(Long.parseLong(getAndRemoveIfExists(retentionPolicyDataMap, RETENTION_POLICY_RETENTION_PARAM)))
