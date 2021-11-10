@@ -28,10 +28,17 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import java.util.ArrayList;
+import java.util.Optional;
+
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
 
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.createHostTag;
@@ -41,6 +48,8 @@ class StatsProviderImpl implements StatsProvider {
     @Getter
     private final CompositeMeterRegistry metrics;
     private final MetricsConfig conf;
+
+    private PrometheusMeterRegistry prometheusRegistry;
 
     StatsProviderImpl(MetricsConfig conf) {
         this(conf, Metrics.globalRegistry);
@@ -74,6 +83,11 @@ class StatsProviderImpl implements StatsProvider {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
 
+        if (conf.isEnablePrometheus()) {
+            this.prometheusRegistry = new PrometheusMeterRegistry(RegistryConfigUtil.createPrometheusConfig(conf));
+            metrics.add(prometheusRegistry);
+        }
+
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
         init();
@@ -82,7 +96,7 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void startWithoutExporting() {
-
+        this.prometheusRegistry = null;
         for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             metrics.remove(registry);
         }
@@ -94,7 +108,8 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void close() {
-        for (MeterRegistry registry : metrics.getRegistries()) {
+        this.prometheusRegistry = null;
+        for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             registry.close();
             metrics.remove(registry);
         }
@@ -108,5 +123,28 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public DynamicLogger createDynamicLogger() {
         return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics()));
+    }
+
+    @Synchronized
+    @Override
+    public Optional<Object> prometheusResource() {
+        if (!conf.isEnablePrometheus()) {
+            return Optional.empty();
+        }
+        return Optional.of(new PrometheusResource(this.prometheusRegistry));
+    }
+
+    @Path("/prometheus")
+    public static class PrometheusResource {
+        private final PrometheusMeterRegistry promRegistry;
+
+        public PrometheusResource(PrometheusMeterRegistry promRegistry) {
+            this.promRegistry = promRegistry;
+        }
+
+        @GET
+        public Response scrape() {
+            return Response.ok(this.promRegistry.scrape(), "text/plain").build();
+        }
     }
 }
