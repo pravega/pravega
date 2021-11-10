@@ -51,7 +51,7 @@ public class HistoryTimeSeriesSerializerTest {
                                 generateHistoryTimeSeriesRecordString(2, 2, 100L,
                                         ImmutableList.of(generateStreamSegmentRecordString(4, 5, 4L, 1.2, 1.3)),
                                         ImmutableList.of(generateStreamSegmentRecordString(5, 6, 5L, 2.3, 3.3)))),
-                        s-> s, HISTORY_TIME_SERIES_RECORD_LIST_ENTRY_DELIMITER));
+                        s -> s, HISTORY_TIME_SERIES_RECORD_LIST_ENTRY_DELIMITER));
 
         String userString = userGeneratedMetadataBuilder.toString();
         HistoryTimeSeriesSerializer serializer = new HistoryTimeSeriesSerializer();
