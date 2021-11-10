@@ -29,7 +29,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
-import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -279,8 +278,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> addNewChunk(MetadataTransaction txn) {
         // Create new chunk
-        String newChunkName = getNewChunkName(handle.getSegmentName(),
-                segmentMetadata.getLength());
+        String newChunkName = chunkedSegmentStorage.getNewChunkName(handle.getSegmentName(), segmentMetadata.getLength());
 
         return chunkedSegmentStorage.getGarbageCollector().trackNewChunk(txn.getVersion(), newChunkName)
                 .thenComposeAsync( v -> {
@@ -343,10 +341,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment = %s", handle.getSegmentName());
         Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment = %s", handle.getSegmentName());
         Preconditions.checkArgument(length >= 0, "length must be non negative. Segment = %s", handle.getSegmentName());
-    }
-
-    private String getNewChunkName(String segmentName, long offset) {
-        return NameUtils.getSegmentChunkName(segmentName, chunkedSegmentStorage.getEpoch(), offset);
     }
 
     /**
