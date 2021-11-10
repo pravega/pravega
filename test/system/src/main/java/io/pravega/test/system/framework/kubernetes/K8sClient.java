@@ -705,11 +705,11 @@ public class K8sClient {
                     log.info("Expected running pod count of {}:{}, actual running pod count of {}:{}.", labelValue, expectedPodCount, labelValue, runCount);
                     if (runCount == expectedPodCount) {
                         retriesRemaining.set(0);
-                    } else if (retriesRemaining.get() <= 0) {
-                        retriesRemaining.set(-1);
+                    } else if (retriesRemaining.get() == 0) {
+                        retriesRemaining.set(Byte.MIN_VALUE);
                     }
                 }, executor).thenCompose(v -> {
-                    if (retriesRemaining.get() == -1) {
+                    if (retriesRemaining.get() == Byte.MIN_VALUE) {
                         log.error("Retries exhausted waiting for pod(s): {}", labelValue);
                     }
                     // Always printing the information for a set of pods with a given label (after each scale event)
