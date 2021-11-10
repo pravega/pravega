@@ -109,7 +109,7 @@ public class PrometheusResourceTest {
         server.shutdown();
     }
 
-    public class PrometheusApplication extends Application {
+    public static class PrometheusApplication extends Application {
         private StatsProvider statsProvider;
 
         PrometheusApplication(StatsProvider sp) {
