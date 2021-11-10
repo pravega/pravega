@@ -683,8 +683,13 @@ public class K8sClient {
     public CompletableFuture<Void> waitUntilPodIsRunningRetries(String namespace, String labelName, String labelValue, int expectedPodCount, int retries) {
         AtomicInteger retriesRemaining = new AtomicInteger(retries);
         Supplier<Boolean> shouldRetry = () -> {
-            log.info(" Waiting for pod(s) -- retry attempt {}/{}", retriesRemaining.get(), retries);
-            return retriesRemaining.getAndDecrement() > 0;
+            int remaining = retriesRemaining.getAndDecrement();
+            if (remaining > 0) {
+                log.info(" Waiting for pod(s) -- retry attempt {}/{}", retriesRemaining.get(), retries);
+                return true;
+            } else {
+                return false;
+            }
         };
 
         return Futures.loop(shouldRetry,
@@ -719,14 +724,7 @@ public class K8sClient {
                         // Return a simplified list of the active pods (appended with their container id) to make
                         // parsing the logs easier.
                         List<String> names = pods.getItems().stream().map(pod -> {
-                            return String.format("%s-%s",
-                                    pod.getMetadata().getName(),
-                                    pod.getStatus().getContainerStatuses()
-                                            .stream()
-                                            .findFirst()
-                                            .orElse(new V1ContainerStatus().containerID(""))
-                                            .getContainerID()
-                                            .substring(0, 8));
+                            return pod.getMetadata().getName();
                         }).collect(Collectors.toList());
                         log.info("Active pods after scale event: {}", names);
                         // Outputs JSON like object of PodList.
