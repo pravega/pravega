@@ -666,7 +666,7 @@ public class K8sClient {
      * @return A future which completes once the number of running pods matches the given criteria.
      */
     public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int expectedPodCount) {
-        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, Integer.MAX_VALUE);
+        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, Byte.MAX_VALUE);
     }
 
     /**
@@ -716,7 +716,21 @@ public class K8sClient {
                     // will help make it easier to keep track of the active set of pods during a particular moment
                     // in any given system test. It also allows one to get pod state in event of a scale failure.
                     return getPodsWithLabel(namespace, labelName, labelValue).thenAccept(pods -> {
-                        log.info("{}", pods);
+                        // Return a simplified list of the active pods (appended with their container id) to make
+                        // parsing the logs easier.
+                        List<String> names = pods.getItems().stream().map(pod -> {
+                            return String.format("%s-%s",
+                                    pod.getMetadata().getName(),
+                                    pod.getStatus().getContainerStatuses()
+                                            .stream()
+                                            .findFirst()
+                                            .orElse(new V1ContainerStatus().containerID(""))
+                                            .getContainerID()
+                                            .substring(0, 8));
+                        }).collect(Collectors.toList());
+                        log.info("Active pods after scale event: {}", names);
+                        // Outputs JSON like object of PodList.
+                        log.debug("{}", pods);
                     });
         });
     }
