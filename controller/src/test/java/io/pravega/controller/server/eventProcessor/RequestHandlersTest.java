@@ -123,7 +123,7 @@ import static org.mockito.Mockito.verify;
 
 public abstract class RequestHandlersTest {
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
+    private PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     protected CuratorFramework zkClient;
 
     private final String scope = "scope";
