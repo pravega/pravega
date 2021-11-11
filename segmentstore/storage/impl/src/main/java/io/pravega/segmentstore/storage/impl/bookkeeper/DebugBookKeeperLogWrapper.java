@@ -19,10 +19,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
+import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ReadOnlyLogMetadata;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteSettings;
 import java.time.Duration;
@@ -43,14 +45,13 @@ import lombok.val;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.data.Stat;
 
 /**
  * Wrapper for a BookKeeperLog which only exposes methods that should be used for debugging/admin tools.
  * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
  * from the admin tools.
  */
-public class DebugLogWrapper implements AutoCloseable {
+public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     //region Members
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
@@ -72,7 +73,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @param config     BookKeeperConfig to use.
      * @param executor   An Executor to use for async operations.
      */
-    DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
+    DebugBookKeeperLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
         this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
         this.bkClient = bookKeeper;
         this.config = config;
@@ -92,14 +93,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
     //region Operations
 
-    /**
-     * Creates a special DurableDataLog wrapping the BookKeeperLog that does only supports reading from the log. It does
-     * not support initialization or otherwise modifications to the log. Accessing this log will not interfere with other
-     * active writes to this log (i.e., it will not fence anyone out or close Ledgers that shouldn't be closed).
-     *
-     * @return A new DurableDataLog instance.
-     * @throws DataLogInitializationException If an exception occurred fetching metadata from ZooKeeper.
-     */
+    @Override
     public DurableDataLog asReadOnly() throws DataLogInitializationException {
         return new ReadOnlyBooKeeperLog(this.log.getLogId(), this.log.loadMetadata());
     }
@@ -112,7 +106,8 @@ public class DebugLogWrapper implements AutoCloseable {
      * the first time accessing this log).
      * @throws DataLogInitializationException If an Exception occurred.
      */
-    public ReadOnlyLogMetadata fetchMetadata() throws DataLogInitializationException {
+    @Override
+    public ReadOnlyBookkeeperLogMetadata fetchMetadata() throws DataLogInitializationException {
         return this.log.loadMetadata();
     }
 
@@ -242,23 +237,31 @@ public class DebugLogWrapper implements AutoCloseable {
      * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
      *
      * @param metadata New metadata to set in the original BookkeeperLog metadata path.
-     * @return Result from metadata operation against Zookeeper.
-     *
-     * @throws Exception in case there is a problem managing metadata from Zookeeper.
+     * @throws DurableDataLogException in case there is a problem managing metadata from Zookeeper.
      */
-    public Stat forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws Exception {
-        byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
-        return this.log.getZkClient().setData().forPath(this.log.getLogNodePath(), serializedMetadata);
+    @Override
+    public void forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws DurableDataLogException {
+        try {
+            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
+            this.log.getZkClient().setData().forPath(this.log.getLogNodePath(), serializedMetadata);
+        } catch (Exception e) {
+            throw new DurableDataLogException("Problem overwriting Bookkeeper Log metadata.", e);
+        }
     }
 
     /**
      * Delete the metadata of the BookkeeperLog in Zookeeper. CAUTION: This is a destructive operation and should be
      * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
      *
-     * @throws Exception in case there is a problem managing metadata from Zookeeper.
+     * @throws DurableDataLogException in case there is a problem managing metadata from Zookeeper.
      */
-    public void deleteDurableLogMetadata() throws Exception {
-        this.log.getZkClient().delete().forPath(this.log.getLogNodePath());
+    @Override
+    public void deleteDurableLogMetadata() throws DurableDataLogException {
+        try {
+            this.log.getZkClient().delete().forPath(this.log.getLogNodePath());
+        } catch (Exception e) {
+            throw new DurableDataLogException("Problem deleting Bookkeeper Log metadata.", e);
+        }
     }
 
     private void initialize() throws DurableDataLogException {
@@ -292,7 +295,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
         @Override
         public CloseableIterator<ReadItem, DurableDataLogException> getReader() {
-            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
+            return new LogReader(this.logId, this.logMetadata, DebugBookKeeperLogWrapper.this.bkClient, DebugBookKeeperLogWrapper.this.config);
         }
 
         @Override

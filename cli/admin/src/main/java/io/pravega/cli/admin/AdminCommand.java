@@ -179,7 +179,7 @@ public abstract class AdminCommand {
      * @param args              The arguments with the message.
      */
     protected void output(String messageTemplate, Object... args) {
-        this.out.printf(messageTemplate + "%n", args);
+        this.out.printf(messageTemplate + System.lineSeparator(), args);
     }
 
     /**
@@ -189,7 +189,7 @@ public abstract class AdminCommand {
      * @param args              The arguments with the message.
      */
     protected void outputError(String messageTemplate, Object... args) {
-        this.err.printf(messageTemplate + "%n", args);
+        this.err.printf(messageTemplate + System.lineSeparator(), args);
     }
 
     protected void prettyJSONOutput(String jsonString) {

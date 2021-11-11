@@ -58,8 +58,8 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
-import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -202,7 +202,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Command under test
-        TestUtils.executeCommand("storage durableLog-recovery", STATE.get());
+        TestUtils.executeCommand("data-recovery durableLog-recovery", STATE.get());
 
         // Start a new segment store and controller
         this.factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(), pravegaRunner.getBookKeeperRunner().getZkClient().get(),
@@ -229,7 +229,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int containerCount = 1;
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
+        pravegaRunner.startBookKeeperRunner(instanceId);
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testListSegmentsCommand";
 
@@ -259,7 +259,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Execute the command for list segments
-        TestUtils.executeCommand("storage list-segments " + this.logsDir.getAbsolutePath(), STATE.get());
+        TestUtils.executeCommand("data-recovery list-segments " + this.logsDir.getAbsolutePath(), STATE.get());
         // There should be a csv file created for storing segments in Container 0
         Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "Container_0.csv").exists());
         // Check if the file has segments listed in it
@@ -703,25 +703,25 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         val newFactory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
         newFactory.initialize();
         @Cleanup
-        DebugLogWrapper debugLogWrapper0 = newFactory.createDebugLogWrapper(0);
+        DebugBookKeeperLogWrapper debugLogWrapper0 = newFactory.createDebugLogWrapper(0);
         int container0LogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, 0, debugLogWrapper0.asReadOnly());
         Assert.assertTrue(container0LogEntries > 0);
-        ReadOnlyLogMetadata metadata0 = debugLogWrapper0.fetchMetadata();
+        ReadOnlyBookkeeperLogMetadata metadata0 = debugLogWrapper0.fetchMetadata();
         Assert.assertNotNull(metadata0);
 
         // Create a Repair log with some random content.
         @Cleanup
-        DurableDataLog repairLog = newFactory.createDurableDataLog(DataRecoveryCommand.REPAIR_LOG_ID);
+        DurableDataLog repairLog = newFactory.createDurableDataLog(this.factory.getRepairLogId());
         repairLog.initialize(TIMEOUT);
         repairLog.append(new CompositeByteArraySegment(new byte[0]), TIMEOUT).join();
         @Cleanup
-        DebugLogWrapper debugLogWrapperRepair = newFactory.createDebugLogWrapper(0);
+        DebugBookKeeperLogWrapper debugLogWrapperRepair = newFactory.createDebugLogWrapper(0);
 
         // Overwrite metadata of repair container with metadata of container 0.
         debugLogWrapperRepair.forceMetadataOverWrite(metadata0);
         // Now the amount of log entries read should be equal to the ones of container 0.
-        int newContainerRepairLogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, DataRecoveryCommand.REPAIR_LOG_ID, debugLogWrapperRepair.asReadOnly());
-        ReadOnlyLogMetadata newMetadata1 = debugLogWrapperRepair.fetchMetadata();
+        int newContainerRepairLogEntries = command.readDurableDataLogWithCustomCallback((a, b) -> { }, this.factory.getRepairLogId(), debugLogWrapperRepair.asReadOnly());
+        ReadOnlyBookkeeperLogMetadata newMetadata1 = debugLogWrapperRepair.fetchMetadata();
         Assert.assertEquals(container0LogEntries, newContainerRepairLogEntries);
         Assert.assertEquals(metadata0.getLedgers(), newMetadata1.getLedgers());
 

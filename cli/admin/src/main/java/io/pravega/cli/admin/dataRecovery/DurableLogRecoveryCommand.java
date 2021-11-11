@@ -17,19 +17,43 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.concurrent.Services;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
+import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
+import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
+import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
+import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
+import io.pravega.segmentstore.server.reading.ReadIndexConfig;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
+import io.pravega.segmentstore.server.writer.StorageWriterFactory;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.val;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -39,7 +63,26 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
     private static final int CONTAINER_EPOCH = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
+    private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
+            .build();
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().build();
+
+    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
+
+    private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
+            .builder()
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .build();
+
+    private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
+
+    private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
+    private final StorageFactory storageFactory;
 
     /**
      * Creates an instance of DurableLogRecoveryCommand class.
@@ -49,6 +92,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
     public DurableLogRecoveryCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
+        this.storageFactory = createStorageFactory(this.executorService);
     }
 
     @Override
@@ -144,5 +188,44 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "durableLog-recovery", "Recovers the state of the DurableLog from the storage.");
+    }
+
+    // Creates the environment for debug segment container
+    private static Context createContext(ScheduledExecutorService scheduledExecutorService) {
+        return new Context(scheduledExecutorService);
+    }
+
+    private static class Context implements AutoCloseable {
+        @Getter
+        public final ReadIndexFactory readIndexFactory;
+        @Getter
+        public final AttributeIndexFactory attributeIndexFactory;
+        @Getter
+        public final WriterFactory writerFactory;
+        public final CacheStorage cacheStorage;
+        public final CacheManager cacheManager;
+
+        Context(ScheduledExecutorService scheduledExecutorService) {
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(WRITER_CONFIG, scheduledExecutorService);
+        }
+
+        public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
+            return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, createTableExtension(c, e));
+        }
+
+        private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
+            return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
+        }
+
+        @Override
+        public void close() {
+            this.readIndexFactory.close();
+            this.cacheManager.close();
+            this.cacheStorage.close();
+        }
     }
 }
