@@ -816,6 +816,22 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgerCount, readCount);
     }
 
+    @Test
+    public void testDebugLogWrapperFactoryMethods() throws DurableDataLogException {
+        Assert.assertEquals(this.factory.get().getBackupLogId(), Ledgers.BACKUP_LOG_ID);
+        Assert.assertEquals(this.factory.get().getRepairLogId(), Ledgers.REPAIR_LOG_ID);
+        @Cleanup
+        DebugBookKeeperLogWrapper wrapper = this.factory.get().createDebugLogWrapper(0);
+        AssertExtensions.assertThrows(DurableDataLogException.class, () -> wrapper.forceMetadataOverWrite(new LogMetadata(1)));
+        @Cleanup
+        val bkLog = this.factory.get().createDurableDataLog(0);
+        bkLog.initialize(TIMEOUT);
+        wrapper.forceMetadataOverWrite(new LogMetadata(1));
+        Assert.assertNotNull(wrapper.fetchMetadata());
+        wrapper.deleteDurableLogMetadata();
+        Assert.assertNull(wrapper.fetchMetadata());
+    }
+
     @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_SIZE;

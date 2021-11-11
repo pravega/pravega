@@ -56,7 +56,7 @@ public class TestDurableDataLogFactory implements DurableDataLogFactory {
 
     @Override
     public DebugDurableDataLogWrapper createDebugLogWrapper(int logId) {
-        throw new UnsupportedOperationException();
+        return this.wrappedFactory.createDebugLogWrapper(logId);
     }
 
     @Override

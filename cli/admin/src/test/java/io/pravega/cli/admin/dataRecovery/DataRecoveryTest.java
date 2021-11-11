@@ -330,6 +330,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
 
+        // Disable Original Log first.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+
         // Now, re-execute the command to exercise the case in which there is an existing backup log.
         Mockito.doReturn(1).when(command).getIntUserInput(Mockito.any());
         Mockito.doReturn(true).doReturn(false).doReturn(false)
@@ -340,6 +344,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
 
+        // Disable Original Log first.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+
         // Re-execute, now adding a replace operation and not destroying previous backup log.
         Mockito.doReturn(2).when(command).getIntUserInput(Mockito.any());
         Mockito.doReturn(true).doReturn(false).doReturn(true)
@@ -348,6 +356,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn("replace").doReturn("StreamSegmentSealOperation").doReturn("replace")
                 .doReturn("StreamSegmentSealOperation").when(command).getStringUserInput(Mockito.any());
         command.execute();
+
+        // Disable Original Log first.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
 
         // Do nothing if we find an existing backup log.
         Mockito.doReturn(3).when(command).getIntUserInput(Mockito.any());
