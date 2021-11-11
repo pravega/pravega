@@ -64,7 +64,7 @@ public final class Ledgers {
      * For special log repair operations, we need to store the original content of the damaged log on a temporary backup
      * log.
      */
-    static final int BACKUP_LOG_ID = Integer.MAX_VALUE;
+    static final int BACKUP_LOG_ID = Integer.MAX_VALUE - 1;
 
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.

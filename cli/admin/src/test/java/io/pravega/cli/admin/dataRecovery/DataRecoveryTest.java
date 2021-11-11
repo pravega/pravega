@@ -110,7 +110,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Rule
-    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(12000, TimeUnit.SECONDS);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
@@ -119,7 +119,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * A directory for FILESYSTEM storage as LTS.
      */
     private File baseDir = null;
-    private FileSystemStorageConfig adapterConfig;
     private StorageFactory storageFactory = null;
 
     /**
@@ -137,7 +136,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     public void setUp() throws Exception {
         this.baseDir = Files.createTempDirectory("TestDataRecovery").toFile().getAbsoluteFile();
         this.logsDir = Files.createTempDirectory("DataRecovery").toFile().getAbsoluteFile();
-        this.adapterConfig = FileSystemStorageConfig.builder()
+        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
@@ -316,11 +315,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
 
         // First execution, just exit when asking to disable the original log.
-        Mockito.doReturn(false).when(command).confirmContinue();
         command.execute();
 
+        // Disable Original Log first.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+
         // The test will exercise editing the Container 0 log with an operation of each type.
-        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).when(command).confirmContinue();
         Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L)
                 .when(command).getLongUserInput(Mockito.any());
@@ -330,7 +332,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Now, re-execute the command to exercise the case in which there is an existing backup log.
         Mockito.doReturn(1).when(command).getIntUserInput(Mockito.any());
-        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).when(command).confirmContinue();
         Mockito.doReturn(900L).doReturn(901L).doReturn(902L).doReturn(1L)
                 .when(command).getLongUserInput(Mockito.any());
@@ -340,7 +342,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-execute, now adding a replace operation and not destroying previous backup log.
         Mockito.doReturn(2).when(command).getIntUserInput(Mockito.any());
-        Mockito.doReturn(true).doReturn(true).doReturn(false).doReturn(true)
+        Mockito.doReturn(true).doReturn(false).doReturn(true)
                 .when(command).confirmContinue();
         Mockito.doReturn(900L).doReturn(1L).when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("replace").doReturn("StreamSegmentSealOperation").doReturn("replace")

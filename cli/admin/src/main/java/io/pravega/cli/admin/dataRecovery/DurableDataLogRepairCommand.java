@@ -225,7 +225,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         // Validate that the Original and Backup logs have the same number of operations.
         int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) -> { }, containerId, originalDataLog.asReadOnly());
         @Cleanup
-        val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId());
+        val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId());
         @Cleanup
         val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
         int backupLogReadOperations = readDurableDataLogWithCustomCallback((a, b) ->
