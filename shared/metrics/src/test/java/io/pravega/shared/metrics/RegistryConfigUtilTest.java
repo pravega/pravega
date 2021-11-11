@@ -72,4 +72,17 @@ public class RegistryConfigUtilTest {
         assertEquals("2h", testConfig.retentionPolicy());
         assertNull(testConfig.get("Undefined Key"));
     }
+
+    @Test
+    public void testPrometheusConfig() {
+        MetricsConfig appConfig = MetricsConfig.builder()
+                .with(MetricsConfig.OUTPUT_FREQUENCY, 40)
+                .with(MetricsConfig.METRICS_PREFIX, "prometheusPrefix")
+                .build();
+
+        InfluxConfig testConfig = RegistryConfigUtil.createInfluxConfig(appConfig);
+        assertTrue(40 == testConfig.step().getSeconds());
+        assertEquals("prometheusPrefix", testConfig.prefix());
+        assertNull(testConfig.get("Undefined Key"));
+    }
 }

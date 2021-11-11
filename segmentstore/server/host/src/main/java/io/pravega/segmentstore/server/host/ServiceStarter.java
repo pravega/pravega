@@ -48,7 +48,9 @@ import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 
 import java.lang.management.ManagementFactory;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Getter;
@@ -176,9 +178,12 @@ public final class ServiceStarter {
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
-            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
-                    new AuthHandlerManager(serviceConfig.getRestServerConfig()),
-                    healthServiceManager.getEndpoint())));
+            List<Object> resources = new ArrayList<>();
+            resources.add(new HealthImpl(new AuthHandlerManager(serviceConfig.getRestServerConfig()), healthServiceManager.getEndpoint()));
+
+            MetricsProvider.getMetricsProvider().prometheusResource().ifPresent(resources::add);
+
+            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Set.copyOf(resources));
             restServer.startAsync();
             restServer.awaitRunning();
         }
