@@ -724,11 +724,20 @@ public class K8sClient {
                         // Return a simplified list of the active pods (appended with their container id) to make
                         // parsing the logs easier.
                         List<String> names = pods.getItems().stream().map(pod -> {
-                            return pod.getMetadata().getName();
+                            String name = pod.getMetadata().getName();
+                            String container = pod.getStatus().getContainerStatuses()
+                                            .stream()
+                                            .findFirst()
+                                            .orElse(new V1ContainerStatus().containerID(""))
+                                            .getContainerID();
+
+                                          return String.format("%s-%s", name, container);
                         }).collect(Collectors.toList());
                         log.info("Active pods after scale event: {}", names);
                         // Outputs JSON like object of PodList.
-                        log.debug("{}", pods);
+                        if (retriesRemaining.get() == Byte.MIN_VALUE) {
+                            log.debug("{}", pods);
+                        }
                     });
         });
     }
