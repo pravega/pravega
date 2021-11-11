@@ -907,7 +907,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
     }
 
-    class AbortedUserOperation extends RuntimeException {
+    static class AbortedUserOperation extends RuntimeException {
     }
 
     public static CommandDescriptor descriptor() {
