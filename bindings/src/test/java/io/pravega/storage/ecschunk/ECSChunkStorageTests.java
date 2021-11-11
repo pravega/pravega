@@ -16,7 +16,7 @@
 package io.pravega.storage.ecschunk;
 
 import io.pravega.segmentstore.storage.chunklayer.*;
-import io.pravega.storage.chunk.ECSChunkStorage;
+import io.pravega.storage.chunk.ECSChunkObjectStorage;
 import lombok.val;
 import org.junit.After;
 import org.junit.Before;
@@ -26,7 +26,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Unit tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+ * Unit tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
  */
 public class ECSChunkStorageTests extends SimpleStorageTests {
     private ECSChunkTestContext testContext = null;
@@ -49,11 +49,11 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+        return new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
     }
 
     /**
-     * {@link ChunkedRollingStorageTests} tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     * {@link ChunkedRollingStorageTests} tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class ECSStorageRollingTests extends ChunkedRollingStorageTests {
         private ECSChunkTestContext testContext = null;
@@ -72,12 +72,12 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+            return new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
     }
 
     /**
-     * {@link ChunkStorageTests} tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     * {@link ChunkStorageTests} tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class ECSChunkStorageTestSuite extends ChunkStorageTests {
         private ECSChunkTestContext testContext = null;
@@ -100,7 +100,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+            return new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
 
         /**
@@ -116,7 +116,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
     }
 
     /**
-     * {@link SystemJournalTests} tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     * {@link SystemJournalTests} tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class ECSChunkStorageSystemJournalTests extends SystemJournalTests {
         private ECSChunkTestContext testContext = null;
@@ -139,12 +139,12 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+            return new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
         }
     }
 
     /**
-     * {@link ChunkedRollingStorageTests} tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     * {@link ChunkedRollingStorageTests} tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class NoAppendECSStorageRollingTests extends ChunkedRollingStorageTests {
         private ECSChunkTestContext testContext = null;
@@ -163,13 +163,13 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+            val ret = new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
             return ret;
         }
     }
 
     /**
-     * {@link SystemJournalTests} tests for {@link ECSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     * {@link SystemJournalTests} tests for {@link ECSChunkObjectStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class NoAppendECSChunkStorageSystemJournalTests extends SystemJournalTests {
         private ECSChunkTestContext testContext = null;
@@ -190,7 +190,7 @@ public class ECSChunkStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ECSChunkStorage(testContext.clients, testContext.adapterConfig, executorService());
+            val ret = new ECSChunkObjectStorage(testContext.clients, testContext.adapterConfig, executorService());
             return ret;
         }
     }

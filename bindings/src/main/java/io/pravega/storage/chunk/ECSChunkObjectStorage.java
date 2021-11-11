@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static software.amazon.awssdk.http.HttpStatusCode.*;
 
 @Slf4j
-public class ECSChunkStorage extends BaseChunkStorage {
+public class ECSChunkObjectStorage extends BaseChunkStorage {
 
     @NonNull
     private final ECSChunkStorageConfig config;
@@ -43,7 +43,7 @@ public class ECSChunkStorage extends BaseChunkStorage {
      *
      * @param executor An Executor for async operations.
      */
-    public ECSChunkStorage(List<S3Client> clientList, ECSChunkStorageConfig config, Executor executor) {
+    public ECSChunkObjectStorage(List<S3Client> clientList, ECSChunkStorageConfig config, Executor executor) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.clientList = Preconditions.checkNotNull(clientList, "client");

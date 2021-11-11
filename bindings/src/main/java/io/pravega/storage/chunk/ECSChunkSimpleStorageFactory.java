@@ -5,6 +5,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.storage.chunk.netty.NettyConnection;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
@@ -32,12 +33,11 @@ public class ECSChunkSimpleStorageFactory implements SimpleStorageFactory {
     private final ScheduledExecutorService executor;
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new ECSChunkStorage(createS3Clients(), this.config, this.executor),
+        return new ChunkedSegmentStorage(containerId,
+                this.config.isNettyClient()? new ECSChunkNettyStorage(createNettyClient(), this.config, this.executor) :new ECSChunkObjectStorage(createS3Clients(), this.config, this.executor),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
-        return chunkedSegmentStorage;
     }
 
     @Override
@@ -53,6 +53,15 @@ public class ECSChunkSimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter() {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+    }
+
+    private List<NettyConnection> createNettyClient() {
+        List<NettyConnection> clients = new ArrayList<>();
+        int i = 0;
+        for (URI endpoint : config.getEndpoints()) {
+            clients.add(new NettyConnection("netty-conn-"+i++, endpoint, config));
+        }
+        return clients;
     }
 
     private List<S3Client> createS3Clients() {

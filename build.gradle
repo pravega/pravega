@@ -488,6 +488,12 @@ project ('bindings') {
         implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
         implementation group: 'software.amazon.awssdk', name: 's3', version: '2.16.42'
+
+        implementation group: 'io.netty', name: 'netty-handler', version: '4.1.61.Final'
+        implementation group: 'io.netty', name: 'netty-codec-http2', version: '4.1.61.Final'
+        implementation group: 'io.netty', name: 'netty-codec-http', version: '4.1.61.Final'
+        implementation group: 'io.netty', name: 'netty-transport-native-epoll', version: '4.1.61.Final'
+
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')

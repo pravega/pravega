@@ -17,10 +17,10 @@ import static io.pravega.shared.NameUtils.SEGMENT_FILE_PREFIX;
 public class ChunkObjectPrefetcher {
     protected LinkedBlockingQueue<Future<ChunkObject>> chunkPrefetchQueue;
 
-    private final ECSChunkStorage storage;
+    private final ECSChunkObjectStorage storage;
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "chunk-prefetch");
-    public ChunkObjectPrefetcher(ECSChunkStorage storage, int capacity) {
+    public ChunkObjectPrefetcher(ECSChunkObjectStorage storage, int capacity) {
         this.storage = storage;
         this.chunkPrefetchQueue = new LinkedBlockingQueue<>(capacity);
     }

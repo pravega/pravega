@@ -17,13 +17,18 @@ public class ECSChunkStorageConfig {
     public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
     public static final Property<String> BUCKET = Property.named("bucket", "chunk-obj");
     public static final Property<String> PREFIX = Property.named("prefix", "pravega-tier2");
-
+    public static final Property<String> CONNECTION_TYPE = Property.named("connection", "s3");
+    public static final Property<Integer> NETTY_CLIENT_EVENT_LOOP_NUMBER = Property.named("eventLoopNum", 16);
     private static final String COMPONENT_CODE = "ecschunk";
     private static final String PATH_SEPARATOR = "/";
     private static final String URI_SEPARATOR = ";";
     @Getter
     private final String bucket;
 
+    @Getter
+    private final int nettyClientEventLoopNumber;
+    @Getter
+    private final String connectionType;
     @Getter
     private final List<URI> endpoints;
 
@@ -51,6 +56,12 @@ public class ECSChunkStorageConfig {
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
+        this.connectionType = Preconditions.checkNotNull(properties.get(CONNECTION_TYPE), "s3");
+        this.nettyClientEventLoopNumber = properties.getInt(NETTY_CLIENT_EVENT_LOOP_NUMBER);
+    }
+
+    public boolean isNettyClient(){
+        return connectionType.equals("netty");
     }
 
     /**
