@@ -557,11 +557,39 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         scope.removeKVTableFromScope(kvt, context).join();
         AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(context),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
-        
+
         scope.removeReaderGroupFromScope(rg, context).join();
         // now that we have deleted entries from all tables, the delete scope should succeed
         scope.deleteScope(context).join();
+    }
 
+    @Test
+    public void testDeleteScopeRecursive() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+
+        String scopeName = "testDeleteScopeRec";
+        OperationContext context = store.createScopeContext(scopeName, 0L);
+
+        Controller.CreateScopeStatus status = store.createScope(scopeName, context, executor).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+
+        PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName, context);
+
+        String stream = "stream";
+        scope.addStreamToScope(stream, context).join();
+        assertEquals(stream, scope.listStreamsInScope(context).join().get(0));
+
+        UUID rgId = UUID.randomUUID();
+        String rg = "rg";
+        scope.addReaderGroupToScope(rg, rgId, context).join();
+        assertEquals(rgId, scope.getReaderGroupId(rg, context).join());
+
+        String kvt = "kvt";
+        scope.addKVTableToScope(kvt, UUID.randomUUID(), context).join();
+        assertEquals(kvt, scope.listKeyValueTables(10, "", executor, context).join().getKey().get(0));
+
+        scope.removeReaderGroupFromScope(rg, context).join();
+        scope.deleteScopeRecursive(context).join();
     }
 
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {

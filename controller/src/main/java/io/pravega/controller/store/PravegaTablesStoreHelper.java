@@ -39,6 +39,8 @@ import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
@@ -57,9 +59,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import org.apache.curator.shaded.com.google.common.base.Charsets;
-import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;

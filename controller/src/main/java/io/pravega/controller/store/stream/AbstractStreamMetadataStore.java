@@ -334,7 +334,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scopeName, final OperationContext ctx,
                                                             Executor executor) {
         OperationContext context = getOperationContext(ctx);
-
         return Futures.completeOn(getScope(scopeName, context).deleteScopeRecursive(context).handle((result, e) -> {
             Throwable ex = Exceptions.unwrap(e);
             if (ex == null) {

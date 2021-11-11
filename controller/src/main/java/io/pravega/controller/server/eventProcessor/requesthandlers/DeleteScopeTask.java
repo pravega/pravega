@@ -16,7 +16,6 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.NoSuchScopeException;
@@ -113,8 +112,6 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 throw new DeleteScopeFailedException(message, e);
             }
         }
-        // Delete KVTs
-        deleteKVTs(scopeName, context);
 
         // Delete ReaderGroups
         for (String rgName: readerGroupList) {
@@ -130,34 +127,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 throw new DeleteScopeFailedException(message, e);
             }
         }
-    }
-
-    public AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {
-        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                streamMetadataStore.listStream(scopeName, token, 1000, executor, context)
-                        .thenApply(result -> {
-                            List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
-                                    .collect(Collectors.toList());
-                            return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
-                        });
-
-        return new ContinuationTokenAsyncIterator<>(function, "");
-    }
-
-    private ContinuationTokenAsyncIterator<String, KeyValueTableInfo> listKVTs(String scopeName, OperationContext context) {
-        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-                kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
-                        .thenApply(result -> {
-                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
-                                    .map(kvt -> new KeyValueTableInfo(scopeName, kvt))
-                                    .collect(Collectors.toList());
-
-                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
-                        });
-        return new ContinuationTokenAsyncIterator<>(function, "");
-    }
-
-    private CompletableFuture<Void> deleteKVTs(String scopeName, OperationContext context) throws DeleteScopeFailedException {
+        // Delete KVTs
         Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, context).asIterator();
         while (kvtIterator.hasNext()) {
             KeyValueTableInfo kvt = kvtIterator.next();
@@ -168,6 +138,28 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 throw new DeleteScopeFailedException(message, e);
             }
         }
-        return CompletableFuture.completedFuture(null);
+    }
+
+    public AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
+                streamMetadataStore.listStream(scopeName, token, 1000, executor, context)
+                        .thenApply(result -> {
+                            List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
+                                    .collect(Collectors.toList());
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
+                        });
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    public AsyncIterator<KeyValueTableInfo> listKVTs(String scopeName, OperationContext context) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+                kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
+                        .thenApply(result -> {
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
+                                    .map(m -> new KeyValueTableInfo(scopeName, m))
+                                    .collect(Collectors.toList());
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        });
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 }

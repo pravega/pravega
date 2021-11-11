@@ -256,7 +256,8 @@ public class PravegaTablesScope implements Scope {
                     val deleteTagTablesFut = streamTagsInScopeTableNames.stream()
                             .map(tableName -> storeHelper.deleteTable(tableName, false, context.getRequestId()))
                             .collect(Collectors.toList());
-                    return CompletableFuture.allOf(storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
+                    return CompletableFuture.allOf(
+                            storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
                                     storeHelper.deleteTable(kvtsInScopeTableName, true, context.getRequestId()),
                                     storeHelper.deleteTable(rgsInScopeTableName, true, context.getRequestId()),
                                     Futures.allOf(deleteTagTablesFut))
