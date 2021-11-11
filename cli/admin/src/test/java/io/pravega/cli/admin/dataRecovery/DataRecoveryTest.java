@@ -110,7 +110,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Rule
-    public final Timeout globalTimeout = new Timeout(12000, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
@@ -552,6 +552,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 1, 1, appendOperation));
         Assert.assertEquals(editOps, command.getDurableLogEditsFromUser());
         Files.delete(tmpFile.toPath());
+
+        // Case 3: Abort content generation.
+        Mockito.doReturn("quit").when(command).getStringUserInput(Mockito.any());
+        AssertExtensions.assertThrows("", command::createOperationContents, ex -> ex instanceof RuntimeException);
     }
 
     @Test

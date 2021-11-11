@@ -459,7 +459,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         do {
             try {
                 switch (getStringUserInput("You are about to create the content for the new Operation. " +
-                        "The available options are i) generating 0s as payload (zero), ii) load the contents from a provided file (file): [zero|file]")) {
+                        "The available options are i) generating 0s as payload (zero), " +
+                        "ii) load the contents from a provided file (file), iii) quit: [zero|file|quit]")) {
                     case "zero":
                         int contentLength = getIntUserInput("Input length of the Operation content: ");
                         content = new ByteArraySegment(new byte[contentLength]);
@@ -468,9 +469,14 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                         String path = getStringUserInput("Input the path for the file to use as Operation content:");
                         content = new ByteArraySegment(Files.readAllBytes(Path.of(path)));
                         break;
+                    case "quit":
+                        throw new AbortedUserOperation();
                     default:
                         output("Wrong option. Please, select one of the following options: [zero|file]");
                 }
+            } catch (AbortedUserOperation ex) {
+                output("Content generation operation aborted by user.");
+                throw ex;
             } catch (Exception ex) {
                 outputError("Some problem has happened.");
                 ex.printStackTrace();
@@ -899,6 +905,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                     Long.hashCode(newOperation.getSequenceNumber()) + newOperation.getType().hashCode());
             return hash;
         }
+    }
+
+    class AbortedUserOperation extends RuntimeException {
     }
 
     public static CommandDescriptor descriptor() {
