@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
@@ -157,7 +158,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
 
         output("Original DurableLog has been backed up correctly. Ready to apply admin-provided changes to the Original Log.");
         if (!confirmContinue()) {
-            output("Not editing original DurableLog this time.");
+            output("Not editing Original DurableLog this time. A Backup Log has been left during the process and you " +
+                    "will find it the next time this command gets executed.");
             return;
         }
 
@@ -168,7 +170,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
              DurableDataLog backupDataLog = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId()).asReadOnly()) {
             editedDataLog.initialize(TIMEOUT);
             readDurableDataLogWithCustomCallback(logEditState, dataLogFactory.getBackupLogId(), backupDataLog);
-            assert !logEditState.isFailed;
+            Preconditions.checkState(!logEditState.isFailed);
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
             ex.printStackTrace();
@@ -191,8 +193,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) ->
                     output("Original Log Operations after repair: " + op), containerId, finalEditedLog);
             output("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
-            assert editedDurableLogOperations == finalEditedLogReadOps : "Repair Log operations not matching before (" +
-                    editedDurableLogOperations + ") and after the metadata overwrite (" + finalEditedLogReadOps + ")";
+            Preconditions.checkState(editedDurableLogOperations == finalEditedLogReadOps, "Repair Log operations not matching before (" +
+                    editedDurableLogOperations + ") and after the metadata overwrite (" + finalEditedLogReadOps + ")");
         } catch (Exception ex) {
             outputError("Problem reading Original DurableLog after editing.");
             ex.printStackTrace();
@@ -214,8 +216,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 durableLogEdits.stream().filter(edit -> edit.type.equals(LogEditType.ADD_OPERATION)).count() -
                 durableLogEdits.stream().filter(edit -> edit.type.equals(LogEditType.DELETE_OPERATION))
                         .map(edit -> edit.finalOperationId - edit.initialOperationId).reduce(Long::sum).orElse(0L);
-        assert expectedEditedLogOperations == editedDurableLogOperations : "Expected (" + expectedEditedLogOperations +
-                ") and actual (" + editedDurableLogOperations + ") operations in Edited Log do not match";
+        Preconditions.checkState( expectedEditedLogOperations == editedDurableLogOperations, "Expected (" + expectedEditedLogOperations +
+                ") and actual (" + editedDurableLogOperations + ") operations in Edited Log do not match");
         return editedDurableLogOperations;
     }
 
@@ -232,8 +234,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ", Backup DurableLog operations read: " + backupLogReadOperations);
 
         // Ensure that the Original log contains the same number of Operations than the Backup log upon a new log read.
-        assert operationsReadFromOriginalLog == backupLogReadOperations : "Operations read from Backup Log (" + backupLogReadOperations +
-                ") differ from Original Log ones (" + operationsReadFromOriginalLog + ") ";
+        Preconditions.checkState(operationsReadFromOriginalLog == backupLogReadOperations, "Operations read from Backup Log (" + backupLogReadOperations +
+                ") differ from Original Log ones (" + operationsReadFromOriginalLog + ") ");
         return backupLogReadOperations;
     }
 
@@ -288,11 +290,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      */
     @VisibleForTesting
     void checkBackupLogAssertions(long beforeCommitCalls, long commitSuccessCalls, long operationsReadFromOriginalLog, boolean isFailed) {
-        assert beforeCommitCalls == commitSuccessCalls : "BackupLogProcessor has different number of processed (" + beforeCommitCalls +
-                ") and successful operations (" + commitSuccessCalls + ")";
-        assert commitSuccessCalls == operationsReadFromOriginalLog : "BackupLogProcessor successful operations (" + commitSuccessCalls +
-                ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")";
-        assert !isFailed : "BackupLogProcessor has failed";
+        Preconditions.checkState(beforeCommitCalls == commitSuccessCalls, "BackupLogProcessor has different number of processed (" + beforeCommitCalls +
+                ") and successful operations (" + commitSuccessCalls + ")");
+        Preconditions.checkState(commitSuccessCalls == operationsReadFromOriginalLog, "BackupLogProcessor successful operations (" + commitSuccessCalls +
+                ") differs from Original Log operations (" + operationsReadFromOriginalLog + ")");
+        Preconditions.checkState(!isFailed, "BackupLogProcessor has failed");
     }
 
     /**
@@ -307,22 +309,22 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         LogEditType previousEdiType = null;
         for (LogEditOperation logEditOperation: durableLogEdits) {
             // All LogEditOperations should target sequence numbers larger than 0.
-            assert logEditOperation.getInitialOperationId() > 0;
+            Preconditions.checkState(logEditOperation.getInitialOperationId() > 0);
             // For delete edits, the last id should be strictly larger than the initial id.
-            assert logEditOperation.getType() != LogEditType.DELETE_OPERATION
-                    || logEditOperation.getInitialOperationId() < logEditOperation.getFinalOperationId();
+            Preconditions.checkState(logEditOperation.getType() != LogEditType.DELETE_OPERATION
+                    || logEditOperation.getInitialOperationId() < logEditOperation.getFinalOperationId());
             // Next operation should start at a higher sequence number (i.e., we cannot have and "add" and a "replace"
             // edits for the same sequence number). The only exception are consecutive add edits.
             if (previousEdiType != null) {
                 boolean consecutiveAddEdits = previousEdiType == LogEditType.ADD_OPERATION
                         && logEditOperation.getType() == LogEditType.ADD_OPERATION;
-                assert consecutiveAddEdits || logEditOperation.getInitialOperationId() > previousInitialId;
+                Preconditions.checkState(consecutiveAddEdits || logEditOperation.getInitialOperationId() > previousInitialId);
                 // If the previous Edit Operation was Delete, then the next Operation initial sequence number should be > than
                 // the final sequence number of the Delete operation.
-                assert previousEdiType != LogEditType.DELETE_OPERATION || logEditOperation.getInitialOperationId() >= previousFinalId;
+                Preconditions.checkState(previousEdiType != LogEditType.DELETE_OPERATION || logEditOperation.getInitialOperationId() >= previousFinalId);
             }
             // Check that Add Edit Operations have non-null payloads.
-            assert logEditOperation.getType() == LogEditType.DELETE_OPERATION || logEditOperation.getNewOperation() != null;
+            Preconditions.checkState(logEditOperation.getType() == LogEditType.DELETE_OPERATION || logEditOperation.getNewOperation() != null);
             previousEdiType = logEditOperation.getType();
             previousInitialId = logEditOperation.getInitialOperationId();
             previousFinalId = logEditOperation.getFinalOperationId();
@@ -366,7 +368,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 ex.printStackTrace();
-            } catch (AssertionError ex) {
+            } catch (IllegalStateException ex) {
                 // Last input was incorrect, so remove it.
                 durableLogEdits.remove(durableLogEdits.size() - 1);
             } catch (Exception ex) {
@@ -393,16 +395,16 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 "StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]";
         switch (getStringUserInput("Type one of the following Operations to instantiate: " + operations)) {
             case "DeleteSegmentOperation":
-                long segmentId = getLongUserInput("Introduce Segment Id for DeleteSegmentOperation:");
+                long segmentId = getLongUserInput("Input Segment Id for DeleteSegmentOperation:");
                 result = new DeleteSegmentOperation(segmentId);
-                long offset = getLongUserInput("Introduce Segment Offset for StreamSegmentSealOperation:");
+                long offset = getLongUserInput("Input Segment Offset for StreamSegmentSealOperation:");
                 ((DeleteSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MergeSegmentOperation":
-                long targetSegmentId = getLongUserInput("Introduce Target Segment Id for MergeSegmentOperation:");
-                long sourceSegmentId = getLongUserInput("Introduce Source Segment Id for MergeSegmentOperation:");
+                long targetSegmentId = getLongUserInput("Input Target Segment Id for MergeSegmentOperation:");
+                long sourceSegmentId = getLongUserInput("Input Source Segment Id for MergeSegmentOperation:");
                 result = new MergeSegmentOperation(targetSegmentId, sourceSegmentId, createAttributeUpdateCollection());
-                offset = getLongUserInput("Introduce Segment Offset for MergeSegmentOperation:");
+                offset = getLongUserInput("Input Segment Offset for MergeSegmentOperation:");
                 ((MergeSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MetadataCheckpointOperation":
@@ -414,26 +416,26 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ((StorageMetadataCheckpointOperation) result).setContents(createOperationContents());
                 break;
             case "StreamSegmentAppendOperation":
-                segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentAppendOperation:");
-                offset = getLongUserInput("Introduce Segment Offset for StreamSegmentAppendOperation:");
+                segmentId = getLongUserInput("Input Segment Id for StreamSegmentAppendOperation:");
+                offset = getLongUserInput("Input Segment Offset for StreamSegmentAppendOperation:");
                 result = new StreamSegmentAppendOperation(segmentId, offset, createOperationContents(), createAttributeUpdateCollection());
                 break;
             case "StreamSegmentMapOperation":
                 result = new StreamSegmentMapOperation(createSegmentProperties());
                 break;
             case "StreamSegmentSealOperation":
-                segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentSealOperation:");
+                segmentId = getLongUserInput("Input Segment Id for StreamSegmentSealOperation:");
                 result = new StreamSegmentSealOperation(segmentId);
-                offset = getLongUserInput("Introduce Segment Offset for StreamSegmentSealOperation:");
+                offset = getLongUserInput("Input Segment Offset for StreamSegmentSealOperation:");
                 ((StreamSegmentSealOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "StreamSegmentTruncateOperation":
-                segmentId = getLongUserInput("Introduce Segment Id for StreamSegmentTruncateOperation:");
-                offset = getLongUserInput("Introduce Offset for StreamSegmentTruncateOperation:");
+                segmentId = getLongUserInput("Input Segment Id for StreamSegmentTruncateOperation:");
+                offset = getLongUserInput("Input Offset for StreamSegmentTruncateOperation:");
                 result = new StreamSegmentTruncateOperation(segmentId, offset);
                 break;
             case "UpdateAttributesOperation":
-                segmentId = getLongUserInput("Introduce Segment Id for UpdateAttributesOperation:");
+                segmentId = getLongUserInput("Input Segment Id for UpdateAttributesOperation:");
                 result = new UpdateAttributesOperation(segmentId, createAttributeUpdateCollection());
                 break;
             default:
@@ -459,11 +461,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 switch (getStringUserInput("You are about to create the content for the new Operation. " +
                         "The available options are i) generating 0s as payload (zero), ii) load the contents from a provided file (file): [zero|file]")) {
                     case "zero":
-                        int contentLength = getIntUserInput("Introduce length of the Operation content: ");
+                        int contentLength = getIntUserInput("Input length of the Operation content: ");
                         content = new ByteArraySegment(new byte[contentLength]);
                         break;
                     case "file":
-                        String path = getStringUserInput("Introduce the path for the file to use as Operation content:");
+                        String path = getStringUserInput("Input the path for the file to use as Operation content:");
                         content = new ByteArraySegment(Files.readAllBytes(Path.of(path)));
                         break;
                     default:
@@ -484,10 +486,10 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      */
     @VisibleForTesting
     SegmentProperties createSegmentProperties() {
-        String segmentName = getStringUserInput("Introduce the name of the Segment: ");
-        long offset = getLongUserInput("Introduce the offset of the Segment: ");
-        long length = getLongUserInput("Introduce the length of the Segment: ");
-        long storageLength = getLongUserInput("Introduce the storage length of the Segment: ");
+        String segmentName = getStringUserInput("Input the name of the Segment: ");
+        long offset = getLongUserInput("Input the offset of the Segment: ");
+        long length = getLongUserInput("Input the length of the Segment: ");
+        long storageLength = getLongUserInput("Input the storage length of the Segment: ");
         boolean sealed = getBooleanUserInput("Is the Segment sealed? [true/false]: ");
         boolean sealedInStorage = getBooleanUserInput("Is the Segment sealed in storage? [true/false]: ");
         boolean deleted = getBooleanUserInput("Is the Segment deleted? [true/false]: ");
@@ -498,8 +500,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         while (!finishInputCommands) {
             output("Creating an AttributeUpdateCollection for this operation.");
             try {
-                AttributeId attributeId = AttributeId.fromUUID(UUID.fromString(getStringUserInput("Introduce UUID for this Attribute: ")));
-                long value = getLongUserInput("Introduce the Value for this Attribute:");
+                AttributeId attributeId = AttributeId.fromUUID(UUID.fromString(getStringUserInput("Input UUID for this Attribute: ")));
+                long value = getLongUserInput("Input the Value for this Attribute:");
                 attributes.put(attributeId, value);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
@@ -511,7 +513,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             output("You can continue adding AttributeUpdates to the AttributeUpdateCollection.");
             finishInputCommands = !confirmContinue();
         }
-        long lastModified = getLongUserInput("Introduce last modified timestamp for the Segment (milliseconds): ");
+        long lastModified = getLongUserInput("Input last modified timestamp for the Segment (milliseconds): ");
         return StreamSegmentInformation.builder().name(segmentName).startOffset(offset).length(length).storageLength(storageLength)
                 .sealed(sealed).deleted(deleted).sealedInStorage(sealedInStorage).deletedInStorage(deletedInStorage)
                 .attributes(attributes).lastModified(new ImmutableDate(lastModified)).build();
@@ -530,11 +532,11 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         while (!finishInputCommands) {
             output("Creating an AttributeUpdateCollection for this operation.");
             try {
-                AttributeId attributeId = AttributeId.fromUUID(UUID.fromString(getStringUserInput("Introduce UUID for this AttributeUpdate: ")));
-                AttributeUpdateType type = AttributeUpdateType.get((byte) getIntUserInput("Introduce AttributeUpdateType for this AttributeUpdate" +
+                AttributeId attributeId = AttributeId.fromUUID(UUID.fromString(getStringUserInput("Input UUID for this AttributeUpdate: ")));
+                AttributeUpdateType type = AttributeUpdateType.get((byte) getIntUserInput("Input AttributeUpdateType for this AttributeUpdate" +
                         "(0 (None), 1 (Replace), 2 (ReplaceIfGreater), 3 (Accumulate), 4(ReplaceIfEquals)): "));
-                long value = getLongUserInput("Introduce the Value for this AttributeUpdate:");
-                long comparisonValue = getLongUserInput("Introduce the comparison Value for this AttributeUpdate:");
+                long value = getLongUserInput("Input the Value for this AttributeUpdate:");
+                long comparisonValue = getLongUserInput("Input the comparison Value for this AttributeUpdate:");
                 attributeUpdates.add(new AttributeUpdate(attributeId, type, value, comparisonValue));
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");

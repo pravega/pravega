@@ -374,14 +374,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                                 -1, 10, new DeleteSegmentOperation(0)),
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
                                 0, 10, new DeleteSegmentOperation(0)))),
-                ex -> ex instanceof AssertionError);
+                ex -> ex instanceof IllegalStateException);
 
         // A Delete Edit Operation should have an initial sequence number lower than the final one.
         AssertExtensions.assertThrows("Edit Operations should have initial sequence ids > 0.",
                 () -> command.checkDurableLogEdits(List.of(
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
                                 2, 2, null))),
-                ex -> ex instanceof AssertionError);
+                ex -> ex instanceof IllegalStateException);
 
         // Add one Add Edit and one Replace Edit on the same sequence number. This is expected to fail.
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
@@ -390,7 +390,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                                 10, 10, new DeleteSegmentOperation(0)),
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
                                 10, 10, new DeleteSegmentOperation(0)))),
-                ex -> ex instanceof AssertionError);
+                ex -> ex instanceof IllegalStateException);
 
         // We can have multiple Add Edit Operations on the same sequence number.
         command.checkDurableLogEdits(Arrays.asList(
@@ -408,14 +408,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                                 10, 10, new DeleteSegmentOperation(0)),
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION,
                                 10, 10, new DeleteSegmentOperation(0)))),
-                ex -> ex instanceof AssertionError);
+                ex -> ex instanceof IllegalStateException);
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
                                 1, 10, null),
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.DELETE_OPERATION,
                                 5, 20, null))),
-                ex -> ex instanceof AssertionError);
+                ex -> ex instanceof IllegalStateException);
     }
 
     @Test
@@ -785,13 +785,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         DurableDataLogRepairCommand command = new DurableDataLogRepairCommand(args);
 
         AssertExtensions.assertThrows("Different beforeCommitCalls and commitSuccessCalls should have thrown an assertion error.",
-                () -> command.checkBackupLogAssertions(1, 0, 1, false), t -> t instanceof AssertionError);
+                () -> command.checkBackupLogAssertions(1, 0, 1, false), t -> t instanceof IllegalStateException);
         AssertExtensions.assertThrows("Different beforeCommitCalls and commitSuccessCalls should have thrown an assertion error.",
-                () -> command.checkBackupLogAssertions(0, 1, 1, false), t -> t instanceof AssertionError);
+                () -> command.checkBackupLogAssertions(0, 1, 1, false), t -> t instanceof IllegalStateException);
         AssertExtensions.assertThrows("Different commitSuccessCalls and originalReads from Original Log should have thrown an assertion error.",
-                () -> command.checkBackupLogAssertions(1, 1, 2, false), t -> t instanceof AssertionError);
+                () -> command.checkBackupLogAssertions(1, 1, 2, false), t -> t instanceof IllegalStateException);
         AssertExtensions.assertThrows("Not successful BackupLogProcessor execution should have thrown an assertion error..",
-                () -> command.checkBackupLogAssertions(1, 1, 1, true), t -> t instanceof AssertionError);
+                () -> command.checkBackupLogAssertions(1, 1, 1, true), t -> t instanceof IllegalStateException);
     }
 
     /**
