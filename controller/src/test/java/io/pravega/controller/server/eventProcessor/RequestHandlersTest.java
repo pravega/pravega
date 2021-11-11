@@ -123,12 +123,11 @@ import static org.mockito.Mockito.verify;
 
 public abstract class RequestHandlersTest {
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    private PravegaZkCuratorResource pravegaZkCuratorResource = new PravegaZkCuratorResource();
     protected CuratorFramework zkClient;
 
     private final String scope = "scope";
     private RequestTracker requestTracker = new RequestTracker(true);
-
+    private PravegaZkCuratorResource pravegaZkCuratorResource = new PravegaZkCuratorResource();
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
@@ -179,7 +178,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+        kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 pravegaZkCuratorResource.client, executor);
         long createTimestamp = System.currentTimeMillis();
 
