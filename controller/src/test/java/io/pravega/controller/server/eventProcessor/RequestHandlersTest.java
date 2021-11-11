@@ -123,7 +123,7 @@ import static org.mockito.Mockito.verify;
 
 public abstract class RequestHandlersTest {
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    private PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
+    private PravegaZkCuratorResource pravegaZkCuratorResource = new PravegaZkCuratorResource();
     protected CuratorFramework zkClient;
 
     private final String scope = "scope";
@@ -180,7 +180,7 @@ public abstract class RequestHandlersTest {
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
-                PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
+                pravegaZkCuratorResource.client, executor);
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
