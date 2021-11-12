@@ -1,5 +1,5 @@
 ---
-title: Deploying Pravega on Kubernetes 101
+title: Deploying on Kubernetes
 ---
 
 <!--

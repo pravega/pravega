@@ -175,6 +175,6 @@ bin/pravega-segmentstore
 
 Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster.md).
 
-For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations.md#pravega-controller))
-and [Segment Store](../security/pravega-security-configurations.md#pravega-segment-store),
-see [this]((../security/pravega-security-configurations.md) document.
+For detailed information about security configuration parameters for [Controller](security/pravega-security-configurations#pravega-controller)
+and [Segment Store](security/pravega-security-configurations#pravega-segment-store),
+see [this](security/pravega-security-configurations) document.

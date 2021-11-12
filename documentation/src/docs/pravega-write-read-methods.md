@@ -47,9 +47,11 @@ Method                                                                          
 
 Pravega Sensor Collector can continuously collect high-resolution samples without interruption, even if the network connection to the Pravega server is unavailable for long periods. For instance, in a connected train use case, there may be long periods of time between cities where there is no network access. During this time, Pravega Sensor Collector will store collected sensor data on a local disk and periodically attempt to reconnect to the Pravega server. It stores this sensor data in local SQLite database files. When transferring samples from a SQLite database file to Pravega, it coordinates a SQLite transaction and a Pravega transaction. This technique allows it to guarantee that all samples are sent in order, without gaps, and without duplicates, even in the presence of computer, network, and power failures.
 
+<IfHaveFeature feature="nautilus">
 ## SDP Ingest Gateway
 
 SDP Ingest Gateway is a component of **Dell EMC Streaming Data Platform** that provides a REST interface for writing events into Pravega streams. It is designed to receive POST requests from a variety of sources including Dell iDRAC, a management controller card embedded in the motherboard of Dell PowerEdge servers.
 
 For more information, see the [Streaming Data Platform Developer's Guide](https://dl.dell.com/content/docu96951_Streaming_Data_Platform_Developers_Guide.pdf).
+</IfHaveFeature>
 
