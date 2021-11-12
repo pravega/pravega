@@ -254,8 +254,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         try {
             Map<String, Position> map;
             try {
-                log.debug("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-                map = checkpointStore.removeProcessFromGroup(process, readerGroup.getGroupName());
+                map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
             } catch (CheckpointStoreException e) {
                 if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
                     return;
@@ -265,10 +264,18 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             }
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
-                //Notify reader group about failed readers
+                // 1. Remove failed readers from Reader Group
                 log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
                 readerGroup.readerOffline(entry.getKey(), entry.getValue());
+
+                // 2. Clean up reader from checkpoint store
+                log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
+                checkpointStore.removeReader(process, readerGroup.getGroupName(), entry.getKey());
             }
+
+            // Finally, remove reader group from the checkpoint store
+            log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
+            checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
         }
