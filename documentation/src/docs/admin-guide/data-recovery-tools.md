@@ -27,7 +27,7 @@ usage of these tools may worsen the original situation.
 The Tier-1 Repair Tool allows an administrator to "edit" Durable Logs storing the sequence
 of Operations that a Segment Container has processed. For more info, please [check out the PDP](https://github.com/pravega/pravega/wiki/PDP-54-(Tier-1-Repair-Tool)).
 
-###Targeted Scenarios 
+### Targeted Scenarios 
 This tool works on the actual Operations stored in a Durable Log. In most cases where 
 the data loss/corruption is related to the Operations of a Durable Log, this tool can be useful. For example,
 imagine that by some reason, the Durable Log contains a duplicate Operation written (e.g., a network glitch
@@ -37,13 +37,13 @@ This tool can help "editing" the original Durable Log to _remove_ the duplicate 
 Segment Container. Similarly, if an Operation that should be there is missing, we can _add_ an Operation to fill
 that gap in the original Durable Log, or even _replacing_ a malformed Operation by another one. 
 
-###Non-Targeted Scenarios 
+### Non-Targeted Scenarios 
 This tool assumes that the metadata of the Durable Log is correct and just
 works on the actual data. Therefore, it _cannot solve problems related to the metadata of a Durable Log_.
 For instance, if a Bookkeeper-based Durable Log has few ledgers stored, but the ZNode pointing to them
 has been corrupted, this tool is not going to help.
 
-###Tool Workflow 
+### Tool Workflow 
 A Durable Log cannot be actually "edited", because it is an append-only data structure.
 For this reason, editing a Durable Log implies copying and re-writing the data, which dictates the workflow
 of this tool. The high-level view of the tool workflow can be observed in the figure below:
@@ -69,7 +69,7 @@ Log.
 - The last step for the tool is to overwrite the metadata of the Original Log by the metadata of the Repair
 Log. With this, the Segment Container will read the data from the Repair Log during the recovery process.
 
-###Usage Instructions
+### Usage Instructions
 
 The Tier-1 Repair Tool is, in general, simple to use: the command just expects the id of the Segment Container
 that needs to be repaired: e.g., `data-recovery durableLog-repai 0`. Leaving aside the creation of Durable Log
