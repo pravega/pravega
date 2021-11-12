@@ -77,7 +77,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
     private static final int OWNER_EPOCH = 100;
-    private static final int THREAD_POOL_SIZE = 10;
+    private static final int THREAD_POOL_SIZE = 3;
     protected final Random rnd = new Random(0);
 
     @Rule

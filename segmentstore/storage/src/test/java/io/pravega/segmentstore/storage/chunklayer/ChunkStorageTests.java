@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests specifically targeted at test {@link ChunkStorage} implementation.
  */
 public class ChunkStorageTests extends ThreadPooledTestSuite {
-    private static final int THREAD_POOL_SIZE = 10;
+    private static final int THREAD_POOL_SIZE = 3;
     Random rnd = new Random(0);
 
     @Getter
