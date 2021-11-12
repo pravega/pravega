@@ -15,6 +15,8 @@
  */
 package io.pravega.shared.metrics;
 
+import java.util.Optional;
+
 public class NullStatsProvider implements StatsProvider {
 
     private final StatsLogger nullStatsLogger = new NullStatsLogger();
@@ -43,5 +45,10 @@ public class NullStatsProvider implements StatsProvider {
     @Override
     public DynamicLogger createDynamicLogger() {
         return nullDynamicLogger;
+    }
+
+    @Override
+    public Optional<Object> prometheusResource() {
+        return Optional.empty();
     }
 }

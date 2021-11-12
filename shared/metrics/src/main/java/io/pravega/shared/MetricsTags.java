@@ -103,17 +103,6 @@ public final class MetricsTags {
     }
 
     /**
-     * Generate transaction tags (string array) on the input scope, stream and transactionId to be associated with a metric.
-     * @param scope scope of the stream.
-     * @param stream stream name.
-     * @param transactionId transaction id.
-     * @return string array as transaction tag of metric.
-     */
-    public static String[] transactionTags(String scope, String stream, String transactionId) {
-        return new String[] {TAG_SCOPE, scope, TAG_STREAM, stream, TAG_TRANSACTION, transactionId};
-    }
-
-    /**
      * Generate EventProcessor tags (String array) given the event processor name and container id.
      *
      * @param containerId         Container id for this EventProcessor.
