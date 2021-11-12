@@ -71,7 +71,7 @@ public class ControllerMetadataTablesInfoCommand extends ControllerMetadataComma
                                             String.format(TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, PLACEHOLDER_EPOCH, PLACEHOLDER_UUID)),
                                     getQualifiedTableName(INTERNAL_SCOPE_NAME, TEST_SCOPE, TEST_STREAM,
                                             String.format(TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, 1, UUID.randomUUID())),
-                                    "Stores the set of active transactions."))
+                                    "Stores the set of active transactions in an epoch."))
                     .put("completedTransactionsBatches",
                             ImmutableList.of(
                                     COMPLETED_TRANSACTIONS_BATCHES_TABLE,

@@ -85,7 +85,7 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
         Map<String, String> dataMap = parseStringData(data);
         // Case of primitive value eg: int, long, String, etc.
         if (dataMap.containsKey(name)) {
-            output(dataMap.get(name));
+            output("value: %s", dataMap.get(name));
             return;
         }
         output("%s metadata info: ", name);

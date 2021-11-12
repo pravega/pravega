@@ -72,6 +72,7 @@ public class ListControllerMetadataEntriesCommand extends ControllerMetadataComm
         entries.forEach((key, value) -> {
             output("- %s", key);
             userFriendlyOutput(value.get(0), value.get(1));
+            output("");
         });
     }
 

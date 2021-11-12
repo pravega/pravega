@@ -45,6 +45,7 @@ public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
         String value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
+        output("For the given key: %s", key);
         userFriendlyOutput(value, serializer.getName());
     }
 

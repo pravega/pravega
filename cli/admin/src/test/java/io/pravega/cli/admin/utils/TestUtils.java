@@ -232,6 +232,29 @@ public final class TestUtils {
     }
 
     /**
+     * Deletes the given scope and stream using the given controller instance.
+     *
+     * @param controller    Controller instance to use to create the Scope and Stream.
+     * @param scopeName     Name of the Scope.
+     * @param streamName    Name of the Stream.
+     */
+    public static void deleteScopeStream(Controller controller, String scopeName, String streamName) {
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @SuppressWarnings("resource") //Don't close the controller.
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        //delete stream
+        Boolean sealStreamStatus = streamManager.sealStream(scopeName, streamName);
+        log.info("Seal stream status {}", sealStreamStatus);
+        Boolean deleteStreamStatus = streamManager.deleteStream(scopeName, streamName);
+        log.info("Delete stream status {}", deleteStreamStatus);
+        //create scope
+        Boolean deleteScopeStatus = streamManager.deleteScope(scopeName);
+        log.info("Delete scope status {}", deleteScopeStatus);
+    }
+
+    /**
      * Write events to the given stream.
      *
      * @param streamName     Name of the Stream.
