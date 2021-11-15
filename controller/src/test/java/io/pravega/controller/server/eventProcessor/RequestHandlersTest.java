@@ -15,20 +15,13 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -57,7 +50,6 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -74,7 +66,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
-import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -785,56 +776,6 @@ public abstract class RequestHandlersTest {
 
         // verify that mark stream is also deleted
         assertFalse(streamStore.checkStreamExists(scope, markStream, null, executor).join());
-    }
-
-    @Test
-    public void testDeleteScopeRecursive() {
-        DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
-        final String testStream = "deleteStream";
-        final String testScope = "deleteScope";
-        final String testRG = "deleteRG";
-        final String testKVT = "deleteKVT";
-        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(testScope, 0L);
-        streamStore.createScope(testScope, null, executor).join();
-        // Verify that the scope is created
-        assertTrue(streamStore.checkScopeExists(testScope, null, executor).join());
-        // Create Stream
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
-                ScalingPolicy.byEventRate(1, 2, 1)).build();
-        streamStore.createStream(testScope, testStream, config, System.currentTimeMillis(), null, executor).join();
-        streamStore.setState(testScope, testStream, State.ACTIVE, null, executor).join();
-
-        // Create ReaderGroup
-        final UUID rgId = UUID.randomUUID();
-        final Segment seg0 = new Segment(testScope, testStream, 0L);
-        final Segment seg1 = new Segment(testScope, testStream, 1L);
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(testScope, testStream),
-                new StreamCutImpl(Stream.of(testScope, testStream), startStreamCut));
-        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
-        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(testScope, testStream),
-                new StreamCutImpl(Stream.of(testScope, testStream), endStreamCut));
-        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
-                .automaticCheckpointIntervalMillis(30000L)
-                .groupRefreshTimeMillis(20000L)
-                .maxOutstandingCheckpointRequest(2)
-                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .startingStreamCuts(startSC)
-                .endingStreamCuts(endSC).build();
-        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
-        final OperationContext rgContext = streamStore.createRGContext(testScope, testRG, 0L);
-        streamStore.addReaderGroupToScope(testScope, testRG, rgConfig.getReaderGroupId(), rgContext, executor).join();
-        streamStore.createReaderGroup(testScope, testRG, rgConfig, System.currentTimeMillis(), null, executor).join();
-
-        // Create KVT
-        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(4).secondaryKeyLength(4).build();
-        kvtStore.createKeyValueTable(testScope, testKVT, kvtConfig, System.currentTimeMillis(), null, executor);
-        kvtStore.createEntryForKVTable(testScope, testKVT, UUID.randomUUID(), null, executor);
-
-        // Invoke DeleteScopeTask
-        deleteScopeTask.execute(deleteScopeEvent);
-        // Verify that the scope is deleted
-        assertFalse(streamStore.checkScopeExists(testScope, null, executor).join());
     }
 
     @Test

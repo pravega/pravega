@@ -30,14 +30,13 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -53,15 +52,26 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
@@ -74,33 +84,33 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -122,16 +132,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-
-import lombok.Cleanup;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -1105,7 +1105,7 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getScope().equals("deadline")) {
-                    // dont send any response
+                    // don't send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1116,6 +1116,14 @@ public class ControllerImplTest {
                 if (request.getScope().equals("scope1")) {
                     responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
                             Controller.DeleteScopeRecursiveStatus.Status.SUCCESS).build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().equals("scope2")) {
+                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeRecursiveStatus.Status.FAILURE).build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().equals("scope3")) {
+                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -2192,7 +2200,6 @@ public class ControllerImplTest {
         String scope1 = "scope1";
         String scope2 = "scope2";
         String scope3 = "scope3";
-        String scope4 = "scope4";
 
         deleteStatus = controllerClient.deleteScopeRecursive(scope1);
         assertTrue(deleteStatus.join());
@@ -2201,10 +2208,7 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
 
         deleteStatus = controllerClient.deleteScopeRecursive(scope3);
-        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
-
-        deleteStatus = controllerClient.deleteScopeRecursive(scope4);
-        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+        assertFalse(deleteStatus.join());
     }
 
     @Test
