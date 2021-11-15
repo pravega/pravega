@@ -23,7 +23,6 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -37,18 +36,6 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-
-import java.io.Serializable;
-import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -60,6 +47,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Controller fail over system test.
@@ -217,15 +215,13 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
-        controller.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
+        controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
 
         // Initiate and Create RG instances
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         readerGroupManager.createReaderGroup(readerGroupName,
                 ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(scope, stream)).build());
-        @Cleanup
-        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
 
         int startInclusive = 1;
         int endExclusive = 500;
