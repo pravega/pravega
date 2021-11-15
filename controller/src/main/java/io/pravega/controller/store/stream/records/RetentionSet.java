@@ -154,7 +154,7 @@ public class RetentionSet {
 
     @Override
     public String toString() {
-        return String.format("%s = StreamCutReferenceRecords [\n    %s\n]", "retentionRecords", retentionRecords.stream()
+        return String.format("%s = StreamCutReferenceRecords [%n    %s%n]", "retentionRecords", retentionRecords.stream()
                 .map(streamCutReferenceRecord -> streamCutReferenceRecord.toString().replace("\n", "\n   "))
                 .collect(Collectors.joining("\n,\n    ")));
     }

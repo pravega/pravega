@@ -142,7 +142,7 @@ public class StreamTruncationRecord {
                 .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
                 String.format("%s = %s", "span", span.keySet().stream()
                         .map(streamSegmentRecord ->
-                                String.format("key: %s\nvalue: %s", streamSegmentRecord.toString(), span.get(streamSegmentRecord))
+                                String.format("key: %s%n value: %s", streamSegmentRecord.toString(), span.get(streamSegmentRecord))
                                         .replace("\n", "\n   "))
                         .collect(Collectors.joining("\n,\n    "))) + "\n" +
                 String.format("%s = %s", "deletedSegments", deletedSegments) + "\n" +

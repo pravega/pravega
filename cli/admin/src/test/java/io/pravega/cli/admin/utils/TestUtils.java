@@ -54,21 +54,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Arrays;
-
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_CREATION_EPOCH;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_CREATION_TIME;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_KEY_END;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_KEY_START;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_PAIR_DELIMITER;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_SEGMENT_NUMBER;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.STREAM_SEGMENT_RECORD_VALUE_DELIMITER;
-import static io.pravega.cli.admin.serializers.AbstractSerializer.appendFieldWithCustomDelimiters;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -298,31 +289,5 @@ public final class TestUtils {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
         }
-    }
-
-    /**
-     * Generate a StreamSegmentRecord string using the provided parameters.
-     *
-     * @param segmentNumber segment number
-     * @param creationEpoch creation epoch
-     * @param creationTime creation time
-     * @param keyStart key start
-     * @param keyEnd key end
-     * @return A string containing a StreamSegmentRecord generated using the above parameters.
-     */
-    public static String generateStreamSegmentRecordString(int segmentNumber, int creationEpoch, long creationTime,
-                                                           double keyStart, double keyEnd) {
-        StringBuilder builder = new StringBuilder();
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_SEGMENT_NUMBER, String.valueOf(segmentNumber),
-                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_EPOCH, String.valueOf(creationEpoch),
-                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_CREATION_TIME, String.valueOf(creationTime),
-                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_START, String.valueOf(keyStart),
-                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        appendFieldWithCustomDelimiters(builder, STREAM_SEGMENT_RECORD_KEY_END, String.valueOf(keyEnd),
-                STREAM_SEGMENT_RECORD_PAIR_DELIMITER, STREAM_SEGMENT_RECORD_VALUE_DELIMITER);
-        return builder.toString();
     }
 }

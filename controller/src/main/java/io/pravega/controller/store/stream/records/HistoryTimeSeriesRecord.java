@@ -87,10 +87,10 @@ public class HistoryTimeSeriesRecord {
     public String toString() {
         return String.format("%s = %s", "epoch", epoch) + "\n" +
                 String.format("%s = %s", "referenceEpoch", referenceEpoch) + "\n" +
-                String.format("%s = StreamSegmentRecords [\n    %s\n]", "segmentsSealed", segmentsSealed.stream()
+                String.format("%s = StreamSegmentRecords [%n    %s%n]", "segmentsSealed", segmentsSealed.stream()
                         .map(streamSegmentRecord -> streamSegmentRecord.toString().replace("\n", "\n   "))
                         .collect(Collectors.joining("\n,\n    "))) + "\n" +
-                String.format("%s = StreamSegmentRecords [\n    %s\n]", "segmentsCreated", segmentsCreated.stream()
+                String.format("%s = StreamSegmentRecords [%n    %s%n]", "segmentsCreated", segmentsCreated.stream()
                         .map(streamSegmentRecord -> streamSegmentRecord.toString().replace("\n", "\n   "))
                         .collect(Collectors.joining("\n,\n    "))) + "\n" +
                 String.format("%s = %s", "scaleTime", scaleTime);

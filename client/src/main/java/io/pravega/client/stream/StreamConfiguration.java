@@ -96,8 +96,8 @@ public class StreamConfiguration implements Serializable {
 
     @Override
     public String toString() {
-        return String.format("%s = %s", "scalingPolicy", scalingPolicy.toString()) + "\n" +
-                String.format("%s = \n%s", "retentionPolicy", retentionPolicy.toString().replace("\n", "\n   ")) + "\n" +
+        return String.format("%s = %s", "scalingPolicy", scalingPolicy != null ? scalingPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "retentionPolicy", retentionPolicy != null ? retentionPolicy.toString() : "null") + "\n" +
                 String.format("%s = %s", "timestampAggregationTimeout", timestampAggregationTimeout) + "\n" +
                 String.format("%s = %s", "tags", tags) + "\n" +
                 String.format("%s = %s", "rolloverSizeBytes", rolloverSizeBytes);
