@@ -15,16 +15,14 @@
  */
 package io.pravega.cli.admin.serializers.controller;
 
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.segmentstore.contracts.AttributeId;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import static io.pravega.cli.admin.serializers.AbstractSerializer.appendField;
-import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.IntSerializer;
-import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.LongSerializer;
-import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.StringSerializer;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isCompletedTransactionsBatchTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isCompletedTransactionsBatchesTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isDeletedStreamsTableName;
@@ -32,17 +30,7 @@ import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSeri
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isStreamMetadataTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isTransactionsInEpochTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isWriterPositionsTableName;
-import static io.pravega.cli.admin.serializers.controller.StateRecordSerializer.STATE_RECORD_STATE;
-import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
-import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
-import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
-import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
-import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
-import static io.pravega.shared.NameUtils.METADATA_TABLE;
-import static io.pravega.shared.NameUtils.STATE_KEY;
-import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
-import static io.pravega.shared.NameUtils.WRITERS_POSITIONS_TABLE;
-import static io.pravega.shared.NameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -53,15 +41,34 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void testControllerMetadataSerializer() {
-        StringBuilder userGeneratedMetadataBuilder = new StringBuilder();
-        appendField(userGeneratedMetadataBuilder, STATE_RECORD_STATE, "ACTIVE");
-
-        String userString = userGeneratedMetadataBuilder.toString();
+        StateRecord record = new StateRecord(State.ACTIVE);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, TEST_SCOPE, TEST_STREAM, String.format(METADATA_TABLE, AttributeId.UUID.randomUUID())),
                 STATE_KEY);
-        ByteBuffer buf = serializer.serialize(userString);
-        assertEquals(userString, serializer.deserialize(buf));
+        ByteBuffer buf = serializer.serialize(record);
+        assertEquals("StateRecord", serializer.getMetadataType());
+        assertEquals(record.getState(), ((StateRecord) serializer.deserialize(buf)).getState());
+    }
+
+    @Test
+    public void testControllerMetadataIntegerSerializer() {
+        int record = 1;
+        ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(
+                DELETED_STREAMS_TABLE, "");
+        ByteBuffer buf = serializer.serialize(record);
+        assertEquals("Integer", serializer.getMetadataType());
+        assertEquals(record, (int) serializer.deserialize(buf));
+    }
+
+    @Test
+    public void testControllerMetadataLongSerializer() {
+        long record = 100L;
+        ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, TEST_SCOPE, TEST_STREAM, String.format(METADATA_TABLE, AttributeId.UUID.randomUUID())),
+                CREATION_TIME_KEY);
+        ByteBuffer buf = serializer.serialize(record);
+        assertEquals("Long", serializer.getMetadataType());
+        assertEquals(record, (long) serializer.deserialize(buf));
     }
 
     @Test
@@ -77,29 +84,5 @@ public class ControllerMetadataSerializerTest {
         assertTrue(isCompletedTransactionsBatchesTableName(COMPLETED_TRANSACTIONS_BATCHES_TABLE));
         assertTrue(isCompletedTransactionsBatchTableName(getQualifiedTableName(INTERNAL_SCOPE_NAME, String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, 2))));
         assertTrue(isDeletedStreamsTableName(DELETED_STREAMS_TABLE));
-    }
-
-    @Test
-    public void testPrimitiveSerializers() {
-        StringSerializer stringSerializer = new StringSerializer();
-        StringBuilder userGeneratedStringBuilder = new StringBuilder();
-        appendField(userGeneratedStringBuilder, stringSerializer.getName(), "test_message");
-        String userString = userGeneratedStringBuilder.toString();
-        ByteBuffer buf = stringSerializer.serialize(userString);
-        assertEquals(userString, stringSerializer.deserialize(buf));
-
-        IntSerializer intSerializer = new IntSerializer();
-        StringBuilder userGeneratedIntBuilder = new StringBuilder();
-        appendField(userGeneratedIntBuilder, intSerializer.getName(), String.valueOf(2));
-        userString = userGeneratedIntBuilder.toString();
-        buf = intSerializer.serialize(userString);
-        assertEquals(userString, intSerializer.deserialize(buf));
-
-        LongSerializer longSerializer = new LongSerializer();
-        StringBuilder userGeneratedLongBuilder = new StringBuilder();
-        appendField(userGeneratedLongBuilder, longSerializer.getName(), String.valueOf(2000L));
-        userString = userGeneratedLongBuilder.toString();
-        buf = longSerializer.serialize(userString);
-        assertEquals(userString, longSerializer.deserialize(buf));
     }
 }

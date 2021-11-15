@@ -17,8 +17,8 @@ package io.pravega.cli.admin.controller.metadata;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -65,7 +65,7 @@ public class ListControllerMetadataEntriesCommand extends ControllerMetadataComm
                 .collect(Collectors.toMap(entry -> KEY_SERIALIZER.deserialize(getByteBuffer(entry.getKey().getKey())), entry -> {
                     ControllerMetadataSerializer serializer =
                             new ControllerMetadataSerializer(tableName, KEY_SERIALIZER.deserialize(getByteBuffer(entry.getKey().getKey())));
-                    return List.of(serializer.deserialize(getByteBuffer(entry.getValue())), serializer.getName());
+                    return List.of(serializer.deserialize(getByteBuffer(entry.getValue())).toString(), serializer.getMetadataType());
                 }));
 
         output("List of at most %s entries in %s: ", entryCount, tableName);

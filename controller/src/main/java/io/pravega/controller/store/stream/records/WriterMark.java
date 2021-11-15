@@ -27,6 +27,7 @@ import lombok.SneakyThrows;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /* This is a data class that represents a writer mark. Writers send mark information
  * for watermarking purposes, containing time and position.  A data object of this
@@ -66,6 +67,15 @@ public class WriterMark {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "timestamp", timestamp) + "\n" +
+                String.format("%s = %s", "position", position.keySet().stream()
+                        .map(key -> key + ":" + position.get(key))
+                        .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
+                String.format("%s = %s", "isAlive", isAlive);
     }
 
     private static class WriterMarkSerializer

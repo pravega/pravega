@@ -16,8 +16,8 @@
 package io.pravega.cli.admin.controller.metadata;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -46,7 +46,7 @@ public class GetControllerMetadataEntryCommand extends ControllerMetadataCommand
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
         String value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
         output("For the given key: %s", key);
-        userFriendlyOutput(value, serializer.getName());
+        userFriendlyOutput(value, serializer.getMetadataType());
     }
 
     public static CommandDescriptor descriptor() {

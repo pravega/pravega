@@ -19,8 +19,8 @@ import io.netty.buffer.ByteBuf;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.controller.ControllerCommand;
 import io.pravega.cli.admin.serializers.controller.ControllerKeySerializer;
-import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.common.util.ByteArraySegment;
@@ -30,10 +30,11 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static io.pravega.cli.admin.serializers.AbstractSerializer.parseStringData;
+import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.INTEGER;
+import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.LONG;
+import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.STRING;
 
 public abstract class ControllerMetadataCommand extends ControllerCommand {
     static final String COMPONENT = "controller-metadata";
@@ -72,7 +73,7 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
                 authHelper.retrieveMasterToken(), 0L);
-        return serializer.deserialize(getByteBuffer(reply.join().get(0).getValue()));
+        return serializer.deserialize(getByteBuffer(reply.join().get(0).getValue())).toString();
     }
 
     /**
@@ -82,14 +83,12 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param name A name describing the data.
      */
     void userFriendlyOutput(String data, String name) {
-        Map<String, String> dataMap = parseStringData(data);
-        // Case of primitive value eg: int, long, String, etc.
-        if (dataMap.containsKey(name)) {
-            output("value: %s", dataMap.get(name));
+        if (name.equals(STRING) || name.equals(INTEGER) || name.equals(LONG)) {
+            output("value: %s", data);
             return;
         }
         output("%s metadata info: ", name);
-        dataMap.forEach((k, v) -> output("%s = %s;", k, v));
+        output(data);
     }
 
     /**
