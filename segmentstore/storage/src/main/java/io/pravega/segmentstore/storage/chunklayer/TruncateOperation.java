@@ -222,7 +222,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private long getWastedSpacePercentage() {
         val wastedSpace = segmentMetadata.getStartOffset() - segmentMetadata.getFirstChunkStartOffset();
-        return 100 * wastedSpace / currentMetadata.getLength();
+        val length = currentMetadata.getLength();
+        return 0 == length ? 0 : 100 * wastedSpace / length;
     }
 
     private void postCommit() {
