@@ -588,7 +588,12 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         scope.addKVTableToScope(kvt, UUID.randomUUID(), context).join();
         assertEquals(kvt, scope.listKeyValueTables(10, "", executor, context).join().getKey().get(0));
 
+        // This should have failed at this point as the tables are not empty
+        AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScopeRecursive(context),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
         scope.removeReaderGroupFromScope(rg, context).join();
+        scope.removeKVTableFromScope(kvt, context).join();
+        scope.removeStreamFromScope(stream, context);
         scope.deleteScopeRecursive(context).join();
     }
 
