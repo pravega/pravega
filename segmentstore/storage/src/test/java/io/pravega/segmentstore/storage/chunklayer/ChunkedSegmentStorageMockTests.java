@@ -26,6 +26,10 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutEx
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -39,16 +43,11 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 42;
@@ -435,8 +434,17 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testReport() {
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+    public void testReport() throws Exception {
+
+        MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
+        MetricsProvider.initialize(metricsConfig);
+        StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
+
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .safeStorageSizeCheckFrequencyInSeconds(100)
+                .maxSafeStorageSize(1000)
+                .build();
 
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
@@ -446,9 +454,15 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
+        when(spyChunkStorage.doGetUsedSpace(any())).thenReturn(123L);
+        chunkedSegmentStorage.updateStorageStats().get();
+
         chunkedSegmentStorage.report();
 
         // Not possible to mock any other reporter except metadata store.
         verify(spyMetadataStore).report();
+
+        Assert.assertEquals(123, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_BYTES).value(), 0);
+        Assert.assertEquals(12.3, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_PERCENTAGE).value(), 0);
     }
 }
