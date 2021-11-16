@@ -102,8 +102,9 @@ public class SealedSegmentsMapShard {
 
     @Override
     public String toString() {
-        return String.format("%s = %s", "sealedSegmentsSizeMap", sealedSegmentsSizeMap.keySet().stream()
-                .map(key -> key + ":" + sealedSegmentsSizeMap.get(key))
+        return String.format("%s = %s", "shardNumber", shardNumber) + "\n" +
+                String.format("%s = %s", "sealedSegmentsSizeMap", sealedSegmentsSizeMap.keySet().stream()
+                .map(key -> key + " : " + sealedSegmentsSizeMap.get(key))
                 .collect(Collectors.joining(", ", "{", "}")));
     }
 

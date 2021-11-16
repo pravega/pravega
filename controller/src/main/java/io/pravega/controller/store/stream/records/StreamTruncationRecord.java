@@ -138,12 +138,12 @@ public class StreamTruncationRecord {
     @Override
     public String toString() {
         return String.format("%s = %s", "streamCut", streamCut.keySet().stream()
-                .map(key -> key + ":" + streamCut.get(key))
+                .map(key -> key + " : " + streamCut.get(key))
                 .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
-                String.format("%s = %s", "span", span.keySet().stream()
+                String.format("%s = {%n    %s%n}", "span", span.keySet().stream()
                         .map(streamSegmentRecord ->
-                                String.format("key: %s%n value: %s", streamSegmentRecord.toString(), span.get(streamSegmentRecord))
-                                        .replace("\n", "\n   "))
+                                String.format("key: %n    %s%nvalue: %s", streamSegmentRecord.toString().replace("\n", "\n    "),
+                                        span.get(streamSegmentRecord)).replace("\n", "\n    "))
                         .collect(Collectors.joining("\n,\n    "))) + "\n" +
                 String.format("%s = %s", "deletedSegments", deletedSegments) + "\n" +
                 String.format("%s = %s", "toDelete", toDelete) + "\n" +

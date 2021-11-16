@@ -85,8 +85,8 @@ public class StreamConfigurationRecord {
     public String toString() {
         return String.format("%s = %s", "scope", scope) + "\n" +
                 String.format("%s = %s", "streamName", streamName) + "\n" +
-                String.format("%s = %n%s", "streamConfiguration",
-                        streamConfiguration.toString().replace("\n", "\n   ")) + "\n" +
+                String.format("%s = %n    %s", "streamConfiguration",
+                        streamConfiguration.toString().replace("\n", "\n    ")) + "\n" +
                 String.format("%s = %s", "updating", updating) + "\n" +
                 String.format("%s = %s", "tagOnlyUpdate", tagOnlyUpdate) + "\n" +
                 String.format("%s = %s", "removeTags", removeTags);

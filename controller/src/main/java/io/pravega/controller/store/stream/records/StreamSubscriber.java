@@ -79,7 +79,7 @@ public class StreamSubscriber {
         return String.format("%s = %s", "subscriber", subscriber) + "\n" +
                 String.format("%s = %s", "generation", generation) + "\n" +
                 String.format("%s = %s", "truncationStreamCut", truncationStreamCut.keySet().stream()
-                        .map(key -> key + ":" + truncationStreamCut.get(key))
+                        .map(key -> key + " : " + truncationStreamCut.get(key))
                         .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
                 String.format("%s = %s", "updateTime", updateTime);
     }

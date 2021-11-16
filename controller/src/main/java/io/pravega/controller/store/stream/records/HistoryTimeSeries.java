@@ -53,8 +53,8 @@ public class HistoryTimeSeries {
 
     @Override
     public String toString() {
-        return String.format("%s = HistoryTimeSeriesRecords [%n    %s%n]", "historyRecords", historyRecords.stream()
-                .map(historyTimeSeriesRecord -> historyTimeSeriesRecord.toString().replace("\n", "\n   "))
+        return String.format("%s = [%n    %s%n]", "historyRecords", historyRecords.stream()
+                .map(historyTimeSeriesRecord -> historyTimeSeriesRecord.toString().replace("\n", "\n    "))
                 .collect(Collectors.joining("\n,\n    ")));
     }
 

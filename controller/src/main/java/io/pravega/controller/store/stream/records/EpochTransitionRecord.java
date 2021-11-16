@@ -94,7 +94,7 @@ public class EpochTransitionRecord {
                 String.format("%s = %s", "time", time) + "\n" +
                 String.format("%s = %s", "segmentsToSeal", segmentsToSeal) + "\n" +
                 String.format("%s = %s", "newSegmentsWithRange", newSegmentsWithRange.keySet().stream()
-                        .map(key -> key + ":(" + newSegmentsWithRange.get(key).getKey() + "-" + newSegmentsWithRange.get(key).getValue())
+                        .map(key -> key + " : (" + newSegmentsWithRange.get(key).getKey() + ", " + newSegmentsWithRange.get(key).getValue() + ")")
                         .collect(Collectors.joining(", ", "{", "}")));
     }
     

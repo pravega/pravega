@@ -113,16 +113,23 @@ public class ActiveTxnRecord {
 
     @Override
     public String toString() {
-        return String.format("%s = %s", "txCreationTimestamp", txCreationTimestamp) + "\n" +
+        String record = String.format("%s = %s", "txCreationTimestamp", txCreationTimestamp) + "\n" +
                 String.format("%s = %s", "leaseExpiryTime", leaseExpiryTime) + "\n" +
                 String.format("%s = %s", "maxExecutionExpiryTime", maxExecutionExpiryTime) + "\n" +
-                String.format("%s = %s", "txnStatus", txnStatus) + "\n" +
-                String.format("%s = %s", "writerId", writerId) + "\n" +
-                String.format("%s = %s", "commitTime", commitTime) + "\n" +
-                String.format("%s = %s", "commitOrder", commitOrder) + "\n" +
-                String.format("%s = %s", "commitOffsets", commitOffsets.keySet().stream()
-                        .map(key -> key + ":" + commitOffsets.get(key))
-                        .collect(Collectors.joining(", ", "{", "}")));
+                String.format("%s = %s", "txnStatus", txnStatus) + "\n";
+        if (writerId.isPresent()) {
+            record = record + String.format("%s = %s", "writerId", writerId.get()) + "\n";
+        }
+        if (commitTime.isPresent()) {
+            record = record + String.format("%s = %s", "commitTime", commitTime.get()) + "\n";
+        }
+        if (commitOrder.isPresent()) {
+            record = record + String.format("%s = %s", "commitOrder", commitOrder.get()) + "\n";
+        }
+        record = record + String.format("%s = %s", "commitOffsets", commitOffsets.keySet().stream()
+                .map(key -> key + " : " + commitOffsets.get(key))
+                .collect(Collectors.joining(", ", "{", "}")));
+        return record;
     }
 
     private static class ActiveTxnRecordSerializer

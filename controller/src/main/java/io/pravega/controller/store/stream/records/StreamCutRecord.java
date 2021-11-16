@@ -90,7 +90,7 @@ public class StreamCutRecord {
         return String.format("%s = %s", "recordingTime", recordingTime) + "\n" +
                 String.format("%s = %s", "recordingSize", recordingSize) + "\n" +
                 String.format("%s = %s", "streamCut", streamCut.keySet().stream()
-                        .map(key -> key + ":" + streamCut.get(key))
+                        .map(key -> key + " : " + streamCut.get(key))
                         .collect(Collectors.joining(", ", "{", "}")));
     }
 

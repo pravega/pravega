@@ -27,6 +27,7 @@ public class ControllerKeySerializerTest {
         String testString = "test";
         ControllerKeySerializer serializer = new ControllerKeySerializer();
         ByteBuffer buffer = serializer.serialize(testString);
+        Assert.assertEquals("controller", serializer.getName());
         Assert.assertEquals(testString, serializer.deserialize(buffer));
     }
 }
