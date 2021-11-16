@@ -35,9 +35,9 @@ public class BucketServiceHealthContributor extends AbstractHealthContributor {
         Status status = Status.TERMINATED;
         if (service.isRunning()) {
             status = Status.STARTING;
-        }
-        if (service.isHealthy()) {
-            status = Status.RUNNING;
+            if (service.isHealthy()) {
+                status = Status.RUNNING;
+            }
         }
 
         return status;

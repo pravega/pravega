@@ -125,6 +125,7 @@ public class SegmentContainerMonitor extends AbstractIdleService implements Heal
     protected void shutDown() {
         leaderSelector.interruptLeadership();
         leaderSelector.close();
+        zkConnected.set(false);
         contributor.close();
     }
 }

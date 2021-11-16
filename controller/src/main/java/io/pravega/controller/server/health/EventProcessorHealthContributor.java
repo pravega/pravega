@@ -34,10 +34,9 @@ public class EventProcessorHealthContributor extends AbstractHealthContributor {
         Status status = Status.TERMINATED;
         if (controllerEventProcessors.isRunning()) {
             status = Status.STARTING;
-        }
-
-        if (controllerEventProcessors.isReady()) {
-            status = Status.RUNNING;
+            if (controllerEventProcessors.isReady()) {
+                status = Status.RUNNING;
+            }
         }
 
         return status;
