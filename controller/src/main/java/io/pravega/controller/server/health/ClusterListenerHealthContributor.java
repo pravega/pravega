@@ -36,9 +36,9 @@ public class ClusterListenerHealthContributor extends AbstractHealthContributor 
         Status status = Status.TERMINATED;
         if (controllerClusterListener.isRunning()) {
             status = Status.STARTING;
-        }
-        if (controllerClusterListener.isReady()) {
-            status = Status.RUNNING;
+            if (controllerClusterListener.isReady()) {
+                status = Status.RUNNING;
+            }
         }
 
         return status;
