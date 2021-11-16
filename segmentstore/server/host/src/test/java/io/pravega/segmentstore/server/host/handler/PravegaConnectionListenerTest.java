@@ -212,13 +212,14 @@ public class PravegaConnectionListenerTest {
         PravegaConnectionListener listener = new PravegaConnectionListener(false, false, "localhost",
                 port, mock(StreamSegmentStore.class), mock(TableStore.class), SegmentStatsRecorder.noOp(),
                 TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, true,
-                NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION.getDefaultValue().split(","), healthServiceManager);
+                NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION.getDefaultValue().split(","));
+        listener.connect(healthServiceManager.getRoot());
 
         listener.startListening();
-        Health health = listener.getHealthServiceManager().getHealthSnapshot();
+        Health health = healthServiceManager.getHealthSnapshot();
         Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health.getStatus());
         listener.close();
-        health = listener.getHealthServiceManager().getHealthSnapshot();
+        health = healthServiceManager.getHealthSnapshot();
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, health.getStatus());
     }
 }

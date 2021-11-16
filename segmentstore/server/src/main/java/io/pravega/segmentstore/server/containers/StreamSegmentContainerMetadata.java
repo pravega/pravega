@@ -25,7 +25,6 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.health.StreamSegmentContainerMetadataHealthContributor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.store.health.StreamSegmentContainerHealthContributor;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.ArrayList;
 import java.util.Collection;

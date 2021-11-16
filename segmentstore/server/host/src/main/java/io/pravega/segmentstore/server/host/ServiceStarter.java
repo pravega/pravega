@@ -25,12 +25,10 @@ import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
-import io.pravega.segmentstore.server.store.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -165,8 +163,7 @@ public final class ServiceStarter {
         if (serviceConfig.isEnableAdminGateway()) {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
-                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
-                    healthServiceManager);
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion());
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
         }
@@ -176,6 +173,7 @@ public final class ServiceStarter {
         serviceBuilder.getCacheManager().connect(healthServiceManager.getRoot());
         serviceBuilder.getSegmentContainerRegistry().connect(healthServiceManager.getRoot());
         listener.connect(healthServiceManager.getRoot());
+        adminListener.connect(healthServiceManager.getRoot());
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");

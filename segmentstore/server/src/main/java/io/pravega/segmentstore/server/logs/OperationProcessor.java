@@ -58,14 +58,12 @@ import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.contributors.ServiceHealthContributor;
-import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.checkerframework.checker.units.qual.A;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all

@@ -66,7 +66,7 @@ public class HealthContributorTests {
         HealthContributor first = new HealthyContributor("first");
         @Cleanup
         HealthContributor second = new FailingContributor("second");
-        contributor.connect(first, second);
+        contributor.register(first, second);
 
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("Expected 'contributor' to report an unhealthy status.", Status.TERMINATED, health.getStatus());

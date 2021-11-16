@@ -15,7 +15,6 @@
  */
 package io.pravega.controller.server.health;
 
-import com.google.common.base.Preconditions;
 import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;

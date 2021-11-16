@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.auth.AuthConstants;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.CancellationToken;

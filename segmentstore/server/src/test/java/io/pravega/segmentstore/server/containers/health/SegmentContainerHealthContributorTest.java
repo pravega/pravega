@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.host.health;
+package io.pravega.segmentstore.server.containers.health;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.store.health.StreamSegmentContainerHealthContributor;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import org.junit.After;
@@ -32,12 +33,12 @@ import static org.mockito.Mockito.when;
  */
 public class SegmentContainerHealthContributorTest {
     SegmentContainer segmentContainer;
-    SegmentContainerHealthContributor segmentContainerHealthContributor;
+    StreamSegmentContainerHealthContributor segmentContainerHealthContributor;
 
     @Before
     public void setup() {
         segmentContainer = mock(SegmentContainer.class);
-        segmentContainerHealthContributor = new SegmentContainerHealthContributor(segmentContainer);
+        segmentContainerHealthContributor = new StreamSegmentContainerHealthContributor("SegmentContainer", segmentContainer);
     }
 
     @After

@@ -32,6 +32,14 @@ import java.util.Queue;
  * {@link BlockingDrainingQueue} implementation for {@link Operation}s. Prevents adding {@link Operation}s out of order.
  */
 public class InMemoryLog extends BlockingDrainingQueue<Operation> implements HealthConnector {
+    /**
+     * The last sequence number added. This field is only accessed in {@link #addInternal}, which is guaranteed to be
+     * executed while holding the base class' lock, hence no need for extra synchronization here.
+     */
+    @GuardedBy("AbstractDrainingQueue.this.lock")
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
 
     @Getter(AccessLevel.PRIVATE)
     private final HealthContributor contributor;
@@ -39,14 +47,6 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> implements Hea
     public InMemoryLog() {
         this.contributor = new InMemoryLogHealthContributor("InMemoryLog", this);
     }
-    /**
-     * The last sequence number added. This field is only accessed in {@link #addInternal}, which is guaranteed to be
-     * executed while holding the base class' lock, hence no need for extra synchronization here.
-     */
-    @Getter(AccessLevel.PACKAGE)
-    @GuardedBy("AbstractDrainingQueue.this.lock")
-    @VisibleForTesting
-    private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
 
     /**
      * See {@link BlockingDrainingQueue#addInternal}.
