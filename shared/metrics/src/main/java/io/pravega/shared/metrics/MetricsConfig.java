@@ -42,6 +42,7 @@ public class MetricsConfig {
     public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDB.retention", "", "influxDBRetention");
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("statsD.reporter.enable", false, "enableStatsDReporter");
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("influxDB.reporter.enable", false, "enableInfluxDBReporter");
+    public final static Property<Boolean> ENABLE_PROMETHEUS = Property.named("prometheus.enable", false);
     public static final String COMPONENT_CODE = "metrics";
 
     //endregion
@@ -133,6 +134,12 @@ public class MetricsConfig {
     @Getter
     private final boolean enableInfluxDBReporter;
 
+    /**
+     * The status of enabling Prometheus.
+     */
+    @Getter
+    private final boolean enablePrometheus;
+
     //endregion
 
     //region Constructor
@@ -157,6 +164,7 @@ public class MetricsConfig {
         this.influxDBRetention = properties.get(INFLUXDB_RETENTION_POLICY);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsDReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
+        this.enablePrometheus = properties.getBoolean(ENABLE_PROMETHEUS);
     }
 
     /**

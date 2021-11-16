@@ -47,7 +47,7 @@ In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer
 
 ## Metrics Service Provider — Interface StatsProvider
 
-Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. It also provides `startWithoutExporting()` for testing purpose, which only stores metrics in memory without exporting them to external systems. Currently we have support for [StatsD](https://github.com/b/statsd_spec) and [InfluxDB](https://www.influxdata.com/) registries.
+Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. It also provides `startWithoutExporting()` for testing purpose, which only stores metrics in memory without exporting them to external systems. Currently we have support for [InfluxDB](https://www.influxdata.com/), [Prometheus](https://prometheus.io), and [StatsD](https://github.com/b/statsd_spec) registries.
 
 [StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
 

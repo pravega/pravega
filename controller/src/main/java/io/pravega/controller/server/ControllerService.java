@@ -694,7 +694,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);
@@ -734,7 +734,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);

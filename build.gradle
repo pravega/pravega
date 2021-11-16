@@ -273,9 +273,14 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/<micrometerVersion>
         compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
+        compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-prometheus/<micrometerVersion>
         compile project(':common')
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
+        testCompile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
     }
 
     javadoc {
