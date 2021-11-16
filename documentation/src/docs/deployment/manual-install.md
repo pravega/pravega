@@ -97,7 +97,7 @@ bin/bookkeeper bookie
 Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/4.11.1/security/tls/).
 
 ---
-# Installing Pravega
+## Installing Pravega
 
 For non-production systems, the containers can be used that are provided by the [Docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
@@ -173,8 +173,8 @@ bin/pravega-segmentstore
 ```
 ## Running a Pravega Cluster with Security enabled
 
-Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster.md).
+Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster).
 
-For detailed information about security configuration parameters for [Controller](security/pravega-security-configurations#pravega-controller)
-and [Segment Store](security/pravega-security-configurations#pravega-segment-store),
-see [this](security/pravega-security-configurations) document.
+For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations#pravega-controller)
+and [Segment Store](../security/pravega-security-configurations#pravega-segment-store),
+see [this](../security/pravega-security-configurations) document.

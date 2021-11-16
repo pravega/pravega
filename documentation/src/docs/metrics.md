@@ -38,7 +38,7 @@ limitations under the License.
 
 In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer.io/docs) as the underlying library, and provide our own API to make it easier to use.
 
-# Metrics Interfaces and Examples Usage
+## Metrics Interfaces and Examples Usage
 
 - `StatsProvider`: The Statistics Provider which provides the whole Metric service.
 
@@ -47,7 +47,7 @@ In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer
 - `OpStatsLogger`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)). It is included in `StatsLogger` and `DynamicLogger`.
 
 
-## Metrics Service Provider — Interface StatsProvider
+### Metrics Service Provider — Interface StatsProvider
 
 Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. It also provides `startWithoutExporting()` for testing purpose, which only stores metrics in memory without exporting them to external systems. Currently we have support for [InfluxDB](https://www.influxdata.com/), [Prometheus](https://prometheus.io), and [StatsD](https://github.com/b/statsd_spec) registries.
 
@@ -59,7 +59,7 @@ Pravega Metric Framework is initiated using the `StatsProvider` interface: it pr
 - `createStatsLogger()`: Create a `StatsLogger` instance which is used to register and return metric objects. Application code could then perform metric operations directly with the returned metric objects.
 - `createDynamicLogger()`: Creates a Dynamic Logger.
 
-## Metric Logger — Interface StatsLogger
+### Metric Logger — Interface StatsLogger
 
 This interface can be used to register the required metrics for simple types like [Counter](https://micrometer.io/docs/concepts#_counters) and [Gauge](https://micrometer.io/docs/concepts#_gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](https://micrometer.io/docs/concepts#_timers) and
 [Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries).
@@ -72,7 +72,7 @@ This interface can be used to register the required metrics for simple types lik
 - `registerGauge()`: Register a [Gauge](https://micrometer.io/docs/concepts#_gauges) Metric.
 - `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
 
-## Metric Sub Logger — OpStatsLogger
+### Metric Sub Logger — OpStatsLogger
 
 `OpStatsLogger` can be used if the user is interested in measuring the latency of operations like `CreateSegment` and `ReadSegment`. Further, we could use it to record the _number of operation_ and _time/duration_ of each operation.
 
@@ -85,7 +85,7 @@ This interface can be used to register the required metrics for simple types lik
 - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) Reporters and unit tests.
 - `clear`: Used to clear the stats for this operation.
 
-## Metric Logger — Interface DynamicLogger
+### Metric Logger — Interface DynamicLogger
 
 The following is an example of a simple interface that exposes only the simple type metrics: ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge](https://micrometer.io/docs/concepts#_gauges)/[Meter](https://micrometer.io/docs/concepts#_meters)).
 
@@ -99,11 +99,11 @@ The following is an example of a simple interface that exposes only the simple t
  - `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://micrometer.io/docs/concepts#_meters).
 
 
-# Example for Starting a Metric Service
+## Example for Starting a Metric Service
 
 This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
 
-## Example for Dynamic Counter and OpStatsLogger(Timer)
+### Example for Dynamic Counter and OpStatsLogger(Timer)
 
 This is an example from `io.pravega.segmentstore.server.host.stat.SegmentStatsRecorderImpl.java`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/stat/SegmentStatsRecorderImpl.java). In the class `PravegaRequestProcessor`, we have registered two metrics:
 
@@ -150,17 +150,17 @@ The following are the required steps to register and use `OpStatsLogger(Timer)`:
    ```
  Here `SEGMENT_CREATE_LATENCY` is the name of this metric, and `createStreamSegment` is the metric object, which tracks operations of `createSegment` and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
 
-## Example for Dynamic Gauge
+### Example for Dynamic Gauge
 
 This is an example from `io.pravega.controller.metrics.StreamMetrics`. In this class, we report
 a Dynamic Gauge which represents the open Transactions of a Stream. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/metrics/StreamMetrics.java).
 
-## Example for Dynamic Meter
+### Example for Dynamic Meter
 
 This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created with a particular container.
 
 
-# Metric Registries and Configurations
+## Metric Registries and Configurations
 
 With Micrometer, each meter registry is responsible for both storage and exporting of metrics objects.
 In order to have a unified interface, Micrometer provides the `CompositeMeterRegistry` for the application to interact with, `CompositeMeterRegistry` will forward metric operations to all the concrete registries bounded to it.
@@ -178,7 +178,7 @@ Currently Pravega supports the following:
 The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
 
 
-# Creating Own Metrics
+## Creating Own Metrics
 
 1. When starting a Segment Store/Controller Service, start a Metric Service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
 
@@ -226,7 +226,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     }
 
    ```
-# Metrics Naming Conventions
+## Metrics Naming Conventions
 
 All metric names are in the following format:
 
@@ -279,9 +279,9 @@ to track the globally total number of bytes read, as well as the per-segment ver
 segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", "...", "epoch", "..."])
 ```
 
-# Available Metrics and Their Names
+## Available Metrics and Their Names
 
-## Metrics in JVM
+### Metrics in JVM
 
    ```
     jvm_gc_live_data_size
@@ -298,7 +298,7 @@ segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", ".
     jvm_threads_states    
 
    ```
-## Metrics in Segment Store Service
+### Metrics in Segment Store Service
 
 - Segment Store Read/Write latency of storage operations ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
@@ -425,7 +425,7 @@ segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", ".
     segmentstore.thread_pool.active_threads
   ```
 
-## Metrics in Controller Service
+### Metrics in Controller Service
 
 
 - Controller Stream operation latency Metrics ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
@@ -529,7 +529,7 @@ segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", ".
   controller.zookeeper.session_expiration
   ```
 
-# Resources
+## Resources
 
 * [Micrometer Metrics](https://micrometer.io/docs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

@@ -75,8 +75,7 @@ type the WRITE\_EVENT command if you don't want to).
 
 But we really want to talk about Pravega Transactions, so lets dive into that.
 
-Pravega Transactions
-====================
+## Pravega Transactions
 
 The idea with a Pravega Transaction is that it allows an application to prepare
 a set of Events that can be written "all at once" to a Stream.  This allows an
