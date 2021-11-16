@@ -90,7 +90,7 @@ public interface CheckpointStore {
      */
     void removeReaderGroup(final String process, final String readerGroup)
             throws CheckpointStoreException;
-    
+
     /**
      * List all the reader groups added to a specified process.
      * @param process Process identifier.

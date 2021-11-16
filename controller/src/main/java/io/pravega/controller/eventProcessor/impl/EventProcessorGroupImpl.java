@@ -252,8 +252,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         try {
             Map<String, Position> map = sealReaderGroup(controllerId);
             cleanupReaderGroup(controllerId, map);
-        }
-        finally {
+        } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, controllerId);
         }
     }
