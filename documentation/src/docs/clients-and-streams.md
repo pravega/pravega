@@ -1,5 +1,5 @@
 ---
-title: Client and Streams Semantics
+title: Client and Stream Semantics
 ---
 
 <!--

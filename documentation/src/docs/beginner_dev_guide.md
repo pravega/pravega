@@ -17,6 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
+import versions from '@site/versions';
 
 Learn how to create a Hello World Pravega app. This guide covers:
 
@@ -36,14 +37,17 @@ To complete this guide, you need:
   
 * An IDE
   
-* JDK 11+ installed with JAVA_HOME configured appropriately
+* JDK 11+ installed with `JAVA_HOME` configured appropriately
   
-* <details>
-  <summary>Gradle 6.5.1+</summary>
-  Installation : https://gradle.org/install/
-  
-  Note: Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`.
-</details>
+* Gradle 6.5.1+
+
+:::tip
+
+Follow Gradle installation instructions at [https://gradle.org/install/](https://gradle.org/install/)
+
+Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`.
+
+:::
 
 # 2. Goal
 In this guide, we will develop a straightforward application that creates a Stream on Pravega and writes an event into the Stream and reads back from it.
@@ -92,22 +96,21 @@ $ ./gradlew startStandalone
 
 <details open>
 <summary>Commands to start standalone from installation package:</summary>
-<p>
 
 Download the Pravega release from the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
-```console
-$ tar xfvz pravega-<version>.tgz
-```
+<pre><code {...{ "className": "language-shell" }}>
+$ tar xfvz pravega-{versions.pravega}.tgz
+</code></pre>
+
 Download and extract either tarball or zip files. Follow the instructions provided for the tar files (same can be applied for zip file) to launch all the components of Pravega on your local machine.
 
 Run Pravega Standalone:
 
-```console
-$ pravega-<version>/bin/pravega-standalone
-```
+<pre><code {...{ "className": "language-shell" }}>
+$ pravega-{versions.pravega}/bin/pravega-standalone
+</code></pre>
 
-</p>
 </details>  
 
 
@@ -118,10 +121,10 @@ The easiest way to bootstrap a sample application against Pravega is to run the 
 $ gradle init --type java-application
 ```
 Add the below snippet to dependencies section of build.gradle in the app directory.
-```groovy
-// https://mvnrepository.com/artifact/io.pravega/pravega-client
-implementation group: 'io.pravega', name: 'pravega-client', version: '0.9.0'
-```
+<pre><code {...{ "className": "language-groovy" }}>
+{`// https://mvnrepository.com/artifact/io.pravega/pravega-client
+implementation group: 'io.pravega', name: 'pravega-client', version: '${versions.pravega}'`}
+</code></pre>
 Invoke `gradle run` to run the project.
 
 
@@ -210,5 +213,5 @@ try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope
 ```
 
 # 5. What's next?
-This guide covered the creation of a application that writes and reads from Pravega. However, there is much more. We recommend continuing the journey by going through [Pravega-client-101](https://blog.pravega.io/2020/09/22/pravega-client-api-101/) and other samples present in the [Pravega Samples repo](https://github.com/pravega/pravega-samples).
+This guide covered the creation of a application that writes and reads from Pravega. However, there is much more. We recommend continuing the journey by going through [Client and Stream Semantics](clients-and-streams) and other samples present in the [Pravega Samples repo](https://github.com/pravega/pravega-samples).
 

@@ -17,6 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
+import versions from '@site/versions';
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
 application.
@@ -36,9 +37,9 @@ Download the Pravega release from the [Github Releases](https://github.com/prave
 If you prefer to build Pravega yourself, you can download the code and run `./gradlew distribution`. More
 details are shown in the Pravega [README](https://github.com/pravega/pravega/blob/master/README.md).
 
-```
-$ tar xfvz pravega-<version>.tgz
-```
+<pre><code {...{ "className": "language-bash" }}>
+$ tar xfvz pravega-{versions.pravega}.tgz
+</code></pre>
 
 **Run Pravega in standalone mode**
 
@@ -49,10 +50,10 @@ in Production!
 
 More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
 
-```
-$ cd pravega-<version>
-$ ./bin/pravega-standalone
-```
+<pre><code {...{ "className": "language-bash" }}>
+{`$ cd pravega-${versions.pravega}
+$ ./bin/pravega-standalone`}
+</code></pre>
 
 The command above runs Pravega locally for development and testing purposes. It does not persist in the storage tiers like we do with a real deployment of Pravega and as such you shouldn't expect it to recover from crashes, and further, not rely on it for production use. For production use, we strongly encourage a full deployment of Pravega.
 
@@ -68,14 +69,14 @@ please see the [README](https://github.com/pravega/pravega/blob/master/README.md
 
 **Download the Pravega-Samples git repo**
 
-```
+```bash
 $ git clone https://github.com/pravega/pravega-samples
 $ cd pravega-samples
 ```
 
 **Generate the scripts to run the applications**
 
-```
+```bash
 $ ./gradlew installDist
 ```
 
@@ -83,7 +84,7 @@ $ ./gradlew installDist
 
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
-```
+```bash
 $ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
 $ ./bin/helloWorldWriter
 ```
@@ -98,7 +99,7 @@ See the [README](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-
 
 **Run the sample "HelloWorldReader"**
 
-```
+```bash
 $ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
 $ ./bin/helloWorldReader
 ```
