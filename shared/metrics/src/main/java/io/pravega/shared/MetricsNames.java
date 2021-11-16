@@ -154,10 +154,12 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
     public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_BYTES = PREFIX + "segmentstore.storage.slts.truncate_relocation_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_COUNT = PREFIX + "segmentstore.storage.slts.truncate_relocation_count";  // Counter
     public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count"; // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";         // Counter
