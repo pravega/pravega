@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.host.health;
 
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
+import io.pravega.segmentstore.server.store.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import org.junit.After;
@@ -57,9 +58,9 @@ public class SegmentContainerRegistryHealthContributorTest {
         when(segmentContainerRegistry.isClosed()).thenReturn(true);
         Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
         Status health = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, health);
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, health);
         when(segmentContainerRegistry.isClosed()).thenReturn(false);
         health = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health);
     }
 }

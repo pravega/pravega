@@ -216,9 +216,9 @@ public class PravegaConnectionListenerTest {
 
         listener.startListening();
         Health health = listener.getHealthServiceManager().getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health.getStatus());
         listener.close();
         health = listener.getHealthServiceManager().getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, health.getStatus());
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, health.getStatus());
     }
 }

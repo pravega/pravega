@@ -285,7 +285,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
+            Status status = Status.TERMINATED;
             boolean running = listener.serverChannel.isOpen();
             if (running) {
                 status = Status.NEW;
@@ -293,7 +293,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
             boolean ready = listener.serverChannel.isActive();
             if (ready) {
-                status = Status.UP;
+                status = Status.RUNNING;
             }
 
             builder.details(ImmutableMap.of("host", listener.host, "port", listener.port));

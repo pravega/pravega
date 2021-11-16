@@ -16,42 +16,30 @@
 package io.pravega.segmentstore.server.host.health;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.Service;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
-import io.pravega.shared.health.impl.AbstractHealthContributor;
+import io.pravega.shared.health.contributors.ServiceHealthContributor;
 import lombok.NonNull;
 
 
 /**
  *  A contributor to manage health of Segment Container.
  */
-public class SegmentContainerHealthContributor extends AbstractHealthContributor {
+public class SegmentContainerHealthContributor extends ServiceHealthContributor {
     private final SegmentContainer segmentContainer;
 
     public SegmentContainerHealthContributor(@NonNull SegmentContainer segmentContainer) {
-        super("SegmentContainer");
+        super("SegmentContainer", segmentContainer);
         this.segmentContainer = segmentContainer;
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
-        Status status = Status.DOWN;
-
-        if (segmentContainer.state() == Service.State.NEW) {
-            status = Status.NEW;
-        }
-
-        if (segmentContainer.state() == Service.State.STARTING) {
-            status = Status.STARTING;
-        }
-
-        if (segmentContainer.state() == Service.State.RUNNING) {
-            status = Status.UP;
-        }
+        Status status = super.doHealthCheck(builder);
 
         builder.details(ImmutableMap.of("Id", segmentContainer.getId(), "ActiveSegments", segmentContainer.getActiveSegments()));
+
         return status;
     }
 }

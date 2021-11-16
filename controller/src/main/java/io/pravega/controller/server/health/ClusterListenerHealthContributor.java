@@ -33,13 +33,14 @@ public class ClusterListenerHealthContributor extends AbstractHealthContributor 
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (controllerClusterListener.isRunning()) {
-            status = Status.NEW;
-            if (controllerClusterListener.isReady()) {
-                status = Status.UP;
-            }
+            status = Status.STARTING;
         }
+        if (controllerClusterListener.isReady()) {
+            status = Status.RUNNING;
+        }
+
         return status;
     }
 }

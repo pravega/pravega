@@ -33,13 +33,14 @@ public class RetentionServiceHealthContributor extends AbstractHealthContributor
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (retentionService.isRunning()) {
-            status = Status.NEW;
-            if (retentionService.isHealthy()) {
-                status = Status.UP;
-            }
+            status = Status.STARTING;
         }
+        if (retentionService.isHealthy()) {
+            status = Status.RUNNING;
+        }
+
         return status;
     }
 }

@@ -60,9 +60,9 @@ public class SegmentContainerHealthContributorTest {
         Assert.assertEquals("HealthContributor should report an 'STARTING' Status.", Status.STARTING, status);
         when(segmentContainer.state()).thenReturn(Service.State.RUNNING);
         status = segmentContainerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, status);
         when(segmentContainer.state()).thenReturn(Service.State.TERMINATED);
         status = segmentContainerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, status);
+        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, status);
     }
 }

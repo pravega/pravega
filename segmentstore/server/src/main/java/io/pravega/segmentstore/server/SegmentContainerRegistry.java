@@ -15,6 +15,8 @@
  */
 package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.shared.health.HealthConnector;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -22,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Registry for Segment Containers, allowing access to SegmentContainers, as well as operations on them.
  */
-public interface SegmentContainerRegistry extends AutoCloseable {
+public interface SegmentContainerRegistry extends AutoCloseable, HealthConnector {
     /**
      * Gets the number of registered containers.
      * @return The number of registered containers.

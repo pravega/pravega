@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.health.impl.HealthEndpointImpl;
 import io.pravega.shared.health.impl.HealthServiceUpdaterImpl;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -31,7 +32,7 @@ public class HealthServiceManager implements AutoCloseable {
      * The root {@link HealthContributor} of the service. All {@link HealthContributor} objects are reachable from this
      * contributor.
      */
-    @VisibleForTesting
+    @Getter
     private final HealthContributor root;
 
     /**
@@ -99,9 +100,9 @@ public class HealthServiceManager implements AutoCloseable {
     }
 
     /**
-     * Get name of the health indicatior.
+     * Get name of the health indicator.
      *
-     * @return The name of the health indicatior
+     * @return The name of the health indicator
      */
     public String getName() {
         return this.root.getName();
@@ -124,7 +125,7 @@ public class HealthServiceManager implements AutoCloseable {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.UP;
+            Status status = Status.RUNNING;
             builder.status(status);
             return status;
         }

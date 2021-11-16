@@ -37,6 +37,8 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;

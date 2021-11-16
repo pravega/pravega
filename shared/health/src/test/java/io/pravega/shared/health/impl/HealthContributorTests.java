@@ -38,7 +38,7 @@ public class HealthContributorTests {
         HealthyContributor contributor = new HealthyContributor();
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health.getStatus());
     }
 
     /**
@@ -50,7 +50,7 @@ public class HealthContributorTests {
         @Cleanup
         ThrowingContributor contributor = new ThrowingContributor();
         Health health = contributor.getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
+        Assert.assertEquals("HealthContributor should have a 'DOWN' Status.", Status.TERMINATED, health.getStatus());
         Assert.assertTrue("HealthContributor should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
     }
 
@@ -66,10 +66,10 @@ public class HealthContributorTests {
         HealthContributor first = new HealthyContributor("first");
         @Cleanup
         HealthContributor second = new FailingContributor("second");
-        contributor.register(first, second);
+        contributor.connect(first, second);
 
         Health health = contributor.getHealthSnapshot();
-        Assert.assertEquals("Expected 'contributor' to report an unhealthy status.", Status.DOWN, health.getStatus());
+        Assert.assertEquals("Expected 'contributor' to report an unhealthy status.", Status.TERMINATED, health.getStatus());
         Assert.assertEquals("Expected to see two children registered to 'contributor'.", 2, health.getChildren().size());
     }
 
@@ -87,21 +87,21 @@ public class HealthContributorTests {
                 () -> contributor.getHealthSnapshot(),
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows("Expected an exception adding a child to a closed contributor.",
-                () -> contributor.register(new HealthyContributor("")),
+                () -> contributor.connect(new HealthyContributor("")),
                 ex -> ex instanceof ObjectClosedException);
 
         HealthContributor parent = new HealthyContributor("parent");
-        root.register(parent);
+        root.connect(parent);
         @Cleanup
         HealthContributor child = new FailingContributor("child");
-        parent.register(child);
+        parent.connect(child);
 
         parent.close();
         Assert.assertEquals("Expecting child contributor to be unreachable after closing parent",
                 0,
                root.getHealthSnapshot().getChildren().size());
         Assert.assertEquals("Expecting default Status (UP) from empty HealthContributor.",
-                Status.UP,
+                Status.RUNNING,
                 root.getHealthSnapshot().getStatus());
 
     }
@@ -114,14 +114,14 @@ public class HealthContributorTests {
     public void testDynamicContributor() {
         @Cleanup
         HealthContributor root = new HealthyContributor();
-        root.register(new HealthyContributor("first"));
-        Assert.assertEquals("Expecting healthy status.", Status.UP, root.getHealthSnapshot().getStatus());
+        root.connect(new HealthyContributor("first"));
+        Assert.assertEquals("Expecting healthy status.", Status.RUNNING, root.getHealthSnapshot().getStatus());
         // Add a failing contributor to the root, which uses the 'UNANIMOUS' aggregation rule.
         HealthContributor failing = new FailingContributor();
-        root.register(failing);
-        Assert.assertEquals("Expecting failing status.", Status.DOWN, root.getHealthSnapshot().getStatus());
+        root.connect(failing);
+        Assert.assertEquals("Expecting failing status.", Status.TERMINATED, root.getHealthSnapshot().getStatus());
         // Remove the failing contributor and now expect it is healthy again.
         failing.close();
-        Assert.assertEquals("Expecting healthy status.", Status.UP, root.getHealthSnapshot().getStatus());
+        Assert.assertEquals("Expecting healthy status.", Status.RUNNING, root.getHealthSnapshot().getStatus());
     }
 }

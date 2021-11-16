@@ -74,6 +74,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
+import io.pravega.segmentstore.server.store.health.StreamSegmentContainerHealthContributor;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
@@ -98,6 +99,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -131,7 +135,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final ContainerEventProcessor containerEventProcessor;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
-
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
     //endregion
 
     //region Constructor
@@ -180,6 +185,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.containerEventProcessor = new ContainerEventProcessorImpl(this, this.metadataStore,
                 config.getEventProcessorIterationDelay(), config.getEventProcessorOperationTimeout(), this.executor);
         this.closed = new AtomicBoolean();
+        this.contributor = new StreamSegmentContainerHealthContributor(String.format("SegmentContainer-%d", streamSegmentContainerId), this);
+
+        this.durableLog.connect(this.contributor);
+        this.metadataCleaner.connect(this.contributor);
+        this.writer.connect(this.contributor);
     }
 
     private Storage createStorage(StorageFactory storageFactory) {
@@ -268,6 +278,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.storage.close();
             this.metrics.close();
             this.containerEventProcessor.close();
+            this.contributor.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }

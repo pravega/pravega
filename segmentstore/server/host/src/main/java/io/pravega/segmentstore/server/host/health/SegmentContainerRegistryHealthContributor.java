@@ -16,7 +16,6 @@
 
 package io.pravega.segmentstore.server.host.health;
 
-import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -26,27 +25,14 @@ import lombok.NonNull;
 /**
  * A contributor to manage the health of Segment Container Registry.
  */
-public class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
-    private final SegmentContainerRegistry segmentContainerRegistry;
 
-    public SegmentContainerRegistryHealthContributor(@NonNull SegmentContainerRegistry segmentContainerRegistry) {
-        super("SegmentContainerRegistry");
-        this.segmentContainerRegistry = segmentContainerRegistry;
+public class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
+    public SegmentContainerRegistryHealthContributor(@NonNull String name) {
+        super(name);
     }
 
     @Override
-    public Status doHealthCheck(Health.HealthBuilder builder) {
-        for (SegmentContainer container: segmentContainerRegistry.getContainers()) {
-            this.register(new SegmentContainerHealthContributor(container));
-        }
-
-        Status status = Status.DOWN;
-        boolean ready = !segmentContainerRegistry.isClosed();
-
-        if (ready) {
-            status = Status.UP;
-        }
-
-        return status;
+    public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
+        return null;
     }
 }

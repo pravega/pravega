@@ -18,7 +18,10 @@ package io.pravega.controller.server.bucket;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.health.WatermarkingServiceHealthContributor;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +58,9 @@ public abstract class BucketManager extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
 
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
+
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
                   final Function<Integer, BucketService> bucketServiceSupplier) {
         this.processId = processId;
@@ -63,6 +69,8 @@ public abstract class BucketManager extends AbstractService {
         this.lock = new Object();
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
+
+        this.contributor = new WatermarkingServiceHealthContributor("WaterMarkingService", this);
     }
 
     @Override

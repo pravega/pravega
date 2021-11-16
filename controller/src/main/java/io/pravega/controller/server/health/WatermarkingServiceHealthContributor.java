@@ -33,12 +33,12 @@ public class WatermarkingServiceHealthContributor extends AbstractHealthContribu
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (watermarkingService.isRunning()) {
             status = Status.NEW;
-            if (watermarkingService.isHealthy()) {
-                status = Status.UP;
-            }
+        }
+        if (watermarkingService.isHealthy()) {
+            status = Status.RUNNING;
         }
         return status;
     }

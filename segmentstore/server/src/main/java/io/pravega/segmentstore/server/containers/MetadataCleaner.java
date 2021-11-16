@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.auth.AuthConstants;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.CancellationToken;
@@ -27,11 +28,18 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.segmentstore.server.containers.health.MetadataCleanerHealthContributor;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -41,7 +49,7 @@ import lombok.val;
  */
 @Slf4j
 @ThreadSafe
-class MetadataCleaner extends AbstractThreadPoolService {
+class MetadataCleaner extends AbstractThreadPoolService implements  AutoCloseable, HealthConnector {
     //region Private
 
     private final ContainerConfig config;
@@ -51,6 +59,10 @@ class MetadataCleaner extends AbstractThreadPoolService {
     private final AtomicLong lastIterationSequenceNumber;
     private final CancellationToken stopToken;
     private final Object singleRunLock = new Object();
+    private final AtomicBoolean closed;
+
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
     @GuardedBy("singleRunLock")
     private CompletableFuture<Void> currentIteration = null;
 
@@ -80,6 +92,8 @@ class MetadataCleaner extends AbstractThreadPoolService {
         this.cleanupCallback = cleanupCallback;
         this.lastIterationSequenceNumber = new AtomicLong(metadata.getOperationSequenceNumber());
         this.stopToken = new CancellationToken();
+        this.contributor = new MetadataCleanerHealthContributor(String.format("MetadataCleaner-%d", metadata.getContainerId()), this);
+        this.closed = new AtomicBoolean(false);
     }
 
     //endregion
@@ -203,5 +217,12 @@ class MetadataCleaner extends AbstractThreadPoolService {
         val result = Futures.delayedFuture(this.config.getSegmentMetadataExpiration(), this.executor);
         this.stopToken.register(result);
         return result;
+    }
+
+    @Override
+    public void close() {
+        if (!this.closed.getAndSet(true)) {
+            this.contributor.close();
+        }
     }
 }

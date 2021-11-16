@@ -35,6 +35,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import io.pravega.segmentstore.server.store.health.SegmentContainerRegistryHealthContributor;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -44,13 +48,15 @@ import lombok.extern.slf4j.Slf4j;
  * Registry for SegmentContainers.
  */
 @Slf4j
-class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
+class StreamSegmentContainerRegistry implements SegmentContainerRegistry, HealthConnector {
     //region Members
 
     private final SegmentContainerFactory factory;
     private final ConcurrentHashMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
     private final AtomicBoolean closed;
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -71,6 +77,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         this.executor = executor;
         this.containers = new ConcurrentHashMap<>();
         this.closed = new AtomicBoolean();
+        this.contributor = new SegmentContainerRegistryHealthContributor(this);
     }
 
     //endregion
@@ -187,7 +194,8 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
                 ex -> handleContainerFailure(newContainer, ex),
                 this.executor);
         return Services.startAsync(newContainer.container, this.executor)
-                       .thenApply(v -> newContainer.handle);
+                .thenAccept(v -> newContainer.container.connect(contributor))
+                .thenApply(v -> newContainer.handle);
     }
 
     private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {

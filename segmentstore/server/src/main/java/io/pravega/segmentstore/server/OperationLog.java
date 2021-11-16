@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.shared.health.HealthConnector;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -24,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Sequential Log made of Log Operations.
  */
-public interface OperationLog extends Container {
+public interface OperationLog extends Container, HealthConnector {
     /**
      * Adds a new {@link Operation} to the {@link OperationLog} with a given {@link OperationPriority}.
      *

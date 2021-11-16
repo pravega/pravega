@@ -74,10 +74,10 @@ public class ClusterListenerHealthContributorTest {
         clusterListener.startAsync();
         clusterListener.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.UP, status);
+        Assert.assertEquals(Status.RUNNING, status);
         clusterListener.stopAsync();
         clusterListener.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.DOWN, status);
+        Assert.assertEquals(Status.TERMINATED, status);
     }
 }

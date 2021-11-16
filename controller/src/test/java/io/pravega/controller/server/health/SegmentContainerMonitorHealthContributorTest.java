@@ -69,10 +69,10 @@ public class SegmentContainerMonitorHealthContributorTest {
         monitor.startAsync();
         monitor.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.UP, status);
+        Assert.assertEquals(Status.RUNNING, status);
         monitor.stopAsync();
         monitor.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.DOWN, status);
+        Assert.assertEquals(Status.TERMINATED, status);
     }
 }

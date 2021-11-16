@@ -40,8 +40,11 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +63,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-public class CacheManager extends AbstractScheduledService implements AutoCloseable {
+public class CacheManager extends AbstractScheduledService implements AutoCloseable, HealthConnector {
     //region Members
     private static final int CACHE_FULL_RETRY_BASE_MILLIS = 50;
     private static final String TRACE_OBJECT_ID = "CacheManager";
@@ -80,6 +83,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @Getter
     private final CacheUtilizationProvider utilizationProvider;
     private final Object lock = new Object();
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -117,6 +122,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.lastCacheState = new AtomicReference<>();
         this.metrics = new SegmentStoreMetrics.CacheManager();
         this.utilizationProvider = new CacheUtilizationProvider(this.policy, this::getStoredBytes);
+        this.contributor = new CacheManagerHealthContributor(this);
+
         fetchCacheState();
     }
 
@@ -624,18 +631,18 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
+            Status status = Status.TERMINATED;
             boolean running = !cacheManager.closed.get();
             if (running) {
-                status = Status.UP;
+                status = Status.RUNNING;
             }
 
             builder.details(ImmutableMap.of(
-                    "cacheState", this.cacheManager.lastCacheState.get(),
-                    "numOfClients", this.cacheManager.clients.size(),
-                    "currentGeneration", this.cacheManager.currentGeneration,
-                    "oldGeneration", this.cacheManager.oldestGeneration,
-                    "essentialEntriesOnly", this.cacheManager.essentialEntriesOnly
+                    "CacheState", this.cacheManager.lastCacheState.get(),
+                    "NumOfClients", this.cacheManager.clients.size(),
+                    "CurrentGeneration", this.cacheManager.currentGeneration,
+                    "OldGeneration", this.cacheManager.oldestGeneration,
+                    "EssentialEntriesOnly", this.cacheManager.essentialEntriesOnly
             ));
 
             return status;

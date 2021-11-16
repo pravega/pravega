@@ -24,7 +24,7 @@ import java.util.List;
 
 public class StatusAggregatorTests {
 
-    private static final List<Status> STATUSES = Arrays.asList(Status.UP, Status.UP, Status.DOWN);
+    private static final List<Status> STATUSES = Arrays.asList(Status.RUNNING, Status.RUNNING, Status.TERMINATED);
 
     /**
      * Ensures that only a *majority* of Status results need indicate 'UP' (success) to reduce into a UP status.
@@ -35,13 +35,13 @@ public class StatusAggregatorTests {
     public void testMajorityRule() {
         StatusAggregator aggregator = StatusAggregator.MAJORITY;
         Assert.assertEquals("The aggregator should return an UP status.",
-                Status.UP,
+                Status.RUNNING,
                 StatusAggregator.aggregate(aggregator, STATUSES));
         // Ensure it must be strictly greater than half.
-        List<Status> list = new ArrayList<>(Arrays.asList(Status.DOWN));
+        List<Status> list = new ArrayList<>(Arrays.asList(Status.TERMINATED));
         list.addAll(STATUSES);
         Assert.assertEquals("The aggregation should fail and return a DOWN status.",
-                Status.DOWN,
+                Status.TERMINATED,
                 StatusAggregator.aggregate(aggregator, list));
     }
 
@@ -53,7 +53,7 @@ public class StatusAggregatorTests {
         StatusAggregator aggregator = StatusAggregator.UNANIMOUS;
         Assert.assertEquals("The aggregator should return a DOWN status.",
                 StatusAggregator.aggregate(aggregator, STATUSES),
-                Status.DOWN);
+                Status.TERMINATED);
     }
 
     /**
@@ -64,7 +64,7 @@ public class StatusAggregatorTests {
         StatusAggregator aggregator = StatusAggregator.ANY;
         Assert.assertEquals("The aggregator should return an UP status.",
                 StatusAggregator.aggregate(aggregator, STATUSES),
-                Status.UP);
+                Status.RUNNING);
     }
 
 }

@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.logs.health.DurableLogHealthContributor;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
@@ -50,6 +51,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.health.HealthContributor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -77,6 +80,8 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final AtomicBoolean closed;
     private final CompletableFuture<Void> delayedStart;
     private final Retry.RetryAndThrowConditionally delayedStartRetry;
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -112,7 +117,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.delayedStart = new CompletableFuture<>();
         this.delayedStartRetry = Retry.withExpBackoff(config.getStartRetryDelay().toMillis(), 1, Integer.MAX_VALUE)
                                       .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogDisabledException);
+        this.contributor = new DurableLogHealthContributor(String.format("DurableLog-%d", metadata.getContainerId()), this);
 
+        this.operationProcessor.connect(this.contributor);
+        this.inMemoryOperationLog.connect(this.contributor);
     }
 
     @VisibleForTesting
@@ -128,7 +136,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     public void close() {
         if (!this.closed.get()) {
             Futures.await(Services.stopAsync(this, this.executor));
-
+            this.contributor.close();
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
             this.inMemoryOperationLog.close(); // Same here.

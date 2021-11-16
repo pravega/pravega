@@ -29,7 +29,7 @@ public class HealthTests {
     public void testDefaultReadyLogic() {
         Health health = Health.builder().build();
         Assert.assertEquals("isReady() should be false by default if no Status is set.", false, health.isReady());
-        health = Health.builder().status(Status.UP).build();
+        health = Health.builder().status(Status.RUNNING).build();
         Assert.assertEquals("isReady() should be true by default if an UP Status is supplied.", true, health.isReady());
     }
 
@@ -40,7 +40,7 @@ public class HealthTests {
     public void testDefaultAliveLogic() {
         Health health = Health.builder().build();
         Assert.assertEquals("isAlive() should be false by default if no Status is set.", false, health.isAlive());
-        health = Health.builder().status(Status.UP).build();
+        health = Health.builder().status(Status.RUNNING).build();
         Assert.assertEquals("isAlive() should be true by default if an UP Status is supplied.", true, health.isAlive());
     }
 }
