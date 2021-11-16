@@ -204,7 +204,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final String operation = "readSegment";
-        System.out.println("<<<<---- Inside Read Segment ---->>>>");
 
         if (!verifyToken(segment, readSegment.getOffset(), readSegment.getDelegationToken(), operation)) {
             return;
