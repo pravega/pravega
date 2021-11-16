@@ -68,7 +68,10 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
-import static io.pravega.shared.MetricsNames.*;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_PREFIX;
 
 /**

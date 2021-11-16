@@ -47,7 +47,15 @@ import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
 import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 42;
@@ -438,6 +446,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
 
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
+        @Cleanup
         StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
 
