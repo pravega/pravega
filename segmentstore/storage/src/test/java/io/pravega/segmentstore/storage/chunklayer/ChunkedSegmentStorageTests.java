@@ -2018,23 +2018,35 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncates() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(4).build();
+        testRepeatedTruncates(config, 1, 3);
+        testRepeatedTruncates(config, 3, 1);
+        testRepeatedTruncates(config, 2, 3);
+        testRepeatedTruncates(config, 3, 2);
+        testRepeatedTruncates(config, 3, 3);
+
+    }
+
+    private void testRepeatedTruncates(ChunkedSegmentStorageConfig config, long maxChunkLength, int numberOfChunks) throws Exception {
         @Cleanup
-        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(4).build());
+        TestContext testContext = getTestContext(config);
         String testSegmentName = "testSegmentName";
 
-        // Populate sgement.
-        val h1 = populateSegment(testContext, testSegmentName, 3, 3);
-        byte[] buffer = new byte[10];
+        // Populate segment.
+        val expectedLength = Math.toIntExact(maxChunkLength * numberOfChunks);
+        val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, numberOfChunks);
+        byte[] buffer = new byte[expectedLength];
 
         // Perform series of truncates.
-        for (int truncateAt = 0; truncateAt < 9; truncateAt++) {
+        for (int truncateAt = 0; truncateAt < expectedLength; truncateAt++) {
             HashSet<String> chunksBefore = new HashSet<>();
             chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
 
             testContext.chunkedSegmentStorage.truncate(h1, truncateAt, null).join();
-            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, 3, 3 - (truncateAt / 3));
-            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, 9);
-            TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, 9, true);
+            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, expectedLength);
+            val expectedChunkLengths = calculateExpectedChunkLengths(config, maxChunkLength, truncateAt, expectedLength);
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, expectedChunkLengths);
+            TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, expectedLength, true);
             TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
             HashSet<String>  chunksAfter = new HashSet<>();
             chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
@@ -2042,19 +2054,24 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             val metadata = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
             // length doesn't change.
-            Assert.assertEquals(9, metadata.getLength());
+            Assert.assertEquals(expectedLength, metadata.getLength());
             // start offset should match i.
             Assert.assertEquals(truncateAt, metadata.getStartOffset());
-            // Each time the first offest is multiple of 3
-            Assert.assertEquals(3 * (truncateAt / 3), metadata.getFirstChunkStartOffset());
+            // Check first chunk start offset.
+            if (metadata.getFirstChunkStartOffset() % maxChunkLength == 0) {
+                Assert.assertEquals(maxChunkLength * (numberOfChunks - expectedChunkLengths.length), metadata.getFirstChunkStartOffset());
+            } else {
+                val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
+                Assert.assertEquals(maxChunkLength * (numberOfChunks - expectedChunkLengths.length) + threshold, metadata.getFirstChunkStartOffset());
+            }
 
             // try to read some bytes.
-            val bytesRead = testContext.chunkedSegmentStorage.read(h1, truncateAt, buffer, 0, 9 - truncateAt, null).get().intValue();
-            Assert.assertEquals(9 - truncateAt, bytesRead);
+            val bytesRead = testContext.chunkedSegmentStorage.read(h1, truncateAt, buffer, 0, buffer.length - truncateAt, null).get().intValue();
+            Assert.assertEquals(buffer.length - truncateAt, bytesRead);
             if (truncateAt > 0) {
                 AssertExtensions.assertFutureThrows(
                         "read succeeded on missing segment.",
-                        testContext.chunkedSegmentStorage.read(h1, truncateAt - 1, buffer, 0, 9 - truncateAt, null),
+                        testContext.chunkedSegmentStorage.read(h1, truncateAt - 1, buffer, 0, buffer.length - truncateAt, null),
                         ex -> ex instanceof StreamSegmentTruncatedException);
             }
         }
@@ -2203,27 +2220,128 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testTruncate(3, 3, 4, 3, 12);
     }
 
-    private void testTruncate(long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength) throws Exception {
-        @Cleanup
-        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build());
-        String testSegmentName = "testSegmentName";
+    @Test
+    public void testBaseRelocatingTruncate() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(10)
+                .minPercentForTruncateRelocation(80)
+                .build();
+        val numberOfChunks = 3;
+        val maxChunkSize = 20;
+        val threshold = 16;
+        testRelocatingTruncate(config, numberOfChunks, maxChunkSize, threshold);
+    }
 
+    @Test
+    public void testRelocatingTruncateHalfEmpty() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .minPercentForTruncateRelocation(50)
+                .build();
+        for (int threshold = 16; threshold > 2; threshold /= 2) {
+            testRelocatingTruncate(config, 1, threshold, threshold / 2);
+        }
+    }
+
+    @Test
+    public void testMultipleRelocatingTruncate() throws Exception {
+        // Force multiple relocation every time relocating half chunk
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .minPercentForTruncateRelocation(50)
+                .build();
+
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
+        int maxChunkLength = 32;
+        int truncateAt = 0;
+        // Populate
+        val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, 1);
+
+        for (int threshold = maxChunkLength; threshold > 2; threshold /= 2) {
+            truncateAt += threshold / 2;
+            testTruncate(testContext, testSegmentName, maxChunkLength, truncateAt, 1, maxChunkLength, threshold / 2);
+        }
+    }
+
+    private void testRelocatingTruncate(ChunkedSegmentStorageConfig config, int numberOfChunks, long maxChunkSize, int threshold) throws Exception {
+        for (int i = 0; i < numberOfChunks; i++) {
+            testTruncate(config, maxChunkSize, i * maxChunkSize, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
+            testTruncate(config, maxChunkSize, i * maxChunkSize + threshold - 1, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
+            for (int j = threshold; j < maxChunkSize; j++) {
+                testTruncate(config, maxChunkSize, i * maxChunkSize + j, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize - j);
+            }
+        }
+    }
+
+    @Test
+    public void testRepeatedTruncateWithRelocation() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(5)
+                .minPercentForTruncateRelocation(80)
+                .build();
+        testRepeatedTruncates(config, 10, 1);
+        testRepeatedTruncates(config, 10, 2);
+        testRepeatedTruncates(config, 10, 3);
+    }
+
+    private void testTruncate(long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength) throws Exception {
+        testTruncate(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build(), maxChunkLength, truncateAt, chunksCountBefore, chunksCountAfter, expectedLength, maxChunkLength);
+    }
+
+    private void testTruncate(ChunkedSegmentStorageConfig config, long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
         // Populate
         val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, chunksCountBefore);
+        testTruncate(testContext, testSegmentName, maxChunkLength, truncateAt, chunksCountAfter, expectedLength, expectedFirstChunkLength);
+    }
+
+    private void testTruncate(TestContext testContext, String testSegmentName, long maxChunkLength, long truncateAt, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
         HashSet<String> chunksBefore = new HashSet<>();
         chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
 
         // Perform truncate.
-        testContext.chunkedSegmentStorage.truncate(h1, truncateAt, null).join();
+        testContext.chunkedSegmentStorage.truncate(SegmentStorageHandle.writeHandle(testSegmentName), truncateAt, null).join();
 
         // Check layout.
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, maxChunkLength, chunksCountAfter);
+        long[] expectedLengths = calculateExpectedChunkLengths(maxChunkLength, chunksCountAfter, expectedFirstChunkLength);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, expectedLengths);
         TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, expectedLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, expectedLength, true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
         HashSet<String>  chunksAfter = new HashSet<>();
         chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
         TestUtils.checkGarbageCollectionQueue(testContext.chunkedSegmentStorage, chunksBefore, chunksAfter);
+    }
+
+    private long[] calculateExpectedChunkLengths(long maxChunkLength, int chunksCountAfter, long expectedFirstChunkLength) {
+        long[] expectedLengths = new long[chunksCountAfter];
+        Arrays.fill(expectedLengths, maxChunkLength);
+        expectedLengths[0] = expectedFirstChunkLength;
+        return expectedLengths;
+    }
+
+    private long[] calculateExpectedChunkLengths(ChunkedSegmentStorageConfig config, long maxChunkLength, long startOffset, long length ) {
+        val chunkCount = Math.toIntExact(length / maxChunkLength - startOffset / maxChunkLength); // Note two independent int divisions.
+        long[] expectedLengths = new long[chunkCount];
+        Arrays.fill(expectedLengths, maxChunkLength);
+        if (config.isRelocateOnTruncateEnabled() && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()) {
+            val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
+            val offset = startOffset % maxChunkLength;
+            expectedLengths[0] = offset >= threshold ? maxChunkLength - threshold : maxChunkLength;
+        }
+        return expectedLengths;
     }
 
     /**

@@ -976,4 +976,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
     }
+
+    String getNewChunkName(String segmentName, long offset) {
+        return NameUtils.getSegmentChunkName(segmentName, getEpoch(), offset);
+    }
 }
