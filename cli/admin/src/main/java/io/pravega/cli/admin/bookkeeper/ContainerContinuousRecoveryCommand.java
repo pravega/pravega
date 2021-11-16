@@ -54,7 +54,6 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
             for (int i = 0; i < getServiceConfig().getContainerCount(); i++) {
                 try {
                     super.performRecovery(i);
-                    counter.getAndIncrement();
                 } catch (DurableDataLogException e) {
                     // We found an error while recovering a container. Stop running further recoveries to debug this one.
                     output("Problem recovering container " + i + ", terminating execution of command.");
@@ -63,6 +62,8 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
                     break;
                 }
             }
+            // Increment recovery iterations counter.
+            counter.getAndIncrement();
         };
         ScheduledFuture<?> future = getCommandArgs().getState().getExecutor().scheduleAtFixedRate(containerRecoveryIteration,
                 secondsBetweenRuns, secondsBetweenRuns, TimeUnit.SECONDS);
