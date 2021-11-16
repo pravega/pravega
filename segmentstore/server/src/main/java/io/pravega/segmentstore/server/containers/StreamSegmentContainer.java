@@ -190,6 +190,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.durableLog.connect(this.contributor);
         this.metadataCleaner.connect(this.contributor);
         this.writer.connect(this.contributor);
+        this.metadata.connect(this.contributor);
     }
 
     private Storage createStorage(StorageFactory storageFactory) {

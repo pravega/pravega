@@ -44,7 +44,7 @@ import static org.mockito.Mockito.spy;
  */
 public class RetentionServiceHealthContributorTest {
     private BucketManager retentionService;
-    private RetentionServiceHealthContributor contributor;
+    private BucketServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
 
     @Before
@@ -60,7 +60,7 @@ public class RetentionServiceHealthContributorTest {
         doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
         doReturn(true).when(retentionService).isHealthy();
 
-        contributor = new RetentionServiceHealthContributor("retentionservice", retentionService);
+        contributor = new BucketServiceHealthContributor("retentionservice", retentionService);
         builder = Health.builder().name("retentionservice");
     }
 

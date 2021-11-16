@@ -157,7 +157,7 @@ public final class ServiceStarter {
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
-                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
+                                                      this.serviceConfig.getTlsProtocolVersion());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -175,6 +175,7 @@ public final class ServiceStarter {
         healthServiceManager.register(new ZKHealthContributor(zkClient));
         serviceBuilder.getCacheManager().connect(healthServiceManager.getRoot());
         serviceBuilder.getSegmentContainerRegistry().connect(healthServiceManager.getRoot());
+        listener.connect(healthServiceManager.getRoot());
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");

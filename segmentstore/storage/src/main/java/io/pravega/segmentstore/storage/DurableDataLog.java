@@ -17,6 +17,8 @@ package io.pravega.segmentstore.storage;
 
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
+import io.pravega.shared.health.HealthConnector;
+
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -24,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Sequential Log that contains contiguous ranges of bytes.
  */
-public interface DurableDataLog extends AutoCloseable {
+public interface DurableDataLog extends AutoCloseable, HealthConnector {
     /**
      * Initializes the DurableDataLog and performs any recovery steps that may be required. This method will succeed only
      * if the DurableDataLog is enabled. Disabled DurableDataLogs cannot be initialized or otherwise recovered from.

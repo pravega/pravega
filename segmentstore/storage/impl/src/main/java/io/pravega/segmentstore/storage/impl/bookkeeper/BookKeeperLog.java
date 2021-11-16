@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
@@ -51,8 +52,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -111,6 +120,8 @@ class BookKeeperLog implements DurableDataLog {
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
     private final ThrottlerSourceListenerCollection queueStateChangeListeners;
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
     //endregion
 
     //region Constructor
@@ -141,6 +152,7 @@ class BookKeeperLog implements DurableDataLog {
         this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
         this.queueStateChangeListeners = new ThrottlerSourceListenerCollection();
+        this.contributor = new BookKeeperLogHealthContributor(String.format("BookKeeperLog-%d", containerId), this);
     }
 
     private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
@@ -171,6 +183,7 @@ class BookKeeperLog implements DurableDataLog {
             this.metrics.close();
             this.rolloverProcessor.close();
             this.writeProcessor.close();
+            this.contributor.close();
 
             // Close active ledger.
             WriteLedger writeLedger;
@@ -1036,4 +1049,25 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     //endregion
+
+    class BookKeeperLogHealthContributor extends AbstractHealthContributor {
+
+        private final BookKeeperLog log;
+
+        public BookKeeperLogHealthContributor(@NonNull String name, BookKeeperLog log) {
+            super(name);
+            this.log = log;
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            QueueStats stats = log.getQueueStatistics();
+            builder.details(ImmutableMap.of(
+                    "Writes", stats.getSize(),
+                    "TotalLength", stats.getTotalLength()
+            ));
+
+            return Status.RUNNING;
+        }
+    }
 }

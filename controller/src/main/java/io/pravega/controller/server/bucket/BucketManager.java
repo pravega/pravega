@@ -18,7 +18,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.health.WatermarkingServiceHealthContributor;
+import io.pravega.controller.server.health.BucketServiceHealthContributor;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
@@ -47,7 +47,7 @@ import java.util.stream.IntStream;
  * work in the executor's queue. 
  */
 @Slf4j
-public abstract class BucketManager extends AbstractService {
+public abstract class BucketManager extends AbstractService implements HealthConnector {
     private final String processId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
@@ -70,7 +70,7 @@ public abstract class BucketManager extends AbstractService {
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
 
-        this.contributor = new WatermarkingServiceHealthContributor("WaterMarkingService", this);
+        this.contributor = new BucketServiceHealthContributor(serviceType.getName(), this);
     }
 
     @Override
@@ -148,8 +148,9 @@ public abstract class BucketManager extends AbstractService {
         Collection<BucketService> tmp;
         synchronized (lock) { 
             tmp = buckets.values();
+            contributor.close();
         }
-        
+
         Futures.allOf(tmp.stream().map(bucketService -> {
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {

@@ -15,9 +15,14 @@
  */
 package io.pravega.controller.fault;
 
+import io.pravega.controller.server.health.SegmentContainerMonitorHealthContributor;
 import io.pravega.controller.store.host.HostControllerStore;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
@@ -30,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * assigned to the other pravega hosts.
  */
 @Slf4j
-public class SegmentContainerMonitor extends AbstractIdleService {
+public class SegmentContainerMonitor extends AbstractIdleService implements HealthConnector {
 
     //The leader which monitors the data cluster and ensures all containers are mapped to available hosts.
     private final SegmentMonitorLeader segmentMonitorLeader;
@@ -44,6 +49,9 @@ public class SegmentContainerMonitor extends AbstractIdleService {
     private final String leaderZKPath;
 
     private final AtomicBoolean zkConnected = new AtomicBoolean(false);
+
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
@@ -64,6 +72,7 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
         segmentMonitorLeader = new SegmentMonitorLeader(hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
+        contributor = new SegmentContainerMonitorHealthContributor("SegmentContainerMonitor", this);
 
         this.zkConnected.set(client.getZookeeperClient().isConnected());
         //Listen for any zookeeper connection state changes
@@ -116,5 +125,6 @@ public class SegmentContainerMonitor extends AbstractIdleService {
     protected void shutDown() {
         leaderSelector.interruptLeadership();
         leaderSelector.close();
+        contributor.close();
     }
 }

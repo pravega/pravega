@@ -121,6 +121,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         this.operationProcessor.connect(this.contributor);
         this.inMemoryOperationLog.connect(this.contributor);
+        this.durableDataLog.connect(this.contributor);
     }
 
     @VisibleForTesting

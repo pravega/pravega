@@ -23,7 +23,9 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.health.StreamSegmentContainerMetadataHealthContributor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.store.health.StreamSegmentContainerHealthContributor;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,6 +41,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -47,7 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @VisibleForTesting
 @ThreadSafe
-public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata {
+public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata, HealthConnector {
     //region Members
 
     private static final long NO_EPOCH = Long.MIN_VALUE;
@@ -69,6 +76,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
     private final SegmentStoreMetrics.Metadata metrics;
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -95,6 +104,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.epoch = new AtomicLong(NO_EPOCH);
         this.metrics = new SegmentStoreMetrics.Metadata(this.streamSegmentContainerId);
         this.metrics.segmentCount(0);
+        this.contributor = new StreamSegmentContainerMetadataHealthContributor(
+                String.format("StreamSegmentContainerMetadata-%d", streamSegmentContainerId), this);
     }
 
     //endregion
@@ -143,6 +154,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public long getOperationSequenceNumber() {
         return this.sequenceNumber.get();
     }
+
+    public long getLastTruncatedSequenceNumber() {
+        return this.lastTruncatedSequenceNumber.get();
+    }
+
     //endregion
 
     //region UpdateableContainerMetadata

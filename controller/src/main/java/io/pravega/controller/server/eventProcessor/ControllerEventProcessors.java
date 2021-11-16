@@ -56,6 +56,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderG
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
+import io.pravega.controller.server.health.EventProcessorHealthContributor;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
@@ -84,6 +85,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
 import lombok.extern.slf4j.Slf4j;
 import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -92,7 +97,7 @@ import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
+public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable, HealthConnector {
 
     public static final EventSerializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new EventSerializer<>();
     public static final EventSerializer<AbortEvent> ABORT_EVENT_SERIALIZER = new EventSerializer<>();
@@ -125,6 +130,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private ScheduledExecutorService rebalanceExecutor;
     @Getter
     private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
+    @Getter(AccessLevel.PRIVATE)
+    private final HealthContributor contributor;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -183,6 +190,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
         this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
+        this.contributor = new EventProcessorHealthContributor("EventProcessor", this);
     }
 
     /**
@@ -653,6 +661,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @Override
     public void close() {
         this.clientFactory.close();
+        this.contributor.close();
         try {
             this.stopAsync().awaitTerminated(config.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {

@@ -439,6 +439,7 @@ project('segmentstore:storage') {
         compile project(':shared:protocol')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
+        compile project(':shared:health')
         testCompile project(':test:testcommon')
     }
     javadoc {

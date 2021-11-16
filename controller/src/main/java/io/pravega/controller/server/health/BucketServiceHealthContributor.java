@@ -23,23 +23,25 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class WatermarkingServiceHealthContributor extends AbstractHealthContributor {
-    private final BucketManager watermarkingService;
+public class BucketServiceHealthContributor extends AbstractHealthContributor {
+    private final BucketManager service;
 
-    public WatermarkingServiceHealthContributor(String name, BucketManager watermarkingService) {
+    public BucketServiceHealthContributor(String name, BucketManager service) {
         super(name);
-        this.watermarkingService = Preconditions.checkNotNull(watermarkingService, "watermarkingService");
+        this.service = service;
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
         Status status = Status.TERMINATED;
-        if (watermarkingService.isRunning()) {
-            status = Status.NEW;
+        if (service.isRunning()) {
+            status = Status.STARTING;
         }
-        if (watermarkingService.isHealthy()) {
+        if (service.isHealthy()) {
             status = Status.RUNNING;
         }
+
         return status;
     }
 }
+
