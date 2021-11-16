@@ -28,6 +28,8 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import java.util.Collection;
 import java.util.List;
+
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import lombok.Cleanup;
 import lombok.val;
 
@@ -48,6 +50,11 @@ public class ContainerRecoverCommand extends ContainerCommand {
     public void execute() throws Exception {
         ensureArgCount(1);
         int containerId = getIntArg(0);
+        performRecovery(containerId);
+    }
+
+    @VisibleForTesting
+    public void performRecovery(int containerId) throws DurableDataLogException {
         @Cleanup
         val context = createContext();
         val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
