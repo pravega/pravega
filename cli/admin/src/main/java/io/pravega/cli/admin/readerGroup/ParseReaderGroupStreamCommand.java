@@ -16,7 +16,10 @@
 package io.pravega.cli.admin.readerGroup;
 
 import io.pravega.cli.admin.AdminCommand;
+import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
+import io.pravega.cli.admin.utils.ConfigUtils;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
 import io.pravega.controller.server.SegmentHelper;
@@ -32,14 +35,22 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.FileInputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
+
 public class ParseReaderGroupStreamCommand extends AdminCommand {
 
+    private final static int HEADER = 4;
+    private final static int LENGTH = 4;
+    private final static int TYPE = 0;
+
     private static final int REQUEST_TIMEOUT_SECONDS = 10;
-    private static final int READ_WRITE_BUFFER_SIZE = 2 * 1024 * 1024;
     private final GrpcAuthHelper authHelper;
 
     public ParseReaderGroupStreamCommand(CommandArgs args) {
@@ -58,12 +69,12 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         final String segmentStoreHost = getArg(2);
         final String fileName = getArg(3);
         String stream = NameUtils.getStreamForReaderGroup(readerGroup);
-        String segment = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0);
+        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        readRGSegmentToFile(segmentHelper, segmentStoreHost, segment, fileName);
+        readRGSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, fileName);
     }
 
     /**
@@ -78,23 +89,62 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
      */
     private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
                                      String fileName) throws IOException, Exception {
-        File file = createFileAndDirectory(fileName);
+        String tempfilename = "output/temp";
+        File outputfile = createFileAndDirectory(fileName);
 
         @Cleanup
-        BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-        long bufferLength = READ_WRITE_BUFFER_SIZE;
-        CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                0, (int) bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), authHelper.retrieveMasterToken());
-        WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        int bytesRead = bufferRead.getData().readableBytes();
-        final byte[] bytes = new byte[bytesRead];
-        bufferRead.getData().getBytes(bufferRead.getData().readerIndex(), bytes);
-        ByteBuffer b = ByteBuffer.wrap(bytes);
+        BufferedWriter writer = new BufferedWriter(new FileWriter(outputfile));
 
-        val serializer = new UpdateOrInitSerializer<>(new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer());
-        val state = serializer.deserialize(b);
-        writer.write(state.toString());
-        writer.newLine();
+        CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfo = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
+                            new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), authHelper.retrieveMasterToken(), 0L);
+        WireCommands.StreamSegmentInfo streamSegmentInfo = segmentInfo.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        long startOffset = streamSegmentInfo.getStartOffset();
+        long length = streamSegmentInfo.getWriteOffset();
+
+        // create a temp file and write contents of the segment into it
+        AdminCommandState state = new AdminCommandState();
+        ConfigUtils.loadProperties(state);
+        List<String> args = Arrays.asList(fullyQualifiedSegmentName, String.valueOf(startOffset), String.valueOf(length), segmentStoreHost, tempfilename);
+        CommandArgs cmd = new CommandArgs(args, state);
+        ReadSegmentRangeCommand rs = new ReadSegmentRangeCommand(cmd);
+        rs.execute();
+
+        try {
+            FileInputStream fileInputStream = new FileInputStream(tempfilename);
+            long offset = startOffset;
+            while (fileInputStream.available() > 0) {
+                // read type
+                // type should be 0 as Wirecommand.Event type is 0
+                byte[] type = new byte[HEADER];
+                int read = fileInputStream.read(type);
+                assertEquals("should read 4 bytes header", read, HEADER);
+                ByteBuffer b = ByteBuffer.wrap(type);
+                int t = b.getInt();
+                assertEquals("Wirecommand.Event type should be 0", t, TYPE);
+
+                // read length
+                byte[] len = new byte[LENGTH];
+                read = fileInputStream.read(len);
+                assertEquals("read payload length", read, LENGTH);
+                b = ByteBuffer.wrap(len);
+                int eventLength = b.getInt();
+
+                byte[] payload = new byte[eventLength];
+                read = fileInputStream.read(payload);
+                assertEquals("read payload", read, eventLength);
+                b = ByteBuffer.wrap(payload);
+
+                val serializer = new UpdateOrInitSerializer<>(new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer());
+                val result = serializer.deserialize(b);
+                writer.write("Offset: " + offset + "; State: " + result);
+                writer.newLine();
+
+                offset = offset + HEADER + LENGTH + eventLength;
+            }
+        } catch (Exception ex) {
+            System.err.println(ex.getMessage());
+        }
     }
 
     public static CommandDescriptor descriptor() {

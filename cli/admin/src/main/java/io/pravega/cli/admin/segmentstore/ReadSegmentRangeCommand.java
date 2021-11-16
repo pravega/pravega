@@ -77,7 +77,7 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
      * @throws IOException if the file create/write fails.
      * @throws Exception if the request fails.
      */
-    private void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
+    public void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
                                            long offset, long length, String fileName) throws IOException, Exception {
         File file = createFileAndDirectory(fileName);
 
