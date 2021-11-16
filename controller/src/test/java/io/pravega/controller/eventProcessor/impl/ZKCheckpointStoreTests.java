@@ -124,8 +124,8 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         resultMap = checkpointStore.getPositions(process1, readerGroup1);
         Assert.assertNotNull(resultMap);
         Assert.assertEquals(2, resultMap.size());
-        
-        Map<String, Position> map = checkpointStore.removeProcessFromGroup(process1, readerGroup1);
+
+        Map<String, Position> map = checkpointStore.sealReaderGroup(process1, readerGroup1);
         Assert.assertEquals(map.size(), 2);
         Assert.assertTrue(map.containsKey(reader1));
         Assert.assertNull(map.get(reader1));
