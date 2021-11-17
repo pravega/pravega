@@ -1,5 +1,4 @@
-/**
- * Copyright Pravega Authors.
+/** * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -84,17 +83,17 @@ public class HealthContributorTests {
         contributor.close();
 
         AssertExtensions.assertThrows("Expected an exception requesting the health of a closed contributor.",
-                () -> contributor.getHealthSnapshot(),
+                contributor::getHealthSnapshot,
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows("Expected an exception adding a child to a closed contributor.",
-                () -> contributor.connect(new HealthyContributor("")),
+                () -> contributor.register(new HealthyContributor("")),
                 ex -> ex instanceof ObjectClosedException);
 
         HealthContributor parent = new HealthyContributor("parent");
-        root.connect(parent);
+        root.register(parent);
         @Cleanup
         HealthContributor child = new FailingContributor("child");
-        parent.connect(child);
+        parent.register(child);
 
         parent.close();
         Assert.assertEquals("Expecting child contributor to be unreachable after closing parent",
@@ -114,11 +113,11 @@ public class HealthContributorTests {
     public void testDynamicContributor() {
         @Cleanup
         HealthContributor root = new HealthyContributor();
-        root.connect(new HealthyContributor("first"));
+        root.register(new HealthyContributor("first"));
         Assert.assertEquals("Expecting healthy status.", Status.RUNNING, root.getHealthSnapshot().getStatus());
         // Add a failing contributor to the root, which uses the 'UNANIMOUS' aggregation rule.
         HealthContributor failing = new FailingContributor();
-        root.connect(failing);
+        root.register(failing);
         Assert.assertEquals("Expecting failing status.", Status.TERMINATED, root.getHealthSnapshot().getStatus());
         // Remove the failing contributor and now expect it is healthy again.
         failing.close();
