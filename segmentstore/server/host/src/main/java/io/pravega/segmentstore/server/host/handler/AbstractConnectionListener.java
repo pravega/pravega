@@ -92,7 +92,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable, Healt
     private final HealthContributor contributor;
 
     /**
-     * Creates a new instance of the AdminConnectionListener class with HealthServiceManager.
+     * Creates a new instance of the AdminConnectionListener class.
      *
      * @param enableTls          Whether to enable SSL/TLS.
      * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
