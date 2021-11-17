@@ -120,6 +120,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                 RuntimeException::new);
     }
 
+    /**
+     * @deprecated As of Pravega release 0.10, replaced by {@link #deleteScopeRecursive(String)}.
+     */
     @Override
     @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) {

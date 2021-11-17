@@ -198,6 +198,9 @@ public class StreamManagerImpl implements StreamManager {
         return Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
+    /**
+     * @deprecated As of Pravega release 0.10, replaced by {@link #deleteScopeRecursive(String)}.
+     */
     @Override
     @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
