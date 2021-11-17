@@ -33,13 +33,13 @@ the data loss/corruption is related to the Operations of a Durable Log, this too
 imagine that by some reason, the Durable Log contains a duplicate Operation written (e.g., a network glitch
 has uncovered a bug in the write path). If the Segment Container attempts to recover when there is a duplicate
 Operation in the Durable Log, the recovery process will halt throwing a `DataCorruptionException` and the DurableLog will be disabled.
-This tool can help "editing" the original Durable Log to _remove_ the duplicate Operation and recover the
+This tool can help "edit" the original Durable Log to _remove_ the duplicate Operation and recover the
 Segment Container. Similarly, if an Operation that should be there is missing, we can _add_ an Operation to fill
 that gap in the original Durable Log, or even _replacing_ a malformed Operation by another one. 
 
 ### Non-Targeted Scenarios 
-This tool assumes that the metadata of the Durable Log is correct and just
-works on the actual data. Therefore, it _cannot solve problems related to the metadata of a Durable Log_.
+This tool assumes that the metadata of the Durable Log is correct and works on the actual data. 
+Therefore, it _cannot solve problems related to the metadata of a Durable Log_.
 For instance, if a Bookkeeper-based Durable Log has few ledgers stored, but the ZNode pointing to them
 has been corrupted, this tool is not going to help.
 
@@ -60,10 +60,10 @@ administrator needs to decide what to do: i) re-use the existing Backup Log, ii)
 iii) quit. Note that the option of re-using the existing Backup Log gives an administrator the opportunity 
 to re-try repair the Original Log, in case the previous attempt does not solve the problem and the Segment
 Container is still unable to recover.
-- Once the Backup Log is created, the tool will ask the administrator to input edits on to be done to the
+- Once the Backup Log is created, the tool will ask the administrator to input edits to be done to the
 Original Log contents. Note that the creation of log edits may be non-trivial, so we provide more details in
 the next section.
-- With the desired edits to the Backup Log in place, the tool read the Backup Log and apply them to create
+- With the desired edits to the Backup Log in place, the tool reads the Backup Log and applies them to create
 a new log, namely the Repair Log. This log is the one supposed to fix the data corruption issues is the Original
 Log.
 - The last step for the tool is to overwrite the metadata of the Original Log by the metadata of the Repair
@@ -71,17 +71,17 @@ Log. With this, the Segment Container will read the data from the Repair Log dur
 
 ### Usage Instructions
 
-The Tier-1 Repair Tool is, in general, simple to use: the command just expects the id of the Segment Container
+The Tier-1 Repair Tool is, in general, simple to use: the command expects the id of the Segment Container
 that needs to be repaired: e.g., `data-recovery durableLog-repai 0`. Leaving aside the creation of Durable Log
-edit operations, the rest of the tool execution will just ask confirmation from the admin while making progress.
+edit operations, the rest of the tool execution will ask confirmation from the admin while making progress.
 From the usage perspective, generating edits for the damaged Durable Log is the most complex part, so this
 section is going to focus on this topic.
 
 To modify a Durable Log content, the tool allows the user to create Log Edit Operations. Internally, a Log Edit 
 Operation has an _initial sequence id_, a _final sequence id_, a _type_, and _new Operation_. Log Edit Operations
 will instruct the tool how to actually do the changes on the damaged Durable Log. There are three types of edits:
-- **Delete Edit Operation**: A Log Edit Operation that will instruct the tool to do not write one or more Operations
-while reading from the Backup Log and writing to the Repair Log. The initial (inclusive) and final (exclusive)
+- **Delete Edit Operation**: A Log Edit Operation that will instruct the tool to do not write Operations
+to the Repair Log that were in the Backup Log. The initial (inclusive) and final (exclusive)
 sequence numbers defined in this Log Edit Operation defines the Operations from the Backup Log to skip. Clearly,
 there is no need to have any new Operation, as the purpose of this edit type is to delete Operations.
 - **Add Edit Operation**: A Log Edit Operation that will add an Operation at the sequence number specified by
@@ -91,8 +91,8 @@ Operation and then will continue writing the existing Operations in the log afte
 specified by the initial sequence id field.
 
 The previous Log Edit Operation will give us the flexibility to edit a Durable Log in any way. However, there
-is one more caveat to it: Adding and replacing Operations in a Durable Log require to create them somehow. The
-tool also helps the administrator to create new Operations, and thus it will aks the admin for all the required
+is one more caveat to it: Adding and replacing Operations in a Durable Log requires to create them somehow. The
+tool also helps the administrator to create new Operations, and thus it will ask the admin for all the required
 information needed to instantiate such Operations (you may need to think about that before running the tool).
 In the following, we describe the Operations that an admin can create via this tool and the information that
 will be requested:

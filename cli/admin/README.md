@@ -109,8 +109,9 @@ All available commands:
     segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
     segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint>: Read a range from a given Segment.
     segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
-    storage durableLog-recovery : Recovers the state of the DurableLog from the storage.
-    storage list-segments : Lists segments from storage with their name, length and sealed status.
+    data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
+    data-recovery durableLog-repair : Allows to repair DurableLog damaged/corrupted Operations.
+    data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
 ```
 And execute any of them:
 ```

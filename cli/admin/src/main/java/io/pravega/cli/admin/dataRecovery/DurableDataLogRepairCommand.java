@@ -911,8 +911,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "durableLog-repair", "Allows to replace the data of a" +
-                "DurableLog by an edited version of it in the case that some entries are damaged.",
+        return new CommandDescriptor(COMPONENT, "durableLog-repair", "Allows to repair DurableLog " +
+                "damaged/corrupted Operations.",
                 new ArgDescriptor("container-id", "Id of the Container to repair."));
     }
 }
