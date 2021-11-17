@@ -16,21 +16,18 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.stream.DeleteScopeFailedException;
-import io.pravega.client.stream.NoSuchScopeException;
-import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import org.slf4j.LoggerFactory;
 
@@ -77,23 +74,17 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
         log.debug(requestId, "Deleting {} scope", scope);
         return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
-            if (!exists) {
-                log.warn(requestId, "Scope not found: {}", scope);
-                throw new NoSuchScopeException();
+            if (exists) {
+                RetryHelper.withRetriesAsync(() -> deleteScopeContent(scope, context, requestId)
+                        .thenCompose(table -> streamMetadataStore.deleteScopeRecursive(scope, context, executor))
+                        , e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                return CompletableFuture.completedFuture(null);
             }
-            return CompletableFuture.completedFuture(null);
-        }).thenCompose(v1 -> {
-            try {
-                deleteScopeContent(scope, context, requestId);
-            } catch (DeleteScopeFailedException e) {
-                e.printStackTrace();
-            }
-            streamMetadataStore.deleteScopeRecursive(scope, context, executor);
             return CompletableFuture.completedFuture(null);
         });
     }
 
-    public void deleteScopeContent(String scopeName, OperationContext context, long requestId) throws DeleteScopeFailedException {
+    public CompletableFuture<Void> deleteScopeContent(String scopeName, OperationContext context, long requestId) {
         List<String> readerGroupList = new ArrayList<>();
         Iterator<Stream> iterator = listStreams(scopeName, context).asIterator();
 
@@ -104,43 +95,26 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 readerGroupList.add(stream.getStreamName().substring(
                         READER_GROUP_STREAM_PREFIX.length()));
             }
-            try {
-                streamMetadataTasks.sealStream(scopeName, stream.getStreamName(), requestId);
-                streamMetadataTasks.deleteStream(scopeName, stream.getStreamName(), requestId);
-            } catch (Exception e) {
-                String message = String.format("Failed to seal and delete stream %s", stream.getStreamName());
-                throw new DeleteScopeFailedException(message, e);
-            }
+            streamMetadataTasks.sealStream(scopeName, stream.getStreamName(), requestId)
+                    .thenCompose(z -> streamMetadataTasks.deleteStream(scopeName, stream.getStreamName(), requestId));
         }
 
         // Delete ReaderGroups
         for (String rgName: readerGroupList) {
-            try {
-                streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
-                        .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgName,
-                                conf.getConfig().getReaderGroupId(), requestId));
-            } catch (Exception e) {
-                if (Exceptions.unwrap(e) instanceof ReaderGroupNotFoundException) {
-                    continue;
-                }
-                String message = String.format("Failed to delete reader group %s", rgName);
-                throw new DeleteScopeFailedException(message, e);
-            }
+            streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
+                    .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgName,
+                            conf.getConfig().getReaderGroupId(), requestId));
         }
         // Delete KVTs
-        Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, context).asIterator();
-        while (kvtIterator.hasNext()) {
-            KeyValueTableInfo kvt = kvtIterator.next();
-            try {
-                Futures.getThrowingException(kvtMetadataStore.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor));
-            } catch (Exception e) {
-                String message = String.format("Failed to delete key-value table %s", kvt.getKeyValueTableName());
-                throw new DeleteScopeFailedException(message, e);
-            }
-        }
+        // Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
+        // while (kvtIterator.hasNext()) {
+            // KeyValueTableInfo kvt = kvtIterator.next();
+            // kvtMetadataStore.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor);
+        // }
+        return CompletableFuture.completedFuture(null);
     }
 
-    public AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {
+    private AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
                 streamMetadataStore.listStream(scopeName, token, 1000, executor, context)
                         .thenApply(result -> {
@@ -151,15 +125,15 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
-    public AsyncIterator<KeyValueTableInfo> listKVTs(String scopeName, OperationContext context) {
-        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-                kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
-                        .thenApply(result -> {
-                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
-                                    .map(m -> new KeyValueTableInfo(scopeName, m))
-                                    .collect(Collectors.toList());
-                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
-                        });
-        return new ContinuationTokenAsyncIterator<>(function, "");
-    }
+    // private AsyncIterator<KeyValueTableInfo> listKVTs(final String scopeName, final long requestId, OperationContext context) {
+        // final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+        // kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
+                        // .thenApply(result -> {
+                            // List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
+                                    // .map(m -> new KeyValueTableInfo(scopeName, m))
+                                    // .collect(Collectors.toList());
+                            // return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        // });
+        // return new ContinuationTokenAsyncIterator<>(function, "");
+    // }
 }

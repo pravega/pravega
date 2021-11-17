@@ -66,6 +66,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -776,6 +777,27 @@ public abstract class RequestHandlersTest {
 
         // verify that mark stream is also deleted
         assertFalse(streamStore.checkStreamExists(scope, markStream, null, executor).join());
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() throws Exception {
+        final String scopeName = "deleteScope";
+        // Create a scope
+        streamStore.createScope(scopeName, null, executor).join();
+        // Verify that the scope is created
+        assertTrue(streamStore.checkScopeExists(scope, null, executor).join());
+
+        // Instantiate DeleteScopeEvent and DeleteScopeTask
+        DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 0L);
+
+        // Submit the execute method of DeleteScopeTask
+        deleteScopeTask.execute(deleteScopeEvent).join();
+        Thread.sleep(1000);
+
+        // Verify that the scope is removed from both tables
+        assertFalse(streamStore.checkScopeExists(scopeName,null, executor).join());
+        assertFalse(streamStore.checkScopeInDeletingTable(scopeName,null, executor).join());
     }
 
     @Test

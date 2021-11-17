@@ -343,6 +343,12 @@ public class PravegaTablesScope implements Scope {
                                                 tableName, context)));
     }
 
+    public CompletableFuture<Void> addEntryToDeletingTable(String scope, OperationContext context) {
+        return Futures.toVoid(getId(context).thenApply(id ->
+                withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
+                        DELETING_SCOPES_TABLE, scope, id, UUID_TO_BYTES_FUNCTION, context.getRequestId()), DELETING_SCOPES_TABLE, context)));
+    }
+
     /**
      * Associate the Stream with corresponding Tags.
      * @param stream Stream to be associated with the tags.

@@ -3132,7 +3132,22 @@ public abstract class StreamMetadataTasksTest {
         event = requestEventWriter.eventQueue.poll();
         assertTrue(event instanceof DeleteStreamEvent);
     }
-    
+
+    @Test(timeout = 150000)
+    public void testDeleteScopeRecursive() throws Exception {
+        StreamMetadataStore store = streamStorePartialMock;
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        final String scopeName = "testDeleteScope";
+        store.createScope(scopeName, null, executor).join();
+        assertTrue(store.checkScopeExists(scopeName, null, executor).join());
+
+        CompletableFuture<Controller.DeleteScopeRecursiveStatus.Status> future = streamMetadataTasks
+                .deleteScopeRecursive(scopeName, 0L);
+
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(Controller.DeleteScopeRecursiveStatus.Status.SUCCESS, future.join());
+    }
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         ControllerEvent event;
         try {

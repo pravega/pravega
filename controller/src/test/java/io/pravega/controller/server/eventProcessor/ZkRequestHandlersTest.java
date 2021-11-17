@@ -31,4 +31,10 @@ public class ZkRequestHandlersTest extends RequestHandlersTest {
     int getVersionNumber(Version version) {
         return version.asIntVersion().getIntValue();
     }
+
+    @Override
+    public void testDeleteScopeRecursive() {
+        // no op
+    }
+
 }
