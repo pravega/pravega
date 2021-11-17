@@ -64,7 +64,7 @@ public class ChunkStorageMetrics {
     static final Counter SLTS_SYSTEM_READ_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_READ_BYTES);
     static final Counter SLTS_SYSTEM_WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_WRITE_BYTES);
     static final Counter SLTS_CONCAT_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_BYTES);
-
+    static final Counter SLTS_TRUNCATE_RELOCATION_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_TRUNCATE_RELOCATION_BYTES);
     static final Counter SLTS_GC_TASK_PROCESSED = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_TASK_PROCESSED);
 
     static final Counter SLTS_GC_CHUNK_NEW = STATS_LOGGER.createCounter(MetricsNames.SLTS_GC_CHUNK_NEW);
@@ -90,6 +90,7 @@ public class ChunkStorageMetrics {
     static final Counter SLTS_DELETE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_DELETE_COUNT);
     static final Counter SLTS_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_COUNT);
     static final Counter SLTS_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_TRUNCATE_COUNT);
+    static final Counter SLTS_TRUNCATE_RELOCATION_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_TRUNCATE_RELOCATION_COUNT);
     static final Counter SLTS_SYSTEM_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_TRUNCATE_COUNT);
 
     static final Counter LARGE_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_LARGE_CONCAT_COUNT);
