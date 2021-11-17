@@ -69,6 +69,11 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
     public static final Property<Integer> SAFE_SIZE_CHECK_FREQUENCY = Property.named("safe.size.check.frequency.seconds", 60);
+
+    public static final Property<Boolean> RELOCATE_ON_TRUNCATE_ENABLED = Property.named("truncate.relocate.enable", true);
+    public static final Property<Long> MIN_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.min", 64 * 1024 * 1024L);
+    public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
+
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
@@ -101,6 +106,9 @@ public class ChunkedSegmentStorageConfig {
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
+            .relocateOnTruncateEnabled(true)
+            .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
+            .minPercentForTruncateRelocation(80)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -175,6 +183,24 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean inlineDefragEnabled;
+
+    /**
+     * Whether the relocation on truncate functionality is enabled or disabled.
+     */
+    @Getter
+    final private boolean relocateOnTruncateEnabled;
+
+    /**
+     * Minimum size of chunk required for it to be eligible for relocation.
+     */
+    @Getter
+    final private long minSizeForTruncateRelocationInbytes;
+
+    /**
+     * Minimum percentage of wasted space required for it to be eligible for relocation.
+     */
+    @Getter
+    final private int minPercentForTruncateRelocation;
 
     @Getter
     final private int lateWarningThresholdInMillis;
@@ -313,6 +339,9 @@ public class ChunkedSegmentStorageConfig {
         this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
         this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
+        this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
+        this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
+        this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
     }
 
     /**
