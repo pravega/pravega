@@ -796,7 +796,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             builder.details(ImmutableMap.of(
                     "State", state(),
                     "CommitQueueSize", processor.commitQueue.size(),
-                    "OperationQueueSize", processor.operationQueue.size()));
+                    "OperationQueueSize", processor.operationQueue.size())
+            );
             return status;
         }
     }

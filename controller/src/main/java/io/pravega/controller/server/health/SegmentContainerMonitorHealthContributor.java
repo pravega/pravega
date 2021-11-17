@@ -36,11 +36,10 @@ public class SegmentContainerMonitorHealthContributor extends AbstractHealthCont
         Status status = Status.TERMINATED;
         if (segmentContainerMonitor.isRunning()) {
             status = Status.STARTING;
+            if (segmentContainerMonitor.isZKConnected()) {
+                status = Status.RUNNING;
+            }
         }
-        if (segmentContainerMonitor.isZKConnected()) {
-            status = Status.RUNNING;
-        }
-
         return status;
     }
 }
