@@ -28,7 +28,6 @@ import io.pravega.controller.store.client.StoreType;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
-import io.pravega.shared.health.HealthServiceManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.state.ConnectionState;
@@ -48,7 +47,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
     private final String objectId;
     private final ControllerServiceConfig serviceConfig;
     private final BiFunction<ControllerServiceConfig, StoreClient, ControllerServiceStarter> starterFactory;
-    private final HealthServiceManager healthServiceManager;
     private ControllerServiceStarter starter;
     private final CompletableFuture<Void> serviceStopFuture;
     private StoreClient storeClient;
@@ -87,7 +85,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
         this.serviceStopFuture = new CompletableFuture<>();
         this.serviceState = ServiceState.NEW;
         this.zookeeperMetrics = new ZookeeperMetrics();
-        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
     }
 
     @Override
