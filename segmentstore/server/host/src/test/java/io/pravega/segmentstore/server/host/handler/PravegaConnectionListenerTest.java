@@ -201,7 +201,7 @@ public class PravegaConnectionListenerTest {
         Assert.assertTrue(listener.createRequestProcessor(new TrackedConnection(new ServerConnectionInboundHandler())) instanceof AppendProcessor);
     }
 
-    // Test the health status created with pravega listener.
+    // Test the health status created with Pravega listener.
     @Test
     public void testHealth() {
         @Cleanup
@@ -217,9 +217,9 @@ public class PravegaConnectionListenerTest {
 
         listener.startListening();
         Health health = healthServiceManager.getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health.getStatus());
+        Assert.assertEquals("HealthContributor should report a 'RUNNING' Status.", Status.RUNNING, health.getStatus());
         listener.close();
         health = healthServiceManager.getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, health.getStatus());
+        Assert.assertEquals("HealthContributor should still report a 'RUNNING' Status.", Status.RUNNING, health.getStatus());
     }
 }
