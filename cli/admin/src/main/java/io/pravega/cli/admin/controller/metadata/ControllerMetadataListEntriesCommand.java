@@ -32,14 +32,14 @@ import java.util.stream.Collectors;
 
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isStreamMetadataTableName;
 
-public class ListControllerMetadataEntriesCommand extends ControllerMetadataCommand {
+public class ControllerMetadataListEntriesCommand extends ControllerMetadataCommand {
     
     /**
      * Creates a new instance of the Command class.
      *
      * @param args The arguments for the command.
      */
-    public ListControllerMetadataEntriesCommand(CommandArgs args) {
+    public ControllerMetadataListEntriesCommand(CommandArgs args) {
         super(args);
     }
 

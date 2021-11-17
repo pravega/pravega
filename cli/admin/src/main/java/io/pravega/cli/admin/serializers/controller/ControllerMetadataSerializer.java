@@ -95,7 +95,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     private static final String ACTIVE_TXN_RECORD = "ActiveTxnRecord";
     private static final String COMPLETED_TXN_RECORD = "CompletedTxnRecord";
 
-    private static final Map<String, String> STREAM_METADATA_TABLE_SERIALIZERS =
+    private static final Map<String, String> STREAM_METADATA_TABLE_TYPES =
             ImmutableMap.<String, String>builder()
                     .put(CREATION_TIME_KEY, LONG)
                     .put(CONFIGURATION_KEY, STREAM_CONFIGURATION_RECORD)
@@ -119,7 +119,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     private static final Map<Function<String, Boolean>, Function<String, String>> METADATA_TYPES =
             ImmutableMap.<Function<String, Boolean>, Function<String, String>>builder()
                     .put(ControllerMetadataSerializer::isStreamMetadataTableName,
-                            key -> STREAM_METADATA_TABLE_SERIALIZERS.entrySet().stream()
+                            key -> STREAM_METADATA_TABLE_TYPES.entrySet().stream()
                                     .filter(mapEntry -> checkIfPatternExists(key, mapEntry.getKey()))
                                     .map(Map.Entry::getValue)
                                     .collect(Collectors.toList()).stream()

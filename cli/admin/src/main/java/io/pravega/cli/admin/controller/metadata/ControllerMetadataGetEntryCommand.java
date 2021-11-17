@@ -17,24 +17,18 @@ package io.pravega.cli.admin.controller.metadata;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.tables.impl.HashTableIteratorItem;
-import io.pravega.client.tables.impl.TableSegmentKey;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-public class ListControllerMetadataKeysCommand extends ControllerMetadataCommand {
+public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand {
 
     /**
      * Creates a new instance of the Command class.
      *
      * @param args The arguments for the command.
      */
-    public ListControllerMetadataKeysCommand(CommandArgs args) {
+    public ControllerMetadataGetEntryCommand(CommandArgs args) {
         super(args);
     }
 
@@ -43,29 +37,23 @@ public class ListControllerMetadataKeysCommand extends ControllerMetadataCommand
         ensureArgCount(3);
 
         final String tableName = getArg(0);
-        final int keyCount = getIntArg(1);
+        final String key = getArg(1);
         final String segmentStoreHost = getArg(2);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-        CompletableFuture<HashTableIteratorItem<TableSegmentKey>> reply = adminSegmentHelper.readTableKeys(tableName,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), keyCount,
-                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L);
-
-        List<String> keys = reply.join().getItems()
-                .stream()
-                .map(tableSegmentKey -> KEY_SERIALIZER.deserialize(getByteBuffer(tableSegmentKey.getKey())))
-                .collect(Collectors.toList());
-        output("List of at most %s keys in %s: ", keyCount, tableName);
-        keys.forEach(k -> output("- %s", k));
+        ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
+        String value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
+        output("For the given key: %s", key);
+        userFriendlyOutput(value, serializer.getMetadataType());
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "list-keys", "List at most the required number of keys from the controller metadata table.",
+        return new CommandDescriptor(COMPONENT, "get", "Get the controller metadata entry for the given key in the table.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
-                new ArgDescriptor("key-count", "The upper limit for the number of keys to be listed."),
+                new ArgDescriptor("key", "The key to be queried."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }
