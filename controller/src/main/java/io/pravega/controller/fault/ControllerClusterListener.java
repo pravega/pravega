@@ -27,6 +27,8 @@ import io.pravega.controller.server.health.ClusterListenerHealthContributor;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -55,6 +57,7 @@ public class ControllerClusterListener extends AbstractIdleService implements He
     private final Cluster cluster;
     private final ScheduledExecutorService executor;
     private final List<FailoverSweeper> sweepers;
+    @Getter(AccessLevel.PRIVATE)
     private final HealthContributor contributor;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,

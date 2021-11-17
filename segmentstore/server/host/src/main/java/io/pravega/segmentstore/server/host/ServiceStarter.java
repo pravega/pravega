@@ -126,6 +126,7 @@ public final class ServiceStarter {
 
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
+        healthServiceManager.register(new ZKHealthContributor(zkClient));
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize();
@@ -156,6 +157,7 @@ public final class ServiceStarter {
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
                                                       this.serviceConfig.getTlsProtocolVersion());
+        listener.connect(healthServiceManager.getRoot());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -166,14 +168,12 @@ public final class ServiceStarter {
                     tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion());
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
+            adminListener.connect(healthServiceManager.getRoot());
         }
         log.info("StreamSegmentService started.");
 
-        healthServiceManager.register(new ZKHealthContributor(zkClient));
         serviceBuilder.getCacheManager().connect(healthServiceManager.getRoot());
         serviceBuilder.getSegmentContainerRegistry().connect(healthServiceManager.getRoot());
-        listener.connect(healthServiceManager.getRoot());
-        adminListener.connect(healthServiceManager.getRoot());
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
