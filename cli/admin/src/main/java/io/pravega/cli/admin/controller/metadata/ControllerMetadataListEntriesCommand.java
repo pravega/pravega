@@ -27,7 +27,6 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isStreamMetadataTableName;
@@ -57,11 +56,14 @@ public class ControllerMetadataListEntriesCommand extends ControllerMetadataComm
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-        CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> reply = adminSegmentHelper.readTableEntries(tableName,
+        HashTableIteratorItem<TableSegmentEntry> entries  = getIfTableExists(adminSegmentHelper.readTableEntries(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), entryCount,
-                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L);
+                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L), tableName);
+        if (entries == null) {
+            return;
+        }
 
-        Map<String, List<String>> entries = reply.join().getItems().stream()
+        Map<String, List<String>> stringEntriesMap = entries.getItems().stream()
                 .collect(Collectors.toMap(entry -> KEY_SERIALIZER.deserialize(getByteBuffer(entry.getKey().getKey())), entry -> {
                     ControllerMetadataSerializer serializer =
                             new ControllerMetadataSerializer(tableName, KEY_SERIALIZER.deserialize(getByteBuffer(entry.getKey().getKey())));
@@ -69,7 +71,7 @@ public class ControllerMetadataListEntriesCommand extends ControllerMetadataComm
                 }));
 
         output("List of at most %s entries in %s: ", entryCount, tableName);
-        entries.forEach((key, value) -> {
+        stringEntriesMap.forEach((key, value) -> {
             output("- %s", key);
             userFriendlyOutput(value.get(0), value.get(1));
             output("");

@@ -19,6 +19,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import lombok.Cleanup;
+import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 
 public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand {
@@ -44,9 +45,12 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
-        String value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
+        val value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
+        if (value == null) {
+            return;
+        }
         output("For the given key: %s", key);
-        userFriendlyOutput(value, serializer.getMetadataType());
+        userFriendlyOutput(value.toString(), serializer.getMetadataType());
     }
 
     public static CommandDescriptor descriptor() {

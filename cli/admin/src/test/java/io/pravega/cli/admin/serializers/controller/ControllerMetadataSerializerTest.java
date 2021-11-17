@@ -72,6 +72,16 @@ public class ControllerMetadataSerializerTest {
     }
 
     @Test
+    public void testControllerMetadataEmptySerializer() {
+        String test = "whatever";
+        ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(
+                COMPLETED_TRANSACTIONS_BATCHES_TABLE, "test_key");
+        ByteBuffer buf = serializer.serialize(test);
+        assertEquals("Empty", serializer.getMetadataType());
+        assertEquals(0, serializer.deserialize(buf));
+    }
+
+    @Test
     public void testTableChecks() {
         assertTrue(isStreamMetadataTableName(getQualifiedTableName(INTERNAL_SCOPE_NAME, TEST_SCOPE, TEST_STREAM,
                 String.format(METADATA_TABLE, AttributeId.UUID.randomUUID()))));

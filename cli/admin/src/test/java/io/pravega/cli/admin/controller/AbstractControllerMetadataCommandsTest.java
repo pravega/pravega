@@ -30,11 +30,16 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
+import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
+import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.METADATA_TABLE;
 import static io.pravega.shared.NameUtils.getMarkStreamForStream;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static io.pravega.test.integration.utils.TestUtils.pathToConfig;
 
@@ -93,7 +98,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
 
     @Test
     public void testGetControllerMetadataEntryCommand() throws Exception {
-        String scope = "controllerMetadata";
+        String scope = "controllerMetadata1";
         String stream = "getEntry";
         TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
@@ -104,8 +109,29 @@ public abstract class AbstractControllerMetadataCommandsTest {
     }
 
     @Test
+    public void testGetControllerMetadataEntryCommandKeyDoesNotExist() throws Exception {
+        String scope = "controllerMetadata2";
+        String stream = "getEntryNoKey";
+        String dummyStream = "getEntryDummy";
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
+        TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
+
+        String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
+                getScopedStreamName(scope, dummyStream) + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Key not found: %s", getScopedStreamName(scope, dummyStream))));
+    }
+
+    @Test
+    public void testGetControllerMetadataEntryCommandTableDoesNotExist() throws Exception {
+        String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
+                "randScope", "randStream", String.format(METADATA_TABLE, UUID.randomUUID()));
+        String commandResult = TestUtils.executeCommand("controller-metadata get " + dummyTable + " creationTime localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
+    }
+
+    @Test
     public void testListControllerMetadataEntriesCommand() throws Exception {
-        String scope = "controllerMetadata";
+        String scope = "controllerMetadata3";
         String stream = "listEntries";
         TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
@@ -116,8 +142,16 @@ public abstract class AbstractControllerMetadataCommandsTest {
     }
 
     @Test
+    public void testListControllerMetadataEntriesCommandTableDoesNotExist() throws Exception {
+        String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
+                "randScope", "randStream", String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, UUID.randomUUID()));
+        String commandResult = TestUtils.executeCommand("controller-metadata list-entries " + dummyTable + " 10 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
+    }
+
+    @Test
     public void testListControllerMetadataKeysCommand() throws Exception {
-        String scope = "controllerMetadata";
+        String scope = "controllerMetadata4";
         String stream = "listKeys";
         TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
@@ -125,6 +159,14 @@ public abstract class AbstractControllerMetadataCommandsTest {
         String commandResult = TestUtils.executeCommand("controller-metadata list-keys " + DELETED_STREAMS_TABLE + " 10 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(getScopedStreamName(scope, stream)));
         Assert.assertTrue(commandResult.contains(getScopedStreamName(scope, getMarkStreamForStream(stream))));
+    }
+
+    @Test
+    public void testListControllerMetadataKeysCommandTableDoesNotExist() throws Exception {
+        String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
+                "randScope", "randStream", String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, UUID.randomUUID()));
+        String commandResult = TestUtils.executeCommand("controller-metadata list-keys " + dummyTable + " 10 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
     }
 
     @After

@@ -24,7 +24,6 @@ import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class ControllerMetadataListKeysCommand extends ControllerMetadataCommand {
@@ -49,16 +48,19 @@ public class ControllerMetadataListKeysCommand extends ControllerMetadataCommand
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
-        CompletableFuture<HashTableIteratorItem<TableSegmentKey>> reply = adminSegmentHelper.readTableKeys(tableName,
+        HashTableIteratorItem<TableSegmentKey> keys = getIfTableExists(adminSegmentHelper.readTableKeys(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), keyCount,
-                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L);
+                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L), tableName);
+        if (keys == null) {
+            return;
+        }
 
-        List<String> keys = reply.join().getItems()
+        List<String> stringKeys = keys.getItems()
                 .stream()
                 .map(tableSegmentKey -> KEY_SERIALIZER.deserialize(getByteBuffer(tableSegmentKey.getKey())))
                 .collect(Collectors.toList());
         output("List of at most %s keys in %s: ", keyCount, tableName);
-        keys.forEach(k -> output("- %s", k));
+        stringKeys.forEach(k -> output("- %s", k));
     }
 
     public static CommandDescriptor descriptor() {

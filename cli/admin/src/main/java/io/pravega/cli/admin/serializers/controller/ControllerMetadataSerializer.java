@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.COMMITTING_TRANSACTIONS_RECORD_KEY;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
@@ -74,6 +73,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     public static final String STRING = "String";
     public static final String INTEGER = "Integer";
     public static final String LONG = "Long";
+    public static final String EMPTY = "Empty";
 
     private static final String UUID_REGEX = "\\b[0-9a-f]{8}\\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\\b[0-9a-f]{12}\\b";
     private static final String NUMBER_REGEX = "[0-9]+";
@@ -108,7 +108,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                     .put(String.format(EPOCH_RECORD_KEY_FORMAT, NUMBER_REGEX), EPOCH_RECORD)
                     .put(String.format(HISTORY_TIMESERIES_CHUNK_FORMAT, NUMBER_REGEX), HISTORY_TIME_SERIES)
                     .put(String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT, NUMBER_REGEX), SEALED_SEGMENTS_MAP_SHARD)
-                    .put(String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, NUMBER_REGEX), LONG)
+                    .put(String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, NUMBER_REGEX), INTEGER)
                     .put(COMMITTING_TRANSACTIONS_RECORD_KEY, COMMITTING_TRANSACTIONS_RECORD)
                     .put(SEGMENT_MARKER_PATH_FORMAT, LONG)
                     .put(WAITING_REQUEST_PROCESSOR_PATH, STRING)
@@ -122,13 +122,12 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                             key -> STREAM_METADATA_TABLE_TYPES.entrySet().stream()
                                     .filter(mapEntry -> checkIfPatternExists(key, mapEntry.getKey()))
                                     .map(Map.Entry::getValue)
-                                    .collect(Collectors.toList()).stream()
                                     .findFirst()
                                     .orElseThrow(() -> new IllegalArgumentException(String.format("%s is not a valid metadata key.", key))))
-                    .put(ControllerMetadataSerializer::isEpochsWithTransactionsTableName, s -> INTEGER)
+                    .put(ControllerMetadataSerializer::isEpochsWithTransactionsTableName, s -> EMPTY)
                     .put(ControllerMetadataSerializer::isWriterPositionsTableName, s -> WRITER_MARK)
                     .put(ControllerMetadataSerializer::isTransactionsInEpochTableName, s -> ACTIVE_TXN_RECORD)
-                    .put(ControllerMetadataSerializer::isCompletedTransactionsBatchesTableName, s -> INTEGER)
+                    .put(ControllerMetadataSerializer::isCompletedTransactionsBatchesTableName, s -> EMPTY)
                     .put(ControllerMetadataSerializer::isCompletedTransactionsBatchTableName, s -> COMPLETED_TXN_RECORD)
                     .put(ControllerMetadataSerializer::isDeletedStreamsTableName, s -> INTEGER)
                     .build();
@@ -146,6 +145,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                         BitConverter.writeLong(bytes, 0, (long) x);
                         return bytes;
                     }))
+                    .put(EMPTY, Map.entry(bytes -> 0, x -> new byte[0]))
                     .put(STREAM_CONFIGURATION_RECORD, Map.entry(StreamConfigurationRecord::fromBytes, x -> ((StreamConfigurationRecord) x).toBytes()))
                     .put(STREAM_TRUNCATION_RECORD, Map.entry(StreamTruncationRecord::fromBytes, x -> ((StreamTruncationRecord) x).toBytes()))
                     .put(STATE_RECORD, Map.entry(StateRecord::fromBytes, x -> ((StateRecord) x).toBytes()))
@@ -171,7 +171,6 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                 // Get the method to return the metadataType for the key, corresponding to given tableName.
                 .filter(mapEntry -> mapEntry.getKey().apply(tableName))
                 .map(Map.Entry::getValue)
-                .collect(Collectors.toList()).stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(String.format("%s is not a valid controller table.", tableName)))
                 .apply(key);

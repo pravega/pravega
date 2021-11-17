@@ -23,7 +23,10 @@ import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 
@@ -35,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.INTEGER;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.LONG;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.STRING;
+import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.EMPTY;
 
 public abstract class ControllerMetadataCommand extends ControllerCommand {
     static final String COMPONENT = "controller-metadata";
@@ -63,17 +67,45 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param segmentStoreHost   The address of the segment store instance.
      * @param serializer         The valid {@link ControllerMetadataSerializer}.
      * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
-     * @return A string, obtained through deserialization, containing the contents of the queried table segment entry.
+     * @return The object in the queried table segment entry.
      */
-    String getTableEntry(String tableName, String key, String segmentStoreHost,
+    Object getTableEntry(String tableName, String key, String segmentStoreHost,
                          ControllerMetadataSerializer serializer, AdminSegmentHelper adminSegmentHelper) {
         ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
 
-        CompletableFuture<List<TableSegmentEntry>> reply = adminSegmentHelper.readTable(tableName,
+        List<TableSegmentEntry> entryList = getIfTableExists(adminSegmentHelper.readTable(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
-                authHelper.retrieveMasterToken(), 0L);
-        return serializer.deserialize(getByteBuffer(reply.join().get(0).getValue())).toString();
+                authHelper.retrieveMasterToken(), 0L), tableName);
+        if (entryList == null) {
+            return null;
+        }
+
+        if (entryList.get(0).getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)) {
+            output(String.format("Key not found: %s", key));
+            return null;
+        }
+        return serializer.deserialize(getByteBuffer(entryList.get(0).getValue()));
+    }
+
+    /**
+     * Method to safely complete a table query.
+     *
+     * @param future    The CompletableFuture containing the table query.
+     * @param tableName The table name.
+     * @param <T>       Type of the result of the table query.
+     * @return The result of future.join().
+     */
+    <T> T getIfTableExists(CompletableFuture<T> future, String tableName) {
+        return Futures.getAndHandleExceptions(future, t -> {
+           if (t instanceof WireCommandFailedException) {
+               if (((WireCommandFailedException) t).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)) {
+                   output(String.format("Table not found: %s", tableName));
+                   return null;
+               }
+           }
+           return new RuntimeException(t);
+        });
     }
 
     /**
@@ -83,12 +115,19 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param name A name describing the data.
      */
     void userFriendlyOutput(String data, String name) {
-        if (name.equals(STRING) || name.equals(INTEGER) || name.equals(LONG)) {
-            output("value: %s", data);
-            return;
+        switch (name) {
+            case STRING:
+            case INTEGER:
+            case LONG:
+                output("value: %s", data);
+                return;
+            case EMPTY:
+                output("value: None");
+                return;
+            default:
+                output("%s metadata info: ", name);
+                output(data);
         }
-        output("%s metadata info: ", name);
-        output(data);
     }
 
     /**
