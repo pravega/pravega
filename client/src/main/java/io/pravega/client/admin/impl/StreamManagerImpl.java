@@ -40,6 +40,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
@@ -199,6 +199,7 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
