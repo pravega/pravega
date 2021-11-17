@@ -76,8 +76,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
             if (exists) {
                 RetryHelper.withRetriesAsync(() -> deleteScopeContent(scope, context, requestId)
-                        .thenCompose(table -> streamMetadataStore.deleteScopeRecursive(scope, context, executor))
-                        , e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                        .thenCompose(table -> streamMetadataStore.deleteScopeRecursive(scope, context, executor)),
+                        e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
                 return CompletableFuture.completedFuture(null);
             }
             return CompletableFuture.completedFuture(null);
@@ -108,8 +108,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         // Delete KVTs
         // Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
         // while (kvtIterator.hasNext()) {
-            // KeyValueTableInfo kvt = kvtIterator.next();
-            // kvtMetadataStore.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor);
+        // KeyValueTableInfo kvt = kvtIterator.next();
+        // kvtMetadataStore.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor);
         // }
         return CompletableFuture.completedFuture(null);
     }
@@ -126,14 +126,13 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     }
 
     // private AsyncIterator<KeyValueTableInfo> listKVTs(final String scopeName, final long requestId, OperationContext context) {
-        // final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-        // kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
-                        // .thenApply(result -> {
-                            // List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
-                                    // .map(m -> new KeyValueTableInfo(scopeName, m))
-                                    // .collect(Collectors.toList());
-                            // return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
-                        // });
-        // return new ContinuationTokenAsyncIterator<>(function, "");
+    // final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+    // kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
+    // .thenApply(result -> {
+    // List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
+    // .map(m -> new KeyValueTableInfo(scopeName, m))
+    // .collect(Collectors.toList());
+    // return new AbstractMap.SimpleEntry<>(result.getValue(), kvTables
+    // return new ContinuationTokenAsyncIterator<>(function, "");
     // }
 }
