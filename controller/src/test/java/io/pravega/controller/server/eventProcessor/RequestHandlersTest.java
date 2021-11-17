@@ -796,8 +796,8 @@ public abstract class RequestHandlersTest {
         Thread.sleep(1000);
 
         // Verify that the scope is removed from both tables
-        assertFalse(streamStore.checkScopeExists(scopeName,null, executor).join());
-        assertFalse(streamStore.checkScopeInDeletingTable(scopeName,null, executor).join());
+        assertFalse(streamStore.checkScopeExists(scopeName, null, executor).join());
+        assertFalse(streamStore.checkScopeInDeletingTable(scopeName, null, executor).join());
     }
 
     @Test
