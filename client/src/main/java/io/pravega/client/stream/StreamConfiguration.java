@@ -94,6 +94,15 @@ public class StreamConfiguration implements Serializable {
      */
     private final long rolloverSizeBytes;
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "scalingPolicy", scalingPolicy != null ? scalingPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "retentionPolicy", retentionPolicy != null ? retentionPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "timestampAggregationTimeout", timestampAggregationTimeout) + "\n" +
+                String.format("%s = %s", "tags", tags) + "\n" +
+                String.format("%s = %s", "rolloverSizeBytes", rolloverSizeBytes);
+    }
+
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
 

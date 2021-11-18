@@ -83,6 +83,15 @@ public class StreamSegmentRecord implements SegmentRecord {
         return second.getValue() > first.getKey() && second.getKey() < first.getValue();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "segmentNumber", segmentNumber) + "\n" +
+                String.format("%s = %s", "creationEpoch", creationEpoch) + "\n" +
+                String.format("%s = %s", "creationTime", creationTime) + "\n" +
+                String.format("%s = %s", "keyStart", keyStart) + "\n" +
+                String.format("%s = %s", "keyEnd", keyEnd);
+    }
+
     @VisibleForTesting
     public static StreamSegmentRecord newSegmentRecord(int num, int epoch, long time, double start, double end) {
         return StreamSegmentRecord.builder().segmentNumber(num).creationEpoch(epoch).creationTime(time).keyStart(start).keyEnd(end).build();

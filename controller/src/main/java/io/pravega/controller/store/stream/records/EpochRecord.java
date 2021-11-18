@@ -85,6 +85,18 @@ public class EpochRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "epoch", epoch) + "\n" +
+                String.format("%s = %s", "referenceEpoch", referenceEpoch) + "\n" +
+                String.format("%s = [%n    %s%n]", "segments", segments.stream()
+                        .map(streamSegmentRecord -> streamSegmentRecord.toString().replace("\n", "\n    "))
+                        .collect(Collectors.joining("\n,\n    "))) + "\n" +
+                String.format("%s = %s", "creationTime", creationTime) + "\n" +
+                String.format("%s = %s", "splits", splits) + "\n" +
+                String.format("%s = %s", "merges", merges);
+    }
+
     public boolean isDuplicate() {
         return epoch != referenceEpoch;
     }
