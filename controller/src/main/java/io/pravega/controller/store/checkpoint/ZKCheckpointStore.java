@@ -227,7 +227,7 @@ public class ZKCheckpointStore implements CheckpointStore {
             });
 
         } catch (KeeperException.NoNodeException e) {
-            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+            log.debug("ZNode for reader {} in Reader Group {} for Controller {} not found.", readerId, readerGroup, process);
         } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
                 | KeeperException.SessionExpiredException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);

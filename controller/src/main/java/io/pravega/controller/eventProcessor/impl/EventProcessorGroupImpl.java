@@ -240,7 +240,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), controllerId);
                     checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
                 } catch (CheckpointStoreException e) {
-                    log.warn("Error removing Reader Group {} from checkpoint store. ", readerGroup.getGroupName(), e);
+                    log.warn("Error removing data for Reader Group {} from checkpoint store. ", readerGroup.getGroupName(), e);
                 }
                 readerGroup.close();
 
