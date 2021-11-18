@@ -45,8 +45,8 @@ public abstract class ParseReaderGroupStreamCommandTest {
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
     protected static final int CONTAINER_COUNT = 1;
 
-    private static final String endpoint = "localhost";
-    private static final String filename = "output/file";
+    private static final String ENDPOINT = "localhost";
+    private static final String FILENAME = "output/file";
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
@@ -87,11 +87,11 @@ public abstract class ParseReaderGroupStreamCommandTest {
     @Test
     public void testParseReaderGroupStreamCommand() throws Exception {
         // Check that the system reader group stream can be parsed.
-        String commandResult = TestUtils.executeCommand("readerGroup parse-rg-stream _system commitStreamReaders " + endpoint + " " + filename, STATE.get());
+        String commandResult = TestUtils.executeCommand("readerGroup parse-rg-stream _system commitStreamReaders " + ENDPOINT + " " + FILENAME, STATE.get());
         Assert.assertTrue(commandResult.contains("The segment data has been successfully written into tmp/RG_commitStreamReaders_"));
-        Assert.assertTrue(commandResult.contains("The readerGroup stream has been successfully written into " + filename));
+        Assert.assertTrue(commandResult.contains("The readerGroup stream has been successfully written into " + FILENAME));
         Assert.assertNotNull(ParseReaderGroupStreamCommand.descriptor());
-        File file = new File(filename);
+        File file = new File(FILENAME);
         Assert.assertTrue(file.exists());
         Assert.assertNotEquals(0, file.length());
     }
