@@ -97,15 +97,26 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @return The result of future.join().
      */
     <T> T getIfTableExists(CompletableFuture<T> future, String tableName) {
-        return Futures.getAndHandleExceptions(future, t -> {
-           if (t instanceof WireCommandFailedException) {
-               if (((WireCommandFailedException) t).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)) {
-                   output(String.format("Table not found: %s", tableName));
-                   return null;
-               }
-           }
-           return new RuntimeException(t);
-        });
+        try {
+            return Futures.getThrowingException(future);
+        } catch (WireCommandFailedException e) {
+            if (e.getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)) {
+                output(String.format("Table not found: %s", tableName));
+                return null;
+            } else if (e.getReason().equals(WireCommandFailedException.Reason.AuthFailed)) {
+                output("Authentication failed.");
+                return null;
+            } else if (e.getReason().equals(WireCommandFailedException.Reason.UnknownHost)) {
+                output("Unknown host provided.");
+                return null;
+            }
+            output("Something unexpected happened.");
+            output(e.getMessage());
+        } catch (Exception e) {
+            output("Something unexpected happened.");
+            output(e.getMessage());
+        }
+        return null;
     }
 
     /**
