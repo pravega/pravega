@@ -37,6 +37,9 @@ import lombok.val;
  * Executes the recovery process for a particular container, using a no-op Cache and Storage.
  */
 public class ContainerRecoverCommand extends ContainerCommand {
+
+    private RecoveryState recoveryState;
+
     /**
      * Creates a new instance of the ContainerRecoverCommand.
      *
@@ -66,27 +69,35 @@ public class ContainerRecoverCommand extends ContainerCommand {
         val log = context.logFactory.createDebugLogWrapper(containerId);
         val bkLog = log.asReadOnly();
 
-        val recoveryState = new RecoveryState();
-        val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
-                recoveryState::newOperation,
-                op -> recoveryState.operationComplete(op, null),
-                recoveryState::operationComplete);
-
+        this.recoveryState = new RecoveryState();
         @Cleanup
-        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), callbacks);
+        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig,
+                getCommandArgs().getState().getExecutor(), buildRecoveryProcessorCallbacks());
         try {
             rp.performRecovery();
             output("Recovery complete: %d DataFrame(s) containing %d Operation(s).",
-                    recoveryState.dataFrameCount, recoveryState.operationCount);
+                    this.recoveryState.dataFrameCount, recoveryState.operationCount);
         } catch (Exception ex) {
             output("Recovery FAILED: %d DataFrame(s) containing %d Operation(s) were able to be recovered.",
-                    recoveryState.dataFrameCount, recoveryState.operationCount);
+                    this.recoveryState.dataFrameCount, recoveryState.operationCount);
             ex.printStackTrace(getOut());
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof DataCorruptionException) {
                 unwrapDataCorruptionException((DataCorruptionException) cause);
             }
         }
+    }
+
+    /**
+     * Provides the callbacks for the DebugRecoveryProcessor.
+     *
+     * @return Callbacks for DebugRecoveryProcessor.
+     */
+    protected DebugRecoveryProcessor.OperationCallbacks buildRecoveryProcessorCallbacks() {
+        return new DebugRecoveryProcessor.OperationCallbacks(
+                recoveryState::newOperation,
+                op -> recoveryState.operationComplete(op, null),
+                recoveryState::operationComplete);
     }
 
     @VisibleForTesting

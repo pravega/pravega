@@ -208,7 +208,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     @Test
     public void testBookKeeperContinuousRecoveryCommand() throws Exception {
         createLedgerInBookkeeperTestCluster(0);
-        String commandResult = TestUtils.executeCommand("container continuous-recover 1 1", STATE.get());
+        String commandResult = TestUtils.executeCommand("container continuous-recover 2 1", STATE.get());
         Assert.assertTrue(commandResult.contains("Recovery complete"));
 
         CommandArgs args = new CommandArgs(Arrays.asList("1", "1"), STATE.get());

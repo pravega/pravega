@@ -16,11 +16,12 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.common.util.ReusableLatch;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -42,34 +43,41 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
         int secondsBetweenRuns = getIntArg(1);
         AtomicInteger counter = new AtomicInteger(0);
         AtomicBoolean failed = new AtomicBoolean(false);
-        ReusableLatch latch = new ReusableLatch();
         Runnable containerRecoveryIteration = () -> {
-            // If we reach the desired number of iterations or a failure has happened, release the latch and return.
-            if (counter.get() >= numberOfRuns || failed.get()) {
-                output("Finishing recovery run iterations (failed? " + failed.get() + ")");
-                latch.release();
-                return;
-            }
             // Recover all the Segment Containers sequentially.
             for (int i = 0; i < getServiceConfig().getContainerCount(); i++) {
                 try {
                     super.performRecovery(i);
+                    output("Completed recovery of container: " + i);
                 } catch (DurableDataLogException e) {
                     // We found an error while recovering a container. Stop running further recoveries to debug this one.
                     output("Problem recovering container " + i + ", terminating execution of command.");
                     failed.set(true);
-                    e.printStackTrace();
+                    e.printStackTrace(getOut());
                     break;
                 }
             }
             // Increment recovery iterations counter.
             counter.getAndIncrement();
         };
-        ScheduledFuture<?> future = getCommandArgs().getState().getExecutor().scheduleAtFixedRate(containerRecoveryIteration,
-                secondsBetweenRuns, secondsBetweenRuns, TimeUnit.SECONDS);
-        latch.await();
-        future.cancel(true);
+        Futures.loop(
+                () -> counter.get() < numberOfRuns && !failed.get(),
+                () -> CompletableFuture.runAsync(containerRecoveryIteration, getCommandArgs().getState().getExecutor())
+                       .thenCompose(a -> Futures.delayedFuture(Duration.ofSeconds(secondsBetweenRuns), getCommandArgs().getState().getExecutor())),
+                getCommandArgs().getState().getExecutor()).join();
         output("Completed continuous Segment Container recovery command.");
+    }
+
+    public DebugRecoveryProcessor.OperationCallbacks buildRecoveryProcessorCallbacks() {
+        return new DebugRecoveryProcessor.OperationCallbacks(
+                (a, b) -> { },
+                op -> { },
+                (currentOperation, exception) -> {
+                    if (exception != null) {
+                        output("\tOperation '%s' FAILED recovery.", currentOperation);
+                        exception.printStackTrace(getOut());
+                    }
+                });
     }
 
     public static CommandDescriptor descriptor() {
