@@ -50,14 +50,13 @@ import static org.junit.Assert.assertEquals;
 
 public class ParseReaderGroupStreamCommand extends AdminCommand {
 
-    Controller controller = instantiateController();
-
     private final static int HEADER = WireCommands.TYPE_SIZE;
     private final static int LENGTH = WireCommands.TYPE_PLUS_LENGTH_SIZE - WireCommands.TYPE_SIZE;
     private final static int TYPE = WireCommandType.EVENT.getCode();
+    private final static int REQUEST_TIMEOUT_SECONDS = 10;
 
-    private static final int REQUEST_TIMEOUT_SECONDS = 10;
     private final GrpcAuthHelper authHelper;
+    private final Controller controller;
 
     public ParseReaderGroupStreamCommand(CommandArgs args) {
         super(args);
@@ -65,6 +64,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         authHelper = new GrpcAuthHelper(true,
                 "secret",
                 600);
+
+        controller = instantiateController();
     }
 
     @Override
