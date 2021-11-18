@@ -29,13 +29,13 @@ import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
-import io.pravega.controller.eventProcessor.impl.EventProcessorGroupImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
+
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -53,6 +53,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 @Slf4j
 public class EventProcessorGroupTest {
@@ -93,7 +95,7 @@ public class EventProcessorGroupTest {
         try {
             doNothing().when(checkpointStore).addReaderGroup(anyString(), anyString());
             doNothing().when(checkpointStore).addReader(anyString(), anyString(), anyString());
-        } catch(CheckpointStoreException ex){
+        } catch (CheckpointStoreException ex) {
             ex.printStackTrace();
         }
 
@@ -104,6 +106,7 @@ public class EventProcessorGroupTest {
 
         doReturn(true).when(readerGroupMgr).createReaderGroup(anyString(), any());
         ReaderGroup mockReaderGroup = mock(ReaderGroup.class);
+        doReturn("scaleGroup").when(mockReaderGroup).getGroupName();
         doReturn(mockReaderGroup).when(readerGroupMgr).getReaderGroup(anyString());
     }
 
@@ -114,12 +117,12 @@ public class EventProcessorGroupTest {
     }
 
     @Test(timeout = 10000)
-    public void testEventProcessorGroup() throws CheckpointStoreException {
+    public void testFailingSealReaderGroupInShutdown() throws CheckpointStoreException {
         this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
         requestEventProcessors.awaitRunning();
         assertTrue(requestEventProcessors.isRunning());
         doThrow(new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, new Exception())).when(checkpointStore).sealReaderGroup(anyString(), anyString());
-        //EventProcessorGroupImpl eventProcessor = (EventProcessorGroupImpl) requestEventProcessors;
         requestEventProcessors.stopAsync();
+        verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
     }
 }
