@@ -199,6 +199,8 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     /**
+     * A new API is created hence this is going to be deprecated.
+     *
      * @deprecated As of Pravega release 0.10, replaced by {@link #deleteScopeRecursive(String)}.
      */
     @Override
