@@ -20,6 +20,7 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.utils.ConfigUtils;
+import io.pravega.cli.admin.utils.FileHelper;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
@@ -102,7 +103,7 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
     private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
                                      String tmpfilename, String fileName) throws IOException, Exception {
 
-        File outputfile = createFileAndDirectory(fileName);
+        File outputfile = FileHelper.createFileAndDirectory(fileName);
 
         @Cleanup
         BufferedWriter writer = new BufferedWriter(new FileWriter(outputfile));

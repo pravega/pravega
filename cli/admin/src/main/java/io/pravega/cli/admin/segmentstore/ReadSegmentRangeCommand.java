@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.FileHelper;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -79,7 +80,7 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
      */
     public void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
                                            long offset, long length, String fileName) throws IOException, Exception {
-        File file = createFileAndDirectory(fileName);
+        File file = FileHelper.createFileAndDirectory(fileName);
 
         output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
         long currentOffset = offset;
