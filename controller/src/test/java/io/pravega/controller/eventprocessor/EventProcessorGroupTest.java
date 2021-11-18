@@ -38,6 +38,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 
+import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -135,6 +136,36 @@ public class EventProcessorGroupTest {
         verify(writer, times(1)).close();
     }
 
+    @Test(timeout = 10000)
+    public void testNotifyProcessFailureSuccess() throws CheckpointStoreException {
+        this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
+        requestEventProcessors.awaitRunning();
+        assertTrue(requestEventProcessors.isRunning());
+        Position mockReaderPosition = mock(Position.class);
+        doReturn(ImmutableMap.of("reader1", mockReaderPosition)).when(checkpointStore).sealReaderGroup("host1", "scaleGroup");
+        doNothing().when(mockReaderGroup).readerOffline(anyString(), any());
+        doNothing().when(checkpointStore).removeReader(anyString(), anyString(), anyString());
+        doNothing().when(checkpointStore).removeReaderGroup(anyString(), anyString());
+        requestEventProcessors.notifyProcessFailure("host1");
+        verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
+        verify(mockReaderGroup, times(1)).readerOffline(anyString(), any());
+        verify(checkpointStore, times(1)).removeReader(anyString(), anyString(), anyString());
+        verify(checkpointStore, times(1)).removeReaderGroup("host1", "scaleGroup");
+    }
+
+    @Test(timeout = 10000)
+    public void testNotifyProcessFailureError() throws CheckpointStoreException {
+        this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
+        requestEventProcessors.awaitRunning();
+        assertTrue(requestEventProcessors.isRunning());
+
+        doThrow(new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, new Exception())).when(checkpointStore).sealReaderGroup(anyString(), anyString());
+        AssertExtensions.assertThrows(CheckpointStoreException.class, () -> requestEventProcessors.notifyProcessFailure("host1"));
+        verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
+        verify(mockReaderGroup, times(0)).readerOffline(anyString(), any());
+        verify(checkpointStore, times(0)).removeReader(anyString(), anyString(), anyString());
+        verify(checkpointStore, times(0)).removeReaderGroup("host1", "scaleGroup");
+    }
 
 
 
