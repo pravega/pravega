@@ -43,7 +43,6 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -75,7 +74,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
     private final SegmentStoreMetrics.Metadata metrics;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

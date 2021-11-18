@@ -41,7 +41,7 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> implements Hea
     @Getter(AccessLevel.PACKAGE)
     private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     public InMemoryLog() {

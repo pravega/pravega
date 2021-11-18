@@ -36,7 +36,6 @@ import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
 
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +54,7 @@ public class GRPCServer extends AbstractIdleService implements HealthConnector {
 
     @Getter
     private final AuthHandlerManager authHandlerManager;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     /**

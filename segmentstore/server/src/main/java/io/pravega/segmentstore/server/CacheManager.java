@@ -44,7 +44,6 @@ import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +82,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @Getter
     private final CacheUtilizationProvider utilizationProvider;
     private final Object lock = new Object();
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

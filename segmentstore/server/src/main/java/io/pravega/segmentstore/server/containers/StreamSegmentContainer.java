@@ -101,7 +101,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -135,7 +134,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final ContainerEventProcessor containerEventProcessor;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
     //endregion
 

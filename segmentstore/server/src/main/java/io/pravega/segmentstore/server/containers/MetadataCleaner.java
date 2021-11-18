@@ -34,10 +34,9 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import io.pravega.segmentstore.server.containers.health.MetadataCleanerHealthContributor;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
+import io.pravega.shared.health.contributors.ServiceHealthContributor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +59,7 @@ class MetadataCleaner extends AbstractThreadPoolService implements  AutoCloseabl
     private final Object singleRunLock = new Object();
     private final AtomicBoolean closed;
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
     @GuardedBy("singleRunLock")
     private CompletableFuture<Void> currentIteration = null;
@@ -91,7 +90,7 @@ class MetadataCleaner extends AbstractThreadPoolService implements  AutoCloseabl
         this.cleanupCallback = cleanupCallback;
         this.lastIterationSequenceNumber = new AtomicLong(metadata.getOperationSequenceNumber());
         this.stopToken = new CancellationToken();
-        this.contributor = new MetadataCleanerHealthContributor(String.format("MetadataCleaner-%d", metadata.getContainerId()), this);
+        this.contributor = new ServiceHealthContributor(String.format("MetadataCleaner-%d", metadata.getContainerId()), this);
         this.closed = new AtomicBoolean(false);
     }
 

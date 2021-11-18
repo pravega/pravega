@@ -55,7 +55,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -77,7 +76,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final WriterFactory.CreateProcessors createProcessors;
     private final SequentialProcessor ackProcessor;
     private final SegmentStoreMetrics.StorageWriter metrics;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

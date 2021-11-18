@@ -58,7 +58,7 @@ public abstract class BucketManager extends AbstractService implements HealthCon
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,

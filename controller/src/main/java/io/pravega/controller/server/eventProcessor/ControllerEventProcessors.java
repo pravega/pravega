@@ -88,7 +88,6 @@ import java.util.stream.Collectors;
 
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.extern.slf4j.Slf4j;
 import lombok.Getter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -130,7 +129,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private ScheduledExecutorService rebalanceExecutor;
     @Getter
     private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     public ControllerEventProcessors(final String host,

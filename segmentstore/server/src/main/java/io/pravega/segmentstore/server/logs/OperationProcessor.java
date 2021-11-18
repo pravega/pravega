@@ -58,7 +58,6 @@ import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.contributors.ServiceHealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -93,7 +92,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final Throttler throttler;
     private final CacheUtilizationProvider cacheUtilizationProvider;
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

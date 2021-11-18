@@ -21,7 +21,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -50,7 +49,7 @@ public class SegmentContainerMonitor extends AbstractIdleService implements Heal
 
     private final AtomicBoolean zkConnected = new AtomicBoolean(false);
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     /**

@@ -48,7 +48,6 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -88,7 +87,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable, Healt
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     /**

@@ -58,7 +58,6 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -119,7 +118,7 @@ class BookKeeperLog implements DurableDataLog {
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
     private final ThrottlerSourceListenerCollection queueStateChangeListeners;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
     //endregion
 

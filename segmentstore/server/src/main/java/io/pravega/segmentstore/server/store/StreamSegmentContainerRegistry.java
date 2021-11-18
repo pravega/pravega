@@ -38,7 +38,6 @@ import java.util.function.Consumer;
 import io.pravega.segmentstore.server.store.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -55,7 +54,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry, Health
     private final ConcurrentHashMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
     private final AtomicBoolean closed;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

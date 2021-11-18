@@ -80,7 +80,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final AtomicBoolean closed;
     private final CompletableFuture<Void> delayedStart;
     private final Retry.RetryAndThrowConditionally delayedStartRetry;
-    @Getter(AccessLevel.PRIVATE)
+    @Getter
     private final HealthContributor contributor;
 
     //endregion

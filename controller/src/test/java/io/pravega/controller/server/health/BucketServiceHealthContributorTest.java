@@ -40,7 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Unit tests for RetentionServiceHealthContributor
+ * Unit tests for BucketServiceHealthContributor
  */
 public class BucketServiceHealthContributorTest {
     private BucketManager retentionService;

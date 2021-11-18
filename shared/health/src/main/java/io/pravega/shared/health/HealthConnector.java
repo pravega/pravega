@@ -25,7 +25,7 @@ package io.pravega.shared.health;
  */
 public interface HealthConnector {
 
-    private HealthContributor getHealthContributor() {
+    default HealthContributor getContributor() {
         return null;
     }
 
@@ -35,7 +35,7 @@ public interface HealthConnector {
      * @param parent The parent {@link HealthContributor}.
      */
     default void connect(HealthContributor parent) {
-        HealthContributor contributor = getHealthContributor();
+        HealthContributor contributor = getContributor();
         if (contributor != null) {
             parent.register(contributor);
         }

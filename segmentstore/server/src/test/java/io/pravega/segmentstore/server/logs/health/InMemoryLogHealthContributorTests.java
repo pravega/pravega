@@ -13,15 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.containers.health;
+package io.pravega.segmentstore.server.logs.health;
 
-import com.google.common.util.concurrent.Service;
-import io.pravega.shared.health.contributors.ServiceHealthContributor;
-
-public class MetadataCleanerHealthContributor extends ServiceHealthContributor {
-
-    public MetadataCleanerHealthContributor(String name, Service service) {
-        super(name, service);
-    }
-
+public class InMemoryLogHealthContributorTests {
 }
