@@ -94,29 +94,32 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param future    The CompletableFuture containing the table query.
      * @param tableName The table name.
      * @param <T>       Type of the result of the table query.
-     * @return The result of future.join().
+     * @return The result of future.join() and null in case of an exception.
      */
     <T> T getIfTableExists(CompletableFuture<T> future, String tableName) {
         try {
             return Futures.getThrowingException(future);
         } catch (WireCommandFailedException e) {
-            if (e.getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)) {
-                output(String.format("Table not found: %s", tableName));
-                return null;
-            } else if (e.getReason().equals(WireCommandFailedException.Reason.AuthFailed)) {
-                output("Authentication failed.");
-                return null;
-            } else if (e.getReason().equals(WireCommandFailedException.Reason.UnknownHost)) {
-                output("Unknown host provided.");
-                return null;
+            switch (e.getReason()) {
+                case SegmentDoesNotExist:
+                    output(String.format("Table not found: %s", tableName));
+                    break;
+                case AuthFailed:
+                    output("Authentication failed.");
+                    break;
+                case UnknownHost:
+                    output("Unknown host provided. Retry with the correct segment store address.");
+                    break;
+                default:
+                    output("Something unexpected happened.");
+                    output(e.getMessage());
             }
-            output("Something unexpected happened.");
-            output(e.getMessage());
+            return null;
         } catch (Exception e) {
             output("Something unexpected happened.");
             output(e.getMessage());
+            return null;
         }
-        return null;
     }
 
     /**
