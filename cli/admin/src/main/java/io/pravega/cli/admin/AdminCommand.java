@@ -192,6 +192,15 @@ public abstract class AdminCommand {
         this.err.printf(messageTemplate + System.lineSeparator(), args);
     }
 
+    /**
+     * Gets an exception and prints the stacktrace to the console (error out).
+     *
+     * @param exception   The exception.
+     */
+    protected void outputException(Throwable exception) {
+        exception.printStackTrace(this.err);
+    }
+
     protected void prettyJSONOutput(String jsonString) {
         @SuppressWarnings("deprecation")
         JsonElement je = new JsonParser().parse(jsonString);

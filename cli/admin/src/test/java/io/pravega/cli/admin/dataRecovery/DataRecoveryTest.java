@@ -43,15 +43,18 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -269,7 +272,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testDurableLogRepairCommand() throws Exception {
+    public void testBasicDurableLogRepairCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
         int containerCount = 1;
@@ -365,6 +368,111 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Mockito.doReturn(3).when(command).getIntUserInput(Mockito.any());
         command.execute();
         DurableDataLogRepairCommand.descriptor();
+    }
+
+    @Test
+    public void testDurableLogRepairCommandExpectedLogOutput() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        @Cleanup
+        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testDataRecoveryCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for repairing DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<Operation> originalOperations = new ArrayList<>();
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(op), 0, wrapper.asReadOnly());
+
+        // Disable Original Log first.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+
+        // Second, add 2 operations, delete 1 operation, replace 1 operation.
+        Mockito.doReturn(true).doReturn(true).doReturn(false)
+                .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true)
+                .when(command).confirmContinue();
+        Mockito.doReturn(900L).doReturn(901L)
+                .doReturn(901L).doReturn(1L).doReturn(123L)
+                .doReturn(2L).doReturn(123L)
+                .doReturn(903L).doReturn(3L).doReturn(123L)
+                .doReturn(905L).doReturn(4L).doReturn(123L)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete")
+                .doReturn("add").doReturn("DeleteSegmentOperation").doReturn("DeleteSegmentOperation")
+                .doReturn("replace").doReturn("DeleteSegmentOperation")
+                .doReturn("add").doReturn("StreamSegmentSealOperation")
+                .when(command).getStringUserInput(Mockito.any());
+        command.execute();
+
+        List<Operation> originalOperationsEdited = new ArrayList<>();
+        @Cleanup
+        DebugDurableDataLogWrapper wrapperEdited = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperationsEdited.add(op), 0, wrapperEdited.asReadOnly());
+
+        // Now, let's check that the edited log has the Operations we expect.
+        // Original Log: OP-899, OP-900, OP-901, OP-902, OP-903, OP-904, OP-905
+        // Edited Log:   OP-899, NEW-ADD 900 (DeleteSegment), NEW-ADD 901 (DeleteSegment), OP-901(now 902), OP-902(now 903),
+        //               NEW REPLACE 903 (DeleteSegment now 904), OP-904 (now 905), NEW-ADD 905 (StreamSegmentSealOperation now 906),
+        //               OP-905 (now 907)
+        for (int i = 899; i < 910; i++) {
+            // Sequence numbers will defer between the original and edited logs. To do equality comparisons between
+            // Operations in both logs, reset the sequence numbers (other fields should be the same).
+            originalOperations.get(i).resetSequenceNumber(0);
+            originalOperationsEdited.get(i).resetSequenceNumber(0);
+        }
+        Assert.assertNotEquals(originalOperations.get(899), originalOperationsEdited.get(899));
+        Assert.assertTrue(originalOperationsEdited.get(899) instanceof DeleteSegmentOperation);
+        Assert.assertTrue(originalOperationsEdited.get(900) instanceof DeleteSegmentOperation);
+        Assert.assertEquals(originalOperations.get(900).toString(), originalOperationsEdited.get(901).toString());
+        Assert.assertEquals(originalOperations.get(901).toString(), originalOperationsEdited.get(902).toString());
+        Assert.assertTrue(originalOperationsEdited.get(903) instanceof DeleteSegmentOperation);
+        Assert.assertEquals(originalOperations.get(903).toString(), originalOperationsEdited.get(904).toString());
+        Assert.assertTrue(originalOperationsEdited.get(905) instanceof StreamSegmentSealOperation);
+        Assert.assertEquals(originalOperations.get(904).toString(), originalOperationsEdited.get(906).toString());
+        this.factory.close();
     }
 
     @Test
@@ -781,8 +889,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
-        Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null).hashCode(),
-                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)).hashCode());
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.REPLACE_OPERATION, 1, 2, null),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         Assert.assertNotEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, null),
