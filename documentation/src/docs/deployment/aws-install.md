@@ -1,3 +1,5 @@
+# Running on AWS
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Running on AWS
 
 Pre-reqs: Have an AWS account and have Terraform installed. To install and download Terraform, follow the instructions here: https://www.terraform.io/downloads.html
 

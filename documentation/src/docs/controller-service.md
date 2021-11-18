@@ -60,7 +60,7 @@ limitations under the License.
       - [Readergroup Management](#readergroup-management)
 * [Resources](#resources)
 
-# Introduction
+## Introduction
 
 The Controller Service is a core component of Pravega that implements
 the control plane. It acts as the central coordinator and manager for
@@ -81,7 +81,7 @@ _creation_, _updation_, _truncation_, _sealing_, [_scaling_](pravega-concepts.md
 lifecycle, new Segments can be created and existing Segments can be sealed. The
 Controller decides on performing these operations by ensuring the availability and consistency of the Streams for the clients accessing them.
 
-# Architecture
+## Architecture
 
 The Controller Service is made up of one or more instances of
 stateless worker nodes. Each new Controller instance can be invoked independently and becomes part of Pravega cluster by merely pointing to the same [Apache Zookeeper](https://zookeeper.apache.org/). For high availability, it is advised to have
@@ -102,7 +102,7 @@ access for Pravega clients and is implemented as an `RPC` using [gRPC](https://g
 other endpoint is for administrative operations and is implemented as a
 `REST` endpoint.
 
-## Stream Management
+### Stream Management
 
 The Controller owns and manages the concept of Stream and is
 responsible for maintaining "metadata" and "lifecycle" operations (_creating, updating, scaling,
@@ -143,16 +143,16 @@ Transaction management can be found later in the [Transactions](#transaction-man
 
   4. [**Watermarks**](http://pravega.io/docs/latest/watermarking/): Watermarks are a data structure produced by Controller that refer to a unique position in the Stream and associates time information corresponding to that position. The watermark is computed by Controller by coordinating the time and position information reported by different writer applications and generating a time window. 
 
-## Key-Value-Tables Management
+### Key-Value-Tables Management
 
 Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables-(Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
 Controller maintains the metadata about the key value tables and is responsible for its lifecycle. Presently key value tables do not support any user defined policies like scaling or retention. So Controller's role is limited to provisioning Table Segments for the Table and managing its lifecycle which includes operations like create seal and delete tables.   
 
-## Cluster Management
+### Cluster Management
 
 Controller is responsible for tracking the service instance nodes for both Controller and Segment Store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different Segment Store instances by distributing Segment containers to availale Segment Store nodes.
 
-### Segment Container to Host Mapping
+#### Segment Container to Host Mapping
 
 The Controller is also responsible for the assignment of Segment Containers to
 Segment Store nodes. The responsibility of maintaining this mapping
@@ -167,7 +167,7 @@ longer owns and attempts to acquire ownership of containers that are
 assigned to it.
 
 
-# System Diagram
+## System Diagram
 
 The following diagram shows the main components of a Controller process.
 The elements of the diagram are discussed in detail in the following sections.
@@ -177,9 +177,9 @@ The elements of the diagram are discussed in detail in the following sections.
 _Controller Process Diagram_
 
 
-# Components
+## Components
 
-## Service Endpoints
+### Service Endpoints
 
 There are two ports exposed by Controller: **Client-Controller API** and
 **Administration API**. The client Controller communication is implemented as `RPC` which
@@ -190,7 +190,7 @@ Each endpoint performs the appropriate call to the Pravega Controller Service *b
 which has the actual implementation for various operations like create, read, update and
 delete (CRUD) on entities owned and managed by Controller.
 
-### gRPC  
+#### gRPC  
 
 Client Controller communication endpoint is implemented as a [`gRPC`](https://grpc.io/)
 interface. Please check the complete list of [API](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto). This exposes API used by Pravega clients (Readers, Writers and Stream
@@ -205,7 +205,7 @@ Stream Segments while working with a Stream. For Transactions, the client uses
 specific API calls to request Controller to [_create_](#create-transaction), [_commit_](#commit-transaction), [_abort_](#abort-transaction) and [_ping_](#ping-transaction)
 Transactions.
 
-### REST  
+#### REST  
 For administration, the Controller implements and exposes a `REST`
 interface. This includes API calls for Stream management as well as
 other administration API primarily dealing with _creation_ and _deletion_ of
@@ -213,7 +213,7 @@ other administration API primarily dealing with _creation_ and _deletion_ of
 
 <a name ="controller-service"></a>
 
-## Pravega Controller Service
+### Pravega Controller Service
 
 This is the backend layer behind the Controller endpoints `gRPC` and
 `REST`. All the business logic required to serve Controller API calls are
@@ -223,7 +223,7 @@ Stores are interfaces that provide access to various types of metadata managed b
 processing frameworks are used to perform asynchronous processing that typically implements workflows involving metadata updates
 and requests to Segment Store.
 
-## Stream Metadata Store
+### Stream Metadata Store
 
 A Stream is a dynamically changing sequence of Stream Segments, where regions of
 the Routing Key space map to open Stream Segments. As the set of Segments of a
@@ -270,7 +270,7 @@ that form the Stream at different points in time, Segment specific
 information, Segment predecessors and successors and additional information about Segments like their whether they are open or sealed, whether they are hot or cold and the size of data when they were sealed. Refer to [Stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java) interface for details about API exposed by Stream metadata
 store.
 
-### Stream Metadata
+#### Stream Metadata
 
 Clients need information about what Segments constitute a Stream to start their processing and they obtain it from the epoch information the Controller stores in the Stream store. Clients need the ability to query and find Stream Segments at any of the three cases efficiently:
 
@@ -293,7 +293,7 @@ and predecessors for any arbitrary Segment.
 
 To enable serving queries like those mentioned above, we need to efficiently store a time series of these Segment transitions and index them against time. We store this information about the current and historical state of a Stream Segments in a set of records which are designed to optimize on aforementioned queries. Apart from Segment-specific metadata record, the current state of Stream comprises of other metadata types that are described henceforth.
 
-#### Records  
+##### Records  
 
 Stream time series is stored as a series of records where each record corresponds to an epoch. As Stream scales and transitions from one epoch to another, a new record is created that has complete information about Stream Segments that forms the epoch.
 
@@ -313,7 +313,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
 
 **Note**: To retrieve Stream Segment record given a Stream Segment ID, we first need to extract the creation epoch and then retrieve the Stream Segment record from the epoch record.
 
-#### Stream Configuration
+##### Stream Configuration
  Stream configuration is stored against the StreamConfiguration key in the metadata table. The value against this key has the Stream configuration serialized and persisted. A
  Stream configuration contains Stream policies that need to be enforced and the Stream Tags associated with the Stream.
  [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java) are supplied by the application at the time of Stream creation and enforced by Controller by monitoring the rate and size of data in the Stream.
@@ -332,7 +332,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  whether they want to retain data in the Stream by size or by time by
  choosing the appropriate policy and supplying their desired values.
 
-#### Stream State
+##### Stream State
  The Stream state is saved as StateRecord in the metadata table. It describes the state of the Stream like active or sealed and whenever Stream goes through a transition in its lifecycle, the state also describes the transition. StateRecord has an enumerator with
  values from *creating, active, updating, scaling, truncating, sealing,*
  and *sealed* representating each of the various states and state transitions. Once _active_, a Stream transition between performing a
@@ -351,11 +351,11 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  transitions are allowed and any attempt for disallowed transition
  results in an appropriate exception.
 
-#### Truncation Record
+##### Truncation Record
 
 The Truncation Record captures the latest truncation point of the Stream which is identified by a `StreamCut`. The truncation `StreamCut` logically represents the head of the Stream and all the data before this position has been purged completely. For example, let there be _**n**_ active Segments **S<sub>1</sub>**, **S<sub>2</sub>**, ...,**S<sub>n</sub>** in a Stream. If we truncate this Stream at a `StreamCut` **SC = {S<sub>1</sub>/O<sub>1</sub>, S<sub>2</sub>/O<sub>2</sub>,...,S<sub>n</sub>/O<sub>n</sub>}**, then all data before the given `StreamCut` could be removed from the durable store. This translates to all the data in Segments that are predecessor Segments of **S<sub>i</sub>** for **i ={ 1 to n }**; and all the data in Segments **S<sub>i</sub>** till offset **O<sub>i</sub>**. So we could delete all such predecessor Segments from the Stream and purge all the data before respective offsets from the Segments in `StreamCut`.
 
-#### Sealed Segments Maps
+##### Sealed Segments Maps
 Once the Stream Segments are sealed, the Controller needs to store additional information about the Stream Segment. Presently, we have two types of information:
 
  - Epoch, the Stream Segment was sealed in.
@@ -378,20 +378,20 @@ The following are the Transaction Related metadata records:
 
    - **Completed Transactions**: All completed transactions for all Streams are moved under a separate global table upon completion (via either commit or abort paths). The completion status of Transaction is recorded under this record. To avoid proliferation of stale Transaction records, we provide a cluster level configuration to specify the duration for which a completed Transaction's record should be preserved. Controller periodically garbage collects all Transactions that were completed before the aforesaid configured duration.
 
-#### Retention Set
+##### Retention Set
 
  Controller periodically generates the tail [_StreamCut_] (https://pravega.io/docs/nightly/terminology/) on the Stream and stores them as a chronological time series in the Stream metadata called retention set. This retention set is stored in the metadata table. These StreamCuts are used to identify truncation points for application of retention policy for the Stream. 
 
-#### Writer Marks
+##### Writer Marks
  Writers report their positions and times in the form of writer marks to Controller service which are then stored in the metadata table. One of the Controller instances then looks at these marks and consolidates them to produce watermarks. 
 
-#### Subscribers
+##### Subscribers
  As part of 0.9, a new experimental feature called [Consumption Based Retention](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention) has been included in Pravega to keep track of subscriber readergroups and the Stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to Controller and Controller stores their subscriber StreamCuts in subscriber metadata for the Stream. It then consolidates these StreamCuts to compute a lower bound and truncate at such a lowerbound. 
 Users explicitly have to opt in for subscription and the default mode of using Pravega Streams do not enable a subscription. 
 
-### Stream Store Caching
+#### Stream Store Caching
 
-#### In-memory Cache
+##### In-memory Cache
 Since there could be multiple concurrent requests for a given Stream
 being processed by the same Controller instance, it is suboptimal to read
 the value by querying Pravega Table Segments every time. So we have introduced an
@@ -405,7 +405,7 @@ Stream in the cache. There are two in-memory caches:
 The cache can contain both mutable and immutable records. Immutable records, by definition are not a problem. For mutable values, we have introduced a notion of [Operation Context](#operation-context) and for each new operation, which ensures that during an operation we lazily load latest value of entities into the cache and then use them for all computations within that [Operation's context](#operation-context).
 
 
-#### Operation Context
+##### Operation Context
  At the start of any new operation, we create a context for this operation. The creation of a new operation context invalidates all mutable cached entities for a Stream and each entity is lazily retrieved from the store whenever requested. If a
 value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
@@ -425,7 +425,7 @@ _KVT Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
 - **KVT State:**
 _KVT State_ is an enum that describes various states in the lifecycle of KV table. It ranges from CREATING, ACTIVE, DELETING. 
  
-## Host Store
+### Host Store
 
 The implementation of the Host store interface is used to store _Segment Container_ to _Segment Store_
 node mapping. It exposes API like `getHostForSegment` where it computes a
@@ -433,7 +433,7 @@ consistent hash of Segment ID to compute the owner Segment Container.
 Then based on the container-host mapping, it returns the appropriate URI
 to the caller.
 
-## Background Workers
+### Background Workers
 
 Controller process has two different mechanisms or frameworks for
 processing background work. These background works typically entail
@@ -533,7 +533,7 @@ Streams to go on concurrently. Workflows like _scale, truncation, seal,
 update_ and _delete Stream_ are implemented for processing on the request
 Event Processor.
 
-## Periodic Background job framework 
+#### Periodic Background job framework 
 
 To enable some scenarios, we may need the background workers to
 periodically work on each of the Streams in our cluster to perform
@@ -555,7 +555,7 @@ responsible for all long running scheduled background work corresponding
 to all nodes under the bucket. Presently this entails running periodic
 workflows to capture `StreamCut`(s) (called Retention-Set) for each Stream at desired frequencies.
 
-## Controller Cluster Listener
+#### Controller Cluster Listener
 
 Each node in Pravega Cluster registers itself under a cluster Znode as
 an ephemeral node. This includes both Controller and Segment Store
@@ -584,9 +584,9 @@ All ongoing tasks that a Controller wishes to acquire, it first adds an entry in
 
 Just like task sweeper and request sweepers also rely on creating an index in Zookeeper to indicate an intent to atomically update a metadata record and post an event into the respective Event Processor Stream. If the Controller fails after updating the metadata but without posting an event into the Event Processor Stream, then the new Controller will sweep all such indexed tasks from Zookeeper and post the events for them. 
 
-# Roles and Responsibilities
+## Roles and Responsibilities
 
-## Stream Operations
+### Stream Operations
 
 The Controller is the source of truth for all Stream related metadata.
 Pravega clients (e.g., `EventStreamReaders` and `EventStreamWriters`), in
@@ -612,7 +612,7 @@ cases as applicable via background policy manager ([Auto Scaling](https://github
 _Request Processing Flow Diagram_
 
 
-### Create Stream
+#### Create Stream
 
 The Create Stream is implemented as a task on **Task Framework**.
 
@@ -622,7 +622,7 @@ The Create Stream is implemented as a task on **Task Framework**.
 
  - However, if it is unable to complete any step, the Stream is left dangling in *Creating* state.
 
-### Update Stream
+#### Update Stream
 
 Update Stream is implemented as a task on **Serialized Request
 Handler** over Concurrent Event Processor Framework.
@@ -643,7 +643,7 @@ and `updateStream()` operation is performed.
 Segment Stores for all _active_ Stream Segments of the Stream, about the change in
 policy. Any Tag related changes causes the Tag indexes (a reverse index of a Tag to Stream for a Scope) to be updated. Now the state is reset to *Active*.
 
-### Scale Stream
+#### Scale Stream
 
 The Scale can be invoked either by explicit API call (referred to as manual
 scale) or performed automatically based on scale policy (referred to as
@@ -664,7 +664,7 @@ The start of processing is similar to the mechanism followed in _update_ Stream.
 
 - After the old Stream Segments are sealed, we can safely mark the new epoch as the currently _active_ epoch and reset state to _Active_.
 
-### Truncate Stream
+#### Truncate Stream
 
 Truncating a Stream follows a similar mechanism to update and has a temporary
 Stream property for truncation that is used to supply input for truncate Stream.
@@ -677,7 +677,7 @@ and the workflow commences.
 - Following this, the truncation record is updated with the new
 truncation point and deleted Stream Segments.  The state is reset to *Active*.
 
-### Seal Stream
+#### Seal Stream
 
 Seal Stream can be requested via an explicit API call into Controller.
 It first posts a seal Stream Event into request Stream.
@@ -689,7 +689,7 @@ seal Stream processing by reposting it at the back of in-memory queue.
 Stream are sealed by calling into Segment Store.
 - After this, the Stream is marked as *Sealed* in the Stream metadata.
 
-### Delete Stream
+#### Delete Stream
 
 Delete Stream can be requested via an explicit API call into Controller.
 The request first verifies if the Stream is in *Sealed* state.
@@ -699,12 +699,12 @@ Stream.
 - Once all Stream Segments are deleted successfully, the Stream metadata corresponding to
 this Stream is cleaned up.
 
-## Stream Policy Manager
+### Stream Policy Manager
 
 As described earlier, there are two types of user-defined policies that Controller is responsible for enforcing, namely _Automatic Scaling_ and _Automatic Retention_.
 The Controller is not just the store for Stream policy but it actively enforces those user-defined policies for their Streams.
 
-### Scaling Infrastructure
+#### Scaling Infrastructure
 
 Scaling infrastructure is built in conjunction with Segment Stores. As the Controller creates new Stream Segments in Segment Stores, it passes user-defined scaling policies to Segment Stores. The Segment Store then
 monitors traffic for the said Stream Segment and reports to Controller if some
@@ -724,7 +724,7 @@ purpose, it marks the Stream Segment as **cold** in the metadata store. The Cont
 The scale requests processing is then performed asynchronously on the
 Request Event Processor.   
 
-### Retention Infrastructure
+#### Retention Infrastructure
 
 The retention policy defines how much data should be retained for a
 given Stream. This can be defined as _time-based_ or _size-based_. To apply
@@ -743,7 +743,7 @@ based on the defined retention policy. For example, in time-based
 retention, the latest `StreamCut` older than the specified retention period
 is chosen as the truncation point.
 
-## Transaction Manager
+### Transaction Manager
 
 Another important role played by the Controller is that of the Transaction manager. It is responsible for the beginning and
 ending Transactions. The Controller plays an active role in providing guarantees for Transactions from the time
@@ -762,7 +762,7 @@ Client calls into Controller process to _create, ping commit_ or _abort
 transactions_. Each of these requests is received on Controller and handled by the Transaction Management module which
 implements the business logic for processing each request.
 
-### Create Transaction
+#### Create Transaction
 
 Writers interact with Controller to create new Transactions. Controller Service passes the create transaction request to Transaction Management module.
 
@@ -775,7 +775,7 @@ The create Transaction function in the module performs the following steps:
 
 The Controller creates shadow Stream Segments for current _active_ Segments by associating Transaction ID to compute unique shadow Stream Segment identifiers. The lifecycle of shadow Stream Segments are not linked to original Stream Segments and original Stream Segments can be sealed, truncated or deleted without affecting the lifecycle of shadow Stream Segment.
 
-### Commit Transaction
+#### Commit Transaction
 
 Upon receiving the request to commit a Transaction, Controller Service passes the request to Transaction Management module. This module first tries to mark the Transaction for commit in the Transaction specific metadata record via metadata store.
 
@@ -787,7 +787,7 @@ Following this, it posts a commit Event in the internal Commit Stream. The commi
      - In such instance, when we attempt to commit a Transactions we may not have parent Segments in which Transaction Segments could be merged into.
      - One approach to mitigate this could have been to prevent scaling operation while there were ongoing Transactions. However, this could stall scaling for an arbitrarily large period of time and would be detrimental. Instead, Controller decouples scale and Transactions and allows either to occur concurrently without impacting workings of the other. This is achieved by using a scheme called **Rolling Transactions**.
 
-#### Rolling Transactions
+##### Rolling Transactions
 
 This is achieved by using a scheme (Rolling Transactions) where Controller allows Transaction Segments to outlive their parent Segments and whenever their commits are issued, at a logical level Controller elevates the Transaction Segments as first class Segments and includes them in a new epoch in the epoch time series of the Stream.
 
@@ -796,7 +796,7 @@ This is achieved by using a scheme (Rolling Transactions) where Controller allow
 3. The commit workflow on the Controller guarantees that once started it will attempt to commit each of the identified Transactions with indefinite retries until they all succeed.
 4. Once a Transaction is committed successfully, the record for the Transaction is removed from under its epoch root.
 
-### Abort Transaction
+#### Abort Transaction
 
 Abort, like commit, can be requested explicitly by the application. However, abort can also be initiated automatically if the Transaction’s timeout elapses.
 
@@ -805,7 +805,7 @@ Abort, like commit, can be requested explicitly by the application. However, abo
 3. There is no ordering requirement for abort Transaction and hence it is
 performed concurrently and across Streams.
 
-### Ping Transaction
+#### Ping Transaction
 
 Since Controller has no visibility into data path with respect to data
 being written to Segments in a Transaction, Controller is unaware if a
@@ -816,7 +816,7 @@ allow applications to renew Transaction timeout period. This mechanism
 is called ping and whenever application pings a Transaction, Controller
 resets its timer for respective transaction.
 
-### Transaction Timeout Management
+#### Transaction Timeout Management
 
 Controllers track each Transaction for their timeouts. This is
 implemented as *timer wheel service*. Each Transaction, upon creation gets
@@ -838,18 +838,18 @@ and monitor their timeouts from that point onward.
 
 Controller instantiates periodic background jobs for computing watermarks for Streams for which writers are regularly reporting the times and positions. The watermark computation for different Streams is distributed across multiple Controller instances using the bucket service. Controller service receives request to record positions and times reported by _Event Stream Writers_ using the note time api and stores them in the metadata table. Then the Controller instance which is the owner for the bucket where the Stream resides runs the watermark computation workflow periodically (every 10 seconds). The writer marks (position and time) are retrieved from the store, consolidated and reduced into a watermark artifact. A watermark is a datastructure that contains a StreamCut which is the upper bound on positions reported by all writers. It also contains max and min bounds on the times reported by different writers. The watermarks are emitted into a special revisioned Stream which is created along with the user Stream. The lifecycle of this Stream is closely bound to the user Stream and its created and deleted along with user Streams. 
 
-## KVT Operations
+### KVT Operations
 
 Just as for Streams, Controller also runs all control plane operations for Key Value tables. This includes provisoning, sealing and deleting key value tables. These operations are also performed on the asynchronous event processing framework. A dedicated instance of EventProcessor is brought up for processing KV table requests which uses a new internal _table-request-stream_. Requests on this Stream are distributed across different Controller instances using kv table name as the routing key and each partition is spread across different Controller instances. 
 
-### Create KVTable
+#### Create KVTable
 
 Create KVTable is modeled as a task on the Event Processor. When a request from user is received, a new event is posted into _kvt-request-stream_ and picked asynchronously for  processing. As part of create KV table, the task creates the number of Table Segments specified in the KeyValueTablesConfiguration.numberOfPartitions and sets the state of the table as Active. 
 
-### Delete KVTable
+#### Delete KVTable
 Delete KVTable is also modeled as a task on the Event Processor. When a request from user to delete the KV table is received, a new event is posted into kvt-request-stream and picked asynchronously for processing. As part of delete KV table, the task removes all Table Segments and all metadata that was created for the KV table. 
 
-### Readergroup Management
+#### Readergroup Management
 With 0.9.0 we also introduced a concept of managing reader group configuration on Controller. 
 A Pravega Reader Group is a group of readers that collectively read events from a Stream. A single Segment in the Stream is assigned to exactly one reader in the ReaderGroup.
 A Reader Group has a configuration that describes the Streams it reads from and decides its checkpointing related behaviour. Controller service participates in readergroup's lifecycle from creation to resets to deletes where applications record changes to Stream configuration with Controller. Controller stores and manages the readergroup configuration and assigns versioning of readergroup config by introducing a new property called generation. Everytime readergroup is reset with a new configuration, this is recorded with Controller and Controller runs an asynchronous job to update the subscription status for Streams that were added to or removed from the readergroup.
@@ -857,7 +857,7 @@ To achieve this Controller has workflows for create, update and delete readergro
 
 In addition Controller also exposes apis using which readergroups can report their positions to Controller.  The Controller maintains "read" positions for Reader-Groups that express the intention to retain unread data. The Controller service computes a common lowest Stream-Cut across multiple such Reader Groups and factors it while truncating the Stream.
 
-# Resources
+## Resources
 
 - [Pravega](https://pravega.io/)
 - [Code](https://github.com/pravega/pravega/tree/master/controller)

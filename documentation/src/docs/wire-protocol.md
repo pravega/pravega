@@ -18,7 +18,7 @@ limitations under the License.
 
 This page describes the proposed Wire Protocol for the Streaming Service. See [Pravega Concepts](https://pravega.io/docs/latest/pravega-concepts) for more information.
 
-# Protocol
+## Protocol
 
 Data is sent over the wire in self-contained "messages" that are either "requests" (messages sent from the client to the server) or "replies" (responses sent from the server to the client).
 
@@ -27,7 +27,7 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 - **Message Type**: An Integer (4 bytes) identifies the message type and determines the subsequent fields. (Note that the protocol can be extended by adding new types.)
 - **Length**:  An Integer (4 bytes) (Messages should be less than 2<sup>24</sup>, but the upper bits remain zero). Payload size of the message (possibly zero, indicating there is no data). The remainder of the fields are specific to the type of the message. A few important messages are listed below.
 
-## Protocol Primitive Types
+### Protocol Primitive Types
 
 The protocol is built out of the following primitive types.
 
@@ -40,9 +40,9 @@ The protocol is built out of the following primitive types.
 |UUID (16 bytes)|Universally Unique Identifiers (UUID) as defined by RFC 4122, ISO/IEC 9834-8:2005, and related standards. It can be used as a global unique 128-bit identifier.|
 
 
-# Reading
+## Reading
 
-## Read Segment - Request
+### Read Segment - Request
 
 | **Field**   |**Datatype**   | **Description**     |
 |-------------|------------|----------|
@@ -55,7 +55,7 @@ The protocol is built out of the following primitive types.
 More information on `Segment` Request messages like `MergeSegment`, `SealSegment`, `TruncateSegment` and `DeleteSegment`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 
-## Segment Read - Reply
+### Segment Read - Reply
 
 | **Field**      | **Datatype**| **Description**     |
 |-------------|----------|--------|
@@ -70,9 +70,9 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 
 More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTruncated`, `SegmentAlreadyExists`,`NoSuchSegment` and `TableSegmentNotEmpty`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
-# Appending
+## Appending
 
-## Setup Append - Request
+### Setup Append - Request
 
 | **Field**      | **Datatype**|**Description**     |
 |-------------|----------|---------|
@@ -81,7 +81,7 @@ More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTr
 | `Segment`| String| This Segment indicates the Stream Segment that was read.|
 | `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
-## Append Setup - Reply
+### Append Setup - Reply
 
 | **Field**      |**Datatype** | **Description**     |
 |-------------|----------|---------|
@@ -90,7 +90,7 @@ More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTr
 |  `writerId`| UUID| Identifies the requesting appender. This ID is used to identify the Segment for which an AppendBlock is destined.|
 |  `lastEventNumber`| Long| Specifies the last event number in the Stream.|
 
-## AppendBlock - Request
+### AppendBlock - Request
 
 | **Field**      | **Datatype**| **Description**     |
 |-------------|----------|---------|
@@ -98,7 +98,7 @@ More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTr
 | `Data`| Binary| This holds the contents of the block.|
 |`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 
-## AppendBlockEnd - Request
+### AppendBlockEnd - Request
 
 | **Field**      | **Datatype** | **Description**     |
 |-------------|----------|--------|
@@ -111,17 +111,17 @@ More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTr
 
 The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be less than full. This allows the client to begin writing a block before it has a large number of events. This avoids the need to buffer up events in the client and allows for lower latency.
 
-## Partial Event - Request/Reply
+### Partial Event - Request/Reply
 
 -  **Data**: A Partial Event is an Event at the end of an Append block that did not fully fit in the Append block. The remainder of the Event will be available in the `AppendBlockEnd`.
 
-## Event - Request
+### Event - Request
 
 | **Field**      | **Description**     |
 |-------------|----------|
 | `Data`| Specifies the Event's data (only valid inside the block).|
 
-## Data Appended - Reply
+### Data Appended - Reply
 
 | **Field**      | **Datatype**| **Description**     |
 |-------------|----------|--------|
@@ -146,9 +146,9 @@ While this is happening, the server will be periodically sending it `DataAppende
 
 A client can optimize its appending by specifying a large value in it's `AppendBlock` message, as the events inside of the block do not need to be processed individually.
 
-# Segment Attribute
+## Segment Attribute
 
-## GetSegmentAttribute - Request
+### GetSegmentAttribute - Request
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
@@ -157,7 +157,7 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 |  `attributeId`| UUID| The attribute to retrieve.|
 | `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
-## SegmentAtrribute - Reply
+### SegmentAtrribute - Reply
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
@@ -166,9 +166,9 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 
 More information on `SegmentAttribute` Request message like `updateSegmentAttribute` and Reply message like `SegmentAttributeUpdate` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
-# TableSegment
+## TableSegment
 
-## ReadTable - Request
+### ReadTable - Request
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
@@ -179,7 +179,7 @@ More information on `SegmentAttribute` Request message like `updateSegmentAttrib
 
 More information on `TableSegments` Request messages like `MergeTableSegments`, `SealTableSegment`, `DeleteTableSegment`, `UpdateTableEntries`, `RemoveTableKeys`, `ReadTableKeys` and `ReadTableEntries` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
-## TableRead - Reply
+### TableRead - Reply
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|

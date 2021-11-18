@@ -445,18 +445,15 @@ segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", ".
     controller.stream.seal_failed_global
     controller.stream.seal_failed - with tags {"scope", $scope, "stream", $stream}
 
-
     controller.stream.deleted
     controller.stream.delete_failed_global
     controller.stream.delete_failed - with tags {"scope", $scope, "stream", $stream}
-
 
     controller.stream.updated_global
     controller.stream.updated - with tags {"scope", $scope, "stream", $stream}
 
     controller.stream.update_failed_global
     controller.stream.update_failed - with tags {"scope", $scope, "stream", $stream}
-
 
     controller.stream.truncated_global
     controller.stream.truncated - with tags {"scope", $scope, "stream", $stream}

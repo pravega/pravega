@@ -290,7 +290,7 @@ the single source of truth for the entire pipeline. Furthermore, with the bulk
 of the data being stored in Tier 2 enabled with erasure coding to efficiently
 protect the data, the storage cost of the data is substantially reduced.
 
-# Durability
+## Durability
 
 With Pravega, you don't  face a compromise between performance, durability and
 consistency. Pravega provides durable storage of streaming data with strong
@@ -307,7 +307,7 @@ persistent storage before the write operation returns to the Writer.
 With Pravega, data in the Stream is protected. A Stream can be treated as a
 system of record, just as you would treat data stored in databases or files.
 
-# Transaction Support
+## Transaction Support
 
 A developer uses a Pravega Transaction to ensure that a set of events are
 written to a Stream atomically.

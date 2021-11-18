@@ -305,14 +305,14 @@ It is worth noting that `readNextEvent()` may throw an exception `Reinitializati
 Thus, the simple `HelloWorldReader` loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
 
-# Experimental Batch Reader
+## Experimental Batch Reader
 
 `BatchClient` is used for applications that require parallel, unordered reads of historical stream data.
 Using the Batch Reader all the segments in a Stream can be listed and read from. Hence, the Events for a given Routing Key which can reside on multiple segments are not read in order.
 
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as `MapReduce`.
 
-#### Example
+### Example
 
 To iterate over all the segments in the stream:
 

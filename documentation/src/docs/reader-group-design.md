@@ -45,7 +45,7 @@ Given this information:
  - Readers can see their relative load and how they are progressing relative to the other Readers in their group and can decide to transfer Stream Segments if things are out of balance.
  - This allows Readers to take action directly to ensure all the events are read without the need for some external tracker.
 
-## Reader Group APIs
+### Reader Group APIs
 
 The external APIs to manage Reader Groups could be added to the `ReaderGroupManager` object. It consist of:
 
@@ -63,13 +63,13 @@ EventStreamReader< T > reader = clientFactory.createReader(readerId, READER_GROU
 ```
 The Readers, while joining the group, access the information stored on the state to determine which Stream Segments to read from. Once when they shut down, they update the state so that other Readers can take over their Stream Segments.
 
-# Detecting Pravega Reader Failure
+## Detecting Pravega Reader Failure
 
 We still need some effective mechanism to identify, whether Readers are alive or not. The problem is greatly simplified because it need not produce a view of the cluster or manage any state. The component would just need to detect a Reader failure and invoke the `void ReaderOffline(String ReaderId, Position lastPosition);` API on the Reader Group.
 
 For consistency, the "Failure detector" should not declare a host as dead that is still processing events. Doing so could violate exactly once processing guarantees.
 
-## New Reader Added
+### New Reader Added
 1. When a Reader joins a group its online status is added to the shared state.
 1. Other Readers receive updates to the shared state.
 1. When a Reader with more than average number of Stream Segments sees the new Reader, it may give up a Stream Segment by writing its position for that Stream Segment to the shared state.
@@ -78,13 +78,13 @@ For consistency, the "Failure detector" should not declare a host as dead that i
 
 There are no races between multiple Readers coming online concurrently because only one of them can successfully claim ownership of any given Stream Segment.
 
-## Stream Segments Get Merged
+### Stream Segments Get Merged
 1. When a Reader comes to the end of its Stream Segment it records this information in the shared state.
 1. When all of the Stream Segments that are getting merged together are completed, a Reader may claim ownership of the following Stream Segment.
 
 There is no ambiguity as to who the owner is, because it is stored in the shared state. There is no risk of a Stream Segment being ignored because every Reader can see the available Stream Segments by looking at the shared state and claim them.
 
-## Reader Offline
+### Reader Offline
 1. When a Reader dies, the `void ReaderOffline(String ReaderId, Position lastPosition);` API method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state.
 
 1. If a null `Position` is sent then the last checkpointed position will be written to the state.
@@ -93,12 +93,12 @@ There is no ambiguity as to who the owner is, because it is stored in the shared
 1. Once the state has been updated by the new Reader, it is considered the owner of the Stream Segment and can read from it.
 
 
-# Other Considerations on Reader Groups
+## Other Considerations on Reader Groups
 
-## What happens if a Reader does not keep up to date?
+### What happens if a Reader does not keep up to date?
 A Reader with out-of-date state can read from their existing Stream Segments without interference. The only disadvantage to this is that they will not shed load to another Reader should one become available. However, because they have to write to the shared state to start reading from any Stream Segment which they don't already own, they must fetch up-to-date information before moving on to a new Stream Segment.
 
-## Impact of availability and latency
+### Impact of availability and latency
 Reading and updating the state object can occur in parallel to reading, so there would likely be no visible latency impact.
 A stream would be unavailable for reading if Pravega failed in such a way that the Stream Segment containing the Reader Group information went down and remained offline for long enough for the Readers to exhaust all the events in their existing Stream Segments. Of course, if Pravega failed in this way, odds are at least some portion of the stream would also be directly impacted and not be able to read any events. This sort of failure mode would manifest as latency for the Reader, similar to what would happen if they had reached the tail of the stream.
 
