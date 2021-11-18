@@ -186,6 +186,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             editedDataLog.initialize(TIMEOUT);
             readDurableDataLogWithCustomCallback(logEditState, dataLogFactory.getBackupLogId(), backupDataLog);
             Preconditions.checkState(!logEditState.isFailed);
+            // After the edition has completed, we need to disable it before the metadata overwrite.
+            editedDataLog.disable();
         } catch (Exception ex) {
             outputError("There have been errors while creating the edited version of the DurableLog.");
             outputException(ex);
@@ -196,12 +198,12 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         int editedDurableLogOperations = validateRepairLog(dataLogFactory, backupLogReadOperations, durableLogEdits);
 
         // Overwrite the original DurableLog metadata with the edited DurableLog metadata.
-        @Cleanup
-        val editedLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId());
-        output("Original DurableLog Metadata: " + originalDataLog.fetchMetadata());
-        output("Edited DurableLog Metadata: " + editedLogWrapper.fetchMetadata());
-        originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
-        output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
+        try (val editedLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId())) {
+            output("Original DurableLog Metadata: " + originalDataLog.fetchMetadata());
+            output("Edited DurableLog Metadata: " + editedLogWrapper.fetchMetadata());
+            originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
+            output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
+        }
 
         // Read the edited contents that are now reachable from the original log id.
         try (DurableDataLog finalEditedLog = originalDataLog.asReadOnly()) {

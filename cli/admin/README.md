@@ -115,8 +115,8 @@ All available commands:
 	segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
 	segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
 	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
-  data-recovery durableLog-repair : Allows to repair DurableLog damaged/corrupted Operations.
-  data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
+    data-recovery durableLog-repair : Allows to repair DurableLog damaged/corrupted Operations.
+    data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
 	table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
 	table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
 	table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.
