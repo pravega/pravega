@@ -86,6 +86,7 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         String tmpfilename = "tmp/RG_" + readerGroup + "_" + new Random().nextInt(1000);
         readRGSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, tmpfilename, fileName);
         output("The readerGroup stream has been successfully written into %s", fileName);
+        controller.close();
     }
 
     /**

@@ -72,6 +72,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -89,6 +90,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -478,11 +480,10 @@ public abstract class AdminCommand {
     }
 
     public Controller instantiateController() {
-        ConnectionPool pool = createConnectionPool();
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
         return new ControllerImpl(ControllerImplConfig.builder()
                                     .clientConfig(getClientConfig())
-                                    .build(),
-                            pool.getInternalExecutor());
+                                    .build(), executor);
     }
 
     @VisibleForTesting
