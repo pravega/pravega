@@ -31,6 +31,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -108,6 +109,27 @@ public class ActiveTxnRecord {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        String record = String.format("%s = %s", "txCreationTimestamp", txCreationTimestamp) + "\n" +
+                String.format("%s = %s", "leaseExpiryTime", leaseExpiryTime) + "\n" +
+                String.format("%s = %s", "maxExecutionExpiryTime", maxExecutionExpiryTime) + "\n" +
+                String.format("%s = %s", "txnStatus", txnStatus) + "\n";
+        if (writerId.isPresent()) {
+            record = record + String.format("%s = %s", "writerId", writerId.get()) + "\n";
+        }
+        if (commitTime.isPresent()) {
+            record = record + String.format("%s = %s", "commitTime", commitTime.get()) + "\n";
+        }
+        if (commitOrder.isPresent()) {
+            record = record + String.format("%s = %s", "commitOrder", commitOrder.get()) + "\n";
+        }
+        record = record + String.format("%s = %s", "commitOffsets", commitOffsets.keySet().stream()
+                .map(key -> key + " : " + commitOffsets.get(key))
+                .collect(Collectors.joining(", ", "{", "}")));
+        return record;
     }
 
     private static class ActiveTxnRecordSerializer
