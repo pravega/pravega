@@ -1,6 +1,4 @@
----
-title: Pravega API Reference
----
+# Pravega API Reference
 
 <!--
 Copyright Pravega Authors.

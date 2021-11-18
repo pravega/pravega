@@ -1,6 +1,4 @@
----
-title: Segment Store Cache Size and Memory Settings
----
+# Segment Store Cache Size and Memory Settings
 
 <!--
 Copyright Pravega Authors.

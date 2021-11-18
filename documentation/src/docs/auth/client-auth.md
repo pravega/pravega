@@ -1,6 +1,4 @@
----
-title: Client Auth Interface
----
+# Client Auth Interface
 
 <!--
 Copyright Pravega Authors.

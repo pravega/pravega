@@ -1,6 +1,4 @@
----
-title: Pravega Roadmap
----
+# Pravega Roadmap
 
 <!--
 Copyright Pravega Authors.

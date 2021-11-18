@@ -1,6 +1,4 @@
----
-title: Terminology
----
+# Terminology
 
 <!--
 Copyright Pravega Authors.

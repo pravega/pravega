@@ -1,6 +1,4 @@
----
-title: Watermarking
----
+# Watermarking
 
 <!--
 Copyright Pravega Authors.

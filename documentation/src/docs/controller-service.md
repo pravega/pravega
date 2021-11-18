@@ -1,6 +1,4 @@
----
-title: Pravega Controller Service
----
+# Pravega Controller Service
 
 <!--
 Copyright Pravega Authors.
@@ -17,6 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
+
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
     - [Stream Management](#stream-management)
@@ -25,7 +24,7 @@ limitations under the License.
 * [System Diagram](#system-diagram)
 * [Components](#components)
     - [Service Endpoints](#service-endpoints)
-    - [Controller Service](#controller-service)
+    - [Controller Service](#pravega-controller-service)
     - [Stream Metadata Store](#stream-metadata-store)
         - [Stream Metadata](#stream-metadata)
         - [Stream Store Caching](#stream-store-caching)
@@ -212,7 +211,9 @@ interface. This includes API calls for Stream management as well as
 other administration API primarily dealing with _creation_ and _deletion_ of
 [**Scopes**](pravega-concepts.md#streams). We use [swagger](https://swagger.io) to describe our `REST` API. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
 
-## Pravega Controller Service <a name ="controller-service"></a>
+<a name ="controller-service"></a>
+
+## Pravega Controller Service
 
 This is the backend layer behind the Controller endpoints `gRPC` and
 `REST`. All the business logic required to serve Controller API calls are

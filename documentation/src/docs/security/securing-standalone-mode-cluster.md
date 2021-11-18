@@ -1,6 +1,4 @@
----
-title: Setting Up Security for a Standalone Mode Server
----
+# Setting Up Security for a Standalone Mode Server
 
 <!--
 Copyright Pravega Authors.

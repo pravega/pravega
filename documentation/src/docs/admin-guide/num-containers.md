@@ -1,6 +1,4 @@
----
-title: Setting the Number of Segment Containers
----
+# Setting the Number of Segment Containers
 
 <!--
 Copyright Pravega Authors.

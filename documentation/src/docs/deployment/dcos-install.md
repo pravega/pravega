@@ -1,6 +1,4 @@
----
-title: Deploying on DC/OS
----
+# Deploying on DC/OS
 
 <!--
 Copyright Pravega Authors.

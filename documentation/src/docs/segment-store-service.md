@@ -1,6 +1,4 @@
----
-title: Pravega Segment Store Service
----
+# Pravega Segment Store Service
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Transactions
----
+# Transactions
 
 <!--
 Copyright Pravega Authors.

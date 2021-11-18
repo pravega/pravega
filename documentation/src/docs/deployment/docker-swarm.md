@@ -1,6 +1,4 @@
----
-title: Deploying in a Docker Swarm
----
+# Deploying in a Docker Swarm
 
 <!--
 Copyright Pravega Authors.

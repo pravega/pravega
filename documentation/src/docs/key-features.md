@@ -1,6 +1,4 @@
----
-title: Pravega Key Features
----
+# Pravega Key Features
 
 <!--
 Copyright Pravega Authors.

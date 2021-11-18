@@ -1,6 +1,4 @@
----
-title: Pravega Overview
----
+# Pravega Overview
 
 <!--
 Copyright Pravega Authors.

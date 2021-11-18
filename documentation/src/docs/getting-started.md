@@ -1,6 +1,4 @@
----
-title: Getting Started
----
+# Getting Started
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Deploying on Kubernetes
----
+# Deploying on Kubernetes
 
 <!--
 Copyright Pravega Authors.

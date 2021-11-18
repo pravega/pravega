@@ -1,6 +1,4 @@
----
-title: Reader Groups Design
----
+# Reader Groups Design
 
 <!--
 Copyright Pravega Authors.

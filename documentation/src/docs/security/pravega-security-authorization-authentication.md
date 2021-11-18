@@ -1,6 +1,4 @@
----
-title: TLS, Authorization, Authentication - Enabling encryption, authorization and authentication features
----
+# TLS, Authorization, Authentication - Enabling encryption, authorization and authentication features
 
 <!--
 Copyright Pravega Authors.

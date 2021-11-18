@@ -1,6 +1,4 @@
----
-title: Durable Log Configuration
----
+# Durable Log Configuration
 
 <!--
 Copyright Pravega Authors.

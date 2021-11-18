@@ -1,6 +1,4 @@
----
-title: Pravega - Creating Your First Application 
----
+# Creating Your First Application
 
 <!--
 Copyright Pravega Authors.
@@ -51,7 +49,7 @@ Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses
 
 ## 2. Goal
 In this guide, we will develop a straightforward application that creates a Stream on Pravega and writes an event into the Stream and reads back from it.
-We recommend that you follow the instructions from [Bootstrapping project](#4-Bootstrapping-the-Project) onwards to create the application step by step.
+We recommend that you follow the instructions from [Bootstrapping project](#4-bootstrapping-the-project) onwards to create the application step by step.
 However, you can go straight to the completed example at [Pravega-samples-repo](https://github.com/pravega/pravega-samples).
 
 <details open>

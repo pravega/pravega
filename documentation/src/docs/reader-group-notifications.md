@@ -1,6 +1,4 @@
----
-title: ReaderGroup Notifications
----
+# ReaderGroup Notifications
 
 <!--
 Copyright Pravega Authors.

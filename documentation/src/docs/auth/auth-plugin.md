@@ -1,6 +1,4 @@
----
-title: Implementation of Pravega Authentication/Authorization Plugin
----
+# Implementation of Pravega Authentication/Authorization Plugin
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Basic Reader and Writer
----
+# Basic Reader and Writer
 
 <!--
 Copyright Pravega Authors.

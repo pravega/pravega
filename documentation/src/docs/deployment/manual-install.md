@@ -1,6 +1,4 @@
----
-title: Manual Installation
----
+# Manual Installation
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Running a Sample Application
----
+# Running a Sample Application
 
 <!--
 Copyright Pravega Authors.

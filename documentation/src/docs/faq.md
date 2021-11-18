@@ -1,6 +1,4 @@
----
-title: Frequently Asked Questions
----
+# Frequently Asked Questions
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Creating TLS Certificates, Keys and Other TLS Artifacts
----
+# Creating TLS Certificates, Keys and Other TLS Artifacts
 
 <!--
 Copyright Pravega Authors.

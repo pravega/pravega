@@ -1,6 +1,4 @@
----
-title: Segment Containers in a Pravega Cluster
----
+# Segment Containers in a Pravega Cluster
 
 <!--
 Copyright Pravega Authors.

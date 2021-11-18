@@ -1,6 +1,4 @@
----
-title: Pravega Gateways
----
+# Pravega Gateways
 
 <!--
 Copyright Pravega Authors.

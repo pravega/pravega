@@ -1,6 +1,4 @@
----
-title: Pravega Security Configurations
----
+# Pravega Security Configurations
 
 <!--
 Copyright Pravega Authors.

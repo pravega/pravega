@@ -1,6 +1,4 @@
----
-title: Pravega Client Libraries
----
+# Pravega Client Libraries
 
 <!--
 Copyright Pravega Authors.

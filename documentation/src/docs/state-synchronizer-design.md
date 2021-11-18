@@ -1,6 +1,4 @@
----
-title: State Synchronizer Design
----
+# State Synchronizer Design
 
 <!--
 Copyright Pravega Authors.

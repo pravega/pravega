@@ -1,6 +1,4 @@
----
-title: Pravega Concepts
----
+# Pravega Concepts
 
 <!--
 Copyright Pravega Authors.

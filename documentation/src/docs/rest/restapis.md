@@ -1,6 +1,20 @@
----
-title: Pravega Controller REST APIs
----
+# Pravega Controller REST APIs
+
+<!--
+Copyright Pravega Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 
 <a name="overview"></a>
 
@@ -527,11 +541,11 @@ Create a new scope
 
 |Type|Name|Description|Schema|
 |---|---|---|---|
-|**Body**|**CreateScopeRequest**  <br />*required*|The scope configuration|[CreateScopeRequest](#createscope-createscoperequest)|
+|**Body**|**CreateScopeRequest**  <br />*required*|The scope configuration|[CreateScopeRequest](#createscoperequest)|
 
 <a name="createscope-createscoperequest"></a>
 
-**CreateScopeRequest**
+##### CreateScopeRequest
 
 |Name|Description|Schema|
 |---|---|---|
@@ -844,11 +858,11 @@ Create a new stream
 |Type|Name|Description|Schema|
 |---|---|---|---|
 |**Path**|**scopeName**  <br />*required*|Scope name|string|
-|**Body**|**CreateStreamRequest**  <br />*required*|The stream configuration|[CreateStreamRequest](#createstream-createstreamrequest)|
+|**Body**|**CreateStreamRequest**  <br />*required*|The stream configuration|[CreateStreamRequest](#createstreamrequest)|
 
 <a name="createstream-createstreamrequest"></a>
 
-**CreateStreamRequest**
+##### CreateStreamRequest
 
 |Name|Description|Schema|
 |---|---|---|
@@ -1127,11 +1141,11 @@ Update configuration of an existing stream
 |---|---|---|---|
 |**Path**|**scopeName**  <br />*required*|Scope name|string|
 |**Path**|**streamName**  <br />*required*|Stream name|string|
-|**Body**|**UpdateStreamRequest**  <br />*required*|The new stream configuration|[UpdateStreamRequest](#updatestream-updatestreamrequest)|
+|**Body**|**UpdateStreamRequest**  <br />*required*|The new stream configuration|[UpdateStreamRequest](#updatestreamrequest)|
 
 <a name="updatestream-updatestreamrequest"></a>
 
-**UpdateStreamRequest**
+#### UpdateStreamRequest
 
 |Name|Description|Schema|
 |---|---|---|
@@ -1459,11 +1473,11 @@ Updates the current state of the stream
 
 |Name|Description|Schema|
 |---|---|---|
-|**readerGroups**  <br />*optional*|**Example** : `[ "object" ]`|< [readerGroups](#readergroupslist-readergroups) > array|
+|**readerGroups**  <br />*optional*|**Example** : `[ "object" ]`|< [readerGroups](#readergroups) > array|
 
 <a name="readergroupslist-readergroups"></a>
 
-**readerGroups**
+#### readerGroups
 
 |Name|Description|Schema|
 |---|---|---|

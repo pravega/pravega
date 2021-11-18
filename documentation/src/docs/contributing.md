@@ -1,6 +1,4 @@
----
-title: Contributing to Pravega
----
+# Contributing to Pravega
 
 <!--
 Copyright Pravega Authors.

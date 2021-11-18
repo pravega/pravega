@@ -1,6 +1,4 @@
----
-title: Pravega Encryption
----
+# Pravega Encryption
 
 <!--
 Copyright Pravega Authors.

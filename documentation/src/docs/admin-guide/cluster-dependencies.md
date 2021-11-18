@@ -1,6 +1,4 @@
----
-title: Cluster Service Dependencies
----
+# Cluster Service Dependencies
 
 <!--
 Copyright Pravega Authors.

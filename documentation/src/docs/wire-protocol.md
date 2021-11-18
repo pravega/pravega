@@ -1,6 +1,4 @@
----
-title: Pravega Streaming Service Wire Protocol
----
+# Pravega Streaming Service Wire Protocol
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Pravega Metrics
----
+# Pravega Metrics
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Right-Sizing Long-Term Storage
----
+# Right-Sizing Long-Term Storage
 
 <!--
 Copyright Pravega Authors.

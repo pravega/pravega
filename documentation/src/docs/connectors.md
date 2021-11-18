@@ -1,6 +1,4 @@
----
-title: Pravega Connectors
----
+# Pravega Connectors
 
 <!--
 Copyright Pravega Authors.

@@ -1,6 +1,4 @@
----
-title: Client and Stream Semantics
----
+# Client and Stream Semantics
 
 <!--
 Copyright Pravega Authors.

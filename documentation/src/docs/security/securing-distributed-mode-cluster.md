@@ -1,6 +1,4 @@
----
-title: Setting Up Security for a Distributed Mode Cluster
----
+# Setting Up Security for a Distributed Mode Cluster
 
 <!--
 Copyright Pravega Authors.

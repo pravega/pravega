@@ -1,6 +1,4 @@
----
-title: Operator Ecosystem
----
+# Operator Ecosystem
 
 <!--
 Copyright Pravega Authors.

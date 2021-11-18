@@ -1,6 +1,4 @@
----
-title: State Synchronizer
----
+# State Synchronizer
 
 <!--
 Copyright Pravega Authors.

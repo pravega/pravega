@@ -1,6 +1,4 @@
----
-title: StreamCuts
----
+# StreamCuts
 
 <!--
 Copyright Pravega Authors.

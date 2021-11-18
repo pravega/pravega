@@ -1,6 +1,4 @@
----
-title: Pravega Deployment Overview
----
+# Pravega Deployment Overview
 
 <!--
 Copyright Pravega Authors.
