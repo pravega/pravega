@@ -21,11 +21,14 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.utils.ConfigUtils;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import lombok.val;
@@ -39,6 +42,7 @@ import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -46,9 +50,11 @@ import static org.junit.Assert.assertEquals;
 
 public class ParseReaderGroupStreamCommand extends AdminCommand {
 
-    private final static int HEADER = 4;
-    private final static int LENGTH = 4;
-    private final static int TYPE = 0;
+    Controller controller = instantiateController();
+
+    private final static int HEADER = WireCommands.TYPE_SIZE;
+    private final static int LENGTH = WireCommands.TYPE_PLUS_LENGTH_SIZE - WireCommands.TYPE_SIZE;
+    private final static int TYPE = WireCommandType.EVENT.getCode();
 
     private static final int REQUEST_TIMEOUT_SECONDS = 10;
     private final GrpcAuthHelper authHelper;
@@ -69,12 +75,16 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         final String segmentStoreHost = getArg(2);
         final String fileName = getArg(3);
         String stream = NameUtils.getStreamForReaderGroup(readerGroup);
-        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0);
+        CompletableFuture<StreamSegments> streamSegments = controller.getCurrentSegments(scope, stream);
+        StreamSegments ss = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, ss.getNumberOfSegments() - 1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        readRGSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, fileName);
+        String tmpfilename = "tmp/RG_" + readerGroup + "_" + new Random().nextInt(1000);
+        readRGSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, tmpfilename, fileName);
+        output("The readerGroup stream has been successfully written into %s", fileName);
     }
 
     /**
@@ -88,8 +98,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
      * @throws Exception if the request fails.
      */
     private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
-                                     String fileName) throws IOException, Exception {
-        String tempfilename = "output/temp";
+                                     String tmpfilename, String fileName) throws IOException, Exception {
+
         File outputfile = createFileAndDirectory(fileName);
 
         @Cleanup
@@ -105,13 +115,13 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         // create a temp file and write contents of the segment into it
         AdminCommandState state = new AdminCommandState();
         ConfigUtils.loadProperties(state);
-        List<String> args = Arrays.asList(fullyQualifiedSegmentName, String.valueOf(startOffset), String.valueOf(length), segmentStoreHost, tempfilename);
+        List<String> args = Arrays.asList(fullyQualifiedSegmentName, String.valueOf(startOffset), String.valueOf(length), segmentStoreHost, tmpfilename);
         CommandArgs cmd = new CommandArgs(args, state);
         ReadSegmentRangeCommand rs = new ReadSegmentRangeCommand(cmd);
         rs.execute();
 
         try {
-            FileInputStream fileInputStream = new FileInputStream(tempfilename);
+            FileInputStream fileInputStream = new FileInputStream(tmpfilename);
             long offset = startOffset;
             while (fileInputStream.available() > 0) {
                 // read type
@@ -142,6 +152,7 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
 
                 offset = offset + HEADER + LENGTH + eventLength;
             }
+            fileInputStream.close();
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
         }

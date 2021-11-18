@@ -68,6 +68,9 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.client.StoreClientFactory;
@@ -474,6 +477,14 @@ public abstract class AdminCommand {
         return new ObjectMapper().writeValueAsString(object);
     }
 
+    public Controller instantiateController() {
+        ConnectionPool pool = createConnectionPool();
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(getClientConfig())
+                                    .build(),
+                            pool.getInternalExecutor());
+    }
+
     @VisibleForTesting
     public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
         HostControllerStore hostStore = createHostControllerStore(zkClient);
@@ -497,7 +508,7 @@ public abstract class AdminCommand {
         return HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
     }
 
-    private ConnectionPool createConnectionPool() {
+    private ClientConfig getClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
                 .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()));
 
@@ -511,7 +522,11 @@ public abstract class AdminCommand {
         }
 
         ClientConfig clientConfig = clientConfigBuilder.build();
+        return clientConfig;
+    }
 
+    private ConnectionPool createConnectionPool() {
+        ClientConfig clientConfig = getClientConfig();
         return new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
     }
 
