@@ -129,7 +129,9 @@ public class EventProcessorGroupTest {
         assertTrue(requestEventProcessors.isRunning());
         doThrow(new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, new Exception())).when(checkpointStore).sealReaderGroup(anyString(), anyString());
         requestEventProcessors.stopAsync();
+        requestEventProcessors.awaitTerminated();
         verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
+        verify(reader, times(1)).closeAt(any());
         verify(checkpointStore, times(0)).removeReader(anyString(), anyString(), anyString());
         verify(checkpointStore, times(1)).removeReaderGroup("host1", "scaleGroup");
         verify(mockReaderGroup, times(1)).close();
@@ -166,7 +168,4 @@ public class EventProcessorGroupTest {
         verify(checkpointStore, times(0)).removeReader(anyString(), anyString(), anyString());
         verify(checkpointStore, times(0)).removeReaderGroup("host1", "scaleGroup");
     }
-
-
-
 }

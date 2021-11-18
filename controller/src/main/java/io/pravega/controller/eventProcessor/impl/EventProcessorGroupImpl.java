@@ -204,7 +204,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // its readers and their position objects from checkpoint store.
 
                 // Seal the Reader Group
-                Map<String, Position> readerPositions = ImmutableMap.of();
+                Map<String, Position> readerPositions = Map.of();
                 try {
                     readerPositions = sealReaderGroup(actorSystem.getProcess());
                 } catch (CheckpointStoreException e) {
