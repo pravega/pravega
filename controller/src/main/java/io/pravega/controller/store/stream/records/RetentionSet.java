@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Data class to capture a retention set. This contains a sorted (by recording time) list of retention set records.
@@ -149,6 +150,13 @@ public class RetentionSet {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = [%n    %s%n]", "retentionRecords", retentionRecords.stream()
+                .map(streamCutReferenceRecord -> streamCutReferenceRecord.toString().replace("\n", "\n    "))
+                .collect(Collectors.joining("\n,\n    ")));
     }
 
     private static class RetentionSetSerializer
