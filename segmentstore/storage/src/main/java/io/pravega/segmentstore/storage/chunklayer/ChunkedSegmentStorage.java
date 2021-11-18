@@ -69,6 +69,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
 import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_PREFIX;
@@ -716,6 +717,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         readIndexCache.report();
         // Report storage size.
         ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, storageUsed.get());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, 100.0 * storageUsed.get() / config.getMaxSafeStorageSize());
     }
 
     /**
@@ -975,5 +977,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     private void checkInitialized() {
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
+    }
+
+    String getNewChunkName(String segmentName, long offset) {
+        return NameUtils.getSegmentChunkName(segmentName, getEpoch(), offset);
     }
 }
