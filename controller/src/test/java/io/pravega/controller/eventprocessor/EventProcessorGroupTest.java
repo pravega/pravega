@@ -15,10 +15,12 @@
  */
 package io.pravega.controller.eventprocessor;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -68,6 +70,9 @@ public class EventProcessorGroupTest {
     private EventProcessorSystem system;
     private StreamRequestHandler streamRequestHandler = mock(StreamRequestHandler.class);
     private CheckpointStore checkpointStore;
+    private ReaderGroup mockReaderGroup;
+    private EventStreamWriter<ControllerEvent> writer;
+    private EventStreamReader<ControllerEvent> reader;
     private EventProcessorGroupConfig requestReadersConfig =
             EventProcessorGroupConfigImpl.builder()
                     .streamName("_requestStream")
@@ -99,13 +104,13 @@ public class EventProcessorGroupTest {
             ex.printStackTrace();
         }
 
-        EventStreamWriter<ControllerEvent> writer = mock(EventStreamWriter.class);
+        this.writer = mock(EventStreamWriter.class);
         doReturn(writer).when(clientFactory).createEventWriter(anyString(), any(), any());
-        EventStreamReader<ControllerEvent> reader = mock(EventStreamReader.class);
+        this.reader = mock(EventStreamReader.class);
         doReturn(reader).when(clientFactory).createReader(anyString(), anyString(), any(), any());
 
         doReturn(true).when(readerGroupMgr).createReaderGroup(anyString(), any());
-        ReaderGroup mockReaderGroup = mock(ReaderGroup.class);
+        this.mockReaderGroup = mock(ReaderGroup.class);
         doReturn("scaleGroup").when(mockReaderGroup).getGroupName();
         doReturn(mockReaderGroup).when(readerGroupMgr).getReaderGroup(anyString());
     }
@@ -124,5 +129,13 @@ public class EventProcessorGroupTest {
         doThrow(new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, new Exception())).when(checkpointStore).sealReaderGroup(anyString(), anyString());
         requestEventProcessors.stopAsync();
         verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
+        verify(checkpointStore, times(0)).removeReader(anyString(), anyString(), anyString());
+        verify(checkpointStore, times(1)).removeReaderGroup("host1", "scaleGroup");
+        verify(mockReaderGroup, times(1)).close();
+        verify(writer, times(1)).close();
     }
+
+
+
+
 }
