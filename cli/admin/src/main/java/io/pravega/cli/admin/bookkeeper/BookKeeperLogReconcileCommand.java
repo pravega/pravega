@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.Ledgers;
 import lombok.Cleanup;
 import lombok.val;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Executes the {@link io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper#reconcileLedgers(List ledgers)}
+ * Executes the {@link DebugBookKeeperLogWrapper#reconcileLedgers(List ledgers)}
  * method for a specific log id.
  */
 public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
