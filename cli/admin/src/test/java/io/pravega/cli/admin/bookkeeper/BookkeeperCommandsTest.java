@@ -215,6 +215,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         ContainerContinuousRecoveryCommand command = Mockito.spy(new ContainerContinuousRecoveryCommand(args));
         Mockito.doThrow(new DurableDataLogException("Intentional")).when(command).performRecovery(ArgumentMatchers.anyInt());
         command.execute();
+        Assert.assertNotNull(ContainerContinuousRecoveryCommand.descriptor());
     }
 
     @Test

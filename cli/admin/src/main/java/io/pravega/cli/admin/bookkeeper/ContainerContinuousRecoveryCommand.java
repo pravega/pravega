@@ -17,7 +17,6 @@ package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 
 import java.time.Duration;
@@ -68,16 +67,8 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
         output("Completed continuous Segment Container recovery command.");
     }
 
-    public DebugRecoveryProcessor.OperationCallbacks buildRecoveryProcessorCallbacks() {
-        return new DebugRecoveryProcessor.OperationCallbacks(
-                (a, b) -> { },
-                op -> { },
-                (currentOperation, exception) -> {
-                    if (exception != null) {
-                        output("\tOperation '%s' FAILED recovery.", currentOperation);
-                        exception.printStackTrace(getOut());
-                    }
-                });
+    protected void outputRecoveryInfo(String message, Object... args) {
+        // Do nothing to avoid verbosity on continuous recovery.
     }
 
     public static CommandDescriptor descriptor() {

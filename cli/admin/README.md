@@ -98,6 +98,7 @@ All available commands:
     config list : Lists all configuration set during this session.
     config set <name=value list>: Sets one or more config values for use during this session.
     container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
+    container continuous-recover <container-id>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
     controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
     controller describe-scope <scope-name>: Get the details of a given Scope.
     controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.

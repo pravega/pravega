@@ -37,9 +37,6 @@ import lombok.val;
  * Executes the recovery process for a particular container, using a no-op Cache and Storage.
  */
 public class ContainerRecoverCommand extends ContainerCommand {
-
-    private RecoveryState recoveryState;
-
     /**
      * Creates a new instance of the ContainerRecoverCommand.
      *
@@ -69,35 +66,27 @@ public class ContainerRecoverCommand extends ContainerCommand {
         val log = context.logFactory.createDebugLogWrapper(containerId);
         val bkLog = log.asReadOnly();
 
-        this.recoveryState = new RecoveryState();
+        val recoveryState = new RecoveryState();
+        val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
+                recoveryState::newOperation,
+                op -> recoveryState.operationComplete(op, null),
+                recoveryState::operationComplete);
+
         @Cleanup
-        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig,
-                getCommandArgs().getState().getExecutor(), buildRecoveryProcessorCallbacks());
+        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), callbacks);
         try {
             rp.performRecovery();
             output("Recovery complete: %d DataFrame(s) containing %d Operation(s).",
-                    this.recoveryState.dataFrameCount, recoveryState.operationCount);
+                    recoveryState.dataFrameCount, recoveryState.operationCount);
         } catch (Exception ex) {
             output("Recovery FAILED: %d DataFrame(s) containing %d Operation(s) were able to be recovered.",
-                    this.recoveryState.dataFrameCount, recoveryState.operationCount);
+                    recoveryState.dataFrameCount, recoveryState.operationCount);
             ex.printStackTrace(getOut());
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof DataCorruptionException) {
                 unwrapDataCorruptionException((DataCorruptionException) cause);
             }
         }
-    }
-
-    /**
-     * Provides the callbacks for the DebugRecoveryProcessor.
-     *
-     * @return Callbacks for DebugRecoveryProcessor.
-     */
-    protected DebugRecoveryProcessor.OperationCallbacks buildRecoveryProcessorCallbacks() {
-        return new DebugRecoveryProcessor.OperationCallbacks(
-                recoveryState::newOperation,
-                op -> recoveryState.operationComplete(op, null),
-                recoveryState::operationComplete);
     }
 
     @VisibleForTesting
@@ -142,6 +131,10 @@ public class ContainerRecoverCommand extends ContainerCommand {
                 new ArgDescriptor("container-id", "Id of the SegmentContainer to recover."));
     }
 
+    protected void outputRecoveryInfo(String message, Object... args) {
+        output(message, args);
+    }
+
     //region RecoveryState
 
     @VisibleForTesting
@@ -156,17 +149,17 @@ public class ContainerRecoverCommand extends ContainerCommand {
             for (int i = 0; i < frameEntries.size(); i++) {
                 DataFrameRecord.EntryInfo e = frameEntries.get(i);
                 if (this.currentFrameUsedLength == 0) {
-                    output("Begin DataFrame: %s.", e.getFrameAddress());
+                    outputRecoveryInfo("Begin DataFrame: %s.", e.getFrameAddress());
                     this.dataFrameCount++;
                 }
 
                 this.currentFrameUsedLength += e.getLength();
                 String split = frameEntries.size() <= 1 ? "" : String.format(",#%d/%d", i + 1, frameEntries.size());
-                output("\t@[%s,%s%s]: %s.", e.getFrameOffset(), e.getLength(), split, op);
+                outputRecoveryInfo("\t@[%s,%s%s]: %s.", e.getFrameOffset(), e.getLength(), split, op);
 
                 if (e.isLastEntryInDataFrame()) {
                     int totalLength = e.getFrameOffset() + e.getLength();
-                    output("End DataFrame: Length=%d/%d.\n", this.currentFrameUsedLength, totalLength);
+                    outputRecoveryInfo("End DataFrame: Length=%d/%d.\n", this.currentFrameUsedLength, totalLength);
                     this.currentFrameUsedLength = 0;
                 }
             }
@@ -178,12 +171,12 @@ public class ContainerRecoverCommand extends ContainerCommand {
         @VisibleForTesting
         void operationComplete(Operation op, Throwable failure) {
             if (this.currentOperation == null || this.currentOperation.getSequenceNumber() != op.getSequenceNumber()) {
-                output("Operation completion mismatch. Expected '%s', found '%s'.", this.currentOperation, op);
+                outputRecoveryInfo("Operation completion mismatch. Expected '%s', found '%s'.", this.currentOperation, op);
             }
 
             // We don't output anything for non-failed operations.
             if (failure != null) {
-                output("\tOperation '%s' FAILED recovery.", this.currentOperation);
+                outputRecoveryInfo("\tOperation '%s' FAILED recovery.", this.currentOperation);
                 failure.printStackTrace(getOut());
             }
         }
