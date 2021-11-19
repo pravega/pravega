@@ -30,6 +30,7 @@ import lombok.SneakyThrows;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.stream.Collectors;
 
 /**
  * Each HistoryTimeSeriesRecord captures delta between two consecutive epoch records.
@@ -80,6 +81,19 @@ public class HistoryTimeSeriesRecord {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "epoch", epoch) + "\n" +
+                String.format("%s = %s", "referenceEpoch", referenceEpoch) + "\n" +
+                String.format("%s = [%n    %s%n]", "segmentsSealed", segmentsSealed.stream()
+                        .map(streamSegmentRecord -> streamSegmentRecord.toString().replace("\n", "\n    "))
+                        .collect(Collectors.joining("\n,\n    "))) + "\n" +
+                String.format("%s = [%n    %s%n]", "segmentsCreated", segmentsCreated.stream()
+                        .map(streamSegmentRecord -> streamSegmentRecord.toString().replace("\n", "\n    "))
+                        .collect(Collectors.joining("\n,\n    "))) + "\n" +
+                String.format("%s = %s", "scaleTime", scaleTime);
     }
 
     @SneakyThrows(IOException.class)

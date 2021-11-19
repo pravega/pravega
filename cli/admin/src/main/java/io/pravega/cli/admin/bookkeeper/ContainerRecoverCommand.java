@@ -69,6 +69,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
         val recoveryState = new RecoveryState();
         val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
                 recoveryState::newOperation,
+                op -> true, // We want to perform the actual recovery.
                 op -> recoveryState.operationComplete(op, null),
                 recoveryState::operationComplete);
 

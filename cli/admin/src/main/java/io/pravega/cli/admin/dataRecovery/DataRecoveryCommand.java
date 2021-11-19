@@ -20,16 +20,14 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.segmentstore.server.host.StorageLoader;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.storage.StorageFactory;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Base class for data recovery related commands' classes.
  */
-@Slf4j
 public abstract class DataRecoveryCommand extends AdminCommand {
-    protected final static String COMPONENT = "storage";
+    protected final static String COMPONENT = "data-recovery";
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -51,27 +49,5 @@ public abstract class DataRecoveryCommand extends AdminCommand {
         StorageLoader loader = new StorageLoader();
         return loader.load(configSetupHelper, getServiceConfig().getStorageImplementation(),
                 getServiceConfig().getStorageLayout(), executorService);
-    }
-
-    /**
-     * Outputs the message to the console as well as to the log file as Info.
-     *
-     * @param messageTemplate   The message.
-     * @param args              The arguments with the message.
-     */
-    protected void outputInfo(String messageTemplate, Object... args) {
-        System.out.println(String.format(messageTemplate, args));
-        log.info(String.format(messageTemplate, args));
-    }
-
-    /**
-     * Outputs the message to the console as well as to the log file as error.
-     *
-     * @param messageTemplate   The message.
-     * @param args              The arguments with the message.
-     */
-    protected void outputError(String messageTemplate, Object... args) {
-        System.err.println(String.format(messageTemplate, args));
-        log.error(String.format(messageTemplate, args));
     }
 }

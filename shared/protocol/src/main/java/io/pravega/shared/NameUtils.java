@@ -34,6 +34,9 @@ public final class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
+    // The separator in controller metadata tables.
+    public static final String SEPARATOR = ".#.";
+
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
@@ -45,6 +48,42 @@ public final class NameUtils {
 
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
+
+    /**
+     * Formatting for stream metadata tables.
+     */
+    public static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for EpochsWithTransactions metadata tables.
+     */
+    public static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for TransactionsInEpoch metadata tables.
+     */
+    public static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%s" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for WriterPositions metadata tables.
+     */
+    public static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
+
+    /**
+     * The table name for CompletedTransactionsBatches table.
+     */
+    public static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME,
+            "completedTransactionsBatches");
+
+    /**
+     * The table name for CompletedTransactionsBatch tables.
+     */
+    public static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%s";
+
+    /**
+     * The table name for the DeletedStreams table.
+     */
+    public static final String DELETED_STREAMS_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedStreams");
 
     /**
      * Size of the prefix or suffix included with the user stream name.
@@ -60,6 +99,27 @@ public final class NameUtils {
      * Size of the name that can be specified by user.
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
+
+    /**
+     * Controller Metadata keys.
+     */
+    public static final String CREATION_TIME_KEY = "creationTime";
+    public static final String CONFIGURATION_KEY = "configuration";
+    public static final String TRUNCATION_KEY = "truncation";
+    public static final String STATE_KEY = "state";
+    public static final String EPOCH_TRANSITION_KEY = "epochTransition";
+    public static final String RETENTION_SET_KEY = "retention";
+    public static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
+    public static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
+    public static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%s";
+    public static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%s";
+    public static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%s";
+    public static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%s"; // segment id
+    public static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
+    public static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
+    public static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
+    public static final String SUBSCRIBER_KEY_PREFIX = "subscriber_";
+    public static final String SUBSCRIBER_SET_KEY = "subscriberset";
 
     /**
      * This is used for composing metric tags.

@@ -56,7 +56,7 @@ public abstract class ControllerCommand extends AdminCommand {
      *
      * @param args The arguments for the command.
      */
-    ControllerCommand(CommandArgs args) {
+    public ControllerCommand(CommandArgs args) {
         super(args);
     }
 
