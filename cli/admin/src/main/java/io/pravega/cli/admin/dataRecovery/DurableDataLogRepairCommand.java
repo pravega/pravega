@@ -150,7 +150,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         if (createNewBackupLog) {
             createBackupLog(dataLogFactory, containerId, originalDataLog);
         }
-        int backupLogReadOperations = validateBackupLog(dataLogFactory, containerId, originalDataLog);
+        int backupLogReadOperations = validateBackupLog(dataLogFactory, containerId, originalDataLog, createNewBackupLog);
 
         // Get user input of operations to skip, replace, or delete.
         List<LogEditOperation> durableLogEdits = getDurableLogEditsFromUser();
@@ -206,9 +206,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         }
 
         // Read the edited contents that are now reachable from the original log id.
-        try (DurableDataLog finalEditedLog = originalDataLog.asReadOnly()) {
+        try (val editedLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId())) {
             int finalEditedLogReadOps = readDurableDataLogWithCustomCallback((op, list) ->
-                    output("Original Log Operations after repair: " + op), containerId, finalEditedLog);
+                    output("Original Log Operations after repair: " + op), containerId, editedLogWrapper.asReadOnly());
             output("Original DurableLog operations read (after editing): " + finalEditedLogReadOps);
             Preconditions.checkState(editedDurableLogOperations == finalEditedLogReadOps, "Repair Log operations not matching before (" +
                     editedDurableLogOperations + ") and after the metadata overwrite (" + finalEditedLogReadOps + ")");
@@ -235,7 +235,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return editedDurableLogOperations;
     }
 
-    private int validateBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
+    private int validateBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog,
+                                  boolean createNewBackupLog) throws Exception {
         // Validate that the Original and Backup logs have the same number of operations.
         int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) -> { }, containerId, originalDataLog.asReadOnly());
         @Cleanup
@@ -248,8 +249,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 ", Backup DurableLog operations read: " + backupLogReadOperations);
 
         // Ensure that the Original log contains the same number of Operations than the Backup log upon a new log read.
-        Preconditions.checkState(operationsReadFromOriginalLog == backupLogReadOperations, "Operations read from Backup Log (" + backupLogReadOperations +
-                ") differ from Original Log ones (" + operationsReadFromOriginalLog + ") ");
+        Preconditions.checkState(!createNewBackupLog || operationsReadFromOriginalLog == backupLogReadOperations,
+                "Operations read from Backup Log (" + backupLogReadOperations + ") differ from Original Log ones (" + operationsReadFromOriginalLog + ") ");
         return backupLogReadOperations;
     }
 
@@ -411,7 +412,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             case "DeleteSegmentOperation":
                 long segmentId = getLongUserInput("Input Segment Id for DeleteSegmentOperation:");
                 result = new DeleteSegmentOperation(segmentId);
-                long offset = getLongUserInput("Input Segment Offset for StreamSegmentSealOperation:");
+                long offset = getLongUserInput("Input Segment Offset for DeleteSegmentOperation:");
                 ((DeleteSegmentOperation) result).setStreamSegmentOffset(offset);
                 break;
             case "MergeSegmentOperation":
