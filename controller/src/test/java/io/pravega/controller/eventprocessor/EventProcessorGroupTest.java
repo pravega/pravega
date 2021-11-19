@@ -139,6 +139,26 @@ public class EventProcessorGroupTest {
     }
 
     @Test(timeout = 10000)
+    public void testFailingCellShutdown() throws CheckpointStoreException {
+        this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
+        requestEventProcessors.awaitRunning();
+        assertTrue(requestEventProcessors.isRunning());
+
+        Position mockReaderPosition = mock(Position.class);
+        doReturn(ImmutableMap.of("reader1", mockReaderPosition)).when(checkpointStore).sealReaderGroup("host1", "scaleGroup");
+        String exceptionMsg = "Exception marking reader offline.";
+        doThrow(new RuntimeException(exceptionMsg)).when(reader).closeAt(any());
+        requestEventProcessors.stopAsync();
+        requestEventProcessors.awaitTerminated();
+        verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
+        verify(checkpointStore, times(1)).removeReader(anyString(), anyString(), anyString());
+        verify(checkpointStore, times(1)).removeReaderGroup("host1", "scaleGroup");
+        verify(mockReaderGroup, times(1)).readerOffline(anyString(), any());
+        verify(mockReaderGroup, times(1)).close();
+        verify(writer, times(1)).close();
+    }
+
+    @Test(timeout = 10000)
     public void testNotifyProcessFailureSuccess() throws CheckpointStoreException {
         this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
         requestEventProcessors.awaitRunning();

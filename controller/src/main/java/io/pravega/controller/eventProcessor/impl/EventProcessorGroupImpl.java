@@ -223,22 +223,12 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         log.info("Termination of event processor cell: {} completed successfully.", cell);
                     } catch (Exception e) {
                         log.warn("Failed terminating event processor cell {}.", cell, e);
-                        throw e;
                     }
                 }
 
                 // Finally, clean up Reader Group data from Checkpoint store.
                 try {
-                    String controllerId = actorSystem.getProcess();
-                    for (String reader : readerPositions.keySet()) {
-                        //Remove reader from Checkpoint Store
-                        log.info("{} Removing reader={} from checkpoint store", this.objectId, reader);
-                        checkpointStore.removeReader(controllerId, readerGroup.getGroupName(), reader);
-                    }
-
-                    // Finally, remove reader group from the checkpoint store
-                    log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), controllerId);
-                    checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+                    cleanupReaderGroup(actorSystem.getProcess(), readerPositions);
                 } catch (CheckpointStoreException e) {
                     log.warn("Error removing data for Reader Group {} from checkpoint store. ", readerGroup.getGroupName(), e);
                 }
