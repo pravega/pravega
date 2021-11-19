@@ -48,7 +48,7 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
                 try {
                     super.performRecovery(i);
                     output("Completed recovery of container: " + i);
-                } catch (DurableDataLogException e) {
+                } catch (Exception e) {
                     // We found an error while recovering a container. Stop running further recoveries to debug this one.
                     output("Problem recovering container " + i + ", terminating execution of command.");
                     failed.set(true);
@@ -67,8 +67,14 @@ public class ContainerContinuousRecoveryCommand extends ContainerRecoverCommand 
         output("Completed continuous Segment Container recovery command.");
     }
 
+    @Override
     protected void outputRecoveryInfo(String message, Object... args) {
         // Do nothing to avoid verbosity on continuous recovery.
+    }
+
+    @Override
+    protected boolean throwWhenExceptionFound() {
+        return true;
     }
 
     public static CommandDescriptor descriptor() {

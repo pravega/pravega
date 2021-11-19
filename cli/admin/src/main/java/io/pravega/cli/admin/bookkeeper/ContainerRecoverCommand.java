@@ -54,7 +54,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
     }
 
     @VisibleForTesting
-    public void performRecovery(int containerId) throws DurableDataLogException {
+    public void performRecovery(int containerId) throws Exception {
         @Cleanup
         val context = createContext();
         val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
@@ -86,6 +86,9 @@ public class ContainerRecoverCommand extends ContainerCommand {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof DataCorruptionException) {
                 unwrapDataCorruptionException((DataCorruptionException) cause);
+            }
+            if (throwWhenExceptionFound()) {
+                throw ex;
             }
         }
     }
@@ -134,6 +137,10 @@ public class ContainerRecoverCommand extends ContainerCommand {
 
     protected void outputRecoveryInfo(String message, Object... args) {
         output(message, args);
+    }
+
+    protected boolean throwWhenExceptionFound() {
+        return false;
     }
 
     //region RecoveryState
