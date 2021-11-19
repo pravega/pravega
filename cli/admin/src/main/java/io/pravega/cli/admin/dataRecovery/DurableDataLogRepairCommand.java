@@ -217,7 +217,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             outputException(ex);
         }
 
-        output("Process completed successfully!");
+        output("Process completed successfully! (You still need to enable the Durable Log so Pravega can use it)");
     }
 
     private int validateRepairLog(DurableDataLogFactory dataLogFactory, int backupLogReadOperations, List<LogEditOperation> durableLogEdits) throws Exception {
