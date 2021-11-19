@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Stream;
@@ -80,12 +81,6 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
      * We use this lock for mutual exclusion between shutDown and changeEventProcessorCount methods.
      */
     private final Object lock = new Object();
-
-    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
-                            final EventProcessorConfig<T> eventProcessorConfig,
-                            final CheckpointStore checkpointStore) {
-        this(actorSystem, eventProcessorConfig, checkpointStore, null);
-    }
 
     EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
                             final EventProcessorConfig<T> eventProcessorConfig,
@@ -204,8 +199,41 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         synchronized (lock) {
             long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
             try {
-                cleanUpCheckpointStore();
+                // If any of the following operations error out, the fact is just logged.
+                // And some other controller process would clean-up the reader group data
+                // its readers and their position objects from checkpoint store.
+
+                // Seal the Reader Group
+                Map<String, Position> readerPositions = Map.of();
+                try {
+                    readerPositions = sealReaderGroup(actorSystem.getProcess());
+                } catch (CheckpointStoreException e) {
+                    log.warn("Error sealing Reader Group {}.", readerGroup.getGroupName(), e);
+                }
+
+                // Initiate stop on all event processor cells
+                for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
+                    log.info("Terminating event processor cell: {}", cell);
+                    cell.stopAsync();
+                }
+                // Await termination of cells
+                for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
+                    try {
+                        cell.awaitTerminated();
+                        log.info("Termination of event processor cell: {} completed successfully.", cell);
+                    } catch (Exception e) {
+                        log.warn("Failed terminating event processor cell {}.", cell, e);
+                    }
+                }
+
+                // Finally, clean up Reader Group data from Checkpoint store.
+                try {
+                    cleanupReaderGroup(actorSystem.getProcess(), readerPositions);
+                } catch (CheckpointStoreException e) {
+                    log.warn("Error removing data for Reader Group {} from checkpoint store. ", readerGroup.getGroupName(), e);
+                }
                 readerGroup.close();
+
                 if (rebalanceFuture != null) {
                     rebalanceFuture.cancel(true);
                 }
@@ -214,64 +242,50 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
             }
         }
-        log.info("Shut down all event processors in {} complete.", this.toString());
-    }
-
-    private void cleanUpCheckpointStore() {
-        // If any of the following operations error out, the fact is just logged.
-        // Some other controller process is responsible for cleaning up the reader group,
-        // its readers and their position objects from checkpoint store.
-        
-        // Initiate stop on all event processor cells 
-        for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
-            log.info("Terminating event processor cell: {}", cell);
-            cell.stopAsync();
-        }
-        
-        for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
-            try {
-                cell.awaitTerminated();
-                log.debug("Termination of event processor cell: {} completed successfully.", cell);
-            } catch (Exception e) {
-                log.warn("Failed terminating event processor cell {}.", cell, e);
-            }
-        }
-        
-        // Finally, clean up reader group from checkpoint store.
-        try {
-            log.debug("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
-            checkpointStore.removeProcessFromGroup(actorSystem.getProcess(), readerGroup.getGroupName());
-        } catch (CheckpointStoreException e) {
-            log.warn("Error removing reader group " + this.objectId, e);
-            return;
-        }
+        log.info("Shut down of all event processors in {} complete.", this.toString());
     }
 
     @Override
-    public void notifyProcessFailure(String process) throws CheckpointStoreException {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "notifyProcessFailure", process);
-        log.info("Notifying failure of process {} participating in reader group {}", process, this.objectId);
+    public void notifyProcessFailure(String controllerId) throws CheckpointStoreException {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "notifyProcessFailure", controllerId);
+        log.info("Notifying failure of process {} participating in reader group {}", controllerId, this.objectId);
         try {
-            Map<String, Position> map;
-            try {
-                log.debug("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-                map = checkpointStore.removeProcessFromGroup(process, readerGroup.getGroupName());
-            } catch (CheckpointStoreException e) {
-                if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
-                    return;
-                } else {
-                    throw e;
-                }
+            Map<String, Position> map = sealReaderGroup(controllerId);
+            cleanupReaderGroup(controllerId, map);
+        } finally {
+            LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, controllerId);
+        }
+    }
+
+    private Map<String, Position> sealReaderGroup(String controllerId) throws CheckpointStoreException {
+        Map<String, Position> readerPositions = ImmutableMap.of();
+        try {
+            log.debug("Attempting to seal Reader Group {} for Controller {}", readerGroup.getGroupName(), controllerId);
+            // Change Reader Group State to SEALED so no new Readers can join
+            readerPositions = checkpointStore.sealReaderGroup(controllerId, readerGroup.getGroupName());
+        } catch (CheckpointStoreException e) {
+            if (!e.getType().equals(CheckpointStoreException.Type.NoNode)) {
+                throw e;
+            }
+        }
+        log.info("Sealed Reader Group {} for Controller {}", readerGroup.getGroupName(), controllerId);
+        return readerPositions;
+    }
+
+    private void cleanupReaderGroup(String controllerId, Map<String, Position> readerPositions) throws CheckpointStoreException {
+            for (Map.Entry<String, Position> entry : readerPositions.entrySet()) {
+                // 1. Remove failed readers from Reader Group in State Synchronizer
+                log.info("{} Notifying readerOffline reader={}, position={} for Reader Group {}", this.objectId, entry.getKey(), entry.getValue(), readerGroup.getGroupName());
+                readerGroup.readerOffline(entry.getKey(), entry.getValue());
+
+                // 2. Remove reader from Checkpoint Store
+                log.info("{} Removing reader={} from checkpoint store", this.objectId, entry.getKey());
+                checkpointStore.removeReader(controllerId, readerGroup.getGroupName(), entry.getKey());
             }
 
-            for (Map.Entry<String, Position> entry : map.entrySet()) {
-                //Notify reader group about failed readers
-                log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
-                readerGroup.readerOffline(entry.getKey(), entry.getValue());
-            }
-        } finally {
-            LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
-        }
+            // Finally, remove reader group from the checkpoint store
+            log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), controllerId);
+            checkpointStore.removeReaderGroup(controllerId, readerGroup.getGroupName());
     }
 
     /**

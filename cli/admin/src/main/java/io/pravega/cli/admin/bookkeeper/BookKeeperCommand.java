@@ -23,7 +23,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -54,7 +54,7 @@ abstract class BookKeeperCommand extends AdminCommand {
      * @param logId The Log Id.
      * @param m     The Log Metadata for the given Log Id.
      */
-    void outputLogSummary(int logId, ReadOnlyLogMetadata m) {
+    void outputLogSummary(int logId, ReadOnlyBookkeeperLogMetadata m) {
         if (m == null) {
             prettyJSONOutput("log_no_metadata)", logId);
         } else {

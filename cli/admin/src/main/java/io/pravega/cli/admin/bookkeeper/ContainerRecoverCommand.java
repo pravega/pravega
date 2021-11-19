@@ -69,7 +69,13 @@ public class ContainerRecoverCommand extends ContainerCommand {
         val log = context.logFactory.createDebugLogWrapper(containerId);
         val bkLog = log.asReadOnly();
 
-        this.recoveryState = new RecoveryState();
+        val recoveryState = new RecoveryState();
+        val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
+                recoveryState::newOperation,
+                op -> true, // We want to perform the actual recovery.
+                op -> recoveryState.operationComplete(op, null),
+                recoveryState::operationComplete);
+      
         @Cleanup
         val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig,
                 getCommandArgs().getState().getExecutor(), buildRecoveryProcessorCallbacks());
