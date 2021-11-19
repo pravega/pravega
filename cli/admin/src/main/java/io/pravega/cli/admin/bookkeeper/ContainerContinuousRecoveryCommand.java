@@ -17,7 +17,6 @@ package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

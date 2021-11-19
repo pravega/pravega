@@ -29,7 +29,6 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import java.util.Collection;
 import java.util.List;
 
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import lombok.Cleanup;
 import lombok.val;
 
