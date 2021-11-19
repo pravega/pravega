@@ -57,16 +57,11 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
     private final static int REQUEST_TIMEOUT_SECONDS = 10;
 
     private final GrpcAuthHelper authHelper;
-    private final Controller controller;
 
     public ParseReaderGroupStreamCommand(CommandArgs args) {
         super(args);
 
-        authHelper = new GrpcAuthHelper(true,
-                "secret",
-                600);
-
-        controller = instantiateController();
+        authHelper = new GrpcAuthHelper(true, "secret", 600);
     }
 
     @Override
@@ -77,36 +72,40 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         final String segmentStoreHost = getArg(2);
         final String fileName = getArg(3);
         String stream = NameUtils.getStreamForReaderGroup(readerGroup);
-        CompletableFuture<StreamSegments> streamSegments = controller.getCurrentSegments(scope, stream);
-        StreamSegments ss = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, ss.getNumberOfSegments() - 1);
+
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         String tmpfilename = "tmp/RG_" + readerGroup + "_" + new Random().nextInt(1000);
-        readRGSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, tmpfilename, fileName);
+        readRGSegmentToFile(segmentHelper, segmentStoreHost, scope, stream, tmpfilename, fileName);
         output("The readerGroup stream has been successfully written into %s", fileName);
-        controller.close();
     }
 
     /**
      * Reads the contents of the segment starting from the given offset and writes into the provided file.
      *
-     * @param segmentHelper             A {@link SegmentHelper} instance to read the segment.
-     * @param segmentStoreHost          Address of the segment-store to read from.
-     * @param fullyQualifiedSegmentName The name of the segment.
-     * @param fileName                  A name of the file to which the data will be written.
+     * @param segmentHelper       A {@link SegmentHelper} instance to read the segment.
+     * @param segmentStoreHost    Address of the segment-store to read from.
+     * @param scope               The name of the scope.
+     * @param stream              The name of the stream.
+     * @param fileName            A name of the file to which the data will be written.
      * @throws IOException if the file create/write fails.
      * @throws Exception if the request fails.
      */
-    private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
+    private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String scope, String stream,
                                      String tmpfilename, String fileName) throws IOException, Exception {
 
         File outputfile = FileHelper.createFileAndDirectory(fileName);
 
         @Cleanup
         BufferedWriter writer = new BufferedWriter(new FileWriter(outputfile));
+
+        Controller controller = instantiateController();
+        CompletableFuture<StreamSegments> streamSegments = controller.getCurrentSegments(scope, stream);
+        StreamSegments ss = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        int segmentid = (ss.getNumberOfSegments() > 0) ? (ss.getNumberOfSegments() - 1) : 0;
+        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, segmentid);
 
         CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfo = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
                             new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), authHelper.retrieveMasterToken(), 0L);
@@ -158,6 +157,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
             fileInputStream.close();
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
+        } finally {
+            controller.close();
         }
     }
 
