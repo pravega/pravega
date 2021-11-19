@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Unit tests for GRPCServiceHealthContibutor
+ * Unit tests for GRPCServiceHealthContributor
  */
 public class GRPCServerHealthContributorTest {
     private GRPCServer grpcServer;
