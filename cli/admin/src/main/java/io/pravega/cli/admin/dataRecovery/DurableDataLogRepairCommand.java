@@ -385,6 +385,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 outputException(ex);
             } catch (IllegalStateException ex) {
                 // Last input was incorrect, so remove it.
+                output("Last Log Edit Operation did not pass the checks, removing it from list of edits.");
                 durableLogEdits.remove(durableLogEdits.size() - 1);
             } catch (Exception ex) {
                 outputError("Some problem has happened.");
