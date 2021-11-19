@@ -17,13 +17,9 @@ package io.pravega.segmentstore.server.logs.health;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.segmentstore.server.ReadIndex;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.ContainerSetup;
 import io.pravega.segmentstore.server.logs.DurableLog;
-import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,11 +27,6 @@ import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 
 public class DurableLogHealthContributorTests {
 
