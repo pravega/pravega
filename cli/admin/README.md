@@ -99,6 +99,7 @@ All available commands:
 	config set <name=value list>: Sets one or more config values for use during this session.
 	container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
 	container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
+	container continuous-recover <container-id>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
 	controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
 	controller describe-scope <scope-name>: Get the details of a given Scope.
 	controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
