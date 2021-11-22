@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -66,7 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -96,7 +96,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Getter
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
-    private final Random requestIdGenerator = new Random();
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -950,7 +949,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(
+    public CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommitTransactions(
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
@@ -964,23 +963,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
-                                                       OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets, context), 
-                executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream,
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
-                                                              OperationContext ctx, ScheduledExecutorService executor) {
+                                                              OperationContext ctx, ScheduledExecutorService executor,
+                                                              Map<String, TxnWriterMark> writerMarks) {
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
-        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
+        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerMarks), executor)
                 .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                            TransactionMetrics.reportOpenTransactions(scope, stream, count.intValue()));
                 }, executor);
     }
 
@@ -1232,7 +1224,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     OperationContext getOperationContext(OperationContext context) {
         // if null context is supplied make sure we create a context with a new request id.
         return context != null ? context : new OperationContext() {
-            private final long requestId = requestIdGenerator.nextLong();
+            private final long requestId = ControllerService.nextRequestId();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

@@ -39,6 +39,7 @@ import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,6 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -93,7 +96,9 @@ class BookKeeperLog implements DurableDataLog {
     private static final long REPORT_INTERVAL = 1000;
     @Getter
     private final int logId;
+    @Getter(AccessLevel.PACKAGE)
     private final String logNodePath;
+    @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
     private final BookKeeperConfig config;
@@ -181,7 +186,7 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Close the write queue and cancel the pending writes.
-            this.writes.close().forEach(w -> w.fail(new ObjectClosedException("BookKeeperLog has been closed."), true));
+            this.writes.close().forEach(w -> w.fail(new ObjectClosedException(this), true));
 
             if (writeLedger != null) {
                 try {

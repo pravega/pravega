@@ -120,6 +120,7 @@ allprojects {
             force "io.netty:netty-handler-proxy:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
+            force "junit:junit:" + junitVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -272,9 +273,14 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/<micrometerVersion>
         compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
+        compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-prometheus/<micrometerVersion>
         compile project(':common')
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
+        testCompile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
     }
 
     javadoc {
@@ -480,6 +486,9 @@ project ('bindings') {
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
 
+        compile group: 'software.amazon.awssdk', name: 's3', version: awsSdkVersion
+        compile group: 'software.amazon.awssdk', name: 'sts', version: awsSdkVersion
+
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
         // so adding explicit dependencies is necessary (as well as desirable).
@@ -509,6 +518,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         compile project(':shared:rest')
+        compile project(':shared:health')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -912,7 +922,7 @@ project('standalone') {
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/standalone-logback.xml",
                                  "-Dsinglenode.configurationFile=PRAVEGA_APP_HOME/conf/standalone-config.properties",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
@@ -949,6 +959,7 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
@@ -1081,16 +1092,22 @@ project('test:system') {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
 
+        environment "dockerRegistryUrl", System.getProperty("dockerRegistryUrl")
+        environment "imagePrefix", System.getProperty("imagePrefix", "pravega")
         environment "tier2Type", System.getProperty("tier2Type", "nfs")
-        environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
-        environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
-        environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
+        environment "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
+        environment "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
+        environment "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
+        environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "0.5.5")
+        environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "0.1.6")
+        environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "0.2.13")
+        environment "pravegaOperatorImageName", System.getProperty("pravegaOperatorImageName", "pravega-operator")
+        environment "bookkeeperOperatorImageName", System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
+        environment "zookeeperOperatorImageName", System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
         // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
         environment "publishedChartName", System.getProperty("publishedChartName", "pravega")
         environment "helmRepository", System.getProperty("helmRepository", "https://charts.pravega.io")
-        // To update config map with desired pravega version
-        environment "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        environment "helmHookImageName", System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
         environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
         environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
@@ -1145,13 +1162,19 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
-        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
-        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
-        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
-        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
-        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
+        systemProperty "tier2Env", System.getProperty("tier2Env")
+        systemProperty "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
+        systemProperty "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
+        systemProperty "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "0.5.5")
+        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "0.1.6")
+        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "0.2.13")
+        systemProperty "pravegaOperatorImageName", System.getProperty("pravegaOperatorImageName", "pravega-operator")
+        systemProperty "bookkeeperOperatorImageName", System.getProperty("bookkeeperOperatorImageName", "bookkeeper-operator")
+        systemProperty "zookeeperOperatorImageName", System.getProperty("zookeeperOperatorImageName", "zookeeper-operator")
+        systemProperty "publishedChartName", System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository", System.getProperty("helmRepository", "pravega")
+        systemProperty "helmHookImageName", System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
 
         // target versions wrt Upgrade for all operators & clusters
         systemProperty "controllerLabel", System.getProperty("controllerLabel", "pravega-controller");
@@ -1162,12 +1185,12 @@ project('test:system') {
         systemProperty "bookkeeperID", System.getProperty("bookkeeperID", "pravega-bk");
         systemProperty "bookkeeperConfigMap", System.getProperty("bookkeeperConfigMap", "bk-config-map");
 
-        systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
-        systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
-        systemProperty "targetZookeeperOperatorVersion",System.getProperty("targetZookeeperOperatorVersion", "latest")
-        systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
-        systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
-        systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
+        systemProperty "targetPravegaOperatorVersion", System.getProperty("targetPravegaOperatorVersion", "latest")
+        systemProperty "targetBookkeeperOperatorVersion", System.getProperty("targetBookkeeperOperatorVersion", "latest")
+        systemProperty "targetZookeeperOperatorVersion", System.getProperty("targetZookeeperOperatorVersion", "latest")
+        systemProperty "targetPravegaVersion", System.getProperty("targetPravegaVersion", "latest")
+        systemProperty "targetBookkeeperVersion", System.getProperty("targetBookkeeperVersion", "latest")
+        systemProperty "targetZookeeperVersion", System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
         systemProperty "testServiceAccount", System.getProperty("testServiceAccount", "test-framework");
@@ -1176,10 +1199,18 @@ project('test:system') {
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
+        // validating that bookkeeper operator version >= 0.1.5
+        if (System.getProperty("bookkeeperOperatorVersion") ==~ /^(0)\.(1)\.(0|1|2|3|4)(-.+)*/) {
+            throw new InvalidUserDataException('Requires Bookkeeper Operator Version >= 0.1.5')
+        }
+        // validating that pravega operator version >= 0.5.4
+        if (System.getProperty("pravegaOperatorVersion") ==~ /^((0)\.(1|2|3|4)\.(\d)(-.+)*)|((0)\.(5)\.(0|1|2|3)(-.+)*)/) {
+            throw new InvalidUserDataException('Requires Pravega Operator Version >= 0.5.4')
+        }
 
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
-        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+        systemProperty "log.level", System.getProperty("log.level", "DEBUG")
 
         if (System.getProperty("configFile") != null) {
             systemProperty "configs", new File(System.getProperty("configFile")).text
@@ -1275,7 +1306,7 @@ project('test:system') {
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
-        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+        systemProperty "log.level", System.getProperty("log.level", "DEBUG")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
     }
@@ -1447,7 +1478,7 @@ task preparePravegaImage(type: Copy) {
     from "docker/pravega"
     from (installDist) {
         into "pravega"
-        exclude "**/*.bat"
+        exclude "**/*.bat", "**/log4j*.jar"
     }
 }
 

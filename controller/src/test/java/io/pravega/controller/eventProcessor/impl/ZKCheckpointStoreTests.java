@@ -124,14 +124,21 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         resultMap = checkpointStore.getPositions(process1, readerGroup1);
         Assert.assertNotNull(resultMap);
         Assert.assertEquals(2, resultMap.size());
-        
-        Map<String, Position> map = checkpointStore.removeProcessFromGroup(process1, readerGroup1);
-        Assert.assertEquals(map.size(), 2);
-        Assert.assertTrue(map.containsKey(reader1));
-        Assert.assertNull(map.get(reader1));
-        Assert.assertTrue(map.containsKey(reader2));
-        Assert.assertNull(map.get(reader2));
-        
+
+        Map<String, Position> readerPositions = checkpointStore.sealReaderGroup(process1, readerGroup1);
+        Assert.assertEquals(readerPositions.size(), 2);
+        Assert.assertTrue(readerPositions.containsKey(reader1));
+        Assert.assertNull(readerPositions.get(reader1));
+        Assert.assertTrue(readerPositions.containsKey(reader2));
+        Assert.assertNull(readerPositions.get(reader2));
+
+        for (Map.Entry<String, Position> entry : readerPositions.entrySet()) {
+            // 2. Remove reader from Checkpoint Store
+            checkpointStore.removeReader(process1, readerGroup1, entry.getKey());
+        }
+
+        // Finally, remove reader group from the checkpoint store
+        checkpointStore.removeReaderGroup(process1, readerGroup1);
         AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> {            
             cli.getData().forPath(String.format("/%s/%s/%s/%s", "eventProcessors", process1, readerGroup1, reader1));
         });
@@ -144,6 +151,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         final String reader1 = "reader1";
         final String reader2 = "reader2";
 
+        Assert.assertFalse(checkpointStore.isHealthy());
         Set<String> processes = checkpointStore.getProcesses();
         Assert.assertEquals(0, processes.size());
 

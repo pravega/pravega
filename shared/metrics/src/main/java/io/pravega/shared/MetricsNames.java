@@ -154,13 +154,31 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
     public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_BYTES = PREFIX + "segmentstore.storage.slts.truncate_relocation_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
-    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count";  // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_COUNT = PREFIX + "segmentstore.storage.slts.truncate_relocation_count";  // Counter
+    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count"; // Counter
 
-    public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
+    public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";         // Counter
+    public static final String SLTS_GC_TASK_PROCESSED = PREFIX + "segmentstore.storage.slts.GC.task_processed_count";   // Counter
+
+    public static final String SLTS_GC_CHUNK_NEW = PREFIX + "segmentstore.storage.slts.GC.chunk_new_count";             // Counter
+    public static final String SLTS_GC_CHUNK_QUEUED = PREFIX + "segmentstore.storage.slts.GC.chunk_queued_count";       // Counter
+
+    public static final String SLTS_GC_CHUNK_DELETED = PREFIX + "segmentstore.storage.slts.GC.chunk_deleted_count";     // Counter
+    public static final String SLTS_GC_CHUNK_RETRY = PREFIX + "segmentstore.storage.slts.GC.chunk_retry_count";         // Counter
+    public static final String SLTS_GC_CHUNK_FAILED = PREFIX + "segmentstore.storage.slts.GC.chunk_failed_count";       // Counter
+
+    public static final String SLTS_GC_SEGMENT_QUEUED = PREFIX + "segmentstore.storage.slts.GC.segment_queued_count";       // Counter
+    public static final String SLTS_GC_SEGMENT_PROCESSED = PREFIX + "segmentstore.storage.slts.GC.segment_deleted_count";   // Counter
+    public static final String SLTS_GC_SEGMENT_RETRY = PREFIX + "segmentstore.storage.slts.GC.segment_retry_count";         // Counter
+    public static final String SLTS_GC_SEGMENT_FAILED = PREFIX + "segmentstore.storage.slts.GC.segment_failed_count";       // Counter
+
+    public static final String SLTS_STORAGE_USED_BYTES = PREFIX + "segmentstore.storage.used_bytes";
+    public static final String SLTS_STORAGE_USED_PERCENTAGE = PREFIX + "segmentstore.storage.used_percentage";
 
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";

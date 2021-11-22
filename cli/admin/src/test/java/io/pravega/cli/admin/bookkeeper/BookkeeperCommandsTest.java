@@ -24,6 +24,7 @@ import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -42,6 +43,7 @@ import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -50,6 +52,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -103,10 +107,12 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     @Override
     @After
+    @SneakyThrows
     public void tearDown() {
         System.setOut(originalOut);
         System.setIn(originalIn);
         STATE.get().close();
+        super.tearDown();
     }
 
     @Test
@@ -197,6 +203,19 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
+    }
+
+    @Test
+    public void testBookKeeperContinuousRecoveryCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        String commandResult = TestUtils.executeCommand("container continuous-recover 2 1", STATE.get());
+        Assert.assertTrue(commandResult.contains("Recovery complete"));
+
+        CommandArgs args = new CommandArgs(Arrays.asList("1", "1"), STATE.get());
+        ContainerContinuousRecoveryCommand command = Mockito.spy(new ContainerContinuousRecoveryCommand(args));
+        Mockito.doThrow(new DurableDataLogException("Intentional")).when(command).performRecovery(ArgumentMatchers.anyInt());
+        command.execute();
+        Assert.assertNotNull(ContainerContinuousRecoveryCommand.descriptor());
     }
 
     @Test

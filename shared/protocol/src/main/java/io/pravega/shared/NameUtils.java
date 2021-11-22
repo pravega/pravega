@@ -34,11 +34,56 @@ public final class NameUtils {
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
+    // The separator in controller metadata tables.
+    public static final String SEPARATOR = ".#.";
+
     // The scope name which has to be used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
+    // The Prefix which is used when creating internally used pravega streams.
+    public static final String INTERNAL_SCOPE_PREFIX = INTERNAL_SCOPE_NAME + "/";
+
+    // The prefix used for internal container segments.
+    public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";
+
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
+
+    /**
+     * Formatting for stream metadata tables.
+     */
+    public static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for EpochsWithTransactions metadata tables.
+     */
+    public static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for TransactionsInEpoch metadata tables.
+     */
+    public static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%s" + SEPARATOR + "%s";
+
+    /**
+     * Formatting for WriterPositions metadata tables.
+     */
+    public static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
+
+    /**
+     * The table name for CompletedTransactionsBatches table.
+     */
+    public static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME,
+            "completedTransactionsBatches");
+
+    /**
+     * The table name for CompletedTransactionsBatch tables.
+     */
+    public static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%s";
+
+    /**
+     * The table name for the DeletedStreams table.
+     */
+    public static final String DELETED_STREAMS_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedStreams");
 
     /**
      * Size of the prefix or suffix included with the user stream name.
@@ -54,6 +99,27 @@ public final class NameUtils {
      * Size of the name that can be specified by user.
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
+
+    /**
+     * Controller Metadata keys.
+     */
+    public static final String CREATION_TIME_KEY = "creationTime";
+    public static final String CONFIGURATION_KEY = "configuration";
+    public static final String TRUNCATION_KEY = "truncation";
+    public static final String STATE_KEY = "state";
+    public static final String EPOCH_TRANSITION_KEY = "epochTransition";
+    public static final String RETENTION_SET_KEY = "retention";
+    public static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
+    public static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
+    public static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%s";
+    public static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%s";
+    public static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%s";
+    public static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%s"; // segment id
+    public static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
+    public static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
+    public static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
+    public static final String SUBSCRIBER_KEY_PREFIX = "subscriber_";
+    public static final String SUBSCRIBER_SET_KEY = "subscriberset";
 
     /**
      * This is used for composing metric tags.
@@ -86,6 +152,11 @@ public final class NameUtils {
     private static final String TRANSACTION_DELIMITER = "#transaction.";
 
     /**
+     * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
+     */
+    private static final String TRANSIENT_DELIMITER = "#transient.";
+
+    /**
      * This is appended to the end of the Primary Segment Name, followed by epoch.
      */
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -103,7 +174,7 @@ public final class NameUtils {
     /**
      * Prefix for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_PREFIX = "_system/containers/metadata_";
+    private static final String METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "metadata_";
 
     /**
      * Format for Container Metadata Segment name.
@@ -113,7 +184,7 @@ public final class NameUtils {
     /**
      * Prefix for Storage Metadata Segment name.
      */
-    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = "_system/containers/storage_metadata_";
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = INTERNAL_CONTAINER_PREFIX + "storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
@@ -123,12 +194,12 @@ public final class NameUtils {
     /**
      * Format for Container System Journal file name.
      */
-    private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+    private static final String SYSJOURNAL_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.file%d";
 
     /**
      * Format for Container System snapshot file name.
      */
-    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -136,9 +207,19 @@ public final class NameUtils {
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
 
     /**
+     * The Transient unique identifier is made of two parts, ecah having a length of 16 bytes (64 bits in Hex).
+     */
+    private static final int TRANSIENT_PART_LENGTH = TRANSACTION_PART_LENGTH;
+
+    /**
      * The length of the Transaction unique identifier, in bytes (it is made of two parts).
      */
     private static final int TRANSACTION_ID_LENGTH = 2 * TRANSACTION_PART_LENGTH;
+
+    /**
+     * The length of the Transient Segments unique identifier, in bytes (it is made of two parts).
+     */
+    private static final int TRANSIENT_ID_LENGTH = 2 * TRANSIENT_PART_LENGTH;
 
     /**
      * Custom String format that converts a 64 bit integer into a hex number, with leading zeroes.
@@ -164,7 +245,7 @@ public final class NameUtils {
     /**
      * Formatting for internal Segments used for ContainerEventProcessor.
      */
-    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = "_system/containers/event_processor_%s_%d";
+    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = INTERNAL_CONTAINER_PREFIX + "event_processor_%s_%d";
 
     //endregion
 
@@ -185,20 +266,60 @@ public final class NameUtils {
     }
 
     /**
-     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
-     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
+     * Returns the transient name for a TransientSegment based on the name of the current Parent StreamSegment, and the transientId.
      *
-     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
+     * @param parentStreamSegmentName The name of the Parent StreamSegment for this transient segment.
+     * @param writerId The Writer Id used to create the transient segment.
+     * @return The name of the Transient StreamSegmentId.
+     */
+    public static String getTransientNameFromId(String parentStreamSegmentName, UUID writerId) {
+        UUID random = UUID.randomUUID();
+        StringBuilder result = new StringBuilder();
+        result.append(parentStreamSegmentName);
+        result.append(TRANSIENT_DELIMITER);
+        result.append(String.format(FULL_HEX_FORMAT, writerId.getMostSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, writerId.getLeastSignificantBits()));
+        result.append('.');
+        result.append(String.format(FULL_HEX_FORMAT, random.getMostSignificantBits()));
+        result.append(String.format(FULL_HEX_FORMAT, random.getLeastSignificantBits()));
+        return result.toString();
+    }
+
+    /**
+     * Finds the position of a delimiter within a string and validates said string is of expected format.
+     * @param streamSegmentName The name of the stream segment to validate.
+     * @param delimiter The delimiter to check for.
+     * @param idLength The length of the id.
+     *
+     * @return The start position of the delimiter contained within streamSegmentName.
+     */
+    private static int getDelimiterPosition(String streamSegmentName, String delimiter, int idLength) {
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(delimiter);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + delimiter.length() + idLength > streamSegmentName.length()) {
+            return -1;
+        }
+        return endOfStreamNamePos;
+    }
+
+    /**
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction/Transient StreamSegment. This method returns a
+     * valid value only if the Transaction/Transient StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
+     *
+     * @param segmentName The name of the Transaction StreamSegment or Transient Segment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
      */
-    public static String getParentStreamSegmentName(String transactionName) {
-        // Check to see if the given name is a properly formatted Transaction.
-        int endOfStreamNamePos = transactionName.lastIndexOf(TRANSACTION_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > transactionName.length()) {
-            // Improperly formatted Transaction name.
-            return null;
+    public static String getParentStreamSegmentName(String segmentName) {
+        // Check to see if it is a valid Transaction.
+        int endOfTransactionStream = getDelimiterPosition(segmentName, TRANSACTION_DELIMITER, TRANSACTION_ID_LENGTH);
+        if (endOfTransactionStream >= 0) {
+            return segmentName.substring(0, endOfTransactionStream);
         }
-        return transactionName.substring(0, endOfStreamNamePos);
+        // Check to see if it is a valid Transient Segment.
+        int endOfTransientStream = getDelimiterPosition(segmentName, TRANSIENT_DELIMITER, TRANSIENT_ID_LENGTH);
+        if (endOfTransientStream >= 0) {
+            return segmentName.substring(0, endOfTransientStream);
+        }
+        return null;
     }
 
     /**
@@ -209,11 +330,16 @@ public final class NameUtils {
      */
     public static boolean isTransactionSegment(String streamSegmentName) {
         // Check to see if the given name is a properly formatted Transaction.
-        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSACTION_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > streamSegmentName.length()) {
-            return false;
-        }
-        return true;
+        return getDelimiterPosition(streamSegmentName, TRANSACTION_DELIMITER, TRANSACTION_ID_LENGTH) >= 0;
+    }
+
+    /**
+     * Checks if the given stream segment name is formatted for a Transient Segment or not.
+     * @param streamSegmentName The name of the StreamSegment to check for the transient delimiter.
+     * @return true if stream segment name contains transient delimiter, false otherwise.
+     */
+    public static boolean isTransientSegment(String streamSegmentName) {
+        return getDelimiterPosition(streamSegmentName, TRANSIENT_DELIMITER, TRANSIENT_ID_LENGTH) >= 0;
     }
 
     /**
@@ -224,7 +350,7 @@ public final class NameUtils {
      * @return The primary part of StreamSegment.
      */
     public static String extractPrimaryStreamSegmentName(String streamSegmentName) {
-        if (isTransactionSegment(streamSegmentName)) {
+        if (isTransactionSegment(streamSegmentName) || isTransientSegment(streamSegmentName)) {
             return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
         }
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(EPOCH_DELIMITER);

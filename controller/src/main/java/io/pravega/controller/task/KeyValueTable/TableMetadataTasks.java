@@ -101,7 +101,7 @@ public class TableMetadataTasks implements AutoCloseable {
         }
         this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()), this.executor, this.eventExecutor, hostId,
+                EventWriterConfig.builder().enableConnectionPooling(true).retryAttempts(Integer.MAX_VALUE).build()), this.executor, this.eventExecutor, hostId,
                 ((AbstractKVTableMetadataStore) this.kvtMetadataStore).getHostTaskIndex());
     }
 
@@ -139,7 +139,7 @@ public class TableMetadataTasks implements AutoCloseable {
 
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
                                                    kvtConfig.getPrimaryKeyLength(), kvtConfig.getSecondaryKeyLength(),
-                                                   createTimestamp, requestId, id);
+                                                   createTimestamp, requestId, id, kvtConfig.getRolloverSizeBytes());
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
                                                    () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id,
@@ -264,21 +264,21 @@ public class TableMetadataTasks implements AutoCloseable {
         return authHelper.retrieveMasterToken();
     }
 
-    public CompletableFuture<Void> createNewSegments(String scope, String kvt,
-                                                      List<Long> segmentIds, int keyLength, long requestId) {
+    public CompletableFuture<Void> createNewSegments(String scope, String kvt, List<Long> segmentIds,
+                                                     int keyLength, long requestId, long rolloverSizeBytes) {
         return Futures.toVoid(Futures.allOfWithResults(segmentIds
                 .stream()
                 .parallel()
-                .map(segment -> createNewSegment(scope, kvt, segment, keyLength, retrieveDelegationToken(), requestId))
+                .map(segment -> createNewSegment(scope, kvt, segment, keyLength, retrieveDelegationToken(), requestId, rolloverSizeBytes))
                 .collect(Collectors.toList())));
     }
 
     private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, int keyLength, String controllerToken,
-                                                     long requestId) {
+                                                     long requestId, long rolloverSizeBytes) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
         log.debug("Creating segment {}", qualifiedTableSegmentName);
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken,
-                requestId, false, keyLength), executor));
+                requestId, false, keyLength, rolloverSizeBytes), executor));
     }
 
     @Override

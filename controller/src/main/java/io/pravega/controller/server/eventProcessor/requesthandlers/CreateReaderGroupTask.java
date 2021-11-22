@@ -91,10 +91,10 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())
                 .maxOutstandingCheckpointRequest(request.getMaxOutstandingCheckpointRequest())
-
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[request.getRetentionTypeOrdinal()])
                 .startingStreamCuts(startStreamCut)
-                .endingStreamCuts(endStreamCut).build();
+                .endingStreamCuts(endStreamCut)
+                .build();
         return ReaderGroupConfig.cloneConfig(conf, request.getReaderGroupId(), request.getGeneration());
     }
 

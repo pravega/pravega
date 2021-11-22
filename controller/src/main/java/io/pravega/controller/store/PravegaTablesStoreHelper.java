@@ -170,10 +170,21 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed will indicate successful creation of table.
      */
     public CompletableFuture<Void> createTable(String tableName, long requestId) {
+        return this.createTable(tableName, requestId, 0);
+    }
+
+    /**
+     * Method to create a new Table. If the table already exists, segment helper responds with success.
+     * @param tableName table name
+     * @param requestId request id
+     * @param rolloverSizeBytes rollover size of the table segment
+     * @return CompletableFuture which when completed will indicate successful creation of table.
+     */
+    public CompletableFuture<Void> createTable(String tableName, long requestId, long rolloverSizeBytes) {
         log.debug(requestId, "create table called for table: {}", tableName);
 
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), requestId,
-                false, 0),
+                false, 0, rolloverSizeBytes),
                 () -> String.format("create table: %s", tableName), requestId))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
@@ -256,6 +267,26 @@ public class PravegaTablesStoreHelper {
     }
 
     /**
+     * Method to get the number of entries in a Table Segment. If the table already exists, segment helper responds with success.
+     * @param tableName Name of the Table Segment for which we want the entry count
+     * @param requestId request id
+     * @return CompletableFuture which when completed will return number of entries in table.
+     */
+    public CompletableFuture<Long> getEntryCount(String tableName, long requestId) {
+        log.debug(requestId, "create table called for table: {}", tableName);
+
+        return withRetries(() -> segmentHelper.getTableSegmentEntryCount(tableName, authToken.get(), requestId),
+                () -> String.format("GetInfo table: %s", tableName), requestId)
+                .whenCompleteAsync((r, e) -> {
+                    if (e != null) {
+                        log.warn(requestId, "Get Table Segment info for table {} threw exception", tableName, e);
+                    } else {
+                        log.debug(requestId, "Get Table Segment info for table {} completed successfully", tableName);
+                    }
+                }, executor);
+    }
+
+    /**
      * Method to get and conditionally update value for the specified key.
      *
      * This method fetches the latest version of the value for the specified key and applies the update function and
@@ -284,6 +315,7 @@ public class PravegaTablesStoreHelper {
                                                   return segmentHelper.updateTableEntries(tableName, Collections.singletonList(updatedEntry), authToken.get(), requestId)
                                                                       .thenCompose(keyVersions -> {
                                                                           if (shouldAttemptCleanup) {
+                                                                              log.debug(requestId, "Delete of table key {} on table {}", tableKey, tableName);
                                                                               // attempt a conditional delete of the entry since there are zero entries.
                                                                               return conditionalDeleteOfKey(tableName, requestId, tableKey, keyVersions.get(0));
                                                                           } else {

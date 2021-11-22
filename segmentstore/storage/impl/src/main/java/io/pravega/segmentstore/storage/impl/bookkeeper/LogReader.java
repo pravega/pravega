@@ -167,7 +167,9 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
     private void checkLogIdProperty(Handle handle) throws DataLogCorruptedException {
         int actualLogId = Ledgers.getBookKeeperLogId(handle);
-        if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId) {
+        // For special log repair operations, we allow the LogReader to read from a special log id that contains admin-provided
+        // changes to repair the original lod data (i.e., Ledgers.REPAIR_LOG_ID).
+        if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId && actualLogId != Ledgers.REPAIR_LOG_ID) {
             throw new DataLogCorruptedException(String.format("BookKeeperLog %s contains ledger %s which belongs to BookKeeperLog %s.",
                     this.logId, handle.getId(), actualLogId));
         }

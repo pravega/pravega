@@ -59,7 +59,7 @@ public class StorageLoaderTest {
                         .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
-                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
 
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {

@@ -54,12 +54,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Arrays;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -117,6 +117,7 @@ public final class TestUtils {
         if (tlsEnabled) {
             clusterWrapperBuilder
                     .tlsEnabled(true)
+                    .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                     .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                     .tlsHostVerificationEnabled(false)
@@ -219,6 +220,29 @@ public final class TestUtils {
         //create stream
         Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, streamConfig);
         log.info("Create stream status {}", createStreamStatus);
+    }
+
+    /**
+     * Deletes the given scope and stream using the given controller instance.
+     *
+     * @param controller    Controller instance to use to create the Scope and Stream.
+     * @param scopeName     Name of the Scope.
+     * @param streamName    Name of the Stream.
+     */
+    public static void deleteScopeStream(Controller controller, String scopeName, String streamName) {
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @SuppressWarnings("resource") //Don't close the controller.
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        //delete stream
+        Boolean sealStreamStatus = streamManager.sealStream(scopeName, streamName);
+        log.info("Seal stream status {}", sealStreamStatus);
+        Boolean deleteStreamStatus = streamManager.deleteStream(scopeName, streamName);
+        log.info("Delete stream status {}", deleteStreamStatus);
+        //create scope
+        Boolean deleteScopeStatus = streamManager.deleteScope(scopeName);
+        log.info("Delete scope status {}", deleteScopeStatus);
     }
 
     /**

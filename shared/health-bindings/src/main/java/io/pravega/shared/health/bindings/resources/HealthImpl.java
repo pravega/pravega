@@ -74,7 +74,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getHealth(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Health health = endpoint.getHealth(id);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
@@ -96,7 +95,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean alive = endpoint.isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
@@ -138,7 +136,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean ready = endpoint.isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
@@ -159,7 +156,6 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         processRequest(() -> {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Status status = endpoint.getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
@@ -193,7 +189,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         }
     }
 
-    // The follow methods provide a means to cast the HealthService framework models, to the generated models.
+    // The following methods provide a means to cast the HealthService framework models, to the generated models.
     private static HealthResult adapter(Health health) {
         return new HealthResult()
                 .name(health.getName())

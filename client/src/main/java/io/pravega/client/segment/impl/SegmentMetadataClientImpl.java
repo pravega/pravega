@@ -187,7 +187,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset,
                                                                      DelegationTokenProvider tokenProvider) {
-        log.trace("Truncating segment: {}", segment);
+        log.debug("Truncating segment: {} at offset {}", segment, offset);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
 
@@ -206,6 +206,15 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                 .thenCompose(token -> connection.sendRequest(requestId, new SealSegment(requestId,
                         segment.getScopedName(), token)))
                 .thenApply(r -> transformReply(r, SegmentSealed.class));
+    }
+
+    @Override
+    public CompletableFuture<Long> fetchCurrentSegmentHeadOffset() {
+        Exceptions.checkNotClosed(closed.get(), this);
+        val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                .throwingOn(NoSuchSegmentException.class)
+                .runAsync(this::getStreamSegmentInfo, executor());
+        return result.thenApply(info -> info.getStartOffset());
     }
 
     @Override
@@ -264,7 +273,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             .runAsync(() -> truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
                 final Throwable ex = Exceptions.unwrap(t);
                 if (ex.getCause() instanceof SegmentTruncatedException) {
-                    log.debug("Segment already truncated at offset {}. Details: {}",
+                    log.debug("Segment {} already truncated at offset {}. Details: {}", segmentId,
                               offset,
                               ex.getCause().getMessage());
                     return null;

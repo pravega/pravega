@@ -124,17 +124,6 @@ class InMemoryCheckpointStore implements CheckpointStore {
             map.remove(key);
         }
     }
-
-    @Override
-    @Synchronized
-    public Map<String, Position> removeProcessFromGroup(final String process, final String readerGroup) throws CheckpointStoreException {
-        Map<String, Position> result = sealReaderGroup(process, readerGroup);
-        for (String id : result.keySet()) {
-            removeProcessFromGroup(id, readerGroup);
-        }
-        removeReaderGroup(process, readerGroup);
-        return result;
-    }
     
     @Override
     @Synchronized
@@ -181,6 +170,16 @@ class InMemoryCheckpointStore implements CheckpointStore {
     @Override
     public Set<String> getProcesses() throws CheckpointStoreException {
         return map.keySet().stream().map(this::getProcess).collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the health status.
+     *
+     * @return true by deafult.
+     */
+    @Override
+    public boolean isHealthy() {
+        return true;
     }
 
     private String getKey(final String process, final String readerGroup) {

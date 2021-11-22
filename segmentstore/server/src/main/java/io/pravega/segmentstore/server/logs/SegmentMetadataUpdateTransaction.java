@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -55,6 +57,12 @@ import lombok.Setter;
 @NotThreadSafe
 class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
+
+    /**
+     * The number of Extended Attributes allowed to be associated with a {@link SegmentType#TRANSIENT_SEGMENT}.
+     */
+    @VisibleForTesting
+    public final static int TRANSIENT_ATTRIBUTE_LIMIT = 16;
 
     private final boolean recoveryMode;
     private final Map<AttributeId, Long> baseAttributeValues;
@@ -395,9 +403,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentNotSealedException If the source Segment is not sealed.
      * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
+     * @throws BadAttributeUpdateException     If any of the given AttributeUpdates is invalid given the current state of the segment.
      */
     void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -413,10 +422,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation);
         }
 
         if (!this.recoveryMode) {
+            // Update attributes first on the target Segment, if any.
+            preProcessAttributes(operation.getAttributeUpdates());
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
         }
@@ -470,6 +481,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throws BadAttributeUpdateException, MetadataUpdateException {
         if (attributeUpdates == null) {
             return;
+        }
+
+        // Make sure that the number of existing ExtendedAttributes + incoming ExtendedAttributes does not exceed the limit.
+        if (type.isTransientSegment() && this.baseAttributeValues.size() > TRANSIENT_ATTRIBUTE_LIMIT) {
+            throw new MetadataUpdateException(this.containerId,
+                    String.format("A Transient Segment ('%s') may not exceed %s Extended Attributes.", this.name, TRANSIENT_ATTRIBUTE_LIMIT));
         }
 
         // We must ensure that we aren't trying to set/update attributes that are incompatible with this Segment.
@@ -652,9 +669,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation);
         }
-
+        acceptAttributes(operation.getAttributeUpdates());
         this.length += transLength;
         this.isChanged = true;
     }

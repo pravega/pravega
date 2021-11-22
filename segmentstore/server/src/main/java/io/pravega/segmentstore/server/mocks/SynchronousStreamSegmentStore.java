@@ -71,6 +71,13 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
+        CompletableFuture<Void> result = impl.flushToStorage(containerId, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         CompletableFuture<ReadResult> result = impl.read(streamSegmentName, offset, maxLength, timeout);
         Futures.await(result);
@@ -95,6 +102,14 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     @Override
     public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         CompletableFuture<MergeStreamSegmentResult> result = impl.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          AttributeUpdateCollection attributes, Duration timeout) {
+        CompletableFuture<MergeStreamSegmentResult> result = impl.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, attributes, timeout);
         Futures.await(result);
         return result;
     }

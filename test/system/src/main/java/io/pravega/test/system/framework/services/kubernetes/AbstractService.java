@@ -130,8 +130,8 @@ public abstract class AbstractService implements Service {
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
                 .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
-                .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                .put("controllerResources", getResources("2000m", "2Gi", "1000m", "2Gi"))
+                .put("segmentStoreResources", getResources("2000m", "6Gi", "1000m", "6Gi"))
                 .put("options", props)
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
@@ -197,9 +197,12 @@ public abstract class AbstractService implements Service {
 
     private Map<String, Object> tier2Spec() {
         final Map<String, Object> spec;
+        log.info("Loading tier2Type = {}", TIER2_TYPE);
         if (TIER2_TYPE.equalsIgnoreCase(TIER2_NFS)) {
             spec = ImmutableMap.of("filesystem", ImmutableMap.of("persistentVolumeClaim",
                                                                  ImmutableMap.of("claimName", "pravega-tier2")));
+        } else if (TIER2_TYPE.equalsIgnoreCase("custom")) {
+            spec = getCustomTier2Config();
         } else {
             // handle other types of tier2 like HDFS and Extended S3 Object Store.
             spec = ImmutableMap.of(TIER2_TYPE, getTier2Config());
@@ -207,10 +210,27 @@ public abstract class AbstractService implements Service {
         return spec;
     }
 
+    private Map<String, Object> getCustomTier2Config() {
+        return ImmutableMap.of("custom",
+                ImmutableMap.<String, Object>builder()
+                .put("options", getTier2Config())
+                .put("env", getTier2Env())
+                .build());
+    }
+
     private Map<String, Object> getTier2Config() {
-        String tier2Config = System.getProperty("tier2Config");
-        checkNotNullOrEmpty(tier2Config, "tier2Config");
-        Map<String, String> split = Splitter.on(',').trimResults().withKeyValueSeparator("=").split(tier2Config);
+        return parseSystemPropertyAsMap("tier2Config");
+    }
+
+    private Map<String, Object> getTier2Env() {
+        return parseSystemPropertyAsMap("tier2Env");
+    }
+
+    private Map<String, Object> parseSystemPropertyAsMap(String systemProperty) {
+        String value = System.getProperty(systemProperty);
+        checkNotNullOrEmpty(value, systemProperty);
+        log.info("Parsing {} = {}", systemProperty, value);
+        Map<String, String> split = Splitter.on(',').trimResults().withKeyValueSeparator("=").split(value);
         return split.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
             try {
                 return Integer.parseInt(e.getValue());
@@ -224,15 +244,15 @@ public abstract class AbstractService implements Service {
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
     // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=4g", "-Xmx1024m"};
     }
 
     private String[] getControllerJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
     }
 
     private String[] getBookkeeperMemoryOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
     }
 
 
@@ -249,6 +269,13 @@ public abstract class AbstractService implements Service {
                 .put("tag", tag)
                 .put("pullPolicy", IMAGE_PULL_POLICY)
                 .build();
+    }
+
+    private Map<String, Object> getBookkeeperImageSpec(String imageName) {
+        return ImmutableMap.<String, Object>builder().put("imageSpec", ImmutableMap.builder()
+                .put("repository", imageName)
+                .put("pullPolicy", IMAGE_PULL_POLICY)
+                .build()).build();
     }
 
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
@@ -334,7 +361,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, BOOKKEEPER_VERSION))
+        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
                 .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))

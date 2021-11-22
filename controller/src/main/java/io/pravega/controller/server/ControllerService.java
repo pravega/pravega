@@ -26,6 +26,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -68,6 +69,8 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
+
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -92,6 +95,8 @@ import org.slf4j.LoggerFactory;
 @AllArgsConstructor
 public class ControllerService {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerService.class));
+    // Generator for new request identifiers
+    private static final SecureRandom REQUEST_ID_GENERATOR = RandomFactory.createSecure();
 
     private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
@@ -103,6 +108,10 @@ public class ControllerService {
     private final Executor executor;
     private final Cluster cluster;
     private final RequestTracker requestTracker;
+
+    public static long nextRequestId() {
+        return REQUEST_ID_GENERATOR.nextLong();
+    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -130,6 +139,7 @@ public class ControllerService {
         Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
         Preconditions.checkArgument(kvtConfig.getPrimaryKeyLength() > 0);
         Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() >= 0);
+        Preconditions.checkArgument(kvtConfig.getRolloverSizeBytes() >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
@@ -217,8 +227,8 @@ public class ControllerService {
      * @return Create Readergroup status future. 
      */
     public CompletableFuture<CreateReaderGroupResponse> createReaderGroup(String scope, String rgName,
-                                                                            final ReaderGroupConfig rgConfig,
-                                                                            final long createTimestamp,
+                                                                          final ReaderGroupConfig rgConfig,
+                                                                          final long createTimestamp,
                                                                           final long requestId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
@@ -347,6 +357,9 @@ public class ControllerService {
             final long createTimestamp, long requestId) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
+                String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
+
         Timer timer = new Timer();
         try {
             NameUtils.validateStreamName(stream);
@@ -382,17 +395,17 @@ public class ControllerService {
      * @param stream stream
      * @param streamConfig stream configuration
      * @param requestId request id
-     * @return Update stream status future. 
+     * @return Update stream status future.
      */
-    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig, 
+    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig,
                                                               long requestId) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Timer timer = new Timer();
         return streamMetadataTasks.updateStream(scope, stream, streamConfig, requestId)
-                  .thenApplyAsync(status -> {
-                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
-                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                  }, executor);
+                .thenApplyAsync(status -> {
+                    reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     /**
@@ -630,8 +643,9 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Timer timer = new Timer();
-
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, requestId)
+        OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
+        return streamStore.getConfiguration(scope, stream, context, executor).thenCompose(streamConfig ->
+                streamTransactionMetadataTasks.createTxn(scope, stream, lease, requestId, streamConfig.getRolloverSizeBytes()))
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<StreamSegmentRecord> segments = pair.getValue();
@@ -680,7 +694,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);
@@ -720,7 +734,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);

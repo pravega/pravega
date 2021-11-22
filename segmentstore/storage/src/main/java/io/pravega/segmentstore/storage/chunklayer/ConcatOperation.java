@@ -22,6 +22,7 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -83,7 +84,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                                         sourceSegmentMetadata = (SegmentMetadata) storageMetadata2;
                                         return performConcat(txn);
                                     }, chunkedSegmentStorage.getExecutor());
-                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor());
+                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor())
+                .exceptionally(ex -> handleException(ex));
     }
 
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
@@ -107,11 +109,14 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
             }
             return f.thenComposeAsync(v2 -> {
                 targetSegmentMetadata.checkInvariants();
-
-                // Finally commit transaction.
-                return txn.commit()
-                        .exceptionally(this::handleException)
-                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                // Collect garbage.
+                return chunkedSegmentStorage.getGarbageCollector().addChunksToGarbage(txn.getVersion(), chunksToDelete)
+                        .thenComposeAsync(v4 -> {
+                            // Finally commit transaction.
+                            return txn.commit()
+                                    .exceptionally(this::handleException)
+                                    .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                        }, chunkedSegmentStorage.getExecutor());
             }, chunkedSegmentStorage.getExecutor());
         }, chunkedSegmentStorage.getExecutor());
     }
@@ -123,12 +128,13 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(targetHandle.getSegmentName(), ex));
         }
+        if (ex instanceof ChunkStorageFullException) {
+            throw new CompletionException(new StorageFullException(targetHandle.getSegmentName(), ex));
+        }
         throw new CompletionException(ex);
     }
 
     private void postCommit() {
-            // Collect garbage.
-            chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
             // Update the read index.
             chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
             chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);
@@ -178,8 +184,10 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                                 targetSegmentMetadata.setChunkCount(targetSegmentMetadata.getChunkCount() + sourceSegmentMetadata.getChunkCount());
 
                                 // Delete read index block entries for source.
-                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
-
+                                // To avoid possibility of unintentional deadlock, skip this step for storage system segments.
+                                if (!sourceSegmentMetadata.isStorageSystemSegment()) {
+                                    chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
+                                }
                                 txn.update(targetSegmentMetadata);
                                 txn.delete(sourceSegment);
 

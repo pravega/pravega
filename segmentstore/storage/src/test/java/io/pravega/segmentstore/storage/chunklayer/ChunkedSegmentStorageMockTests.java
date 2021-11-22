@@ -17,14 +17,21 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataVersionMismatchException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
@@ -33,13 +40,23 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 42;
 
@@ -82,6 +99,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -228,6 +246,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -318,7 +337,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
-
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
 
@@ -335,80 +354,154 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 "write succeeded when exception was expected.",
                 chunkedSegmentStorage.write(h1, 10, new ByteArrayInputStream(new byte[10]), 10, null),
                 ex -> clazz.equals(ex.getClass()));
-
-        //verify(spyChunkStorage, times(1)).doDelete(any());
     }
 
     @Test
-    public void testFileNotFoundExceptionDuringGarbageCollection() throws Exception {
+    public void testIOExceptionDuringTruncate() throws Exception {
         String testSegmentName = "test";
-        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(100);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .garbageCollectionDelay(Duration.ZERO)
-                .build();
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .minPercentForTruncateRelocation(50)
+                .storageMetadataRollingPolicy(policy).build();
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
         @Cleanup
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
-        chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
-
+        val taskQueueManager = new InMemoryTaskQueueManager();
+        chunkedSegmentStorage.getGarbageCollector().initialize(taskQueueManager).join();
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
-        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
 
         Assert.assertEquals(h1.getSegmentName(), testSegmentName);
         Assert.assertFalse(h1.isReadOnly());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        val chunksListBefore = TestUtils.getChunkNameList(spyMetadataStore, testSegmentName);
+        Assert.assertEquals(1, chunksListBefore.size());
         // Step 2: Inject fault.
-        Exception exceptionToThrow = new ChunkNotFoundException("Test Exception", "Mock Exception", new Exception("Mock Exception"));
-        doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+        AssertExtensions.assertFutureThrows(
+                "truncate succeeded when exception was expected.",
+                chunkedSegmentStorage.truncate(h1, 8, null),
+                ex -> clazz.equals(ex.getClass()));
+        TestUtils.checkSegmentLayout(spyMetadataStore, testSegmentName, new long[] {10});
+        val chunksListAfter = TestUtils.getChunkNameList(spyMetadataStore, testSegmentName);
+        Assert.assertEquals(1, chunksListAfter.size());
+        Assert.assertTrue(chunksListAfter.containsAll(chunksListBefore));
 
-        chunkedSegmentStorage.delete(h1, null).get();
-        Assert.assertEquals(5, chunkedSegmentStorage.getGarbageCollector().getGarbageChunks().size());
-        chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
-        verify(spyChunkStorage, times(5)).doDelete(any());
+        Assert.assertEquals(2, chunkedSegmentStorage.getGarbageCollector().getQueueSize().get());
+        val list = taskQueueManager.drain(chunkedSegmentStorage.getGarbageCollector().getTaskQueueName(), 2);
+        Assert.assertTrue(chunksListBefore.contains(list.get(0).getName()));
+
+        val nameTemplate = String.format("%s.E-%d-O-%d.", testSegmentName, chunkedSegmentStorage.getEpoch(), 8);
+        Assert.assertTrue("New first chunk should be added to GC queue.", list.get(1).getName().startsWith(nameTemplate));
     }
 
     @Test
-    public void testExceptionDuringGarbageCollection() throws Exception {
+    public void testStorageFullDuringWrite() throws Exception {
         String testSegmentName = "test";
-        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .storageMetadataRollingPolicy(policy)
-                .garbageCollectionDelay(Duration.ZERO)
-                .build();
+
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         chunkedSegmentStorage.initialize(1);
-        chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
-
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         // Step 1: Create segment and write some data.
-        val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
-        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
 
         Assert.assertEquals(h1.getSegmentName(), testSegmentName);
         Assert.assertFalse(h1.isReadOnly());
-        // Step 2: Inject fault.
-        Exception exceptionToThrow = new IllegalStateException("Test Exception");
-        doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
 
-        chunkedSegmentStorage.delete(h1, null).get();
-        Assert.assertEquals(5, chunkedSegmentStorage.getGarbageCollector().getGarbageChunks().size());
-        chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
-        verify(spyChunkStorage, times(5)).doDelete(any());
+        // Step 2: Inject fault.
+        Exception exceptionToThrow = new ChunkStorageFullException("Test", new IntentionalException());
+        val clazz = StorageFullException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+
+        AssertExtensions.assertFutureThrows(
+                "write succeeded when exception was expected.",
+                chunkedSegmentStorage.write(h1, 10, new ByteArrayInputStream(new byte[10]), 10, null),
+                ex -> clazz.equals(ex.getClass()));
     }
 
     @Test
-    public void testReport() {
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+    public void testStorageFullDuringConcat() throws Exception {
+        String testSegmentName = "test";
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        // Step 1: Create segment and write some data.
+        val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
+        val h2 = chunkedSegmentStorage.create("source", null).get();
+        Assert.assertEquals(h1.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h1.isReadOnly());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.seal(h2, null).get();
+        // Step 2: Inject fault.
+        Exception exceptionToThrow = new ChunkStorageFullException("Test");
+        val clazz = StorageFullException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+
+        AssertExtensions.assertFutureThrows(
+                "write succeeded when exception was expected.",
+                chunkedSegmentStorage.concat(h1, 10, "source", null),
+                ex -> clazz.equals(ex.getClass()));
+    }
+
+    @Test
+    public void testUpdateStorageStatsException() throws Exception {
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        val spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
+        Exception exceptionToThrow = new ChunkStorageException("Intentional", "Intentional");
+        doReturn(CompletableFuture.failedFuture(exceptionToThrow)).when(spyChunkStorage).doGetUsedSpaceAsync(any());
+
+        // Should not throw an exception
+        chunkedSegmentStorage.updateStorageStats().get();
+    }
+
+    @Test
+    public void testReport() throws Exception {
+
+        MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
+        MetricsProvider.initialize(metricsConfig);
+        @Cleanup
+        StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
+
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .safeStorageSizeCheckFrequencyInSeconds(100)
+                .maxSafeStorageSize(1000)
+                .build();
 
         @Cleanup
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
@@ -418,9 +511,15 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
+        when(spyChunkStorage.doGetUsedSpace(any())).thenReturn(123L);
+        chunkedSegmentStorage.updateStorageStats().get();
+
         chunkedSegmentStorage.report();
 
         // Not possible to mock any other reporter except metadata store.
         verify(spyMetadataStore).report();
+
+        Assert.assertEquals(123, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_BYTES).value(), 0);
+        Assert.assertEquals(12.3, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_PERCENTAGE).value(), 0);
     }
 }

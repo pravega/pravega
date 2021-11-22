@@ -16,10 +16,12 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -96,6 +98,10 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -136,6 +142,7 @@ import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -681,6 +688,43 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
+    }
+
+    @Test(timeout = 30000)
+    public void readerGroupFailureTests() throws InterruptedException {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        UpdateReaderGroupEvent badUpdateEvent = new UpdateReaderGroupEvent(SCOPE, "rg3", 2L, UUID.randomUUID(), 0L, false, ImmutableSet.of());
+        requestEventWriter.writeEvent(badUpdateEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        String scopedStreamName = "scope/stream";
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
+                .build();
+        CreateReaderGroupEvent badCreateEvent = buildCreateRGEvent(SCOPE, "rg", rgConf, 1L, System.currentTimeMillis());
+
+        requestEventWriter.writeEvent(badCreateEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        DeleteReaderGroupEvent badDeleteEvent = new DeleteReaderGroupEvent(SCOPE, "rg3", 1L, UUID.randomUUID());
+        requestEventWriter.writeEvent(badDeleteEvent);
+        AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+    }
+
+    private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
+                                                      final long requestId, final long createTimestamp) {
+        Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
+                config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                startStreamCuts, endStreamCuts, createTimestamp);
     }
 
     @Test(timeout = 30000)
@@ -2431,13 +2475,13 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
-        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
 
-        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
 
-        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L)
+        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, 0L, 1024 * 1024L)
                 .get().getKey();
         
         // set transaction to committing
@@ -2469,7 +2513,8 @@ public abstract class StreamMetadataTasksTest {
         List<AbortEvent> abortListBefore = abortWriter.getEventList();
         
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, 0L);
-        processEvent(requestEventWriter).join();
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
+                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
 
         reset(streamStorePartialMock);
@@ -2477,7 +2522,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that the txn status is set to aborting
         VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
-        assertEquals(0, requestEventWriter.getEventQueue().size());
+        assertEquals(requestEventWriter.getEventQueue().size(), 1);
 
         // verify that events are posted for the abort txn.
         List<AbortEvent> abortListAfter = abortWriter.getEventList();
@@ -2496,6 +2541,9 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
+                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
         reset(streamStorePartialMock);
 
         // Now complete all existing transactions and verify that seal completes
@@ -2505,6 +2553,7 @@ public abstract class StreamMetadataTasksTest {
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         // endregion
     }
 
@@ -2781,7 +2830,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
         assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
 
-        // start next update with different configuration. 
+        // start next update with different configuration.
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         streamMetadataTasks.updateStream(SCOPE, test, configuration3, 0L);
         Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
@@ -2789,8 +2838,31 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
         // we should still get complete for previous configuration we attempted to update
         assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
-        
+
         assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration3, null).get());
+
+        // test update on a sealed stream
+        String testStream = "testUpdateSealed";
+        streamStorePartialMock.createStream(SCOPE, testStream, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, testStream, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        final StreamConfiguration configuration4 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
+        streamMetadataTasks.updateStream(SCOPE, testStream, configuration4, 0L);
+
+        // wait till configuration is updated
+        configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, testStream, null,
+                executor).join().getObject().isUpdating();
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE,
+                testStream, null, executor).join();
+        assertTrue(configurationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, testStream, configurationRecord, null, executor).join();
+
+        streamStorePartialMock.setState(SCOPE, testStream, State.SEALED, null, executor).join();
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                streamMetadataTasks.isUpdated(SCOPE, testStream, configuration4, null),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
         // end region
     }
     
@@ -2838,6 +2910,30 @@ public abstract class StreamMetadataTasksTest {
         // we should still get complete for previous configuration we attempted to update
         assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
         assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
+        
+        // test truncate on a sealed stream
+        String testStream = "testTruncateSealed";
+        streamStorePartialMock.createStream(SCOPE, testStream, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, testStream, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+
+        // region truncate
+        map = Collections.singletonMap(0L, 1L);
+        streamMetadataTasks.truncateStream(SCOPE, testStream, map, 0L);
+
+        truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, testStream, null,
+                executor).join().getObject().isUpdating();
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, testStream,
+                null, executor).join();
+        assertTrue(truncationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeTruncation(SCOPE, testStream, truncationRecord, null, executor).join();
+
+        streamStorePartialMock.setState(SCOPE, testStream, State.SEALED, null, executor).join();
+        assertFutureThrows("Should throw UnsupportedOperationException",
+                streamMetadataTasks.isTruncated(SCOPE, testStream, map, null),
+                e -> UnsupportedOperationException.class.isAssignableFrom(e.getClass()));
         // end region
     }
 
@@ -3035,6 +3131,19 @@ public abstract class StreamMetadataTasksTest {
                                        requestEventWriter.getEventQueue().add(event);
                                        throw new CompletionException(e);
                                    });
+    }
+
+    private CompletableFuture<Void> processFailingEvent(WriterMock requestEventWriter) throws InterruptedException {
+        ControllerEvent event;
+        try {
+            event = requestEventWriter.getEventQueue().take();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return streamRequestHandler.processEvent(event)
+                .exceptionally(e -> {
+                    throw new CompletionException(e);
+                });
     }
 
     @Data

@@ -65,6 +65,12 @@ public class StreamCutReferenceRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "recordingTime", recordingTime) + "\n" +
+                String.format("%s = %s", "recordingSize", recordingSize);
+    }
+
     static class StreamCutReferenceRecordSerializer
             extends VersionedSerializer.WithBuilder<StreamCutReferenceRecord, StreamCutReferenceRecordBuilder> {
         @Override

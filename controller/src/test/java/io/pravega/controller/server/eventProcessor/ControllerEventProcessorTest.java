@@ -102,10 +102,10 @@ public abstract class ControllerEventProcessorTest {
 
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
-    private StreamMetadataStore streamStore;
-    private BucketStore bucketStore;
-    private StreamMetadataTasks streamMetadataTasks;
-    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    protected StreamMetadataStore streamStore;
+    protected BucketStore bucketStore;
+    protected StreamMetadataTasks streamMetadataTasks;
+    protected StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
@@ -325,7 +325,8 @@ public abstract class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
         streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
@@ -354,7 +355,7 @@ public abstract class ControllerEventProcessorTest {
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
     }
 
-    private List<VersionedTransactionData> createAndCommitTransactions(int count) {
+    protected List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
@@ -383,11 +384,11 @@ public abstract class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
         AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor);
-        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
+        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId(), 11L)).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 
-    private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
+    protected void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(expectedStatus, txnStatus);
     }

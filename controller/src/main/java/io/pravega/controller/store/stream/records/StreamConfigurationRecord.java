@@ -81,6 +81,17 @@ public class StreamConfigurationRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "scope", scope) + "\n" +
+                String.format("%s = %s", "streamName", streamName) + "\n" +
+                String.format("%s = %n    %s", "streamConfiguration",
+                        streamConfiguration.toString().replace("\n", "\n    ")) + "\n" +
+                String.format("%s = %s", "updating", updating) + "\n" +
+                String.format("%s = %s", "tagOnlyUpdate", tagOnlyUpdate) + "\n" +
+                String.format("%s = %s", "removeTags", removeTags);
+    }
+
     @Data
     @Builder
     @Slf4j
@@ -232,7 +243,8 @@ public class StreamConfigurationRecord {
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
                       .revision(1, this::write01, this::read01)
-                      .revision(2, this::write02, this::read02);
+                      .revision(2, this::write02, this::read02)
+                      .revision(3, this::write03, this::read03);
         }
 
         @Override
@@ -299,6 +311,23 @@ public class StreamConfigurationRecord {
             revisionDataOutput.writeCollection(streamConfigurationRecord.streamConfiguration.getTags(), stringSerializer);
             revisionDataOutput.writeBoolean(streamConfigurationRecord.isTagOnlyUpdate());
             revisionDataOutput.writeCollection(streamConfigurationRecord.removeTags, stringSerializer);
+        }
+
+        private void read03(RevisionDataInput revisionDataInput,
+                            StreamConfigurationRecordBuilder configurationRecordBuilder)
+                throws IOException {
+            StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
+            streamConfigurationBuilder.scalingPolicy(configurationRecordBuilder.streamConfiguration.getScalingPolicy())
+                                      .retentionPolicy(configurationRecordBuilder.streamConfiguration.getRetentionPolicy())
+                                      .timestampAggregationTimeout(configurationRecordBuilder.streamConfiguration.getTimestampAggregationTimeout())
+                                      .tags(configurationRecordBuilder.streamConfiguration.getTags())
+                                      .rolloverSizeBytes(revisionDataInput.readLong());
+            configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
+        }
+
+        private void write03(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
+                throws IOException {
+            revisionDataOutput.writeLong(streamConfigurationRecord.streamConfiguration.getRolloverSizeBytes());
         }
 
         @Override

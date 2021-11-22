@@ -83,12 +83,33 @@ public class StreamConfiguration implements Serializable {
     @EqualsAndHashCode.Exclude
     private final Set<String> tags;
 
+    /**
+     * API to return segment rollover size.
+     * The default value for this field is 0.
+     * If default value is passed down to the server, a non-zero value defined in the server
+     * will be used for the actual rollover size.
+     *
+     * @param rolloverSizeBytes The segment rollover size in this stream.
+     * @return Rollover size for the segment in this Stream.
+     */
+    private final long rolloverSizeBytes;
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "scalingPolicy", scalingPolicy != null ? scalingPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "retentionPolicy", retentionPolicy != null ? retentionPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "timestampAggregationTimeout", timestampAggregationTimeout) + "\n" +
+                String.format("%s = %s", "tags", tags) + "\n" +
+                String.format("%s = %s", "rolloverSizeBytes", rolloverSizeBytes);
+    }
+
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
 
         public StreamConfiguration build() {
             Set<String> tagSet = validateTags(this.tags);
-            return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet);
+            Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
+            return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet, this.rolloverSizeBytes);
         }
 
         private Set<String> validateTags(List<String> tags) {

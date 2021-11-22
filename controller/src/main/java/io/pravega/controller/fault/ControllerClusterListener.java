@@ -67,11 +67,38 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.sweepers = Lists.newArrayList(sweepers);
     }
 
+    /**
+     * Get the zookeeper health status.
+     *
+     * @return true if zookeeper is connected.
+     */
+    public boolean isMetadataServiceConnected() {
+        return cluster.isHealthy();
+    }
+
+    /**
+     * Get the sweepers status.
+     *
+     * @return true if all sweepers are ready.
+     */
+    public boolean areAllSweepersReady() {
+        return sweepers.stream().allMatch(s -> s.isReady());
+    }
+
+    /**
+     * Check service is ready.
+     *
+     * @return true if zookeeper is connected and all sweepers are ready.
+     */
+    public boolean isReady() {
+        return isMetadataServiceConnected() && areAllSweepersReady();
+    }
+
     @Override
     protected void startUp() throws InterruptedException {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
-            log.info("Registering host {} with controller cluster", host);
+            log.info("Starting Controller cluster listener, registering host {} with controller cluster", host);
             cluster.registerHost(host);
 
             // It is important to first register the listener and then perform sweeps so that no notifications of HostRemoved

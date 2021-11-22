@@ -27,11 +27,14 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -85,6 +88,12 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         }
     }
 
+
+    @Override
+    public boolean isClosed() {
+        return this.closed.get();
+    }
+
     //endregion
 
     //region SegmentContainerRegistry Implementation
@@ -103,6 +112,15 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         }
 
         return result.container;
+    }
+
+    @Override
+    public Collection<SegmentContainer> getContainers() {
+        List<SegmentContainer> segmentContainers = new ArrayList<SegmentContainer>();
+        for (ContainerWithHandle containerHandle: containers.values()) {
+            segmentContainers.add(containerHandle.container);
+        }
+        return segmentContainers;
     }
 
     @Override
@@ -238,6 +256,5 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
             return String.format("SegmentContainerId = %d", this.containerId);
         }
     }
-
     //endregion
 }

@@ -832,9 +832,11 @@ Create a new stream
 |Name|Description|Schema|
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamName**  <br>*optional*|**Example** : `"string"`|string|
 |**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -895,7 +897,9 @@ Create a new stream
       "minutes" : 0
     }
   },
-  "streamTags" : { }
+  "streamTags" : { },
+  "timestampAggregationTimeout" : { },
+  "rolloverSizeBytes" : { }
 }
 ```
 
@@ -1107,8 +1111,10 @@ Update configuration of an existing stream
 |Name|Description|Schema|
 |---|---|---|
 |**retentionPolicy**  <br>*optional*|**Example** : `"[retentionconfig](#retentionconfig)"`|[RetentionConfig](#retentionconfig)|
+|**rolloverSizeBytes**  <br>*optional*|**Example** : `"[rolloversizebytes](#rolloversizebytes)"`|[RolloverSizeBytes](#rolloversizebytes)|
 |**scalingPolicy**  <br>*optional*|**Example** : `"[scalingconfig](#scalingconfig)"`|[ScalingConfig](#scalingconfig)|
 |**streamTags**  <br>*optional*|**Example** : `"[tagslist](#tagslist)"`|[TagsList](#tagslist)|
+|**timestampAggregationTimeout**  <br>*optional*|**Example** : `"[timestampaggregationtimeout](#timestampaggregationtimeout)"`|[TimestampAggregationTimeout](#timestampaggregationtimeout)|
 
 
 #### Responses
@@ -1167,7 +1173,9 @@ Update configuration of an existing stream
       "minutes" : 0
     }
   },
-  "streamTags" : { }
+  "streamTags" : { },
+  "timestampAggregationTimeout" : { },
+  "rolloverSizeBytes" : { }
 }
 ```
 
@@ -1439,6 +1447,11 @@ Updates the current state of the stream
 |**value**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
+<a name="rolloversizebytes"></a>
+### RolloverSizeBytes
+*Type* : long
+
+
 <a name="scalemetadata"></a>
 ### ScaleMetadata
 
@@ -1537,6 +1550,11 @@ Updates the current state of the stream
 |**days**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**hours**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**minutes**  <br>*optional*|**Example** : `0`|integer (int64)|
+
+
+<a name="timestampaggregationtimeout"></a>
+### TimestampAggregationTimeout
+*Type* : long
 
 
 

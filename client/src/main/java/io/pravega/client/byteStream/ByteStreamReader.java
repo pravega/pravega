@@ -60,6 +60,12 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract int available();
 
     /**
+     * This makes a synchronous RPC call to the server to obtain the current head of the stream.
+     * @return The current head offset
+     */
+    public abstract long fetchHeadOffset();
+
+    /**
      * This make an RPC to the server to fetch the offset at which new bytes would be written. This
      * is the same as the length of the segment (assuming no truncation). This offset can also be
      * passed to {@link #seekToOffset(long)} to only read bytes from this point forward.

@@ -178,6 +178,8 @@ public class ControllerRestApiTest {
         createStreamRequest.setScalingPolicy(scalingConfig);
         createStreamRequest.setRetentionPolicy(retentionConfig);
         createStreamRequest.setStreamTags(tagsList);
+        createStreamRequest.setTimestampAggregationTimeout(1000L);
+        createStreamRequest.setRolloverSizeBytes(1024L);
 
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
         response = builder.post(Entity.json(createStreamRequest));
@@ -186,6 +188,9 @@ public class ControllerRestApiTest {
         final StreamProperty streamPropertyResponse = response.readEntity(StreamProperty.class);
         assertEquals("Scope name in response", scope1, streamPropertyResponse.getScopeName());
         assertEquals("Stream name in response", stream1, streamPropertyResponse.getStreamName());
+        assertEquals("TimestampAggregationTimeout in response", 1000L, (long) streamPropertyResponse.getTimestampAggregationTimeout());
+        assertEquals("RolloverSizeBytes in response", 1024L, (long) streamPropertyResponse.getRolloverSizeBytes());
+
         log.info("Create stream: {} successful", stream1);
 
         // Test listScopes  GET http://controllerURI:Port/v1/scopes/{scopeName}/streams
@@ -247,6 +252,8 @@ public class ControllerRestApiTest {
         scalingConfig1.minSegments(4); // update existing minSegments from 2 to 4
         updateStreamRequest.setScalingPolicy(scalingConfig1);
         updateStreamRequest.setRetentionPolicy(retentionConfig);
+        updateStreamRequest.setTimestampAggregationTimeout(2000L);
+        updateStreamRequest.setRolloverSizeBytes(2048L);
 
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
                 .put(Entity.json(updateStreamRequest));
@@ -271,7 +278,10 @@ public class ControllerRestApiTest {
                                                       .toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
-        assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
+        StreamProperty responseProperty = response.readEntity(StreamProperty.class);
+        assertEquals("Get stream stream1 response", stream1, responseProperty.getStreamName());
+        assertEquals("Get stream stream1 response TimestampAggregationTimeout", (long) responseProperty.getTimestampAggregationTimeout(), 2000L);
+        assertEquals("Get stream stream1 RolloverSizeBytes", (long) responseProperty.getRolloverSizeBytes(), 2048L);
         log.info("Get stream successful");
 
         // Test updateStreamState
