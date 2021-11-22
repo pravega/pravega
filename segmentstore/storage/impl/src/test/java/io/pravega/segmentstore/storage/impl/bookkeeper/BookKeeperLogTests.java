@@ -843,7 +843,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         byte[] writeOne = getWriteData();
         byte[] writeTwo = getWriteData();
 
-
         AtomicReference<LogAddress> truncate = new AtomicReference<>(null);
         // Add a single write.
         log.append(new CompositeByteArraySegment(writeOne), TIMEOUT).thenAccept(address -> {
