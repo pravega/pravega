@@ -458,8 +458,6 @@ project('segmentstore:storage:impl') {
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile group: 'io.dropwizard.metrics', name: 'metrics-core', version: dropWizardVersion
-        testCompile group: 'org.xerial.snappy', name: 'snappy-java', version: snappyJavaVersion
     }
     javadoc {
         dependsOn delombok
