@@ -341,7 +341,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, 
                         Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createScope(scopeName)
-                        .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
+                        .thenAccept(x -> log.info("Created internal scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
@@ -350,7 +350,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
-                                        log.info("Created stream {}/{}", scope, streamName)),
+                                        log.info("Created internal stream {}/{}", scope, streamName)),
                         executor));
     }
 
@@ -413,10 +413,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                               log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
                                       streamName);
                           } else if (r) {
-                              log.debug("truncation for stream {} at streamcut {} submitted.", 
+                              log.debug("Truncation for stream {} at streamcut {} submitted.",
                                       streamName, streamcut);
                           } else {
-                              log.debug("truncation for stream {} at streamcut {} rejected.",
+                              log.debug("Truncation for stream {} at streamcut {} rejected.",
                                       streamName, streamcut);
                           }
                           return null;
@@ -486,9 +486,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private void initialize() {
-
         // region Create commit event processor
-
         EventProcessorGroupConfig commitReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getCommitStreamName())

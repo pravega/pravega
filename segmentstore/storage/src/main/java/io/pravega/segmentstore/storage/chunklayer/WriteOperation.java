@@ -23,12 +23,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
-import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -135,7 +135,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                                 .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
                                                 chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
-                }, chunkedSegmentStorage.getExecutor());
+                }, chunkedSegmentStorage.getExecutor())
+                .exceptionally(ex -> (Void) handleException(ex));
     }
 
     private Object handleException(Throwable e) {
@@ -144,6 +145,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         val ex = Exceptions.unwrap(e);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
+        }
+        if (ex instanceof ChunkStorageFullException) {
+            throw new CompletionException(new StorageFullException(handle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
     }
@@ -274,8 +278,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> addNewChunk(MetadataTransaction txn) {
         // Create new chunk
-        String newChunkName = getNewChunkName(handle.getSegmentName(),
-                segmentMetadata.getLength());
+        String newChunkName = chunkedSegmentStorage.getNewChunkName(handle.getSegmentName(), segmentMetadata.getLength());
 
         return chunkedSegmentStorage.getGarbageCollector().trackNewChunk(txn.getVersion(), newChunkName)
                 .thenComposeAsync( v -> {
@@ -338,10 +341,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment = %s", handle.getSegmentName());
         Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment = %s", handle.getSegmentName());
         Preconditions.checkArgument(length >= 0, "length must be non negative. Segment = %s", handle.getSegmentName());
-    }
-
-    private String getNewChunkName(String segmentName, long offset) {
-        return NameUtils.getSegmentChunkName(segmentName, chunkedSegmentStorage.getEpoch(), offset);
     }
 
     /**

@@ -767,7 +767,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.writeAbortEvent(SCOPE, STREAM, 0, txnId, TxnStatus.ABORTING, 0L).join();
         Pair<String, AbortEvent> request = abortWriter.requestsReceived.take();
         assertEquals(request.getKey(), request.getValue().getKey());
-        txnTasks.writeAbortEvent(new AbortEvent(SCOPE, STREAM, 0, txnId)).join();
+        txnTasks.writeAbortEvent(new AbortEvent(SCOPE, STREAM, 0, txnId, 10L)).join();
         Pair<String, AbortEvent> request2 = abortWriter.requestsReceived.take();
         assertEquals(request2.getKey(), request2.getValue().getKey());
         // verify that both use the same key

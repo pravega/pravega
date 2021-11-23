@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
@@ -85,6 +86,19 @@ public abstract class Operation implements SequencedElement {
         Preconditions.checkState(this.sequenceNumber < 0, "Sequence Number has been previously set for this entry. Cannot set a new one.");
         Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
 
+        this.sequenceNumber = value;
+    }
+
+    /**
+     * Allows to overwrite the Sequence Number of this operation. This may be a dangerous action and should be used
+     * carefully only for admin purposes when repairing a log of Operations is needed.
+     *
+     * @param value The Sequence Number to set.
+     * @throws IllegalArgumentException If the Sequence Number is negative.
+     */
+    @VisibleForTesting
+    public void resetSequenceNumber(long value) {
+        Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
         this.sequenceNumber = value;
     }
 
