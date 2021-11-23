@@ -17,13 +17,11 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -55,9 +53,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Controller fail over system test.
@@ -192,7 +190,6 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     public void sweepOverTest() throws InterruptedException, ExecutionException {
         String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
-        String readerGroupName = "testSweepOverRG" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 1;
         List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
@@ -214,19 +211,11 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
-        // Initiate scale operation. It will block until ongoing transaction is complete.
-        controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
+        Future<Boolean> status = controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
 
-        // Initiate and Create RG instances
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
-        readerGroupManager.createReaderGroup(readerGroupName,
-                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(scope, stream)).build());
-
-        int startInclusive = 1;
-        int endExclusive = 500;
-        log.info("Write events with range [{},{})", startInclusive, endExclusive);
-        writeEvents(scope, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()), stream);
+        if (status.isDone()) {
+            log.info("Controller finished the task before termination hence test is not effective");
+        }
 
         // Now stop the controller instance executing scale operation.
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
@@ -258,10 +247,6 @@ public class ControllerFailoverTest extends AbstractSystemTest {
             scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
             Thread.sleep(30000);
         }
-
-        startInclusive = 501;
-        endExclusive = 600;
-        writeEvents(scope, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()), stream);
 
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
