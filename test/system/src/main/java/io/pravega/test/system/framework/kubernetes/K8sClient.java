@@ -697,17 +697,10 @@ public class K8sClient {
                         log.info("Attempted {} retries waiting for pods.", retries - retriesRemaining.get());
                         // Return a simplified list of the active pods (appended with their container id) to make
                         // parsing the logs easier.
-                        List<String> names = pods.getItems().stream().map(pod -> {
-                            String name = pod.getMetadata().getName();
-                            String container = pod.getStatus().getContainerStatuses()
-                                    .stream()
-                                    .findFirst()
-                                    .orElse(new V1ContainerStatus().containerID(""))
-                                    .getContainerID();
-
-                            return String.format("\n%s-%s", name, container);
-                        }).collect(Collectors.toList());
-
+                        List<String> names = pods.getItems()
+                                .stream()
+                                .map(pod -> pod.getMetadata().getName())
+                                .collect(Collectors.toList());
                         log.info("Set of running pods after scale event: {}", names);
                         // Break out of loop.
                         retriesRemaining.set(0);
