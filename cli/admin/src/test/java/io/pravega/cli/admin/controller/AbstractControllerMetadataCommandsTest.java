@@ -104,7 +104,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
 
         String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
-                getScopedStreamName(scope, stream) + " localhost", STATE.get());
+                getScopedStreamName(scope, stream) + " false localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("For the given key: %s", getScopedStreamName(scope, stream))));
     }
 
@@ -117,7 +117,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
 
         String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
-                getScopedStreamName(scope, dummyStream) + " localhost", STATE.get());
+                getScopedStreamName(scope, dummyStream) + " false localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("Key not found: %s", getScopedStreamName(scope, dummyStream))));
     }
 
@@ -125,7 +125,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
     public void testGetControllerMetadataEntryCommandTableDoesNotExist() throws Exception {
         String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
                 "randScope", "randStream", String.format(METADATA_TABLE, UUID.randomUUID()));
-        String commandResult = TestUtils.executeCommand("controller-metadata get " + dummyTable + " creationTime localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller-metadata get " + dummyTable + " creationTime false localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
     }
 

@@ -16,56 +16,54 @@
 package io.pravega.cli.admin.controller.metadata;
 
 import com.google.gson.Gson;
+import com.google.gson.stream.JsonReader;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
+import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import lombok.Cleanup;
-import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 
-public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand {
+import java.io.FileReader;
+import java.nio.ByteBuffer;
+
+public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataCommand {
 
     /**
      * Creates a new instance of the Command class.
      *
      * @param args The arguments for the command.
      */
-    public ControllerMetadataGetEntryCommand(CommandArgs args) {
+    public ControllerMetadataUpdateEntryCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
-    public void execute() {
+    public void execute() throws Exception {
         ensureArgCount(4);
 
         final String tableName = getArg(0);
         final String key = getArg(1);
-        final String toJson = getArg(2);
-        final String segmentStoreHost = getArg(3);
+        final String newValueFile = getArg(3);
+        final String segmentStoreHost = getArg(4);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
-        val value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
-        if (value == null) {
-            return;
-        }
-        output("For the given key: %s", key);
-        if (Boolean.parseBoolean(toJson)) {
-            prettyJSONOutput(new Gson().toJson(value));
-        } else {
-            userFriendlyOutput(value.toString(), serializer.getMetadataType());
-        }
+
+        JsonReader reader = new JsonReader(new FileReader(newValueFile));
+        ByteBuffer updatedValue = serializer.serialize(new Gson().fromJson(reader, serializer.getMetadataClass()));
+
+        long version = updateTableEntry(tableName, key, updatedValue, segmentStoreHost, serializer, adminSegmentHelper);
+        output("Successfully updated the key %s in table %s with version %s", key, tableName, version);
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get", "Get the controller metadata entry for the given key in the table.",
-                new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
+        return new CommandDescriptor(COMPONENT, "update", "Update the given key in the table with the provided value.",
+                new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to update. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
-                new ArgDescriptor("key", "The key to be queried."),
-                new ArgDescriptor("to-json", "A boolean that when provided as \"true\" will print the value in JSON. If provided as \"false\" " +
-                        "the value will be printed in a user-friendly manner."),
+                new ArgDescriptor("key", "The key to be updated."),
+                new ArgDescriptor("new-value-file", "The path to the file containing the new value in JSON format."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }
