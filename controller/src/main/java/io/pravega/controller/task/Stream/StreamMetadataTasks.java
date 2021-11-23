@@ -375,6 +375,7 @@ public class StreamMetadataTasks extends TaskBase {
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, context))
                                          .thenCompose(done -> buildCreateSuccessResponse(scope, rgName, context)))));
                      }
+                     log.info("Reader Group {} already exist", rgName);
                      return buildCreateSuccessResponse(scope, rgName, context);
                  });
          });
