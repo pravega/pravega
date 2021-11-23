@@ -91,6 +91,11 @@ public class Subscribers {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "subscribers", subscribers);
+    }
+
     private static class SubscriberSetSerializer
             extends VersionedSerializer.WithBuilder<Subscribers, Subscribers.SubscribersBuilder> {
         @Override

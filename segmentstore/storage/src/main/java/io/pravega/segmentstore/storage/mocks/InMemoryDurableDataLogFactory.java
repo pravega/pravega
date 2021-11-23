@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -66,6 +67,21 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
     @Override
     public void initialize() throws DurableDataLogException {
         // Nothing to do.
+    }
+
+    @Override
+    public DebugDurableDataLogWrapper createDebugLogWrapper(int logId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getRepairLogId() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int getBackupLogId() {
+        return Integer.MAX_VALUE - 1;
     }
 
     @Override

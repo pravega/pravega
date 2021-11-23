@@ -34,6 +34,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("deprecation")
 @Slf4j
 public class ZookeeperBucketStore implements BucketStore {
     private static final String ROOT_PATH = "/";

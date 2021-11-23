@@ -521,7 +521,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers}.
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers}.
      */
     @Test
     public void testReconcileLedgers() throws Exception {
@@ -606,7 +606,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
      * that may or may not belong to it.
      */
     @Test
@@ -656,7 +656,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
      */
     @Test
     public void testReconcileLedgersBadCandidates() throws Exception {
@@ -758,7 +758,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
         // Perform reconciliation.
         BookKeeperLog reconcileLog = (BookKeeperLog) createDurableDataLog();
-        DebugLogWrapper reconcileWrapper = this.factory.get().createDebugLogWrapper(reconcileLog.getLogId());
+        DebugBookKeeperLogWrapper reconcileWrapper = this.factory.get().createDebugLogWrapper(reconcileLog.getLogId());
         reconcileWrapper.disable();
         val allLedgers = new ArrayList<ReadHandle>();
         for (LedgerMetadata lm : reconcileWrapper.fetchMetadata().getLedgers()) {
@@ -814,6 +814,22 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgerCount, readCount);
+    }
+
+    @Test
+    public void testDebugLogWrapperFactoryMethods() throws DurableDataLogException {
+        Assert.assertEquals(this.factory.get().getBackupLogId(), Ledgers.BACKUP_LOG_ID);
+        Assert.assertEquals(this.factory.get().getRepairLogId(), Ledgers.REPAIR_LOG_ID);
+        @Cleanup
+        DebugBookKeeperLogWrapper wrapper = this.factory.get().createDebugLogWrapper(0);
+        AssertExtensions.assertThrows(DurableDataLogException.class, () -> wrapper.forceMetadataOverWrite(new LogMetadata(1)));
+        @Cleanup
+        val bkLog = this.factory.get().createDurableDataLog(0);
+        bkLog.initialize(TIMEOUT);
+        wrapper.forceMetadataOverWrite(new LogMetadata(1));
+        Assert.assertNotNull(wrapper.fetchMetadata());
+        wrapper.deleteDurableLogMetadata();
+        Assert.assertNull(wrapper.fetchMetadata());
     }
 
     @Override

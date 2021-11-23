@@ -43,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @NotThreadSafe
-class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
+public class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
     //region Members
 
     private final DataFrameOutputStream outputStream;
@@ -68,7 +68,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
      * @param args          Arguments for the Builder.
      * @throws NullPointerException If any of the arguments are null.
      */
-    DataFrameBuilder(DurableDataLog targetLog, Serializer<T> serializer, Args args) {
+    public DataFrameBuilder(DurableDataLog targetLog, Serializer<T> serializer, Args args) {
         this.targetLog = Preconditions.checkNotNull(targetLog, "targetLog");
         this.serializer = Preconditions.checkNotNull(serializer, "serializer");
         this.args = Preconditions.checkNotNull(args, "args");
@@ -101,7 +101,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
      * Forces a flush of the current DataFrame. This should be invoked if there are no more items to add to the current
      * DataFrame, but it is desired to have its outstanding contents flushed to the underlying DurableDataLog.
      */
-    void flush() {
+    public void flush() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.outputStream.flush();
     }
@@ -111,7 +111,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
      *
      * @return The causing exception, or null if none.
      */
-    Throwable failureCause() {
+    public Throwable failureCause() {
         return this.failureCause.get();
     }
 
@@ -131,7 +131,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
      *                              the LogItem failed to commit to the DataFrameLog.
      * @throws ObjectClosedException If the DataFrameBuilder is closed (or in in a failed state) and cannot be used anymore.
      */
-    void append(T logItem) throws IOException {
+    public void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         long seqNo = logItem.getSequenceNumber();
         Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem",
@@ -229,7 +229,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
     /**
      * Contains Information about the committal of a DataFrame.
      */
-    static class CommitArgs {
+    public static class CommitArgs {
         /**
          * The Sequence Number of the last LogItem that was fully serialized (and committed).
          * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
@@ -302,7 +302,7 @@ class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
     //region Args
 
     @RequiredArgsConstructor
-    static class Args {
+    public static class Args {
         /**
          * A Callback that will be invoked synchronously upon a DataFrame's sealing, and right before it is about to be
          * submitted to the DurableDataLog processor. The invocation of this method does not imply that the DataFrame

@@ -38,7 +38,8 @@ public class S3StorageConfig {
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
-
+    public static final Property<Boolean> ASSUME_ROLE = Property.named("connect.config.assumeRole.enable", false);
+    public static final Property<String> USER_ROLE = Property.named("connect.config.role", "");
     private static final String COMPONENT_CODE = "s3";
     private static final String PATH_SEPARATOR = "/";
 
@@ -94,6 +95,19 @@ public class S3StorageConfig {
      */
     @Getter
     private final boolean shouldOverrideUri;
+
+    /**
+     * Whether to use STS tokens by using assume role.
+     */
+    @Getter
+    private final boolean assumeRoleEnabled;
+
+    /**
+     *  The role to assume.
+     */
+    @Getter
+    private final String userRole;
+
     //endregion
 
     //region Constructor
@@ -113,6 +127,8 @@ public class S3StorageConfig {
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.useNoneMatch = properties.getBoolean(USENONEMATCH);
+        this.assumeRoleEnabled = properties.getBoolean(ASSUME_ROLE);
+        this.userRole = Preconditions.checkNotNull(properties.get(USER_ROLE), "userRole");
     }
 
     /**
