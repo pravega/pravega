@@ -51,8 +51,11 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
 
-        JsonReader reader = new JsonReader(new FileReader(newValueFile));
-        ByteBuffer updatedValue = serializer.serialize(new Gson().fromJson(reader, serializer.getMetadataClass()));
+        @Cleanup
+        FileReader reader = new FileReader(newValueFile);
+        JsonReader jsonReader = new JsonReader(reader);
+        jsonReader.setLenient(true);
+        ByteBuffer updatedValue = serializer.serialize(new Gson().fromJson(jsonReader, serializer.getMetadataClass()));
 
         long version = updateTableEntry(tableName, key, updatedValue, segmentStoreHost, serializer, adminSegmentHelper);
         output("Successfully updated the key %s in table %s with version %s", key, tableName, version);

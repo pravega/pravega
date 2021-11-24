@@ -15,13 +15,19 @@
  */
 package io.pravega.cli.admin.controller.metadata;
 
+import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
+
+import java.io.FileWriter;
+
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 
 public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand {
 
@@ -35,13 +41,12 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
     }
 
     @Override
-    public void execute() {
-        ensureArgCount(4);
+    public void execute() throws Exception {
+        Preconditions.checkArgument(getArgCount() >= 3 && getArgCount() < 5, "Incorrect argument count.");
 
         final String tableName = getArg(0);
         final String key = getArg(1);
-        final String toJson = getArg(2);
-        final String segmentStoreHost = getArg(3);
+        final String segmentStoreHost = getArg(getArgCount() - 1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -52,8 +57,14 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
             return;
         }
         output("For the given key: %s", key);
-        if (Boolean.parseBoolean(toJson)) {
-            prettyJSONOutput(new Gson().toJson(value));
+        if (getArgCount() == 4) {
+            final String jsonFile = getArg(2);
+            @Cleanup
+            FileWriter writer = new FileWriter(createFileAndDirectory(jsonFile));
+
+            Gson gson = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+            gson.toJson(value, writer);
+            output("Successfully wrote the value to %s in JSON.", jsonFile);
         } else {
             userFriendlyOutput(value.toString(), serializer.getMetadataType());
         }
@@ -64,8 +75,8 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be queried."),
-                new ArgDescriptor("to-json", "A boolean that when provided as \"true\" will print the value in JSON. If provided as \"false\" " +
-                        "the value will be printed in a user-friendly manner."),
+                new ArgDescriptor("json-file[OPTIONAL]", "An optional argument which, if provided, will write the value as " +
+                        "JSON into the given file path."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }
