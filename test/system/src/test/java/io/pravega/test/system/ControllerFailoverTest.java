@@ -17,12 +17,15 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -190,6 +193,8 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     public void sweepOverTest() throws InterruptedException, ExecutionException {
         String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
+        String readerGroupName = "testSweepOverRG" + RandomStringUtils.randomAlphanumeric(5);
+        int loopLimit = 10;
         int initialSegments = 1;
         List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
@@ -211,6 +216,17 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
+        // Initiate and Create RG instances
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        for (int i = 0; i < loopLimit; i++) {
+            readerGroupManager.createReaderGroup(readerGroupName + i,
+                    ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(scope, stream)).build());
+        }
+
+        for (int i = 0; i < loopLimit; i++) {
+            controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
+        }
         Future<Boolean> status = controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
 
         if (status.isDone()) {
@@ -248,10 +264,16 @@ public class ControllerFailoverTest extends AbstractSystemTest {
             Thread.sleep(30000);
         }
 
+        // Create another readergroup and should be successful
+        boolean rgStatus = readerGroupManager.createReaderGroup(readerGroupName,
+                ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
+
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
         log.info("Current segment count= {}", streamSegments.getSegments().size());
         Assert.assertEquals(2, streamSegments.getSegments().size());
+
+        Assert.assertTrue(rgStatus);
 
     }
 
