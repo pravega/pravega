@@ -29,8 +29,12 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 import java.net.URI;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -38,6 +42,10 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @RequiredArgsConstructor
 public class S3SimpleStorageFactory implements SimpleStorageFactory {
+    private static final String AWS_ACCESS_KEY_ID = "aws.accessKeyId";
+    private static final String AWS_SECRET_ACCESS_KEY = "aws.secretAccessKey";
+    private static final String AWS_REGION = "aws.region";
+
     @NonNull
     @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
@@ -68,9 +76,14 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 
-     static S3Client createS3Client(S3StorageConfig config) {
+    /**
+     * Creates instance of {@link S3Client} based on given {@link S3StorageConfig}.
+     * @param config Config to use.
+     * @return S3Client instance.
+     */
+    static S3Client createS3Client(S3StorageConfig config) {
         S3ClientBuilder builder = S3Client.builder()
-                .credentialsProvider(getCredentialsProvider(config))
+                .credentialsProvider(getCredentialsProvider(config, config.isAssumeRoleEnabled()))
                 .region(Region.of(config.getRegion()));
         if (config.isShouldOverrideUri()) {
             builder = builder.endpointOverride(URI.create(config.getS3Config()));
@@ -78,8 +91,39 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
         return builder.build();
     }
 
-    private static AwsCredentialsProvider getCredentialsProvider(S3StorageConfig config) {
+    private static AwsCredentialsProvider getCredentialsProvider(S3StorageConfig config, boolean useSession) {
+        setSystemProperties(config);
+        if (useSession) {
+            return getRoleCredentialsProvider(config.getUserRole(), UUID.randomUUID().toString());
+        } else {
+            return getStaticCredentialsProvider(config);
+        }
+    }
+
+    private static StaticCredentialsProvider getStaticCredentialsProvider(S3StorageConfig config) {
         AwsBasicCredentials credentials = AwsBasicCredentials.create(config.getAccessKey(), config.getSecretKey());
         return StaticCredentialsProvider.create(credentials);
+    }
+
+    private static AwsCredentialsProvider getRoleCredentialsProvider(String roleArn, String roleSessionName) {
+        AssumeRoleRequest assumeRoleRequest = AssumeRoleRequest.builder()
+                .roleArn(roleArn)
+                .roleSessionName(roleSessionName)
+                .build();
+
+        StsClient stsClient = StsClient.builder().build();
+
+        return StsAssumeRoleCredentialsProvider
+                .builder()
+                .stsClient(stsClient).refreshRequest(assumeRoleRequest)
+                .asyncCredentialUpdateEnabled(true)
+                .build();
+
+    }
+
+    private static void setSystemProperties(S3StorageConfig config) {
+        System.setProperty(AWS_ACCESS_KEY_ID, config.getAccessKey());
+        System.setProperty(AWS_SECRET_ACCESS_KEY, config.getSecretKey());
+        System.setProperty(AWS_REGION, config.getRegion());
     }
 }

@@ -28,6 +28,7 @@ import lombok.SneakyThrows;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.stream.Collectors;
 
 /**
  * This class stores chunks of the history time series.
@@ -48,6 +49,13 @@ public class HistoryTimeSeries {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = [%n    %s%n]", "historyRecords", historyRecords.stream()
+                .map(historyTimeSeriesRecord -> historyTimeSeriesRecord.toString().replace("\n", "\n    "))
+                .collect(Collectors.joining("\n,\n    ")));
     }
 
     @SneakyThrows(IOException.class)

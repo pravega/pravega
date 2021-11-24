@@ -45,7 +45,9 @@ public class S3StorageConfigTest {
                 .with(Property.named("connect.config.region"), "my-region")
                 .with(Property.named("connect.config.access.key"), "key")
                 .with(Property.named("connect.config.secret.key"), "secret")
-                .with(Property.named("connect.config.uri.override"), true);
+                .with(Property.named("connect.config.role"), "role")
+                .with(Property.named("connect.config.uri.override"), true)
+                .with(Property.named("connect.config.assumeRole.enable"), true);
         S3StorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
@@ -55,5 +57,7 @@ public class S3StorageConfigTest {
         assertEquals( "my-region", config.getRegion());
         assertEquals( "key", config.getAccessKey());
         assertEquals( "secret", config.getSecretKey());
+        assertEquals( "role", config.getUserRole());
+        assertEquals( true, config.isAssumeRoleEnabled());
     }
 }

@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -51,6 +52,21 @@ public class TestDurableDataLogFactory implements DurableDataLogFactory {
     @Override
     public void initialize() throws DurableDataLogException {
         this.wrappedFactory.initialize();
+    }
+
+    @Override
+    public DebugDurableDataLogWrapper createDebugLogWrapper(int logId) {
+        return this.wrappedFactory.createDebugLogWrapper(logId);
+    }
+
+    @Override
+    public int getRepairLogId() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int getBackupLogId() {
+        return Integer.MAX_VALUE - 1;
     }
 
     @Override

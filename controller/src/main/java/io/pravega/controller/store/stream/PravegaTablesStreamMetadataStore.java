@@ -41,6 +41,9 @@ import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
@@ -61,12 +64,7 @@ import java.util.stream.Collectors;
  * Pravega Tables stream metadata store.
  */
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
-    public static final String SEPARATOR = ".#.";
     public static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
-    static final String DELETED_STREAMS_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedStreams");
-    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, 
-            "completedTransactionsBatches");
-    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%d";
 
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStreamMetadataStore.class));

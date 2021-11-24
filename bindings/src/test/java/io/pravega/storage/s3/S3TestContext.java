@@ -15,6 +15,7 @@
  */
 package io.pravega.storage.s3;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.test.common.TestUtils;
 import software.amazon.awssdk.services.s3.S3Client;
 
@@ -24,13 +25,14 @@ import java.util.UUID;
  * Test context S3 tests.
  */
 public class S3TestContext {
-    public static final String BUCKET_NAME_PREFIX = "pravega-unit-test-";
+    public static final String BUCKET_NAME_PREFIX = "pravega-unit-test/";
     public final S3StorageConfig adapterConfig;
 
     public final int port;
     public final String configUri;
     public final S3Client s3Client;
     public final S3Mock s3Mock;
+    public final ChunkedSegmentStorageConfig defaultConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
 
     public S3TestContext() {
         try {

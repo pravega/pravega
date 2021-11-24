@@ -51,6 +51,9 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MAX_SAFE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "18");
         props.setProperty(ChunkedSegmentStorageConfig.ENABLE_SAFE_SIZE_CHECK.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.SAFE_SIZE_CHECK_FREQUENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "19");
+        props.setProperty(ChunkedSegmentStorageConfig.RELOCATE_ON_TRUNCATE_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "20");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "21");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -77,6 +80,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxSafeStorageSize(), 18);
         Assert.assertFalse(config.isSafeStorageSizeCheckEnabled());
         Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), 19);
+        Assert.assertFalse(config.isRelocateOnTruncateEnabled());
+        Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), 20);
+        Assert.assertEquals(config.getMinPercentForTruncateRelocation(), 21);
     }
 
     @Test
@@ -112,6 +118,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxSafeStorageSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSafeStorageSize());
         Assert.assertEquals(config.isSafeStorageSizeCheckEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSafeStorageSizeCheckEnabled());
         Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getSafeStorageSizeCheckFrequencyInSeconds());
+        Assert.assertEquals(config.isRelocateOnTruncateEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isRelocateOnTruncateEnabled());
+        Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeForTruncateRelocationInbytes());
+        Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
     }
 
     @Test
