@@ -223,7 +223,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
                     Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
                     log.info("Successfully stopped one instance of controller service");
                 } catch (ExecutionException e) {
-                    log.info("Error while scaling down controller instance to 0 "+e.getMessage());
+                    log.info("Error while scaling down controller instance to 0 " + e.getMessage());
                 }
 
                 // restart controller service
@@ -231,7 +231,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
                     Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
                     log.info("Successfully started one instance of controller service");
                 } catch (ExecutionException e) {
-                    log.info("Error while scaling up controller instance to 1 "+e.getMessage());
+                    log.info("Error while scaling up controller instance to 1 " + e.getMessage());
                 }
             } else {
                 log.info("Scale operation finished before controller restart");
