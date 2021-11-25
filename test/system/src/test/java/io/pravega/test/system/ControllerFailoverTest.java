@@ -17,15 +17,12 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -56,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -190,10 +186,9 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     }
 
     @Test
-    public void sweepOverTest() throws InterruptedException, ExecutionException {
+    public void sweepOverTest() throws InterruptedException {
         String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
-        String readerGroupName = "testSweepOverRG" + RandomStringUtils.randomAlphanumeric(5);
         int loopLimit = 10;
         int initialSegments = 1;
         List<Long> segmentsToSeal = Collections.singletonList(0L);
@@ -202,7 +197,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with controller instance
-        final Controller controller = new ControllerImpl(
+        final ControllerImpl controller = new ControllerImpl(
                 ControllerImplConfig.builder()
                         .clientConfig(clientConfig)
                         .build(), executorService);
@@ -216,30 +211,33 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
-        // Initiate and Create RG instances
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         for (int i = 0; i < loopLimit; i++) {
-            readerGroupManager.createReaderGroup(readerGroupName + i,
-                    ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(scope, stream)).build());
+            controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L);
         }
+        controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L);
 
-        for (int i = 0; i < loopLimit; i++) {
-            controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
-        }
-        Future<Boolean> status = controller.startScale(stream1, segmentsToSeal, newRangesToCreate);
+        controller.checkScaleStatus(stream1, 11).thenCompose(status -> {
+            if (!status) {
+                // Now stop the controller instance executing scale operation.
+                try {
+                    Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
+                    log.info("Successfully stopped one instance of controller service");
+                } catch (ExecutionException e) {
+                    log.info("Error while scaling down controller instance to 0 "+e.getMessage());
+                }
 
-        if (status.isDone()) {
-            log.info("Controller finished the task before termination hence test is not effective");
-        }
-
-        // Now stop the controller instance executing scale operation.
-        Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
-        log.info("Successfully stopped one instance of controller service");
-
-        // restart controller service
-        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
-        log.info("Successfully stopped one instance of controller service");
+                // restart controller service
+                try {
+                    Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+                    log.info("Successfully started one instance of controller service");
+                } catch (ExecutionException e) {
+                    log.info("Error while scaling up controller instance to 1 "+e.getMessage());
+                }
+            } else {
+                log.info("Scale operation finished before controller restart");
+            }
+            return null;
+        });
 
         List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
@@ -258,23 +256,16 @@ public class ControllerFailoverTest extends AbstractSystemTest {
                         .build(), executorService);
 
         // Note: if scale does not complete within desired time, test will timeout.
-        boolean scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
+        boolean scaleStatus = controller2.checkScaleStatus(stream1, 11).join();
         while (!scaleStatus) {
-            scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
+            scaleStatus = controller2.checkScaleStatus(stream1, 11).join();
             Thread.sleep(30000);
         }
-
-        // Create another readergroup and should be successful
-        boolean rgStatus = readerGroupManager.createReaderGroup(readerGroupName,
-                ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
 
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
         log.info("Current segment count= {}", streamSegments.getSegments().size());
         Assert.assertEquals(2, streamSegments.getSegments().size());
-
-        Assert.assertTrue(rgStatus);
-
     }
 
     private void createStream(Controller controller, String scope, String stream, ScalingPolicy scalingPolicy) {
