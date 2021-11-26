@@ -61,7 +61,6 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                            final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(streamMetaStore);
-        Preconditions.checkNotNull(kvtMetadataStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetaStore;
         this.streamMetadataTasks = streamMetadataTasks;

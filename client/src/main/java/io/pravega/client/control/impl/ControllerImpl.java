@@ -555,7 +555,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE_RECURSIVE, scopeName, requestId);
 
         final CompletableFuture<DeleteScopeRecursiveStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<DeleteScopeRecursiveStatus> callback = new RPCAsyncCallback<>(requestId, "deleteScope", scopeName);
+            RPCAsyncCallback<DeleteScopeRecursiveStatus> callback = new RPCAsyncCallback<>(requestId, DELETE_SCOPE_RECURSIVE, scopeName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, DELETE_SCOPE_RECURSIVE, scopeName)
                     .deleteScopeRecursive(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
