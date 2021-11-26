@@ -15,16 +15,16 @@
  */
 package io.pravega.cli.admin.controller.metadata;
 
-import com.google.gson.Gson;
-import com.google.gson.stream.JsonReader;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.io.FileReader;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataCommand {
 
@@ -43,19 +43,17 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
 
         final String tableName = getArg(0);
         final String key = getArg(1);
-        final String newValueFile = getArg(3);
-        final String segmentStoreHost = getArg(4);
+        final String newValueFile = getArg(2);
+        final String segmentStoreHost = getArg(3);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
+        ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
 
-        @Cleanup
-        FileReader reader = new FileReader(newValueFile);
-        JsonReader jsonReader = new JsonReader(reader);
-        jsonReader.setLenient(true);
-        ByteBuffer updatedValue = serializer.serialize(new Gson().fromJson(jsonReader, serializer.getMetadataClass()));
+        String jsonValue = new String(Files.readAllBytes(Paths.get(newValueFile)));
+        ByteBuffer updatedValue = serializer.serialize(jsonSerializer.fromJson(jsonValue, serializer.getMetadataClass()));
 
         long version = updateTableEntry(tableName, key, updatedValue, segmentStoreHost, serializer, adminSegmentHelper);
         output("Successfully updated the key %s in table %s with version %s", key, tableName, version);

@@ -16,9 +16,8 @@
 package io.pravega.cli.admin.controller.metadata;
 
 import com.google.common.base.Preconditions;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import lombok.Cleanup;
@@ -59,11 +58,13 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         output("For the given key: %s", key);
         if (getArgCount() == 4) {
             final String jsonFile = getArg(2);
+
+            ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
             @Cleanup
             FileWriter writer = new FileWriter(createFileAndDirectory(jsonFile));
+            writer.write(jsonSerializer.toJson(value));
+            writer.flush();
 
-            Gson gson = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
-            gson.toJson(value, writer);
             output("Successfully wrote the value to %s in JSON.", jsonFile);
         } else {
             userFriendlyOutput(value.toString(), serializer.getMetadataType());
