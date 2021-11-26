@@ -215,6 +215,16 @@ public class ControllerMetadataJsonSerializerTest {
         testRecordSerialization(record, CompletedTxnRecord.class);
     }
 
+    @Test
+    public void testPrimitives() {
+        int record1 = 1;
+        testRecordSerialization(record1, Integer.class);
+        long record2 = 2L;
+        testRecordSerialization(record2, Long.class);
+        String record3 = "testString";
+        testRecordSerialization(record3, String.class);
+    }
+
     private static <T> void testRecordSerialization(T record, Class<T> type) {
         ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
         String jsonString = jsonSerializer.toJson(record);

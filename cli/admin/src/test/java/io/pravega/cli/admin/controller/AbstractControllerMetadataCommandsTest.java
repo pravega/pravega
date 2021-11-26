@@ -29,6 +29,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -106,6 +110,31 @@ public abstract class AbstractControllerMetadataCommandsTest {
         String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
                 getScopedStreamName(scope, stream) + " localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("For the given key: %s", getScopedStreamName(scope, stream))));
+    }
+
+    @Test
+    public void testGetControllerMetadataEntryJSONCommand() throws Exception {
+        Path tempDirPath = Files.createTempDirectory("getEntryDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "deleted.json").toString();
+
+        String scope = "controllerMetadataJSON";
+        String stream = "getJSONEntry";
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
+        TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
+
+        String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
+                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("For the given key: %s", getScopedStreamName(scope, stream))));
+        Assert.assertTrue(commandResult.contains(String.format("Successfully wrote the value to %s in JSON.", filename)));
+        File file = new File(filename);
+        Assert.assertTrue(file.exists());
+        Assert.assertNotEquals(0, file.length());
+
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
     }
 
     @Test

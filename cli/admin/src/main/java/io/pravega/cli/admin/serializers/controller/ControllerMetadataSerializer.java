@@ -168,7 +168,8 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                     .put(STRING, String.class)
                     .put(INTEGER, Integer.class)
                     .put(LONG, Long.class)
-                    .put(EMPTY, Void.class)
+                    // The value returned in the EMPTY case is integer 0.
+                    .put(EMPTY, Integer.class)
                     .put(STREAM_CONFIGURATION_RECORD, StreamConfigurationRecord.class)
                     .put(STREAM_TRUNCATION_RECORD, StreamTruncationRecord.class)
                     .put(STATE_RECORD, StateRecord.class)
