@@ -104,7 +104,10 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> deleteScope(final String scopeName);
 
     /**
-     * API to delete a scope. This method once invoked will not allow any operation on Stream/Rg/KVT.
+     * API to delete a scope recursively. This method once invoked will not allow any
+     * operation(create/update/seal/delete) on Stream/Rg/KVT within the scope as the scope will be listed in a
+     * deleting_scope_table and every operation on Stream/RG/KVT will validate that the scope should not be listed
+     * in the deleting_scopes_table
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to

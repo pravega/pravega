@@ -59,7 +59,9 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                            final StreamMetadataStore streamMetaStore,
                            final KVTableMetadataStore kvtMetadataStore,
                            final ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(streamMetaStore);
+        Preconditions.checkNotNull(kvtMetadataStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetaStore;
         this.streamMetadataTasks = streamMetadataTasks;
@@ -72,7 +74,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         String scope = request.getScope();
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
-        log.debug(requestId, "Deleting {} scope", scope);
+        log.debug(requestId, "Deleting {} scope recursively", scope);
         return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
             if (exists) {
                 RetryHelper.withRetriesAsync(() -> deleteScopeContent(scope, context, requestId)

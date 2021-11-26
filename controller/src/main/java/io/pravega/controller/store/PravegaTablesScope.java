@@ -216,32 +216,16 @@ public class PravegaTablesScope implements Scope {
 
     @Override
     public CompletableFuture<Void> deleteScope(OperationContext context) {
-        Preconditions.checkNotNull(context, "Operation context cannot be null");
-        CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
-        CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);
-        CompletableFuture<String> kvtsInScopeTableNameFuture = getKVTablesInScopeTableName(context);
-        CompletableFuture<List<String>> streamTagsInScopeTableNameFuture = getAllStreamTagsInScopeTableNames(context);
-        return CompletableFuture.allOf(streamsInScopeTableNameFuture, rgsInScopeTableNameFuture, kvtsInScopeTableNameFuture, streamTagsInScopeTableNameFuture)
-                                .thenCompose(x -> {
-                                    String streamsInScopeTableName = streamsInScopeTableNameFuture.join();
-                                    String kvtsInScopeTableName = kvtsInScopeTableNameFuture.join();
-                                    String rgsInScopeTableName = rgsInScopeTableNameFuture.join();
-                                    List<String> streamTagsInScopeTableNames = streamTagsInScopeTableNameFuture.join();
-                                    val deleteTagTablesFut = streamTagsInScopeTableNames.stream()
-                                                                                        .map(tableName -> storeHelper.deleteTable(tableName, false, context.getRequestId()))
-                                                                                        .collect(Collectors.toList());
-                                    return CompletableFuture.allOf(storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
-                                                                   storeHelper.deleteTable(kvtsInScopeTableName, true, context.getRequestId()),
-                                                                   storeHelper.deleteTable(rgsInScopeTableName, true, context.getRequestId()),
-                                                                   Futures.allOf(deleteTagTablesFut))
-                                                            .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
-                                                                                       kvtsInScopeTableName, rgsInScopeTableName));
-                                })
-                                .thenCompose(deleted -> storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId()));
+        return deleteMetadataTables(context);
     }
 
     @Override
     public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
+        return deleteMetadataTables(context)
+                .thenCompose(x -> storeHelper.removeEntry(DELETING_SCOPES_TABLE, scopeName, context.getRequestId()));
+    }
+
+    private CompletableFuture<Void> deleteMetadataTables(OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);
@@ -257,14 +241,14 @@ public class PravegaTablesScope implements Scope {
                             .map(tableName -> storeHelper.deleteTable(tableName, false, context.getRequestId()))
                             .collect(Collectors.toList());
                     return CompletableFuture.allOf(
-                            storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
+                                    storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
                                     storeHelper.deleteTable(kvtsInScopeTableName, true, context.getRequestId()),
                                     storeHelper.deleteTable(rgsInScopeTableName, true, context.getRequestId()),
                                     Futures.allOf(deleteTagTablesFut))
-                            .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
+                            .thenAccept(v -> log.debug(context.getRequestId(), "tables deleted {} {} {}", streamsInScopeTableName,
                                     kvtsInScopeTableName, rgsInScopeTableName));
-                }).thenCompose(deleted -> storeHelper.removeEntry(DELETING_SCOPES_TABLE, scopeName, context.getRequestId()))
-                .thenCompose(x -> storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId()));
+                })
+                .thenCompose(deleted -> storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId()));
     }
 
     @Override
