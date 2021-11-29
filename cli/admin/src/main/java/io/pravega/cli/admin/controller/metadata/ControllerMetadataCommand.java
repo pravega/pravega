@@ -20,7 +20,6 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.controller.ControllerCommand;
 import io.pravega.cli.admin.serializers.controller.ControllerKeySerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -65,12 +64,10 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param tableName          The name of the table.
      * @param key                The key.
      * @param segmentStoreHost   The address of the segment store instance.
-     * @param serializer         The valid {@link ControllerMetadataSerializer}.
      * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
-     * @return The object in the queried table segment entry.
+     * @return The queried table segment entry.
      */
-    Object getTableEntry(String tableName, String key, String segmentStoreHost,
-                         ControllerMetadataSerializer serializer, AdminSegmentHelper adminSegmentHelper) {
+    TableSegmentEntry getTableEntry(String tableName, String key, String segmentStoreHost, AdminSegmentHelper adminSegmentHelper) {
         ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
 
         List<TableSegmentEntry> entryList = completeSafely(adminSegmentHelper.readTable(tableName,
@@ -85,19 +82,33 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
             output(String.format("Key not found: %s", key));
             return null;
         }
-        return serializer.deserialize(getByteBuffer(entryList.get(0).getValue()));
+        return entryList.get(0);
     }
 
-    long updateTableEntry(String tableName, String key, ByteBuffer value, String segmentStoreHost,
-                          ControllerMetadataSerializer serializer, AdminSegmentHelper adminSegmentHelper) {
+    /**
+     * Method to update entry corresponding to the provided key in the table.
+     *
+     * @param tableName          The name of the table.
+     * @param key                The key.
+     * @param value              The new value.
+     * @param version            The expected update version.
+     * @param segmentStoreHost   The address of the segment store instance.
+     * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
+     * @return The new key version after the update takes place successfully.
+     */
+    TableSegmentKeyVersion updateTableEntry(String tableName, String key, ByteBuffer value, long version, String segmentStoreHost, AdminSegmentHelper adminSegmentHelper) {
         ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
         ByteArraySegment serializedValue = new ByteArraySegment(value);
 
-        TableSegmentEntry updatedEntry = TableSegmentEntry.unversioned(serializedKey.getCopy(), serializedValue.getCopy());
+        TableSegmentEntry updatedEntry = TableSegmentEntry.versioned(serializedKey.getCopy(), serializedValue.getCopy(), version);
         List<TableSegmentKeyVersion> keyVersions = completeSafely(adminSegmentHelper.updateTableEntries(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(updatedEntry), authHelper.retrieveMasterToken(), 0L), tableName, key);
-        return keyVersions.get(0).getSegmentVersion();
+        if (keyVersions == null) {
+            return null;
+        }
+
+        return keyVersions.get(0);
     }
 
     /**
@@ -127,7 +138,8 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
                     output("Key not found: %s", key);
                     break;
                 case TableKeyBadVersion:
-                    output("");
+                    output("Update failed due to incorrect key version. " +
+                            "This indicates that the record has been updated since you last read it, please try again.");
                     break;
                 default:
                     output("Something unexpected happened.");

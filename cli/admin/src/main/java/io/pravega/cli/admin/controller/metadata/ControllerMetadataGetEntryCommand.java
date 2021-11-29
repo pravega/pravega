@@ -20,6 +20,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
+import io.pravega.client.tables.impl.TableSegmentEntry;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -51,10 +52,11 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
-        val value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
-        if (value == null) {
+        TableSegmentEntry entry = getTableEntry(tableName, key, segmentStoreHost, adminSegmentHelper);
+        if (entry == null) {
             return;
         }
+        val value = serializer.deserialize(getByteBuffer(entry.getValue()));
         output("For the given key: %s", key);
         if (getArgCount() == 4) {
             final String jsonFile = getArg(2);

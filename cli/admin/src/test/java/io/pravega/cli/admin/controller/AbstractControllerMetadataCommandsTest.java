@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
@@ -196,6 +198,90 @@ public abstract class AbstractControllerMetadataCommandsTest {
                 "randScope", "randStream", String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, UUID.randomUUID()));
         String commandResult = TestUtils.executeCommand("controller-metadata list-keys " + dummyTable + " 10 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
+    }
+
+    @Test
+    public void testUpdateControllerMetadataTableEntryCommand() throws Exception {
+        Path tempDirPath = Files.createTempDirectory("updateEntryDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "deleted.json").toString();
+        File f = createFileAndDirectory(filename);
+        FileWriter writer = new FileWriter(f);
+        writer.write("10");
+        writer.close();
+
+        String scope = "controllerMetadata5";
+        String stream = "updateEntry";
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
+        TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
+
+        String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE + " " +
+                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Successfully updated the key %s in table %s with version",
+                getScopedStreamName(scope, stream), DELETED_STREAMS_TABLE)));
+
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
+    public void testUpdateControllerMetadataTableEntryCommandFileNotExists() throws Exception {
+        String filename = "dummy/file.json";
+        String scope = "controllerMetadata5";
+        String stream = "updateEntry";
+
+        String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE + " " +
+                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("File with new value does not exist: %s", filename)));
+    }
+
+    @Test
+    public void testUpdateControllerMetadataTableEntryCommandKeyDoesNotExist() throws Exception {
+        Path tempDirPath = Files.createTempDirectory("updateEntryDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "deleted.json").toString();
+        File f = createFileAndDirectory(filename);
+        FileWriter writer = new FileWriter(f);
+        writer.write("10");
+        writer.close();
+
+        String scope = "controllerMetadata5";
+        String stream = "updateEntry";
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), scope, stream, StreamConfiguration.builder().build());
+        TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
+
+        String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE +
+                " dummyScope/dummyStream " + filename + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Key not found: dummyScope/dummyStream"));
+
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
+    public void testUpdateControllerMetadataEntryCommandTableDoesNotExist() throws Exception {
+        Path tempDirPath = Files.createTempDirectory("updateEntryDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "deleted.json").toString();
+        File f = createFileAndDirectory(filename);
+        FileWriter writer = new FileWriter(f);
+        writer.write("1000");
+        writer.close();
+
+        String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
+                "randScope", "randStream", String.format(METADATA_TABLE, UUID.randomUUID()));
+        String commandResult = TestUtils.executeCommand("controller-metadata update " + dummyTable + " creationTime " +
+                filename + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
+
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
     }
 
     @After

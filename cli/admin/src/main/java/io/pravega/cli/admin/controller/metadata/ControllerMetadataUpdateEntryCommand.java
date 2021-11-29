@@ -19,11 +19,14 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 
 public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataCommand {
@@ -52,11 +55,25 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
         ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
 
-        String jsonValue = new String(Files.readAllBytes(Paths.get(newValueFile)));
+        String jsonValue;
+        try {
+            jsonValue = new String(Files.readAllBytes(Paths.get(newValueFile)));
+        } catch (NoSuchFileException e) {
+            output("File with new value does not exist: %s", newValueFile);
+            return;
+        }
         ByteBuffer updatedValue = serializer.serialize(jsonSerializer.fromJson(jsonValue, serializer.getMetadataClass()));
 
-        long version = updateTableEntry(tableName, key, updatedValue, segmentStoreHost, serializer, adminSegmentHelper);
-        output("Successfully updated the key %s in table %s with version %s", key, tableName, version);
+        TableSegmentEntry currentEntry = getTableEntry(tableName, key, segmentStoreHost, adminSegmentHelper);
+        if (currentEntry == null) {
+            return;
+        }
+        long currentVersion = currentEntry.getKey().getVersion().getSegmentVersion();
+        TableSegmentKeyVersion newVersion = updateTableEntry(tableName, key, updatedValue, currentVersion, segmentStoreHost, adminSegmentHelper);
+        if (newVersion == null) {
+            return;
+        }
+        output("Successfully updated the key %s in table %s with version %s", key, tableName, newVersion.getSegmentVersion());
     }
 
     public static CommandDescriptor descriptor() {
