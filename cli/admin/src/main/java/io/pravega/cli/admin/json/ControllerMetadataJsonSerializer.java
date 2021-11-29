@@ -139,16 +139,16 @@ public class ControllerMetadataJsonSerializer {
 
     private static <E> TypeToken<Collection<E>> collectionOf(Type type) {
         // Generate a Collection<E> TypeToken given the Type of the element.
-        TypeParameter<E> elementTypeParameter = new TypeParameter<E>() {};
-        return new TypeToken<Collection<E>>() {}
+        TypeParameter<E> elementTypeParameter = new TypeParameter<E>() { };
+        return new TypeToken<Collection<E>>() { }
         .where(elementTypeParameter, typeTokenOf(type));
     }
 
     private static <K, V> TypeToken<HashMap<K, V>> hashMapOf(Type key, Type value) {
         // Generate a HashMap<K, V> TypeToken given the Types of the key and value.
-        TypeParameter<K> keyTypeParameter = new TypeParameter<K>() {};
-        TypeParameter<V> valueTypeParameter = new TypeParameter<V>() {};
-        return new TypeToken<HashMap<K, V>>() {}
+        TypeParameter<K> keyTypeParameter = new TypeParameter<K>() { };
+        TypeParameter<V> valueTypeParameter = new TypeParameter<V>() { };
+        return new TypeToken<HashMap<K, V>>() { }
         .where(keyTypeParameter, typeTokenOf(key))
         .where(valueTypeParameter, typeTokenOf(value));
     }

@@ -29,7 +29,7 @@ public class FileHelper {
      * @throws FileAlreadyExistsException if the file already exists, to avoid any accidental overwrites.
      * @throws IOException if the file/directory creation fails.
      */
-    public static File createFileAndDirectory(String fileName) throws IOException {
+    public static File createFileAndDirectory(String fileName) throws IOException, FileAlreadyExistsException {
         File f = new File(fileName);
         // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
         if (f.exists()) {
