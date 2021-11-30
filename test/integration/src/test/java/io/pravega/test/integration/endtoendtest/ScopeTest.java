@@ -337,6 +337,7 @@ public class ScopeTest {
                 .stream(getScopedStreamName(scope, streamName2)).build()));
 
         assertTrue(streamManager.deleteScopeRecursive(scope));
+        assertFalse(controller.checkScopeExists(scope).get());
 
     }
 }

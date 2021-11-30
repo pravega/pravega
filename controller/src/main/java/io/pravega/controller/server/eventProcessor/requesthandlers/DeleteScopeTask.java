@@ -105,15 +105,16 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
 
         // Delete ReaderGroups
         for (String rgName: readerGroupList) {
-            streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
+            Futures.getThrowingException(streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
                     .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgName,
-                            conf.getConfig().getReaderGroupId(), requestId));
+                            conf.getConfig().getReaderGroupId(), requestId)));
         }
         // Delete KVTs
         Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
          while (kvtIterator.hasNext()) {
          KeyValueTableInfo kvt = kvtIterator.next();
-         kvtMetadataStore.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor);
+         Futures.getThrowingException(kvtMetadataStore
+                 .deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor));
          }
         return CompletableFuture.completedFuture(null);
     }
