@@ -38,6 +38,7 @@ import javax.annotation.concurrent.GuardedBy;
 /**
  * Zookeeper based implementation of the HostControllerStore.
  */
+@SuppressWarnings("deprecation")
 @Slf4j
 public class ZKHostStore implements HostControllerStore {
 

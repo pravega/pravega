@@ -47,6 +47,7 @@ import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.NettyServerCnxnFactory;
+import org.apache.zookeeper.server.ServerCnxn;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.ZooKeeperServer;
@@ -109,7 +110,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         this.serverFactory.set(NettyServerCnxnFactory.createFactory());
         val address = LOOPBACK_ADDRESS + ":" + this.zkPort;
         log.info("Starting Zookeeper server at " + address + " ...");
-        this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000, secureZK);
+        this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000, 1000, secureZK);
         this.serverFactory.get().startup(s);
 
         if (!waitForServerUp(this.zkPort, this.secureZK, this.keyStore, this.keyStorePasswordPath, this.trustStore,
@@ -122,7 +123,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         try {
             ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
             if (sf != null) {
-                sf.closeAll();
+                sf.closeAll(ServerCnxn.DisconnectReason.CLOSE_ALL_CONNECTIONS_FORCED);
                 sf.shutdown();
             }
         } catch (Throwable e) {
