@@ -131,16 +131,21 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
     }
 
-    /**
-     * Creates a new DebugLogWrapper that can be used for debugging purposes. This should not be used for regular operations.
-     *
-     * @param logId Id of the Log to create a wrapper for.
-     * @return A new instance of the DebugLogWrapper class.
-     */
-    public DebugLogWrapper createDebugLogWrapper(int logId) {
+    @Override
+    public DebugBookKeeperLogWrapper createDebugLogWrapper(int logId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
         tryResetBookkeeperClient(logId);
-        return new DebugLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        return new DebugBookKeeperLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    @Override
+    public int getRepairLogId() {
+        return Ledgers.REPAIR_LOG_ID;
+    }
+
+    @Override
+    public int getBackupLogId() {
+        return Ledgers.BACKUP_LOG_ID;
     }
 
     /**

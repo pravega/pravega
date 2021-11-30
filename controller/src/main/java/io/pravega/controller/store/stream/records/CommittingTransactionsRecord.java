@@ -87,6 +87,16 @@ public class CommittingTransactionsRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        String record = String.format("%s = %s", "epoch", epoch) + "\n" +
+                String.format("%s = %s", "transactionsToCommit", transactionsToCommit) + "\n";
+        if (activeEpoch.isPresent()) {
+            record = record + String.format("%s = %s", "activeEpoch", activeEpoch.get());
+        }
+        return record;
+    }
+
     public CommittingTransactionsRecord createRollingTxnRecord(int activeEpoch) {
         Preconditions.checkState(!this.activeEpoch.isPresent());
         return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);

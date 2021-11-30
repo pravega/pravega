@@ -107,6 +107,7 @@ nav:
     - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
     - 'Number of Segment Containers': 'admin-guide/num-containers.md'
     - 'Segment Store Memory': 'admin-guide/segmentstore-memory.md'
+    - 'Data Recovery Tool': 'admin-guide/data-recovery-tools.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
       - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'
