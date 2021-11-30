@@ -91,6 +91,7 @@ public class PravegaTablesScope implements Scope {
     @Override
     public CompletableFuture<Void> createScope(OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
+        // We will first attempt to check if there is entry in DELETING_SCOPES_TABLE and will throw exception if true
         // We will first attempt to create the entry for the scope in scopes table.
         // If scopes table does not exist, we create the scopes table (idempotent)
         // followed by creating a new entry for this scope with a new unique id.

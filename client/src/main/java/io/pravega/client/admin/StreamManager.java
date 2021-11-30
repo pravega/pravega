@@ -186,7 +186,7 @@ public interface StreamManager extends AutoCloseable {
      * @return True if scope is deleted, false otherwise. 
      * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
      *
-     * @deprecated As of Pravega release 0.10, replaced by {@link #deleteScopeRecursive(String)}.
+     * @deprecated As of Pravega release 0.11.0, replaced by {@link #deleteScopeRecursive(String)}.
      */
     @Deprecated
     @SuppressFBWarnings(value = "DeleteScope", justification = "A new API with better handling via eventProcessor is created")

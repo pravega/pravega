@@ -48,7 +48,6 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -170,8 +169,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
-                pravegaZkCuratorResource.client, executor);
+        kvtStore = mock(KVTableMetadataStore.class);
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
@@ -782,10 +780,12 @@ public abstract class RequestHandlersTest {
     @Test
     public void testDeleteScopeRecursive() throws Exception {
         final String scopeName = "deleteScope";
+        final String testScopeName = "testScope";
         // Create a scope
         streamStore.createScope(scopeName, null, executor).join();
         // Verify that the scope is created
         assertTrue(streamStore.checkScopeExists(scope, null, executor).join());
+        assertFalse(streamStore.checkScopeExists(testScopeName, null, executor).join());
 
         // Instantiate DeleteScopeEvent and DeleteScopeTask
         DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
@@ -795,8 +795,7 @@ public abstract class RequestHandlersTest {
         deleteScopeTask.execute(deleteScopeEvent).join();
         Thread.sleep(1000);
 
-        // Verify that the scope is removed from both tables
-        assertFalse(streamStore.checkScopeExists(scopeName, null, executor).join());
+        // Verify that the scope is removed from the table
         assertFalse(streamStore.checkScopeInDeletingTable(scopeName, null, executor).join());
     }
 

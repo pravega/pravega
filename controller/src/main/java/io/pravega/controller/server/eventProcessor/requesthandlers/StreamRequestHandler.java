@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -182,4 +183,21 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                     throw new CompletionException(ex);
                 });
     }
+
+    @Override
+    public CompletableFuture<Void> processDeleteScopeRecursive(DeleteScopeEvent deleteScopeEvent) {
+        log.info(deleteScopeEvent.getRequestId(), "Processing Delete Scope Recursive {}",
+                deleteScopeEvent.getScope());
+        return deleteScopeTask.execute(deleteScopeEvent)
+                .thenAccept(v -> log.info(deleteScopeEvent.getRequestId(), "Processing of Delete Scope Recursive" +
+                                " event for Scope {} completed successfully.",
+                        deleteScopeEvent.getScope()))
+                .exceptionally(ex -> {
+                    log.error(deleteScopeEvent.getRequestId(), String.format("Error processing delete scope recursive" +
+                                    "event for scope %s. Unexpected exception.",
+                            deleteScopeEvent.getScope()), ex);
+                    throw new CompletionException(ex);
+                });
+    }
+
 }
