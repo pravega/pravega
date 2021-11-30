@@ -293,14 +293,17 @@ public class ScopeTest {
 
     @Test
     public void testDeleteScopeRecursive() throws Exception {
-        final String scope = "test";
+        final String scope = "testDeleteScope";
         final String streamName1 = "test1";
         final String streamName2 = "test2";
         final String streamName3 = "test3";
+        final String streamName4 = "test4";
         final String kvtName1 = "kvt1";
         final String kvtName2 = "kvt2";
+        final String kvtName3 = "kvt3";
         final String groupName1 = "rg1";
         final String groupName2 = "rg2";
+        final String groupName3 = "rg3";
 
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
@@ -336,8 +339,22 @@ public class ScopeTest {
         assertTrue(readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName2)).build()));
 
+        // Call deleteScopeRecursive to delete the scope recursively
         assertTrue(streamManager.deleteScopeRecursive(scope));
+
+        // Validate that the scope is deleted
         assertFalse(controller.checkScopeExists(scope).get());
 
+        // Validate create operation of Stream/RG/KVT should throw error
+        AssertExtensions.assertThrows("Failed to create Reader Group as Scope does not exits",
+                () -> readerGroupManager.createReaderGroup(groupName3, ReaderGroupConfig.builder()
+                        .stream(getScopedStreamName(scope, streamName2)).build()),
+                e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Scope does not exist",
+                () -> controller.createStream(scope, streamName4, config).get(),
+                e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Scope does not exist",
+                () -> keyValueTableManager.createKeyValueTable(scope, kvtName3, kvtConfig),
+                e -> e instanceof IllegalArgumentException);
     }
 }
