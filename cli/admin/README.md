@@ -83,7 +83,7 @@ Initial configuration:
 
 From that point onwards, you can check the available commands by typing `help`:
 ``` 
-> help 
+> help
 All available commands:
 	bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
 	bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
@@ -97,27 +97,28 @@ All available commands:
 	cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
 	config list : Lists all configuration set during this session.
 	config set <name=value list>: Sets one or more config values for use during this session.
+	container continuous-recover <number-of-runs> <seconds-between-runs>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
 	container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
 	container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
-	container continuous-recover <container-id>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
 	controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
 	controller describe-scope <scope-name>: Get the details of a given Scope.
 	controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
 	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
 	controller list-scopes : Lists all the existing scopes in the system.
 	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
-	controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the controller metadata entry for the given key in the table.
+	controller-metadata get <qualified-table-segment-name> <key> <json-file[OPTIONAL]> <segmentstore-endpoint>: Get the controller metadata entry for the given key in the table.
 	controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
 	controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 	controller-metadata tables-info : List all the controller metadata tables.
+	controller-metadata update <qualified-table-segment-name> <key> <new-value-file> <segmentstore-endpoint>: Update the given key in the table with the provided value.
+	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
+	data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
+	data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
 	password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
 	segmentstore get-segment-attribute <qualified-segment-name> <attribute-id> <segmentstore-endpoint>: Gets an attribute for a Segment.
 	segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
 	segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
 	segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
-	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
-    data-recovery durableLog-repair : Allows to repair DurableLog damaged/corrupted Operations.
-    data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
 	table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
 	table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
 	table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.
@@ -222,6 +223,173 @@ The following required config values can be found in the logs:
 - `pravegaservice.zk.connect.uri`
 
 Once the config file is updated, the Pravega Admin CLI will be able to connect to your Pravega cluster and run commands.
+
+## `controller-metadata` Commands
+
+The following commands are available for dealing with controller metadata:
+```
+controller-metadata get <qualified-table-segment-name> <key> <json-file[OPTIONAL]> <segmentstore-endpoint>: Get the controller metadata entry for the given key in the table.
+controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
+controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
+controller-metadata tables-info : List all the controller metadata tables.
+controller-metadata update <qualified-table-segment-name> <key> <new-value-file> <segmentstore-endpoint>: Update the given key in the table with the provided value.
+```
+
+Information regarding the different types of tables can be obtained by running the `tables-info` command:
+```
+> controller-metadata tables-info
+metadata.#.<id> --> Table name format: '_system/_tables/<scope-name>/<stream-name>/metadata.#.<stream-uuid>'.
+Stores stream properties like state, current epoch number, creation time, etc.
+eg: _system/_tables/testScope/testStream/metadata.#.a747afe8-2eb7-4666-bedd-cffe1cac5e25
+
+epochsWithTransactions.#.<id> --> Table name format: '_system/_tables/<scope-name>/<stream-name>/epochsWithTransactions.#.<stream-uuid>'.
+Stores the epoch numbers for transactions.
+eg: _system/_tables/testScope/testStream/epochsWithTransactions.#.cbc7b593-8743-4355-8703-e2c01f27c765
+
+writersPositions.#.<id> --> Table name format: '_system/_tables/<scope-name>/<stream-name>/writersPositions.#.<stream-uuid>'.
+Stores the writers' mark positions during watermarking.
+eg: _system/_tables/testScope/testStream/writersPositions.#.971ca637-cfc9-43c1-b337-25234d104885
+
+transactionsInEpoch-<epoch>.#.<id> --> Table name format: '_system/_tables/<scope-name>/<stream-name>/transactionsInEpoch-<stream-epoch>.#.<stream-uuid>'.
+Stores the set of active transactions in an epoch.
+eg: _system/_tables/testScope/testStream/transactionsInEpoch-1.#.4e3abd3b-9b27-4c18-abb3-1850ed100576
+
+completedTransactionsBatches --> Table name format: '_system/_tables/completedTransactionsBatches'.
+Stores the completed transactions' batch numbers.
+eg: _system/_tables/completedTransactionsBatches
+
+completedTransactionsBatch-<batch> --> Table name format: '_system/_tables/completedTransactionsBatch-<batch>'.
+Stores the set of completed transactions.
+eg: _system/_tables/completedTransactionsBatch-2
+
+deletedStreams --> Table name format: '_system/_tables/deletedStreams'.
+Stores the set of deleted streams and their last segment number.
+eg: _system/_tables/deletedStreams
+```
+
+The records/values can be queried from these tables using the `get` command. This command queries the required key from the table.
+Based on the arguments provided, the record can be either, output to the console as a user-friendly string, or saved to a file in JSON format, i.e., 
+if the optional JSON file argument is provided.
+```
+> controller-metadata get _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 localhost
+For the given key: epochRecord-0
+EpochRecord metadata info: 
+epoch = 0
+referenceEpoch = 0
+segments = [
+    segmentNumber = 0
+    creationEpoch = 0
+    creationTime = 1638259424440
+    keyStart = 0.0
+    keyEnd = 0.25
+,
+    segmentNumber = 1
+    creationEpoch = 0
+    creationTime = 1638259424440
+    keyStart = 0.25
+    keyEnd = 0.5
+,
+    segmentNumber = 2
+    creationEpoch = 0
+    creationTime = 1638259424440
+    keyStart = 0.5
+    keyEnd = 0.75
+,
+    segmentNumber = 3
+    creationEpoch = 0
+    creationTime = 1638259424440
+    keyStart = 0.75
+    keyEnd = 1.0
+]
+creationTime = 1638259424440
+splits = 0
+merges = 0
+
+> controller-metadata get _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 test/epoch.json localhost
+For the given key: epochRecord-0
+Successfully wrote the value to test/epoch.json in JSON.
+``` 
+
+where the file `test/epoch.json` contains:
+```
+{
+  "epoch": 0,
+  "referenceEpoch": 0,
+  "segments": [
+    {
+      "segmentNumber": 0,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.0,
+      "keyEnd": 0.25
+    },
+    {
+      "segmentNumber": 1,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.25,
+      "keyEnd": 0.5
+    },
+    {
+      "segmentNumber": 2,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.5,
+      "keyEnd": 0.75
+    },
+    {
+      "segmentNumber": 3,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.75,
+      "keyEnd": 1.0
+    }
+  ],
+  "creationTime": 1638259424440,
+  "segmentMap": {
+    "0": {
+      "segmentNumber": 0,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.0,
+      "keyEnd": 0.25
+    },
+    "1": {
+      "segmentNumber": 1,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.25,
+      "keyEnd": 0.5
+    },
+    "2": {
+      "segmentNumber": 2,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.5,
+      "keyEnd": 0.75
+    },
+    "3": {
+      "segmentNumber": 3,
+      "creationEpoch": 0,
+      "creationTime": 1638259424440,
+      "keyStart": 0.75,
+      "keyEnd": 1.0
+    }
+  },
+  "splits": 0,
+  "merges": 0
+}
+```
+
+These records/values can be updated using the `update` command. This command takes the updated record as a file in JSON format.
+The record can be obtained in JSON format using the `get` command as detailed above, this JSON file can be updated and then fed into the `update` command. 
+```
+> controller-metadata update _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 test/epoch.json localhost
+Successfully updated the key epochRecord-0 in table _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd with version 1020
+```
+
+Note: This command performs a conditional update on the record. This can fail if the record is updated before the CLI's update request.
+In such cases, the user can retry by running the command once again.
 
 ## Adding `segmentstore` Admin Commands
 
