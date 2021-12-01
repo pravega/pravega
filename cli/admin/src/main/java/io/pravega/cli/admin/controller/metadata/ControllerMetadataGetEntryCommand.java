@@ -46,7 +46,7 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
 
         final String tableName = getArg(0);
         final String key = getArg(1);
-        final String segmentStoreHost = getArg(getArgCount() - 1);
+        final String segmentStoreHost = getArg(2);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -59,7 +59,7 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         val value = serializer.deserialize(getByteBuffer(entry.getValue()));
         output("For the given key: %s", key);
         if (getArgCount() == 4) {
-            final String jsonFile = getArg(2);
+            final String jsonFile = getArg(3);
 
             ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
             @Cleanup
@@ -78,8 +78,8 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be queried."),
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new ArgDescriptor("json-file[OPTIONAL]", "An optional argument which, if provided, will write the value as " +
-                        "JSON into the given file path."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                        "JSON into the given file path."));
     }
 }

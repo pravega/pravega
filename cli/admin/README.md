@@ -106,7 +106,7 @@ All available commands:
 	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
 	controller list-scopes : Lists all the existing scopes in the system.
 	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
-	controller-metadata get <qualified-table-segment-name> <key> <json-file[OPTIONAL]> <segmentstore-endpoint>: Get the controller metadata entry for the given key in the table.
+	controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> <json-file[OPTIONAL]>: Get the controller metadata entry for the given key in the table.
 	controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
 	controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 	controller-metadata tables-info : List all the controller metadata tables.
@@ -228,7 +228,7 @@ Once the config file is updated, the Pravega Admin CLI will be able to connect t
 
 The following commands are available for dealing with controller metadata:
 ```
-controller-metadata get <qualified-table-segment-name> <key> <json-file[OPTIONAL]> <segmentstore-endpoint>: Get the controller metadata entry for the given key in the table.
+controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> <json-file[OPTIONAL]>: Get the controller metadata entry for the given key in the table.
 controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
 controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 controller-metadata tables-info : List all the controller metadata tables.
@@ -271,121 +271,70 @@ The records/values can be queried from these tables using the `get` command. Thi
 Based on the arguments provided, the record can be either, output to the console as a user-friendly string, or saved to a file in JSON format, i.e., 
 if the optional JSON file argument is provided.
 ```
-> controller-metadata get _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 localhost
-For the given key: epochRecord-0
-EpochRecord metadata info: 
-epoch = 0
-referenceEpoch = 0
-segments = [
-    segmentNumber = 0
-    creationEpoch = 0
-    creationTime = 1638259424440
-    keyStart = 0.0
-    keyEnd = 0.25
-,
-    segmentNumber = 1
-    creationEpoch = 0
-    creationTime = 1638259424440
-    keyStart = 0.25
-    keyEnd = 0.5
-,
-    segmentNumber = 2
-    creationEpoch = 0
-    creationTime = 1638259424440
-    keyStart = 0.5
-    keyEnd = 0.75
-,
-    segmentNumber = 3
-    creationEpoch = 0
-    creationTime = 1638259424440
-    keyStart = 0.75
-    keyEnd = 1.0
-]
-creationTime = 1638259424440
-splits = 0
-merges = 0
+> controller-metadata get _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration localhost
+For the given key: configuration
+StreamConfigurationRecord metadata info: 
+scope = testScope
+streamName = testStream
+streamConfiguration = 
+    scalingPolicy = ScalingPolicy(scaleType=FIXED_NUM_SEGMENTS, targetRate=0, scaleFactor=0, minNumSegments=4)
+    retentionPolicy = null
+    timestampAggregationTimeout = 0
+    tags = []
+    rolloverSizeBytes = 0
+updating = false
+tagOnlyUpdate = false
+removeTags = []
 
-> controller-metadata get _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 test/epoch.json localhost
-For the given key: epochRecord-0
-Successfully wrote the value to test/epoch.json in JSON.
+> controller-metadata get _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration localhost test/config.json
+For the given key: configuration
+Successfully wrote the value to test/config.json in JSON.
 ``` 
 
-where the file `test/epoch.json` contains:
+where the file `test/config.json` contains:
 ```
 {
-  "epoch": 0,
-  "referenceEpoch": 0,
-  "segments": [
-    {
-      "segmentNumber": 0,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.0,
-      "keyEnd": 0.25
+  "scope": "testScope",
+  "streamName": "testStream",
+  "streamConfiguration": {
+    "scalingPolicy": {
+      "scaleType": "FIXED_NUM_SEGMENTS",
+      "targetRate": 0,
+      "scaleFactor": 0,
+      "minNumSegments": 4
     },
-    {
-      "segmentNumber": 1,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.25,
-      "keyEnd": 0.5
-    },
-    {
-      "segmentNumber": 2,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.5,
-      "keyEnd": 0.75
-    },
-    {
-      "segmentNumber": 3,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.75,
-      "keyEnd": 1.0
-    }
-  ],
-  "creationTime": 1638259424440,
-  "segmentMap": {
-    "0": {
-      "segmentNumber": 0,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.0,
-      "keyEnd": 0.25
-    },
-    "1": {
-      "segmentNumber": 1,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.25,
-      "keyEnd": 0.5
-    },
-    "2": {
-      "segmentNumber": 2,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.5,
-      "keyEnd": 0.75
-    },
-    "3": {
-      "segmentNumber": 3,
-      "creationEpoch": 0,
-      "creationTime": 1638259424440,
-      "keyStart": 0.75,
-      "keyEnd": 1.0
-    }
+    "retentionPolicy": null,
+    "timestampAggregationTimeout": 0,
+    "tags": [],
+    "rolloverSizeBytes": 0
   },
-  "splits": 0,
-  "merges": 0
+  "updating": false,
+  "tagOnlyUpdate": false,
+  "removeTags": []
 }
 ```
 
 These records/values can be updated using the `update` command. This command takes the updated record as a file in JSON format.
 The record can be obtained in JSON format using the `get` command as detailed above, this JSON file can be updated and then fed into the `update` command. 
+Below `test/config.json` was changed to make `minNumSegments` 10. 
 ```
-> controller-metadata update _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd epochRecord-0 test/epoch.json localhost
-Successfully updated the key epochRecord-0 in table _system/_tables/testScope/testStream/metadata.#.8a9c2559-2f14-431b-85d3-ffa36dd2c6cd with version 1020
+> controller-metadata update _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration test/config.json localhost
+Successfully updated the key configuration in table _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 with version 1020
+
+> controller-metadata get _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration localhost
+For the given key: configuration
+StreamConfigurationRecord metadata info: 
+scope = testScope
+streamName = testStream
+streamConfiguration = 
+    scalingPolicy = ScalingPolicy(scaleType=FIXED_NUM_SEGMENTS, targetRate=0, scaleFactor=0, minNumSegments=10)
+    retentionPolicy = null
+    timestampAggregationTimeout = 0
+    tags = []
+    rolloverSizeBytes = 0
+updating = false
+tagOnlyUpdate = false
+removeTags = []
 ```
 
 Note: This command performs a conditional update on the record. This can fail if the record is updated before the CLI's update request.

@@ -35,8 +35,10 @@ public class FileHelper {
         if (f.exists()) {
             throw new FileAlreadyExistsException("Cannot write segment data into a file that already exists.");
         }
-        if (!f.getParentFile().exists()) {
-            f.getParentFile().mkdirs();
+        if (f.getParentFile() != null) {
+            if (!f.getParentFile().exists()) {
+                f.getParentFile().mkdirs();
+            }
         }
         f.createNewFile();
         return f;

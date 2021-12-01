@@ -125,7 +125,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
 
         String commandResult = TestUtils.executeCommand("controller-metadata get " + DELETED_STREAMS_TABLE + " " +
-                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+                getScopedStreamName(scope, stream) + " localhost " + filename, STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("For the given key: %s", getScopedStreamName(scope, stream))));
         Assert.assertTrue(commandResult.contains(String.format("Successfully wrote the value to %s in JSON.", filename)));
         File file = new File(filename);

@@ -44,6 +44,19 @@ public class FileHelperTest {
     }
 
     @Test
+    public void testFileCreationSuccessNoParentCase() throws IOException {
+        Path tempDirPath = Files.createTempDirectory("fileHelperDir");
+        String filename = Paths.get(tempDirPath.toString(), "fileHelperTest.txt").toString();
+        createFileAndDirectory(filename);
+        File file = new File(filename);
+        Assert.assertTrue(file.exists());
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
     public void testFileCreationFailureFileAlreadyExists() throws IOException {
         Path tempDirPath = Files.createTempDirectory("fileHelperFailDir");
         String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "fileHelperTest.txt").toString();
