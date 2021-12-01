@@ -526,40 +526,41 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
         final String operation = "mergeSegmentsBatch";
-
-        List<String> sources = mergeSegments.getSources();
+        List<String> sources = mergeSegments.getSourceSegmentIds();
         for (String s : sources) {
             if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
                 return;
             }
         }
-
-        log.info(mergeSegments.getRequestId(), "Merging Segments batch {} ", mergeSegments);
-
+        log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
         Futures.allOfWithResults(sources.stream().map(source ->
-                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
-                        source, TIMEOUT), (r, e) -> {
+                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, TIMEOUT), (r, e) -> {
                     if (e != null) {
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
-                                    sources);
-                            return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
-                                               .thenApply(SegmentProperties::getLength);
-                        } else {
-                            throw new CompletionException(e);
+                        Throwable unwrap = Exceptions.unwrap(e);
+                        if (unwrap instanceof StreamSegmentMergedException) {
+                           log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                           return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
                         }
+                        if (unwrap instanceof StreamSegmentNotExistsException) {
+                            StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
+                            if (ex.getStreamSegmentName().equals(source)) {
+                                log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                                return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                            }
+                        }
+                        throw new CompletionException(e);
                     } else {
-                        recordStatForTransaction(r, mergeSegments.getTarget());
+                        recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
                 })).collect(toList()))
                .thenAccept(mergeResults -> {
                    connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
-                           mergeSegments.getTarget(),
+                           mergeSegments.getTargetSegmentId(),
                            sources,
                            mergeResults));
                })
-               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
+               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e));
     }
 
     @Override

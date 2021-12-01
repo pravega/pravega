@@ -123,6 +123,7 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTableKeys.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
+            .put(WireCommands.MergeSegmentsBatch.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .build();
 
     protected final ConnectionPool connectionPool;
@@ -268,52 +269,13 @@ public class SegmentHelper implements AutoCloseable {
         return getTransactionNameFromId(qualifiedName, txId);
     }
 
-    public CompletableFuture<Long> commitTransaction(final String scope,
-                                                     final String stream,
-                                                     final long targetSegmentId,
-                                                     final long sourceSegmentId,
-                                                     final UUID txId,
-                                                     final String delegationToken,
-                                                     final long clientRequestId) {
-        Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
-        final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
-        final String transactionName = getTransactionName(scope, stream, sourceSegmentId, txId);
-        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
-
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
-        final long requestId = connection.getFlow().asLong();
-        
-        WireCommands.MergeSegments request = new WireCommands.MergeSegments(requestId,
-                qualifiedNameTarget, transactionName, delegationToken);
-
-        return sendRequest(connection, clientRequestId, request)
-                .thenCompose(r -> {
-                    handleReply(clientRequestId, r, connection, transactionName, WireCommands.MergeSegments.class, type);
-                    if (r instanceof WireCommands.NoSuchSegment) {
-                        WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
-                        if (reply.getSegment().equals(transactionName)) {
-                            // idempotent case when segment is already merged, we get the write offset for the parent segment.
-                            return getSegmentInfo(scope, stream, targetSegmentId, delegationToken, clientRequestId)
-                                    .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
-                        } else {
-                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.",
-                                    reply.getSegment());
-                            return CompletableFuture.completedFuture(-1L);
-                        }
-                    } else {
-                        return CompletableFuture.completedFuture(((WireCommands.SegmentsMerged) r).getNewTargetWriteOffset());
-                    }
-                });
-    }
-
-    public CompletableFuture<List<Long>> commitTransactions(final String scope,
-                                                     final String stream,
-                                                     final long targetSegmentId,
-                                                     final long sourceSegmentId,
-                                                     final List<UUID> txId,
-                                                     final String delegationToken,
-                                                     final long clientRequestId) {
+    public CompletableFuture<List<Long>> mergeTxnSegments(final String scope,
+                                                          final String stream,
+                                                          final long targetSegmentId,
+                                                          final long sourceSegmentId,
+                                                          final List<UUID> txId,
+                                                          final String delegationToken,
+                                                          final long clientRequestId) {
         Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
@@ -323,20 +285,12 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         
-        WireCommands.MergeSegmentsBatch request = new WireCommands.MergeSegmentsBatch(requestId,
-                qualifiedNameTarget, transactionNames, delegationToken);
+        WireCommands.MergeSegmentsBatch request = new WireCommands.MergeSegmentsBatch(requestId, qualifiedNameTarget, transactionNames, delegationToken);
 
         return sendRequest(connection, clientRequestId, request)
                 .thenCompose(r -> {
                     handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
-                    if (r instanceof WireCommands.NoSuchSegment) {
-                        WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
-                        log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.", 
-                                reply.getSegment());
-                        return CompletableFuture.completedFuture(transactionNames.stream().map(x -> -1L).collect(Collectors.toList()));
-                    } else {
-                        return CompletableFuture.completedFuture(((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset());
-                    }
+                    return CompletableFuture.completedFuture(((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset());
                 });
     }
 

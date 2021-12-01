@@ -1973,11 +1973,11 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Map<Long, List<Long>>> notifyTxnsCommit(final String scope, final String stream,
-                                                                     final List<Long> segments, final List<UUID> txnId, long requestId) {
+    public CompletableFuture<Map<Long, List<Long>>> mergeTxnSegmentsIntoStreamSegments(final String scope, final String stream,
+                                                                                       final List<Long> segments, final List<UUID> txnIds, long requestId) {
         Timer timer = new Timer();
         return Futures.allOfWithResults(segments.stream()
-                        .collect(Collectors.toMap(x -> x, x -> notifyTxnsCommit(scope, stream, x, txnId, requestId))))
+                        .collect(Collectors.toMap(segId -> segId, segId -> mergeTxnSegments(scope, stream, segId, txnIds, requestId))))
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         Duration elapsed = timer.getElapsed();
@@ -1986,31 +1986,13 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<List<Long>> notifyTxnsCommit(final String scope, final String stream,
-                                                           final long segmentNumber, final List<UUID> txnId, long requestId) {
-        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransactions(scope,
+    private CompletableFuture<List<Long>> mergeTxnSegments(final String scope, final String stream,
+                                                                             final long segmentNumber, final List<UUID> txnIds, long requestId) {
+        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.mergeTxnSegments(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,
-                txnId,
-                this.retrieveDelegationToken(), requestId), executor);
-    }
-
-    public CompletableFuture<Map<Long, Long>> notifyTxnCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final UUID txnId, long requestId) {
-        Timer timer = new Timer();
-        return Futures.allOfWithResults(segments.stream()
-                .collect(Collectors.toMap(x -> x, x -> notifyTxnCommit(scope, stream, x, txnId, requestId))))
-                .whenComplete((r, e) -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
-    }
-
-    private CompletableFuture<Long> notifyTxnCommit(final String scope, final String stream,
-                                                    final long segmentNumber, final UUID txnId, long requestId) {
-        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
-                stream,
-                segmentNumber,
-                segmentNumber,
-                txnId,
+                txnIds,
                 this.retrieveDelegationToken(), requestId), executor);
     }
 

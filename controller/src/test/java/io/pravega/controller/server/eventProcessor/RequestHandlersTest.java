@@ -1021,8 +1021,7 @@ public abstract class RequestHandlersTest {
     
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, 
-                streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
@@ -1034,7 +1033,7 @@ public abstract class RequestHandlersTest {
         
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         streamStore.startCommitTransactions(fairness, fairness, 100, null, executor).join();
@@ -1045,10 +1044,9 @@ public abstract class RequestHandlersTest {
         assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
-        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+        verify(segmentHelper, atLeastOnce()).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 3. set waiting processor to "random name"
@@ -1056,7 +1054,7 @@ public abstract class RequestHandlersTest {
         
         // 4. reset segment helper to return success
         doAnswer(x -> CompletableFuture.completedFuture(0L))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor

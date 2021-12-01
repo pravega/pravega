@@ -1488,8 +1488,8 @@ public final class WireCommands {
     public static final class MergeSegmentsBatch implements Request, WireCommand {
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
         final long requestId;
-        final String target;
-        final List<String> sources;
+        final String targetSegmentId;
+        final List<String> sourceSegmentIds;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1501,10 +1501,10 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(target);
-            out.writeInt(sources.size());
-            for (int i = 0; i < sources.size(); i++) {
-                out.writeUTF(sources.get(i));
+            out.writeUTF(targetSegmentId);
+            out.writeInt(sourceSegmentIds.size());
+            for (int i = 0; i < sourceSegmentIds.size(); i++) {
+                out.writeUTF(sourceSegmentIds.get(i));
             }
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }

@@ -359,7 +359,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         List<UUID> transactionsToCommit = txnRecord.getObject().getTransactionsToCommit();
         boolean noteTime = commitContext.writerMarks.size() > 0;
         Timer segMergeTimer = new Timer();
-        return streamMetadataTasks.notifyTxnsCommit(commitContext.scope, commitContext.stream, segments, transactionsToCommit, commitContext.context.getRequestId())
+        return streamMetadataTasks.mergeTxnSegmentsIntoStreamSegments(commitContext.scope, commitContext.stream, segments, transactionsToCommit, commitContext.context.getRequestId())
                 .thenCompose(segmentOffsets -> {
                     TransactionMetrics.getInstance().commitTransactionSegments(segMergeTimer.getElapsed());
                     if (noteTime) {
@@ -377,7 +377,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                 commitContext.stream, executor);
                     }
                     return CompletableFuture.completedFuture(null);
-
                 });
     }
 
