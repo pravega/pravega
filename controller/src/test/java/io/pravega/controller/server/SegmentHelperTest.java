@@ -302,7 +302,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows("",
                 () -> resultException.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ((WireCommandFailedException)ex).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
+                        && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId, txnIdList, delegationToken, System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
