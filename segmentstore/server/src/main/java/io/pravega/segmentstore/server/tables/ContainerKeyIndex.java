@@ -57,6 +57,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -88,6 +89,12 @@ class ContainerKeyIndex implements AutoCloseable {
     private final String traceObjectId;
     private final int containerId;
     private final TableExtensionConfig config;
+
+    // Only throttle segments that are not internal, system critical.
+    private final static Predicate<DirectSegmentAccess> CAN_THROTTLE = d -> !d.getInfo().getType().isCritical()
+            && !d.getInfo().getType().isSystem()
+            && !d.getInfo().getType().isInternal();
+
 
     //endregion
 
@@ -842,13 +849,15 @@ class ContainerKeyIndex implements AutoCloseable {
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
         <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
+            // Apply credit-based throttling only for segments that are not internal, system-critical.
+            long totalCredits = CAN_THROTTLE.test(segment) ? config.getMaxUnindexedLength() : Long.MAX_VALUE;
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
                 if (throttler == null) {
                     val si = segment.getInfo();
                     long initialDelta = Math.max(0, si.getLength() - IndexReader.getLastIndexedOffset(si));
-                    throttler = new AsyncSemaphore(config.getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
+                    throttler = new AsyncSemaphore(totalCredits, initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
