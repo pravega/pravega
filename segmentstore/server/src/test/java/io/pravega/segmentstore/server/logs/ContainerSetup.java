@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * A class that will setup a {@link DurableLog} for testing.
  */
-
 public class ContainerSetup implements AutoCloseable {
     final ScheduledExecutorService executorService;
     final TestDurableDataLogFactory dataLogFactory;

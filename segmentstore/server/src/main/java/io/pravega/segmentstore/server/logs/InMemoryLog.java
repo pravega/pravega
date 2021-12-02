@@ -68,8 +68,9 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> implements Hea
 
     @Override
     public Queue<Operation> close() {
+        Queue<Operation> operation = super.close();
         contributor.close();
-        return super.close();
+        return operation;
     }
 
     public static class OutOfOrderOperationException extends IllegalStateException {

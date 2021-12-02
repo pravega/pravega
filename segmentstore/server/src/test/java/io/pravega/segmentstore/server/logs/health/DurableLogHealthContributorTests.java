@@ -44,7 +44,6 @@ public class DurableLogHealthContributorTests {
                 .maxAppendSize(8 * 1024)
                 .readIndexConfig(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build())
                 .build();
-        //log = spy(container.createDurableLog());
         log = container.createDurableLog();
         log.startAsync().awaitRunning();
     }

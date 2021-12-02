@@ -21,6 +21,10 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.contributors.ServiceHealthContributor;
 
+/**
+ * A {@link io.pravega.shared.health.HealthContributor} used to track health and export information related to a
+ * {@link SegmentContainer}.
+ */
 public class StreamSegmentContainerHealthContributor extends ServiceHealthContributor  {
 
     private final SegmentContainer container;
@@ -33,9 +37,7 @@ public class StreamSegmentContainerHealthContributor extends ServiceHealthContri
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
         Status status = super.doHealthCheck(builder);
-
         builder.details(ImmutableMap.of("Id", container.getId(), "ActiveSegments", container.getActiveSegments()));
-
         return status;
     }
 }

@@ -622,10 +622,10 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         CacheManagerHealthContributor cacheManagerHealthContributor = new CacheManagerHealthContributor(cm);
         Health.HealthBuilder builder = Health.builder().name(cacheManagerHealthContributor.getName());
         Status status = cacheManagerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, status);
+        Assert.assertEquals("HealthContributor should report a 'RUNNING' Status.", Status.RUNNING, status);
         cm.close();
         status = cacheManagerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, status);
+        Assert.assertEquals("HealthContributor should report a 'TERMINATED' Status.", Status.TERMINATED, status);
     }
 
     private static class TestCleanupListener implements ThrottleSourceListener {

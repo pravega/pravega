@@ -39,7 +39,6 @@ public class DurableLogHealthContributor extends ServiceHealthContributor {
         }
 
         builder.details(ImmutableMap.of("State", log.state(), "IsOffline", log.isOffline()));
-
         return status;
     }
 

@@ -185,7 +185,6 @@ class BookKeeperLog implements DurableDataLog {
             this.metrics.close();
             this.rolloverProcessor.close();
             this.writeProcessor.close();
-            this.contributor.close();
 
             // Close active ledger.
             WriteLedger writeLedger;
@@ -206,6 +205,7 @@ class BookKeeperLog implements DurableDataLog {
                 }
             }
 
+            this.contributor.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -1052,6 +1052,9 @@ class BookKeeperLog implements DurableDataLog {
 
     //endregion
 
+    /**
+     * This class is used to export health information from the {@link BookKeeperLog}.
+     */
     class BookKeeperLogHealthContributor extends AbstractHealthContributor {
 
         private final BookKeeperLog log;

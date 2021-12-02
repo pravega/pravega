@@ -25,6 +25,12 @@ package io.pravega.shared.health;
  */
 public interface HealthConnector {
 
+    /**
+     * Provides the {@link HealthContributor} to be used when connecting the {@link HealthContributor} of some class
+     * to a parent {@link HealthContributor}.
+     *
+     * @return The {@link HealthContributor} belonging to the class implementing this interface.
+     */
     default HealthContributor getContributor() {
         return null;
     }
@@ -49,6 +55,6 @@ public interface HealthConnector {
      * @param parent The parent {@link HealthConnector}.
      */
     default void connect(HealthConnector parent) {
-
+        // This method is intentionally left blank.
     }
 }

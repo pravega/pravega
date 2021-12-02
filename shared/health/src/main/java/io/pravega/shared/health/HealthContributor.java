@@ -15,7 +15,8 @@
  */
 package io.pravega.shared.health;
 
-/** * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
+/**
+ * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
  * an arbitrary component, process, object, etc.
  */
 public interface HealthContributor extends AutoCloseable, HealthConnector {
@@ -34,16 +35,16 @@ public interface HealthContributor extends AutoCloseable, HealthConnector {
     Health getHealthSnapshot();
 
     /**
-     * A human-readable identifier used for logging.
-     * @return The name provided.
-     */
-    String getName();
-
-    /**
      * Registers any number of {@link HealthContributor} as children to referenced {@link HealthContributor}.
      * @param children The parent {@link HealthContributor}.
      */
     void register(HealthContributor... children);
+
+    /**
+     * A human-readable identifier used for logging.
+     * @return The name provided.
+     */
+    String getName();
 
     /**
      * Closes the {@link HealthContributor} and forwards the closure to all its children.

@@ -137,12 +137,12 @@ public class DurableLog extends AbstractService implements OperationLog {
     public void close() {
         if (!this.closed.get()) {
             Futures.await(Services.stopAsync(this, this.executor));
-            this.contributor.close();
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
             this.inMemoryOperationLog.close(); // Same here.
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
+            this.contributor.close();
         }
     }
 

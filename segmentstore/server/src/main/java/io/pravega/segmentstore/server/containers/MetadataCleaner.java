@@ -47,7 +47,7 @@ import lombok.val;
  */
 @Slf4j
 @ThreadSafe
-class MetadataCleaner extends AbstractThreadPoolService implements  AutoCloseable, HealthConnector {
+class MetadataCleaner extends AbstractThreadPoolService implements AutoCloseable, HealthConnector {
     //region Private
 
     private final ContainerConfig config;

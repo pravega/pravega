@@ -22,6 +22,10 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * The ServiceHealthContributor should be used as the base class for {@link io.pravega.shared.health.HealthContributor}
+ * instances that track objects implementing the {@link Service} interface.
+ */
 @Slf4j
 public class ServiceHealthContributor extends AbstractHealthContributor {
 

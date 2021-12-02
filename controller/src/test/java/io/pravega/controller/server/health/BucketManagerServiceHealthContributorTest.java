@@ -40,11 +40,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Unit tests for BucketServiceHealthContributor
+ * Unit tests for BucketManagerServiceHealthContributor
  */
-public class BucketServiceHealthContributorTest {
+public class BucketManagerServiceHealthContributorTest {
     private BucketManager retentionService;
-    private BucketServiceHealthContributor contributor;
+    private BucketManagerServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
 
     @Before
@@ -60,7 +60,7 @@ public class BucketServiceHealthContributorTest {
         doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
         doReturn(true).when(retentionService).isHealthy();
 
-        contributor = new BucketServiceHealthContributor("retentionservice", retentionService);
+        contributor = new BucketManagerServiceHealthContributor("retentionservice", retentionService);
         builder = Health.builder().name("retentionservice");
     }
 

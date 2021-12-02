@@ -21,6 +21,9 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.NonNull;
 
+/**
+ * A contributor to manage the health of Segment Container Registry.
+ */
 public class SegmentContainerRegistryHealthContributor extends AbstractHealthContributor {
     private final SegmentContainerRegistry segmentContainerRegistry;
 

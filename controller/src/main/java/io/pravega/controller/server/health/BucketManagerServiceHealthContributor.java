@@ -22,10 +22,10 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class BucketServiceHealthContributor extends AbstractHealthContributor {
+public class BucketManagerServiceHealthContributor extends AbstractHealthContributor {
     private final BucketManager service;
 
-    public BucketServiceHealthContributor(String name, BucketManager service) {
+    public BucketManagerServiceHealthContributor(String name, BucketManager service) {
         super(name);
         this.service = service;
     }

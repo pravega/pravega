@@ -58,9 +58,9 @@ public class SegmentContainerRegistryHealthContributorTest {
         when(segmentContainerRegistry.isClosed()).thenReturn(true);
         Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
         Status health = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.TERMINATED, health);
+        Assert.assertEquals("HealthContributor should report a 'TERMINATED' Status.", Status.TERMINATED, health);
         when(segmentContainerRegistry.isClosed()).thenReturn(false);
         health = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health);
+        Assert.assertEquals("HealthContributor should report an 'RUNNING' Status.", Status.RUNNING, health);
     }
 }

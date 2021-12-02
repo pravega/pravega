@@ -843,7 +843,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         byte[] writeOne = getWriteData();
         byte[] writeTwo = getWriteData();
 
-        AtomicReference<LogAddress> truncate = new AtomicReference<>(null);
         // Add a single write.
         log.append(new CompositeByteArraySegment(writeOne), TIMEOUT).thenAccept(address -> {
             Health health = log.getContributor().getHealthSnapshot();
@@ -859,7 +858,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             Assert.assertEquals(1, health.getDetails().get("Writes"));
             Assert.assertEquals((long) writeTwo.length, health.getDetails().get("TotalLength"));
         }).join();
-
     }
 
 

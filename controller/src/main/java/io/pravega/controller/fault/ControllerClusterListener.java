@@ -185,12 +185,12 @@ public class ControllerClusterListener extends AbstractIdleService implements He
     @Override
     protected void shutDown() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "shutDown");
-        contributor.close();
         try {
             log.info("De-registering host {} from controller cluster", host);
             cluster.deregisterHost(host);
             log.info("Controller cluster listener shutDown complete");
         } finally {
+            contributor.close();
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
         }
     }

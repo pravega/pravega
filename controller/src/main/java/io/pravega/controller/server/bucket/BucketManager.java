@@ -18,7 +18,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.health.BucketServiceHealthContributor;
+import io.pravega.controller.server.health.BucketManagerServiceHealthContributor;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.shared.health.HealthConnector;
 import io.pravega.shared.health.HealthContributor;
@@ -70,7 +70,7 @@ public abstract class BucketManager extends AbstractService implements HealthCon
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
 
-        this.contributor = new BucketServiceHealthContributor(serviceType.getName(), this);
+        this.contributor = new BucketManagerServiceHealthContributor(serviceType.getName(), this);
     }
 
     @Override
@@ -148,7 +148,6 @@ public abstract class BucketManager extends AbstractService implements HealthCon
         Collection<BucketService> tmp;
         synchronized (lock) { 
             tmp = buckets.values();
-            contributor.close();
         }
 
         Futures.allOf(tmp.stream().map(bucketService -> {
@@ -179,6 +178,7 @@ public abstract class BucketManager extends AbstractService implements HealthCon
                         log.info("{}: bucket service stopped", serviceType);
                         notifyStopped();
                     }
+                    contributor.close();
                 });
     }
     

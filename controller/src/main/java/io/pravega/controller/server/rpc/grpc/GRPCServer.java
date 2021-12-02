@@ -119,7 +119,6 @@ public class GRPCServer extends AbstractIdleService implements HealthConnector {
     @Override
     protected void shutDown() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
-        this.contributor.close();
         try {
             log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
             this.server.shutdown();
@@ -127,6 +126,7 @@ public class GRPCServer extends AbstractIdleService implements HealthConnector {
             this.server.awaitTermination();
             log.info("gRPC server terminated");
         } finally {
+            this.contributor.close();
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }
