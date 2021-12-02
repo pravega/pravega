@@ -90,12 +90,6 @@ class ContainerKeyIndex implements AutoCloseable {
     private final int containerId;
     private final TableExtensionConfig config;
 
-    // Only throttle segments that are not internal, system critical.
-    private final static Predicate<DirectSegmentAccess> CAN_THROTTLE = d -> !d.getInfo().getType().isCritical()
-            && !d.getInfo().getType().isSystem()
-            && !d.getInfo().getType().isInternal();
-
-
     //endregion
 
     //region Constructor
@@ -748,6 +742,11 @@ class ContainerKeyIndex implements AutoCloseable {
         @GuardedBy("this")
         private final HashMap<Long, AsyncSemaphore> throttlers = new HashMap<>();
 
+        // Only throttle segments that are not internal, system critical.
+        private final Predicate<DirectSegmentAccess> canThrottle = d -> !d.getInfo().getType().isCritical()
+                && !d.getInfo().getType().isSystem()
+                && !d.getInfo().getType().isInternal();
+
         @Override
         public void close() {
             List<RecoveryTask> toCancel;
@@ -850,7 +849,7 @@ class ContainerKeyIndex implements AutoCloseable {
          */
         <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
             // Apply credit-based throttling only for segments that are not internal, system-critical.
-            long totalCredits = CAN_THROTTLE.test(segment) ? config.getMaxUnindexedLength() : Long.MAX_VALUE;
+            long totalCredits = canThrottle.test(segment) ? config.getMaxUnindexedLength() : Long.MAX_VALUE;
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
