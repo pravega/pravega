@@ -46,8 +46,8 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
 
         final String tableName = getArg(0);
         final String key = getArg(1);
-        final String newValueFile = getArg(2);
-        final String segmentStoreHost = getArg(3);
+        final String newValueFile = getArg(3);
+        final String segmentStoreHost = getArg(2);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -81,7 +81,7 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to update. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be updated."),
-                new ArgDescriptor("new-value-file", "The path to the file containing the new value in JSON format."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
+                new ArgDescriptor("new-value-file", "The path to the file containing the new value in JSON format."));
     }
 }

@@ -106,11 +106,11 @@ All available commands:
 	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
 	controller list-scopes : Lists all the existing scopes in the system.
 	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
-	controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> <json-file[OPTIONAL]>: Get the controller metadata entry for the given key in the table.
+	controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
 	controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
 	controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 	controller-metadata tables-info : List all the controller metadata tables.
-	controller-metadata update <qualified-table-segment-name> <key> <new-value-file> <segmentstore-endpoint>: Update the given key in the table with the provided value.
+	controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
 	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
 	data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
 	data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
@@ -228,11 +228,11 @@ Once the config file is updated, the Pravega Admin CLI will be able to connect t
 
 The following commands are available for dealing with controller metadata:
 ```
-controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> <json-file[OPTIONAL]>: Get the controller metadata entry for the given key in the table.
+controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
 controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
 controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 controller-metadata tables-info : List all the controller metadata tables.
-controller-metadata update <qualified-table-segment-name> <key> <new-value-file> <segmentstore-endpoint>: Update the given key in the table with the provided value.
+controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
 ```
 
 Information regarding the different types of tables can be obtained by running the `tables-info` command:
@@ -318,7 +318,7 @@ These records/values can be updated using the `update` command. This command tak
 The record can be obtained in JSON format using the `get` command as detailed above, this JSON file can be updated and then fed into the `update` command. 
 Below `test/config.json` was changed to make `minNumSegments` 10. 
 ```
-> controller-metadata update _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration test/config.json localhost
+> controller-metadata update _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration localhost test/config.json
 Successfully updated the key configuration in table _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 with version 1020
 
 > controller-metadata get _system/_tables/testScope/testStream/metadata.#.e81e4540-fc82-443d-b04e-fc9b073eaa97 configuration localhost

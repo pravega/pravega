@@ -15,11 +15,13 @@
  */
 package io.pravega.cli.admin.controller;
 
+import com.google.gson.JsonSyntaxException;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SetupUtils;
 import org.junit.After;
@@ -215,7 +217,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
 
         String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE + " " +
-                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+                getScopedStreamName(scope, stream) + " localhost " + filename, STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("Successfully updated the key %s in table %s with version",
                 getScopedStreamName(scope, stream), DELETED_STREAMS_TABLE)));
 
@@ -233,7 +235,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         String stream = "updateEntry";
 
         String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE + " " +
-                getScopedStreamName(scope, stream) + " " + filename + " localhost", STATE.get());
+                getScopedStreamName(scope, stream) + " localhost " + filename, STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("File with new value does not exist: %s", filename)));
     }
 
@@ -252,7 +254,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         TestUtils.deleteScopeStream(SETUP_UTILS.getController(), scope, stream);
 
         String commandResult = TestUtils.executeCommand("controller-metadata update " + DELETED_STREAMS_TABLE +
-                " dummyScope/dummyStream " + filename + " localhost", STATE.get());
+                " dummyScope/dummyStream localhost " + filename, STATE.get());
         Assert.assertTrue(commandResult.contains("Key not found: dummyScope/dummyStream"));
 
         // Delete file created during the test.
@@ -273,9 +275,30 @@ public abstract class AbstractControllerMetadataCommandsTest {
 
         String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
                 "randScope", "randStream", String.format(METADATA_TABLE, UUID.randomUUID()));
-        String commandResult = TestUtils.executeCommand("controller-metadata update " + dummyTable + " creationTime " +
-                filename + " localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller-metadata update " + dummyTable +
+                " creationTime localhost " + filename, STATE.get());
         Assert.assertTrue(commandResult.contains(String.format("Table not found: %s", dummyTable)));
+
+        // Delete file created during the test.
+        Files.deleteIfExists(Paths.get(filename));
+
+        // Delete the temporary directory.
+        tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
+    public void testUpdateControllerMetadataEntryCommandJSONSyntaxException() throws Exception {
+        Path tempDirPath = Files.createTempDirectory("updateEntryDir");
+        String filename = Paths.get(tempDirPath.toString(), "tmp" + System.currentTimeMillis(), "deleted.json").toString();
+        File f = createFileAndDirectory(filename);
+        FileWriter writer = new FileWriter(f);
+        writer.write("{ state : ACTIVE }");
+        writer.close();
+
+        String dummyTable = getQualifiedTableName(INTERNAL_SCOPE_NAME,
+                "randScope", "randStream", String.format(METADATA_TABLE, UUID.randomUUID()));
+        AssertExtensions.assertThrows("Json syntax error", () -> TestUtils.executeCommand("controller-metadata update "
+                + dummyTable + " creationTime localhost " + filename, STATE.get()), e -> e instanceof JsonSyntaxException);
 
         // Delete file created during the test.
         Files.deleteIfExists(Paths.get(filename));

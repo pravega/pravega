@@ -310,6 +310,13 @@ public abstract class AdminCommand {
     public static class ArgDescriptor {
         private final String name;
         private final String description;
+        private boolean optional = false;
+
+        public ArgDescriptor(String name, String description, boolean optional) {
+            this.name = name;
+            this.description = description;
+            this.optional = optional;
+        }
     }
 
     /**

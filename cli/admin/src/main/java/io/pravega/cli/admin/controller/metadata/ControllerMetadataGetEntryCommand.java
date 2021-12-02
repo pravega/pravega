@@ -74,12 +74,12 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get", "Get the controller metadata entry for the given key in the table.",
+        return new CommandDescriptor(COMPONENT, "get", "Get the value for the specified key from the specified controller metadata table.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be queried."),
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
-                new ArgDescriptor("json-file[OPTIONAL]", "An optional argument which, if provided, will write the value as " +
-                        "JSON into the given file path."));
+                new ArgDescriptor("json-file", "An optional argument which, if provided, will write the value as " +
+                        "JSON into the given file path.", true));
     }
 }
