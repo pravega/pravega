@@ -139,15 +139,12 @@ public class EventProcessorGroupTest {
     }
 
     @Test(timeout = 10000)
-    public void testFailingCellShutdown() throws CheckpointStoreException {
+    public void testShutdown() throws CheckpointStoreException {
         this.requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
         requestEventProcessors.awaitRunning();
         assertTrue(requestEventProcessors.isRunning());
-
         Position mockReaderPosition = mock(Position.class);
         doReturn(ImmutableMap.of("reader1", mockReaderPosition)).when(checkpointStore).sealReaderGroup("host1", "scaleGroup");
-        String exceptionMsg = "Exception marking reader offline.";
-        doThrow(new RuntimeException(exceptionMsg)).when(reader).closeAt(any());
         requestEventProcessors.stopAsync();
         requestEventProcessors.awaitTerminated();
         verify(checkpointStore, times(1)).sealReaderGroup("host1", "scaleGroup");
