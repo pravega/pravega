@@ -96,6 +96,7 @@ public class K8sClient {
     private static final String DRY_RUN = null;
     private static final String FIELD_MANAGER = "pravega-k8-client";
     private static final String PRETTY_PRINT = null;
+    private static final int POD_RUNNING_RETRIES = Byte.MAX_VALUE;
     private final ApiClient client;
     private final PodLogs logUtility;
     // size of the executor is 3 (1 thread is used to watch the pod status, 2 threads for background log copy).
@@ -666,7 +667,7 @@ public class K8sClient {
      * @return A future which completes once the number of running pods matches the given criteria.
      */
     public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int expectedPodCount) {
-        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, Byte.MAX_VALUE);
+        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, POD_RUNNING_RETRIES);
     }
 
     /**
@@ -705,9 +706,9 @@ public class K8sClient {
                         // Break out of loop.
                         retriesRemaining.set(0);
                     } else if (retriesRemaining.get() == 0) {
-                            log.error("Retries exhausted waiting for pod(s): <{}={}>", labelName, labelValue);
-                            // Print full output in case of retry exhaustion.
-                            log.debug("{}", pods);
+                        log.error("Retries exhausted waiting for pod(s): <{}={}>", labelName, labelValue);
+                        // Print full output in case of retry exhaustion.
+                        log.debug("{}", pods);
                     }
                     log.info("Running pods: {}, Terminated & Waiting Pods: {} for <{}={}>", runCount, totalCount - runCount, labelName, labelValue);
                 }, executor);
