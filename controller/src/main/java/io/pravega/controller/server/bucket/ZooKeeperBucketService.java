@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-@SuppressWarnings("deprecation")
 @Slf4j
 public class ZooKeeperBucketService extends BucketService {
     private final ZookeeperBucketStore bucketStore;
