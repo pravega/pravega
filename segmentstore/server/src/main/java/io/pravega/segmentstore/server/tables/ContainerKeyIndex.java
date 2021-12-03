@@ -742,10 +742,9 @@ class ContainerKeyIndex implements AutoCloseable {
         @GuardedBy("this")
         private final HashMap<Long, AsyncSemaphore> throttlers = new HashMap<>();
 
-        // Only throttle segments that are not internal, system critical.
+        // Only throttle segments that are not system-critical.
         private final Predicate<DirectSegmentAccess> canThrottle = d -> !d.getInfo().getType().isCritical()
-                && !d.getInfo().getType().isSystem()
-                && !d.getInfo().getType().isInternal();
+                && !d.getInfo().getType().isSystem();
 
         @Override
         public void close() {
@@ -848,7 +847,7 @@ class ContainerKeyIndex implements AutoCloseable {
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
         <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
-            // Apply credit-based throttling only for segments that are not internal, system-critical.
+            // Apply credit-based throttling only for segments that are not system-critical.
             long totalCredits = canThrottle.test(segment) ? config.getMaxUnindexedLength() : Long.MAX_VALUE;
             AsyncSemaphore throttler;
             synchronized (this) {
