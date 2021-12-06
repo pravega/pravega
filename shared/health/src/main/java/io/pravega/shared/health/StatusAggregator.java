@@ -65,7 +65,7 @@ public enum StatusAggregator {
         for (Status status : statuses) {
             isAliveStatus += status.isAlive() ? 1 : -1;
         }
-        return isAliveStatus > 0 ? Status.UP : Status.DOWN;
+        return isAliveStatus > 0 ? Status.RUNNING : Status.TERMINATED;
     }
 
     /**
@@ -79,9 +79,9 @@ public enum StatusAggregator {
             return Status.UNKNOWN;
         }
         if (statuses.stream().allMatch(Status::isAlive)) {
-            return Status.UP;
+            return Status.RUNNING;
         }
-        return Status.DOWN;
+        return Status.TERMINATED;
     }
 
     /**
@@ -95,9 +95,9 @@ public enum StatusAggregator {
             return Status.UNKNOWN;
         }
         if (statuses.stream().anyMatch(Status::isAlive)) {
-            return Status.UP;
+            return Status.RUNNING;
         }
-        return Status.DOWN;
+        return Status.TERMINATED;
     }
 
     public static Status aggregate(StatusAggregator aggregator, Collection<Status> statuses) {

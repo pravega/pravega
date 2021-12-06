@@ -45,7 +45,7 @@ public class TestHealthContributors {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.UP;
+            Status status = Status.RUNNING;
             Map<String, Object> details = new HashMap<>();
             details.put(DETAILS_KEY, DETAILS_VAL);
             builder.status(status).details(details);
@@ -67,7 +67,7 @@ public class TestHealthContributors {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
+            Status status = Status.TERMINATED;
             builder.status(status);
             return status;
         }

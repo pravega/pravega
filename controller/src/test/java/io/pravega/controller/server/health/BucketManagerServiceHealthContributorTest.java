@@ -40,11 +40,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Unit tests for RetentionServiceHealthContibutor
+ * Unit tests for BucketManagerServiceHealthContributor
  */
-public class RetentionServiceHealthContributorTest {
+public class BucketManagerServiceHealthContributorTest {
     private BucketManager retentionService;
-    private RetentionServiceHealthContributor contributor;
+    private BucketManagerServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
 
     @Before
@@ -60,7 +60,7 @@ public class RetentionServiceHealthContributorTest {
         doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
         doReturn(true).when(retentionService).isHealthy();
 
-        contributor = new RetentionServiceHealthContributor("retentionservice", retentionService);
+        contributor = new BucketManagerServiceHealthContributor("retentionservice", retentionService);
         builder = Health.builder().name("retentionservice");
     }
 
@@ -73,9 +73,9 @@ public class RetentionServiceHealthContributorTest {
     public void testHealthCheck() throws Exception {
         retentionService.startAsync();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.UP, status);
+        Assert.assertEquals(Status.RUNNING, status);
         retentionService.stopAsync();
         status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.DOWN, status);
+        Assert.assertEquals(Status.TERMINATED, status);
     }
 }

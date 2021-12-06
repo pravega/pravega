@@ -137,7 +137,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -182,7 +182,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -253,7 +253,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -318,7 +318,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -366,7 +366,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -406,7 +406,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         DurableLogConfig config = setup.durableLogConfig == null ? ContainerSetup.defaultDurableLogConfig() : setup.durableLogConfig;
         CorruptedDurableLog.FAIL_AT_INDEX.set(failAtOperationIndex);
         val durableLog = new CorruptedDurableLog(config, setup);
@@ -473,7 +473,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -530,7 +530,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -562,7 +562,7 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testMetadataCheckpointByCount() throws Exception {
         int checkpointEvery = 30;
         testMetadataCheckpoint(
-                () -> ContainerSetup.createDurableLogConfig(checkpointEvery, null),
+                () -> ContainerSetup.createDurableLogConfig(checkpointEvery, null, START_RETRY_DELAY_MILLIS, CHECKPOINT_MIN_COMMIT_COUNT),
                 checkpointEvery);
     }
 
@@ -573,7 +573,7 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testMetadataCheckpointByLength() throws Exception {
         int checkpointLengthThreshold = 257 * 1024;
         testMetadataCheckpoint(
-                () -> ContainerSetup.createDurableLogConfig(null, (long) checkpointLengthThreshold),
+                () -> ContainerSetup.createDurableLogConfig(null, (long) checkpointLengthThreshold, START_RETRY_DELAY_MILLIS, CHECKPOINT_MIN_COMMIT_COUNT),
                 10);
     }
 
@@ -590,7 +590,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         DurableLogConfig durableLogConfig = createDurableLogConfig.get();
         setup.setDurableLogConfig(durableLogConfig);
 
@@ -1040,7 +1040,7 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testRecoveryPartialOperations() {
         // Setup the first Durable Log and create the segment.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup(executorService());
+        ContainerSetup setup = containerSetup(executorService());
         @Cleanup
         DurableLog dl1 = setup.createDurableLog();
         dl1.startAsync().awaitRunning();
@@ -1692,69 +1692,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region ContainerSetup
 
-    private static class ContainerSetup implements AutoCloseable {
-        final ScheduledExecutorService executorService;
-        final TestDurableDataLogFactory dataLogFactory;
-        final AtomicReference<TestDurableDataLog> dataLog;
-        final UpdateableContainerMetadata metadata;
-        final ReadIndex readIndex;
-        final CacheManager cacheManager;
-        final Storage storage;
-        final CacheStorage cacheStorage;
-        DurableLogConfig durableLogConfig;
 
-        ContainerSetup(ScheduledExecutorService executorService) {
-            this.dataLog = new AtomicReference<>();
-            this.executorService = executorService;
-            this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
-            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = InMemoryStorageFactory.newStorage(executorService);
-            this.storage.initialize(1);
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, this.executorService);
-            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.storage, this.cacheManager, this.executorService);
-        }
-
-        @Override
-        public void close() {
-            this.readIndex.close();
-            this.dataLogFactory.close();
-            this.storage.close();
-            this.cacheManager.close();
-            this.cacheStorage.close();
-        }
-
-        DurableLog createDurableLog() {
-            DurableLogConfig config = this.durableLogConfig == null ? defaultDurableLogConfig() : this.durableLogConfig;
-            return new DurableLog(config, this.metadata, this.dataLogFactory, this.readIndex, this.executorService);
-        }
-
-        void setDurableLogConfig(DurableLogConfig config) {
-            this.durableLogConfig = config;
-        }
-
-        static DurableLogConfig defaultDurableLogConfig() {
-            return createDurableLogConfig(null, null);
-        }
-
-        static DurableLogConfig createDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
-            if (checkpointMinCommitCount == null) {
-                checkpointMinCommitCount = Integer.MAX_VALUE;
-            }
-
-            if (checkpointMinTotalCommitLength == null) {
-                checkpointMinTotalCommitLength = Long.MAX_VALUE;
-            }
-
-            return DurableLogConfig
-                    .builder()
-                    .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, CHECKPOINT_MIN_COMMIT_COUNT)
-                    .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
-                    .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
-                    .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, START_RETRY_DELAY_MILLIS)
-                    .build();
-        }
-    }
 
     //endregion
 
@@ -1771,6 +1709,17 @@ public class DurableLogTests extends OperationLogTestBase {
         protected InMemoryLog createInMemoryLog() {
             return new CorruptedMemoryOperationLog(FAIL_AT_INDEX.get());
         }
+    }
+
+    private ContainerSetup containerSetup(ScheduledExecutorService service) {
+        return ContainerSetup.builder()
+                .checkPointMinCommitCount(CHECKPOINT_MIN_COMMIT_COUNT)
+                .startRetryDelayMillis(START_RETRY_DELAY_MILLIS)
+                .containerId(CONTAINER_ID)
+                .readIndexConfig(DEFAULT_READ_INDEX_CONFIG)
+                .maxAppendSize(MAX_DATA_LOG_APPEND_SIZE)
+                .executorService(service)
+                .build();
     }
 
     //endregion

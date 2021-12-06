@@ -25,7 +25,6 @@ import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -39,7 +38,6 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -128,6 +126,7 @@ public final class ServiceStarter {
 
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
+        healthServiceManager.register(new ZKHealthContributor(zkClient));
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize();
@@ -157,7 +156,8 @@ public final class ServiceStarter {
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
-                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
+                                                      this.serviceConfig.getTlsProtocolVersion());
+        listener.connect(healthServiceManager.getRoot());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -165,16 +165,15 @@ public final class ServiceStarter {
         if (serviceConfig.isEnableAdminGateway()) {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
-                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
-                    healthServiceManager);
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion());
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
+            adminListener.connect(healthServiceManager.getRoot());
         }
         log.info("StreamSegmentService started.");
 
-        healthServiceManager.register(new ZKHealthContributor(zkClient));
-        healthServiceManager.register(new CacheManagerHealthContributor(serviceBuilder.getCacheManager()));
-        healthServiceManager.register(new SegmentContainerRegistryHealthContributor(serviceBuilder.getSegmentContainerRegistry()));
+        serviceBuilder.getCacheManager().connect(healthServiceManager.getRoot());
+        serviceBuilder.getSegmentContainerRegistry().connect(healthServiceManager.getRoot());
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");

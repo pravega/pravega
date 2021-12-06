@@ -18,7 +18,10 @@ package io.pravega.controller.server.bucket;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.health.BucketManagerServiceHealthContributor;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +47,7 @@ import java.util.stream.IntStream;
  * work in the executor's queue. 
  */
 @Slf4j
-public abstract class BucketManager extends AbstractService {
+public abstract class BucketManager extends AbstractService implements HealthConnector {
     private final String processId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
@@ -55,6 +58,9 @@ public abstract class BucketManager extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
 
+    @Getter
+    private final HealthContributor contributor;
+
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
                   final Function<Integer, BucketService> bucketServiceSupplier) {
         this.processId = processId;
@@ -63,6 +69,8 @@ public abstract class BucketManager extends AbstractService {
         this.lock = new Object();
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
+
+        this.contributor = new BucketManagerServiceHealthContributor(serviceType.getName(), this);
     }
 
     @Override
@@ -141,7 +149,7 @@ public abstract class BucketManager extends AbstractService {
         synchronized (lock) { 
             tmp = buckets.values();
         }
-        
+
         Futures.allOf(tmp.stream().map(bucketService -> {
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {
@@ -170,6 +178,7 @@ public abstract class BucketManager extends AbstractService {
                         log.info("{}: bucket service stopped", serviceType);
                         notifyStopped();
                     }
+                    contributor.close();
                 });
     }
     

@@ -15,7 +15,6 @@
  */
 package io.pravega.controller.server.health;
 
-import com.google.common.base.Preconditions;
 import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -23,23 +22,24 @@ import io.pravega.shared.health.impl.AbstractHealthContributor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RetentionServiceHealthContributor extends AbstractHealthContributor {
-    private final BucketManager retentionService;
+public class BucketManagerServiceHealthContributor extends AbstractHealthContributor {
+    private final BucketManager service;
 
-    public RetentionServiceHealthContributor(String name, BucketManager retentionService) {
+    public BucketManagerServiceHealthContributor(String name, BucketManager service) {
         super(name);
-        this.retentionService = Preconditions.checkNotNull(retentionService, "retentionService");
+        this.service = service;
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
-        if (retentionService.isRunning()) {
-            status = Status.NEW;
-            if (retentionService.isHealthy()) {
-                status = Status.UP;
+        Status status = Status.TERMINATED;
+        if (service.isRunning()) {
+            status = Status.STARTING;
+            if (service.isHealthy()) {
+                status = Status.RUNNING;
             }
         }
+
         return status;
     }
 }

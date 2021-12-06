@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
@@ -51,7 +52,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.contributors.ServiceHealthContributor;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -61,7 +69,7 @@ import lombok.val;
  * at once, generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
 @Slf4j
-class OperationProcessor extends AbstractThreadPoolService implements AutoCloseable {
+class OperationProcessor extends AbstractThreadPoolService implements AutoCloseable, HealthConnector {
     //region Members
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
@@ -83,6 +91,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final SegmentStoreMetrics.OperationProcessor metrics;
     private final Throttler throttler;
     private final CacheUtilizationProvider cacheUtilizationProvider;
+
+    @Getter
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -122,6 +133,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
         this.stateUpdater.registerReadListener(this.throttler);
+
+        this.contributor = new OperationProcessorHealthContributor(String.format("OperationProcessor-%d", metadata.getContainerId()), this);
     }
 
     //endregion
@@ -766,4 +779,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     //endregion
+    class OperationProcessorHealthContributor extends ServiceHealthContributor {
+
+        private final OperationProcessor processor;
+
+        public OperationProcessorHealthContributor(@NonNull String name, @NonNull OperationProcessor processor) {
+            super(name, processor);
+            this.processor = processor;
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = super.doHealthCheck(builder);
+
+            builder.details(ImmutableMap.of(
+                    "State", state(),
+                    "CommitQueueSize", processor.commitQueue.size(),
+                    "OperationQueueSize", processor.operationQueue.size())
+            );
+            return status;
+        }
+    }
+
 }

@@ -70,7 +70,7 @@ public class HealthManagerTests {
         awaitHealthContributor(service, contributor.getName());
         Assert.assertNotNull(service.getEndpoint().getHealth(contributor.getName()));
         Assert.assertNotNull(service.getEndpoint().getHealth());
-        Assert.assertEquals("Status of the default/root component is expected to be 'UP'", Status.UP, service.getEndpoint().getStatus());
+        Assert.assertEquals("Status of the default/root component is expected to be 'UP'", Status.RUNNING, service.getEndpoint().getStatus());
         Assert.assertEquals("There should be exactly one child (SimpleIndicator)", 1, service.getEndpoint().getHealth().getChildren().size());
     }
 
@@ -131,9 +131,9 @@ public class HealthManagerTests {
 
         awaitHealthContributor(service, contributor.getName());
         // Test the 'service level' endpoint.
-        Assert.assertEquals("Status should be UP", Status.UP, service.getEndpoint().getStatus());
+        Assert.assertEquals("Status should be UP", Status.RUNNING, service.getEndpoint().getStatus());
         // Test the contributor level endpoint.
-        Assert.assertEquals("Status should be UP", Status.UP, service.getEndpoint().getStatus(contributor.getName()));
+        Assert.assertEquals("Status should be UP", Status.RUNNING, service.getEndpoint().getStatus(contributor.getName()));
     }
 
     /**

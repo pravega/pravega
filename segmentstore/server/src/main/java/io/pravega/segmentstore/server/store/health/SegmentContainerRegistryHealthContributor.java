@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.pravega.segmentstore.server.store.health;
 
-package io.pravega.segmentstore.server.host.health;
-
-import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
@@ -36,15 +34,12 @@ public class SegmentContainerRegistryHealthContributor extends AbstractHealthCon
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
-        for (SegmentContainer container: segmentContainerRegistry.getContainers()) {
-            this.register(new SegmentContainerHealthContributor(container));
-        }
 
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         boolean ready = !segmentContainerRegistry.isClosed();
 
         if (ready) {
-            status = Status.UP;
+            status = Status.RUNNING;
         }
 
         return status;

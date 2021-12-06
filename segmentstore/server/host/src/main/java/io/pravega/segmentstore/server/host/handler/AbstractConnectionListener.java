@@ -43,7 +43,8 @@ import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer
 import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
 import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthServiceManager;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -59,7 +60,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
-public abstract class AbstractConnectionListener implements AutoCloseable {
+public abstract class AbstractConnectionListener implements AutoCloseable, HealthConnector {
 
     //region Members
 
@@ -71,9 +72,6 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
-    @VisibleForTesting
-    @Getter
-    private final HealthServiceManager healthServiceManager;
     private final ConnectionTracker connectionTracker;
 
     // TLS related params
@@ -89,6 +87,9 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
+    @Getter
+    private final HealthContributor contributor;
+
     /**
      * Creates a new instance of the AdminConnectionListener class.
      *
@@ -98,29 +99,10 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
      * @param port               The port to listen on.
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
-     * @param tlsProtocolVersion the version of the TLS protocol
+     * @param tlsProtocolVersion The version of the TLS protocol
      */
     public AbstractConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                       String certFile, String keyFile, String[] tlsProtocolVersion) {
-
-        this(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, null);
-    }
-
-    /**
-     * Creates a new instance of the AdminConnectionListener class with HealthServiceManager.
-     *
-     * @param enableTls          Whether to enable SSL/TLS.
-     * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
-     * @param host               The name of the host to listen to.
-     * @param port               The port to listen on.
-     * @param certFile           Path to the certificate file to be used for TLS.
-     * @param keyFile            Path to be key file to be used for TLS.
-     * @param tlsProtocolVersion The version of the TLS protocol
-     * @param healthServiceManager The healthService to register new health contributors related to the listeners.
-     */
-    public AbstractConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
-                                      String certFile, String keyFile, String[] tlsProtocolVersion,
-                                      HealthServiceManager healthServiceManager) {
         this.enableTls = enableTls;
         this.enableTlsReload = this.enableTls && enableTlsReload;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
@@ -130,7 +112,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         this.tlsProtocolVersion = Arrays.copyOf(tlsProtocolVersion, tlsProtocolVersion.length);
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.connectionTracker = new ConnectionTracker();
-        this.healthServiceManager = healthServiceManager;
+        this.contributor = new ConnectionListenerHealthContributor(this);
     }
 
     /**
@@ -202,9 +184,6 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         // Start the server.
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
 
-        if (healthServiceManager != null) {
-            healthServiceManager.register(new ConnectionListenerHealthContributor(this));
-        }
     }
 
     @VisibleForTesting
@@ -269,6 +248,8 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         if (tlsCertFileModificationMonitor != null) {
             tlsCertFileModificationMonitor.stopMonitoring();
         }
+
+        contributor.close();
     }
 
     /**
@@ -285,7 +266,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
+            Status status = Status.TERMINATED;
             boolean running = listener.serverChannel.isOpen();
             if (running) {
                 status = Status.NEW;
@@ -293,7 +274,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
             boolean ready = listener.serverChannel.isActive();
             if (ready) {
-                status = Status.UP;
+                status = Status.RUNNING;
             }
 
             builder.details(ImmutableMap.of("host", listener.host, "port", listener.port));

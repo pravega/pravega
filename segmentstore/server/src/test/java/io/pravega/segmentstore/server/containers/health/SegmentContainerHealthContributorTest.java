@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.host.health;
+package io.pravega.segmentstore.server.containers.health;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.store.health.StreamSegmentContainerHealthContributor;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import org.junit.After;
@@ -32,12 +33,12 @@ import static org.mockito.Mockito.when;
  */
 public class SegmentContainerHealthContributorTest {
     SegmentContainer segmentContainer;
-    SegmentContainerHealthContributor segmentContainerHealthContributor;
+    StreamSegmentContainerHealthContributor segmentContainerHealthContributor;
 
     @Before
     public void setup() {
         segmentContainer = mock(SegmentContainer.class);
-        segmentContainerHealthContributor = new SegmentContainerHealthContributor(segmentContainer);
+        segmentContainerHealthContributor = new StreamSegmentContainerHealthContributor("SegmentContainer", segmentContainer);
     }
 
     @After
@@ -57,12 +58,12 @@ public class SegmentContainerHealthContributorTest {
         Assert.assertEquals("HealthContributor should report an 'NEW' Status.", Status.NEW, status);
         when(segmentContainer.state()).thenReturn(Service.State.STARTING);
         status = segmentContainerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'STARTING' Status.", Status.STARTING, status);
+        Assert.assertEquals("HealthContributor should report a 'STARTING' Status.", Status.STARTING, status);
         when(segmentContainer.state()).thenReturn(Service.State.RUNNING);
         status = segmentContainerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
+        Assert.assertEquals("HealthContributor should report a 'RUNNING' Status.", Status.RUNNING, status);
         when(segmentContainer.state()).thenReturn(Service.State.TERMINATED);
         status = segmentContainerHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, status);
+        Assert.assertEquals("HealthContributor should report a 'TERMINATED' Status.", Status.TERMINATED, status);
     }
 }

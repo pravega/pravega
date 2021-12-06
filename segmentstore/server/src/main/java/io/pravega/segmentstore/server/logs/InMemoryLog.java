@@ -17,23 +17,36 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.segmentstore.server.logs.health.InMemoryLogHealthContributor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import lombok.AccessLevel;
 import lombok.Getter;
+
+import java.util.Queue;
 
 /**
  * {@link BlockingDrainingQueue} implementation for {@link Operation}s. Prevents adding {@link Operation}s out of order.
  */
-public class InMemoryLog extends BlockingDrainingQueue<Operation> {
+public class InMemoryLog extends BlockingDrainingQueue<Operation> implements HealthConnector {
     /**
      * The last sequence number added. This field is only accessed in {@link #addInternal}, which is guaranteed to be
      * executed while holding the base class' lock, hence no need for extra synchronization here.
      */
-    @Getter(AccessLevel.PACKAGE)
     @GuardedBy("AbstractDrainingQueue.this.lock")
     @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+
+    @Getter
+    private final HealthContributor contributor;
+
+    public InMemoryLog() {
+        this.contributor = new InMemoryLogHealthContributor("InMemoryLog", this);
+    }
 
     /**
      * See {@link BlockingDrainingQueue#addInternal}.
@@ -51,6 +64,13 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> {
         }
         super.addInternal(item);
         this.lastSequenceNumber = item.getSequenceNumber();
+    }
+
+    @Override
+    public Queue<Operation> close() {
+        Queue<Operation> operation = super.close();
+        contributor.close();
+        return operation;
     }
 
     public static class OutOfOrderOperationException extends IllegalStateException {

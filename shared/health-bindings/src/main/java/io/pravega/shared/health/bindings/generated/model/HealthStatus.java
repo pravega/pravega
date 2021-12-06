@@ -20,17 +20,19 @@ import com.fasterxml.jackson.annotation.JsonCreator;
  */
 public enum HealthStatus {
   
-  UP("UP"),
+  RUNNING("RUNNING"),
   
   STARTING("STARTING"),
   
   NEW("NEW"),
   
   UNKNOWN("UNKNOWN"),
-  
+
+  STOPPING("STOPPING"),
+
   FAILED("FAILED"),
   
-  DOWN("DOWN");
+  TERMINATED("TERMINATED");
 
   private String value;
 
@@ -50,6 +52,7 @@ public enum HealthStatus {
         return b;
       }
     }
+
     return null;
   }
 }

@@ -110,11 +110,11 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
         eventProcessors.startAsync();
         eventProcessors.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.UP, status);
+        Assert.assertEquals(Status.RUNNING, status);
         eventProcessors.stopAsync();
         eventProcessors.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.DOWN, status);
+        Assert.assertEquals(Status.TERMINATED, status);
     }
 
     private EventProcessorGroup<ControllerEvent> getProcessor() {
