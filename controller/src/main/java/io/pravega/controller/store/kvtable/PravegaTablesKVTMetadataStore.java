@@ -17,21 +17,16 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.PravegaTablesScope;
-import io.pravega.common.Exceptions;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.PravegaTablesScope;
+import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
-
-import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
-import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
-import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
-import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -43,6 +38,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Tables stream metadata store.

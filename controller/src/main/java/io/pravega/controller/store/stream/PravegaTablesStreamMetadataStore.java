@@ -58,7 +58,7 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BY
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
-import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
+import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**

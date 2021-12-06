@@ -19,17 +19,14 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +49,7 @@ import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(DeleteScopeTask.class));
 
+    private static final int PAGE_LIMIT = 1000;
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final KVTableMetadataStore kvtMetadataStore;
@@ -76,14 +74,12 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
         log.debug(requestId, "Deleting {} scope recursively", scope);
-        return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose( exists -> {
+        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose( exists -> {
             if (exists) {
-                RetryHelper.withRetriesAsync(() -> deleteScopeContent(scope, context, requestId)
-                        .thenCompose(table -> streamMetadataStore.deleteScopeRecursive(scope, context, executor)),
-                        e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                return deleteScopeContent(scope, context, requestId);
             }
             log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
-                            " does not exist", scope);
+                            " does not exist in deleting table", scope);
             return CompletableFuture.completedFuture(null);
         });
     }
@@ -116,12 +112,14 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
          Futures.getThrowingException(kvtMetadataStore
                  .deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor));
          }
+        streamMetadataStore.deleteScopeRecursive(scopeName, context, executor)
+                .thenApply(f -> null);
         return CompletableFuture.completedFuture(null);
     }
 
     private AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                streamMetadataStore.listStream(scopeName, token, 1000, executor, context)
+                streamMetadataStore.listStream(scopeName, token, PAGE_LIMIT, executor, context)
                         .thenApply(result -> {
                             List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
                                     .collect(Collectors.toList());
@@ -132,7 +130,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
 
      private AsyncIterator<KeyValueTableInfo> listKVTs(final String scopeName, final long requestId, OperationContext context) {
          final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-                 kvtMetadataStore.listKeyValueTables(scopeName, token, 1000, context, executor)
+                 kvtMetadataStore.listKeyValueTables(scopeName, token, PAGE_LIMIT, context, executor)
                          .thenApply(result -> {
                              List<KeyValueTableInfo> kvtList = result.getLeft().stream()
                                      .map(m -> new KeyValueTableInfo(scopeName, m))

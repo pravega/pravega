@@ -18,12 +18,13 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import lombok.AccessLevel;
+import lombok.Getter;
+
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 /**
  * Utility methods for StreamSegment Names.
@@ -42,9 +43,6 @@ public final class NameUtils {
 
     // The Prefix which is used when creating internally used pravega streams.
     public static final String INTERNAL_SCOPE_PREFIX = INTERNAL_SCOPE_NAME + "/";
-
-    // The scope name which has to be used when creating internally used pravega streams.
-    public static final String DELETING_SCOPES_TABLE = "_system/deletingScopes";
 
     // The prefix used for internal container segments.
     public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";

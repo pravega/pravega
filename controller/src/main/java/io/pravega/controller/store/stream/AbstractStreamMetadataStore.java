@@ -16,43 +16,44 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.store.Version;
-import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.Scope;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.ScopeDeletionInProgressException;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.Getter;
@@ -191,7 +192,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                         checkScopeInDeletingTable(scope, context, executor)
                                                 .thenCompose(exist -> {
                                                     if (exist) {
-                                                        throw new IllegalArgumentException("Scope already in deleting state: " + scope);
+                                                        throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
                                                     }
                                                     // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
                                                     return getStream(scope, name, context)
@@ -1223,7 +1224,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                        checkScopeInDeletingTable(scope, context, executor)
                                .thenCompose(exist -> {
                                    if (exist) {
-                                       throw new IllegalArgumentException("Scope already in deleting state: " + scope);
+                                       throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
                                    }
                                    return null;
                                });

@@ -22,6 +22,7 @@ import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.controller.store.stream.InMemoryReaderGroup;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -35,7 +36,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-import io.pravega.controller.store.stream.StoreException;
 
 /**
  * InMemory implementation of Scope.
@@ -155,7 +155,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
-        return Futures.failedFuture(new UnsupportedOperationException("Not implmemented"));
+        return Futures.failedFuture(new UnsupportedOperationException("Not implemented"));
     }
 
     @Synchronized

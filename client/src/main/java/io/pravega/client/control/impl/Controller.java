@@ -105,9 +105,7 @@ public interface Controller extends AutoCloseable {
 
     /**
      * API to delete a scope recursively. This method once invoked will not allow any
-     * operation(create/update/seal/delete) on Stream/Rg/KVT within the scope as the scope will be listed in a
-     * deleting_scope_table and every operation on Stream/RG/KVT will validate that the scope should not be listed
-     * in the deleting_scopes_table
+     * operation(create/update/seal/delete) on Stream/Rg/KVT within the scope
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to

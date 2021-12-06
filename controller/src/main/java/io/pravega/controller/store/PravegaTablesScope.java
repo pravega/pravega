@@ -22,6 +22,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.ScopeDeletionInProgressException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.TagRecord;
@@ -47,13 +48,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
-
-import static io.pravega.shared.NameUtils.DELETING_SCOPES_TABLE;
-
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.SEPARATOR;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
@@ -65,6 +63,8 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
  * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created.
  */
 public class PravegaTablesScope implements Scope {
+    // The scope name which has to be used when creating internally used pravega streams.
+    public static final String DELETING_SCOPES_TABLE = "_system/deletingScopes";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesScope.class));
     private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
     private static final String READER_GROUPS_IN_SCOPE_TABLE_FORMAT = "readerGroupsInScope" + SEPARATOR + "%s";
@@ -98,51 +98,59 @@ public class PravegaTablesScope implements Scope {
         // We then retrieve id from the store (in case someone concurrently created the entry or entry already existed.
         // This unique id is used to create scope specific table with unique id.
         // If scope entry exists in Scopes table, create the streamsInScope table before throwing DataExists exception
-        return Futures.handleCompose(withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
-                SCOPES_TABLE, scopeName, newId(), UUID_TO_BYTES_FUNCTION, context.getRequestId()), SCOPES_TABLE, context), (r, e) -> {
-            if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
-                return CompletableFuture.allOf(getStreamsInScopeTableName(context)
-                                                       .thenCompose(streamsTableName -> storeHelper.createTable(streamsTableName, context.getRequestId())
-                                                                                                   .thenAccept(v -> {
-                                                                                                       log.debug(context.getRequestId(),
-                                                                                                                 "table for streams created {}", streamsTableName);
-                                                                                                       if (e != null) {
-                                                                                                           throw new CompletionException(e);
-                                                                                                       }
-                                                                                                   })),
-                                               getKVTablesInScopeTableName(context)
-                                                       .thenCompose(kvtsTableName -> storeHelper.createTable(kvtsTableName, context.getRequestId())
-                                                                                                .thenAccept(v -> {
-                                                                                                    log.debug(context.getRequestId(), "table for kvts created {}", kvtsTableName);
-                                                                                                    if (e != null) {
-                                                                                                        throw new CompletionException(e);
-                                                                                                    }
-                                                                                                })),
-                                               getReaderGroupsInScopeTableName(context)
-                                                       .thenCompose(rgTableName -> storeHelper.createTable(rgTableName, context.getRequestId())
-                                                                                              .thenAccept(v -> {
-                                                                                                  log.debug(context.getRequestId(), "table for reader groups created {}", rgTableName);
-                                                                                                  if (e != null) {
-                                                                                                      throw new CompletionException(e);
-                                                                                                  }
-                                                                                              })),
-                                               getAllStreamTagsInScopeTableNames(context)
-                                                       .thenCompose(tagTableNames -> {
-                                                           List<CompletableFuture<Void>> futures = new ArrayList<>();
-                                                           for (String tableName : tagTableNames) {
-                                                               futures.add(storeHelper.createTable(tableName, context.getRequestId()));
-                                                           }
-                                                           return Futures.allOf(futures);
-                                                       })
-                                                       .thenAccept(v -> {
-                                                           if (e != null) {
-                                                               throw new CompletionException(e);
-                                                           }
-                                                       }));
+        return checkScopeExistsInTable(scopeName, context).thenCompose(exist -> {
+            if (exist) {
+                throw new ScopeDeletionInProgressException("Scope deletion in progress");
             } else {
-                throw new CompletionException(e);
+                return Futures.handleCompose(
+                        withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
+                                SCOPES_TABLE, scopeName, newId(), UUID_TO_BYTES_FUNCTION, context.getRequestId()), SCOPES_TABLE, context), (r, e) -> {
+                            if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                                return CompletableFuture.allOf(getStreamsInScopeTableName(context)
+                                                .thenCompose(streamsTableName -> storeHelper.createTable(streamsTableName, context.getRequestId())
+                                                        .thenAccept(v -> {
+                                                            log.debug(context.getRequestId(),
+                                                                    "table for streams created {}", streamsTableName);
+                                                            if (e != null) {
+                                                                throw new CompletionException(e);
+                                                            }
+                                                        })),
+                                        getKVTablesInScopeTableName(context)
+                                                .thenCompose(kvtsTableName -> storeHelper.createTable(kvtsTableName, context.getRequestId())
+                                                        .thenAccept(v -> {
+                                                            log.debug(context.getRequestId(), "table for kvts created {}", kvtsTableName);
+                                                            if (e != null) {
+                                                                throw new CompletionException(e);
+                                                            }
+                                                        })),
+                                        getReaderGroupsInScopeTableName(context)
+                                                .thenCompose(rgTableName -> storeHelper.createTable(rgTableName, context.getRequestId())
+                                                        .thenAccept(v -> {
+                                                            log.debug(context.getRequestId(), "table for reader groups created {}", rgTableName);
+                                                            if (e != null) {
+                                                                throw new CompletionException(e);
+                                                            }
+                                                        })),
+                                        getAllStreamTagsInScopeTableNames(context)
+                                                .thenCompose(tagTableNames -> {
+                                                    List<CompletableFuture<Void>> futures = new ArrayList<>();
+                                                    for (String tableName : tagTableNames) {
+                                                        futures.add(storeHelper.createTable(tableName, context.getRequestId()));
+                                                    }
+                                                    return Futures.allOf(futures);
+                                                })
+                                                .thenAccept(v -> {
+                                                    if (e != null) {
+                                                        throw new CompletionException(e);
+                                                    }
+                                                }));
+                            } else {
+                                throw new CompletionException(e);
+                            }
+                        });
             }
         });
+
     }
 
     public CompletableFuture<String> getStreamsInScopeTableName(OperationContext context) {
@@ -420,6 +428,13 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(tableName, stream, x -> x, context.getRequestId()).thenApply(v -> true),
                         false));
+    }
+
+    public CompletableFuture<Boolean> checkScopeExistsInTable(String scopeName, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
+        return storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(DELETING_SCOPES_TABLE, scopeName, x -> x, context.getRequestId()).thenApply(v -> true),
+                        false);
     }
 
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt, OperationContext context) {
