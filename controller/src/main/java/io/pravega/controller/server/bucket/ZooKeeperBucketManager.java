@@ -33,7 +33,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 
-@SuppressWarnings("deprecation")
 @Slf4j
 public class ZooKeeperBucketManager extends BucketManager {
     private final ZookeeperBucketStore bucketStore;

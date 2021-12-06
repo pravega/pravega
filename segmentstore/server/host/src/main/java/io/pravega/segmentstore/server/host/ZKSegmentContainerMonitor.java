@@ -58,7 +58,6 @@ import org.apache.curator.utils.ZKPaths;
  * and starts or stops appropriate segment containers locally. Any start failures are periodically retried until
  * the desired ownership state is achieved.
  */
-@SuppressWarnings("deprecation")
 @Slf4j
 public class ZKSegmentContainerMonitor implements AutoCloseable {
 
