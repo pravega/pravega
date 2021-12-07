@@ -34,6 +34,7 @@ public class TableExtensionConfigTests {
         Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 4, defaultConfig.getMaxTailCachePreIndexBatchLength());
         Assert.assertEquals(Duration.ofSeconds(60), defaultConfig.getRecoveryTimeout());
         Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 4, defaultConfig.getMaxUnindexedLength());
+        Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE * 8, defaultConfig.getSystemCriticalMaxUnindexedLength());
         Assert.assertEquals(EntrySerializer.MAX_SERIALIZATION_LENGTH * 4, defaultConfig.getMaxCompactionSize());
         Assert.assertEquals(Duration.ofSeconds(30), defaultConfig.getCompactionFrequency());
         Assert.assertEquals(75, defaultConfig.getDefaultMinUtilization());
@@ -56,6 +57,7 @@ public class TableExtensionConfigTests {
         b.with(TableExtensionConfig.COMPACTION_FREQUENCY, 15);
         b.with(TableExtensionConfig.DEFAULT_ROLLOVER_SIZE, 16L);
         b.with(TableExtensionConfig.MAX_BATCH_SIZE, 17);
+        b.with(TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH, 18);
 
         val c = b.build();
         Assert.assertEquals(10, c.getDefaultMinUtilization());
@@ -67,5 +69,6 @@ public class TableExtensionConfigTests {
         Assert.assertEquals(Duration.ofMillis(15), c.getCompactionFrequency());
         Assert.assertEquals(16, c.getDefaultRolloverSize());
         Assert.assertEquals(17, c.getMaxBatchSize());
+        Assert.assertEquals(18, c.getSystemCriticalMaxUnindexedLength());
     }
 }

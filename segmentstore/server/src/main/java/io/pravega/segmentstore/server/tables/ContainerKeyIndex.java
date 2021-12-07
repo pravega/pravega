@@ -734,7 +734,8 @@ class ContainerKeyIndex implements AutoCloseable {
      * Helps keep track of Segment-specific state.
      */
     @ThreadSafe
-    private class SegmentTracker implements AutoCloseable {
+    @VisibleForTesting
+    class SegmentTracker implements AutoCloseable {
         @GuardedBy("this")
         private final HashSet<Long> recoveredSegments = new HashSet<>();
         @GuardedBy("this")
@@ -742,9 +743,9 @@ class ContainerKeyIndex implements AutoCloseable {
         @GuardedBy("this")
         private final HashMap<Long, AsyncSemaphore> throttlers = new HashMap<>();
 
-        // Only throttle segments that are not system-critical.
-        private final Predicate<DirectSegmentAccess> canThrottle = d -> !d.getInfo().getType().isCritical()
-                && !d.getInfo().getType().isSystem();
+        // Differentiate the throttling credits between system-critical and other Segments.
+        private final Predicate<DirectSegmentAccess> isSystemCriticalSegment = d -> d.getInfo().getType().isCritical()
+                && d.getInfo().getType().isSystem();
 
         @Override
         public void close() {
@@ -847,8 +848,8 @@ class ContainerKeyIndex implements AutoCloseable {
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
         <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
-            // Apply credit-based throttling only for segments that are not system-critical.
-            long totalCredits = canThrottle.test(segment) ? config.getMaxUnindexedLength() : Long.MAX_VALUE;
+            // Give a different amount of credits depending on whether the Segment is system-critical or not.
+            long totalCredits = isSystemCriticalSegment.test(segment) ? config.getSystemCriticalMaxUnindexedLength() : config.getMaxUnindexedLength();
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
