@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -422,60 +423,105 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
 
-        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
-                WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        // create stream segment
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        order.verify(connection).send(Mockito.argThat(t -> {
-            return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
-        }));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 2));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+        // create txn segment
+        String transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionSegmentName));
+        // write to txn segment
+        assertTrue(append(transactionSegmentName, 1, store));
+        assertTrue(append(transactionSegmentName, 2, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
+        order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
+
+        List<String> txnSegmentNames = ImmutableList.of(transactionSegmentName);
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L)));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
+        // verify that txn segment is merged and so does not exist any more
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+
+        // Repeat with multiple txn segments
+        UUID txnid1 = UUID.randomUUID();
+        UUID txnid2 = UUID.randomUUID();
+        UUID txnid3 = UUID.randomUUID();
+
+        String transaction1SegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid1);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transaction1SegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transaction1SegmentName));
+
+        String transaction2SegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid2);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transaction2SegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transaction2SegmentName));
+
+        String transaction3SegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid3);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transaction3SegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transaction3SegmentName));
+
+        // write to txn segment(s)
+        assertTrue(append(transaction1SegmentName, 1, store));
+        assertTrue(append(transaction1SegmentName, 1, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction1SegmentName, ""));
+
+        assertTrue(append(transaction2SegmentName, 2, store));
+        assertTrue(append(transaction2SegmentName, 2, store));
+        assertTrue(append(transaction2SegmentName, 2, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction2SegmentName, ""));
+
+        assertTrue(append(transaction3SegmentName, 3, store));
+        assertTrue(append(transaction3SegmentName, 3, store));
+        assertTrue(append(transaction3SegmentName, 3, store));
+        assertTrue(append(transaction3SegmentName, 3, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction3SegmentName, ""));
+        order.verify(connection, times(3)).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
+
+        txnSegmentNames = ImmutableList.of(transaction1SegmentName, transaction2SegmentName, transaction3SegmentName);
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 3L, 4L)));
+
+        // verify that txn segments are merged and so do not exist any more
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction1SegmentName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, transaction1SegmentName, "", -1L));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction2SegmentName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, transaction2SegmentName, "", -1L));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction3SegmentName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, transaction3SegmentName, "", -1L));
 
         txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection).send(Mockito.argThat(t -> {
-            return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
-        }));
-        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionSegmentName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
+        order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
+        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, transactionSegmentName, ""));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionSegmentName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
         order.verify(connection)
                 .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         // Verify the case when the transaction segment is already sealed. This simulates the case when the process
         // crashed after sealing, but before issuing the merge.
         txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
 
         // Seal the transaction in the SegmentStore.
         String txnName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 4));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(4L)));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         order.verifyNoMoreInteractions();
     }
