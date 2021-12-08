@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.retry.RetryForever;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -84,8 +84,9 @@ public class ZkStreamTest {
     @Before
     public void startZookeeper() throws Exception {
         zkTestServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
+        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryForever(2000));
         cli.start();
+        cli.blockUntilConnected(); // wait until connected.
 
         storePartialMock = Mockito.spy(new ZKStreamMetadataStore(cli, executor));
     }
