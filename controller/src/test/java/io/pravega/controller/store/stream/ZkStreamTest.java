@@ -62,6 +62,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -144,6 +145,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    @Ignore
     public void testZkConnectionLoss() throws Exception {
         try {
             final ScalingPolicy policy = ScalingPolicy.fixed(5);
