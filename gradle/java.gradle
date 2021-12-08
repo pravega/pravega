@@ -110,15 +110,15 @@ plugins.withId('java') {
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
         jvmArgsCopy.add("-XX:+HeapDumpOnOutOfMemoryError")
         jvmArgs = jvmArgsCopy
-        def outputCache = new ArrayDeque<String>(301)
+        def outputCache = new ArrayDeque<String>(801)
 
         beforeTest { descriptor ->
             outputCache.clear()
         }
-
+        failFast = true
         onOutput { descriptor, event ->
             outputCache.add(event.getMessage())
-            while (outputCache.size() > 300) outputCache.remove()
+            while (outputCache.size() > 800) outputCache.remove()
         }
 
         afterTest { descriptor, result ->
