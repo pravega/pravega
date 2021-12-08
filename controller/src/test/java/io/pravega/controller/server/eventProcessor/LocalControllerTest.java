@@ -821,24 +821,24 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     @Test
     public void testDeleteScopeRecursive() {
         when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.DeleteScopeRecursiveStatus.newBuilder()
-                        .setStatus(Controller.DeleteScopeRecursiveStatus.Status.SUCCESS).build()));
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.deleteScopeRecursive("testScope").join());
 
         when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.DeleteScopeRecursiveStatus.newBuilder()
-                        .setStatus(Controller.DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build()));
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
         Assert.assertFalse(this.testController.deleteScopeRecursive("testScope").join());
 
         when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.DeleteScopeRecursiveStatus.newBuilder()
-                        .setStatus(Controller.DeleteScopeRecursiveStatus.Status.FAILURE).build()));
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.deleteScopeRecursive("testScope").join(),
                 ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.DeleteScopeRecursiveStatus.newBuilder()
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.deleteScopeRecursive("testScope").join(),

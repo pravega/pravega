@@ -235,6 +235,7 @@ public class PravegaTablesScope implements Scope {
     }
 
     private CompletableFuture<Void> deleteMetadataTables(OperationContext context) {
+        log.debug("Processing DeleteMetadatables");
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);

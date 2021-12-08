@@ -66,7 +66,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
@@ -731,21 +731,21 @@ public class StreamMetadataTasks extends TaskBase {
      * @param requestId       request id.
      * @return deletion status.
      */
-    public CompletableFuture<DeleteScopeRecursiveStatus.Status> deleteScopeRecursive(final String scope,
+    public CompletableFuture<DeleteScopeStatus.Status> deleteScopeRecursive(final String scope,
                                                                               final long requestId) {
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
-        return RetryHelper.withRetriesAsync(() ->
-                streamMetadataStore.checkScopeExists(scope, context, executor)
-                        .thenCompose(exists -> {
-                            if (!exists) {
-                                return CompletableFuture.completedFuture(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND);
-                            } else {
-                                DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
-                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
-                                                    .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeleted(scope, context)))
-                                                    .thenApply(y -> DeleteScopeRecursiveStatus.Status.SUCCESS);
-                            }
-                        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
+                .thenCompose(exists -> {
+                    if (exists) {
+                        log.debug(requestId, "Scope {} delete is already in progress", scope);
+                        return CompletableFuture.completedFuture(DeleteScopeStatus.Status.FAILURE);
+                    } else {
+                        DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
+                        return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
+                                .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeleted(scope, context)))
+                                .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
+                    }
+                }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
         );
     }
 

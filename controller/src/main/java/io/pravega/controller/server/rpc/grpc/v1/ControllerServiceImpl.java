@@ -1213,8 +1213,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void deleteScopeRecursive(ScopeInfo request, StreamObserver<Controller.DeleteScopeRecursiveStatus> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(),
+    public void deleteScopeRecursive(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(ControllerService.nextRequestId(),
                 DELETE_SCOPE_RECURSIVE, request.getScope());
         log.info(requestTag.getRequestId(), "deleteScopeRecursive called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(

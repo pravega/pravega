@@ -95,12 +95,14 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 readerGroupList.add(stream.getStreamName().substring(
                         READER_GROUP_STREAM_PREFIX.length()));
             }
+            log.debug("Processing seal and delete stream for Stream {}", stream);
             Futures.getThrowingException(streamMetadataTasks.sealStream(scopeName, stream.getStreamName(), requestId)
-                        .thenCompose(sealed -> streamMetadataTasks.deleteStream(stream.getScope(), stream.getStreamName(), requestId)));
+                            .thenCompose(x -> streamMetadataTasks.deleteStream(stream.getScope(), stream.getStreamName(), requestId)));
         }
 
         // Delete ReaderGroups
         for (String rgName: readerGroupList) {
+            log.debug("Processing delete ReaderGroup for {}", rgName);
             Futures.getThrowingException(streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
                     .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgName,
                             conf.getConfig().getReaderGroupId(), requestId)));
@@ -109,12 +111,12 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
          while (kvtIterator.hasNext()) {
          KeyValueTableInfo kvt = kvtIterator.next();
+             log.debug("Processing delete kvt for {}", kvt);
          Futures.getThrowingException(kvtMetadataStore
                  .deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor));
          }
-        streamMetadataStore.deleteScopeRecursive(scopeName, context, executor)
+        return streamMetadataStore.deleteScopeRecursive(scopeName, context, executor)
                 .thenApply(f -> null);
-        return CompletableFuture.completedFuture(null);
     }
 
     private AsyncIterator<Stream> listStreams(String scopeName, OperationContext context) {

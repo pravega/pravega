@@ -70,7 +70,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
@@ -554,8 +553,8 @@ public class ControllerImpl implements Controller {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE_RECURSIVE, scopeName, requestId);
 
-        final CompletableFuture<DeleteScopeRecursiveStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<DeleteScopeRecursiveStatus> callback = new RPCAsyncCallback<>(requestId, DELETE_SCOPE_RECURSIVE, scopeName);
+        final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(requestId, DELETE_SCOPE_RECURSIVE, scopeName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, DELETE_SCOPE_RECURSIVE, scopeName)
                     .deleteScopeRecursive(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
@@ -2106,7 +2105,7 @@ public class ControllerImpl implements Controller {
                       .deleteScope(scopeInfo, callback);
         }
 
-        public void deleteScopeRecursive(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeRecursiveStatus> callback) {
+        public void deleteScopeRecursive(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteScopeRecursive(scopeInfo, callback);
         }

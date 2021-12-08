@@ -52,7 +52,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeRecursiveStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
@@ -192,6 +191,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                         checkScopeInDeletingTable(scope, context, executor)
                                                 .thenCompose(exist -> {
                                                     if (exist) {
+                                                        log.warn("scope {} is already in deleting state", scope);
                                                         throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
                                                     }
                                                     // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
@@ -332,19 +332,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @return DeleteScopeRecursiveStatus future.
      */
     @Override
-    public CompletableFuture<DeleteScopeRecursiveStatus> deleteScopeRecursive(final String scopeName, final OperationContext ctx,
+    public CompletableFuture<DeleteScopeStatus> deleteScopeRecursive(final String scopeName, final OperationContext ctx,
                                                             Executor executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getScope(scopeName, context).deleteScopeRecursive(context).handle((result, e) -> {
             Throwable ex = Exceptions.unwrap(e);
             if (ex == null) {
-                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SUCCESS).build();
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
             if (ex instanceof StoreException.DataNotFoundException) {
-                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build();
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
             } else {
                 log.error(context.getRequestId(), "DeleteScopeRecursive failed for scope {} due to {} ", scopeName, ex);
-                return DeleteScopeRecursiveStatus.newBuilder().setStatus(DeleteScopeRecursiveStatus.Status.FAILURE).build();
+                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
             }
         }), executor);
     }
@@ -1224,6 +1224,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                        checkScopeInDeletingTable(scope, context, executor)
                                .thenCompose(exist -> {
                                    if (exist) {
+                                       log.warn("scope {} is already in deleting state", scope);
                                        throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
                                    }
                                    return null;

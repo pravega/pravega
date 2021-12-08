@@ -22,6 +22,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.ScopeDeletionInProgressException;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
@@ -131,7 +132,8 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                         checkScopeInDeletingTable(scope, context, executor)
                                 .thenCompose(exist -> {
                                     if (exist) {
-                                        throw new IllegalArgumentException("Scope already in deleting state: " + scope);
+                                        log.warn("scope {} is already in deleting state", scope);
+                                        throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
                                     }
                                     return null;
                                 });

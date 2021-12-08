@@ -1112,18 +1112,18 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void deleteScopeRecursive(ScopeInfo request, StreamObserver<Controller.DeleteScopeRecursiveStatus> responseObserver) {
+            public void deleteScopeRecursive(ScopeInfo request, StreamObserver<Controller.DeleteScopeStatus> responseObserver) {
                 if (request.getScope().equals("scope1")) {
-                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
-                            Controller.DeleteScopeRecursiveStatus.Status.SUCCESS).build());
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.SUCCESS).build());
                     responseObserver.onCompleted();
                 } else if (request.getScope().equals("scope2")) {
-                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
-                            Controller.DeleteScopeRecursiveStatus.Status.FAILURE).build());
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.FAILURE).build());
                     responseObserver.onCompleted();
                 } else if (request.getScope().equals("scope3")) {
-                    responseObserver.onNext(Controller.DeleteScopeRecursiveStatus.newBuilder().setStatus(
-                            Controller.DeleteScopeRecursiveStatus.Status.SCOPE_NOT_FOUND).build());
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
