@@ -19,7 +19,6 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.TestOperationContext;
@@ -33,6 +32,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,14 +48,19 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryForever;
+import org.apache.curator.retry.RetryNTimes;
 import org.apache.curator.test.TestingServer;
+import org.apache.zookeeper.KeeperException;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -71,48 +77,75 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
-public class ZkStreamTest {
+public class ZkStreamTest extends ThreadPooledTestSuite {
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    private TestingServer zkTestServer;
-    private CuratorFramework cli;
+    private static TestingServer zkTestServer;
+    private static CuratorFramework cli;
     private StreamMetadataStore storePartialMock;
+    private ScheduledExecutorService executor;
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
+    @Override
+    protected int getThreadPoolSize() {
+        return 10;
+    }
+
+    @BeforeClass
+    public static void startZookeeperOnlyOnce() throws Exception {
+        zkTestServer = new TestingServerStarter().start();
+        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+        cli.start();
+        cli.blockUntilConnected(); // wait until connected.
+    }
+
+    @AfterClass
+    public static void stopZookeeperGlobal() throws IOException {
+        cli.close();
+        zkTestServer.close();
+    }
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryForever(2000));
-        cli.start();
-        cli.blockUntilConnected(); // wait until connected.
-
+        executor = executorService();
+        List<String> res = cli.getChildren().forPath("/");
+        try {
+            cli.delete().deletingChildrenIfNeeded().forPath("/store");
+        } catch (KeeperException.NoNodeException e) {
+            //ignore it.
+        }
         storePartialMock = Mockito.spy(new ZKStreamMetadataStore(cli, executor));
     }
 
     @After
     public void stopZookeeper() throws Exception {
-        cli.close();
-        zkTestServer.close();
-        ExecutorServiceHelpers.shutdown(executor);
         storePartialMock.close();
     }
 
     @Test
     public void testZkConnectionLoss() throws Exception {
-        final ScalingPolicy policy = ScalingPolicy.fixed(5);
-
-        final String streamName = "testfail";
-
-        final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
-
-        zkTestServer.stop();
-
         try {
-            storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-        } catch (ExecutionException e) {
-            assert e.getCause() instanceof StoreException.StoreConnectionException;
+            final ScalingPolicy policy = ScalingPolicy.fixed(5);
+
+            final String streamName = "testfail";
+
+            final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+            zkTestServer.stop();
+
+            try {
+                storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+            } catch (ExecutionException e) {
+                assert e.getCause() instanceof StoreException.StoreConnectionException;
+            }
+        } finally {
+            storePartialMock.close();
+            cli.close();
+            zkTestServer = new TestingServerStarter().start();
+            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+            cli.start();
+            cli.blockUntilConnected(); // wait until connected.
+
         }
     }
 
