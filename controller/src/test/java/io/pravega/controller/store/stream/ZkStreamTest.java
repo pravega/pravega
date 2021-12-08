@@ -113,7 +113,6 @@ public class ZkStreamTest {
         } catch (ExecutionException e) {
             assert e.getCause() instanceof StoreException.StoreConnectionException;
         }
-        zkTestServer.start();
     }
 
     @Test
