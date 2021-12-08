@@ -51,9 +51,11 @@ import java.util.stream.Collectors;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
+import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
@@ -77,6 +79,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
+@Slf4j
 public class ZkStreamTest extends ThreadPooledTestSuite {
     public static class ZKResource extends ExternalResource {
         public TestingServer zkTestServer;
@@ -93,7 +96,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         @Override
         protected void before() throws Throwable {
             zkTestServer = new TestingServerStarter().start();
-            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime( 2000));
             cli.start();
             cli.blockUntilConnected(); // wait until connected.
         }
@@ -112,7 +115,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
     private static final String SCOPE = "scope";
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(90, TimeUnit.SECONDS);
 
     private StreamMetadataStore storePartialMock;
     private ScheduledExecutorService executor;
@@ -148,7 +151,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
             final String streamName = "testfail";
 
             final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
-
+            log.info("Stopping ZK Server");
             ((ZKResource) RESOURCE).zkTestServer.stop();
 
             try {
