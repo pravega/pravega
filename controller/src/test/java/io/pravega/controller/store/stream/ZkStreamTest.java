@@ -33,7 +33,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,18 +50,19 @@ import java.util.stream.Collectors;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
@@ -78,43 +78,61 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
 public class ZkStreamTest extends ThreadPooledTestSuite {
+    public static class ZKResource extends ExternalResource {
+        public TestingServer zkTestServer;
+        public CuratorFramework cli;
+
+        public CuratorFramework getZKClient() {
+            return cli;
+        }
+
+        public TestingServer getZKServer() {
+            return zkTestServer;
+        }
+
+        @Override
+        protected void before() throws Throwable {
+            zkTestServer = new TestingServerStarter().start();
+            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+            cli.start();
+            cli.blockUntilConnected(); // wait until connected.
+        }
+
+        @SneakyThrows
+        @Override
+        protected void after() {
+            cli.close();
+            zkTestServer.close();
+        }
+    }
+
+    @ClassRule
+    public static final ExternalResource RESOURCE = new ZKResource();
+
     private static final String SCOPE = "scope";
+
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    private static TestingServer zkTestServer;
-    private static CuratorFramework cli;
+
     private StreamMetadataStore storePartialMock;
     private ScheduledExecutorService executor;
+    private CuratorFramework cli = ((ZKResource) RESOURCE).cli;
 
     @Override
     protected int getThreadPoolSize() {
         return 10;
     }
 
-    @BeforeClass
-    public static void startZookeeperOnlyOnce() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
-        cli.start();
-        cli.blockUntilConnected(); // wait until connected.
-    }
-
-    @AfterClass
-    public static void stopZookeeperGlobal() throws IOException {
-        cli.close();
-        zkTestServer.close();
-    }
-
     @Before
     public void startZookeeper() throws Exception {
         executor = executorService();
-        List<String> res = cli.getChildren().forPath("/");
+        List<String> res = ((ZKResource) RESOURCE).cli.getChildren().forPath("/");
         try {
-            cli.delete().deletingChildrenIfNeeded().forPath("/store");
+            ((ZKResource) RESOURCE).cli.delete().deletingChildrenIfNeeded().forPath("/store");
         } catch (KeeperException.NoNodeException e) {
             //ignore it.
         }
-        storePartialMock = Mockito.spy(new ZKStreamMetadataStore(cli, executor));
+        storePartialMock = Mockito.spy(new ZKStreamMetadataStore(((ZKResource) RESOURCE).cli, executor));
     }
 
     @After
@@ -131,7 +149,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
 
             final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-            zkTestServer.stop();
+            ((ZKResource) RESOURCE).zkTestServer.stop();
 
             try {
                 storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
@@ -140,11 +158,11 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
             }
         } finally {
             storePartialMock.close();
-            cli.close();
-            zkTestServer = new TestingServerStarter().start();
-            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
-            cli.start();
-            cli.blockUntilConnected(); // wait until connected.
+            ((ZKResource) RESOURCE).cli.close();
+            ((ZKResource) RESOURCE).zkTestServer = new TestingServerStarter().start();
+            ((ZKResource) RESOURCE).cli = CuratorFrameworkFactory.newClient(((ZKResource) RESOURCE).zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+            ((ZKResource) RESOURCE).cli.start();
+            ((ZKResource) RESOURCE).cli.blockUntilConnected(); // wait until connected.
 
         }
     }
@@ -154,7 +172,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         @Cleanup
-        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final StreamMetadataStore store = new ZKStreamMetadataStore(((ZKResource) RESOURCE).cli, executor);
         final String streamName = "testfail";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
