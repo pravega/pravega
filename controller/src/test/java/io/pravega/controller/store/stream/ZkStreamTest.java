@@ -31,6 +31,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.util.AbstractMap;
@@ -67,6 +68,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -81,6 +83,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class ZkStreamTest extends ThreadPooledTestSuite {
     public static class ZKResource extends ExternalResource {
         public TestingServer zkTestServer;

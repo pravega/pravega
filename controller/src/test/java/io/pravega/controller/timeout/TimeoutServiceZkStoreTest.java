@@ -24,7 +24,9 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.Version;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.runner.RunWith;
 
 import static org.mockito.Mockito.mock;
 
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.mock;
  * Test class for TimeoutService.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
     @Override
     SegmentHelper getSegmentHelper() {
