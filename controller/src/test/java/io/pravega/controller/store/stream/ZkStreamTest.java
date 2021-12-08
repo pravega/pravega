@@ -109,6 +109,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         @Override
         protected void after() {
             cli.close();
+            zkTestServer.stop();
             zkTestServer.close();
         }
     }
