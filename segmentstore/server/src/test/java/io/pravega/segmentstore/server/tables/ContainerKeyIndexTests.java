@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -812,6 +813,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         segmentTracker.throttleIfNeeded(mockSegment, () -> CompletableFuture.completedFuture(null), updateSize).join();
         Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L),
                 TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
+        // Now, we do another update and check that the Segment has no credit.
+        AssertExtensions.assertThrows(TimeoutException.class, () -> segmentTracker.throttleIfNeeded(mockSegment,
+                () -> CompletableFuture.completedFuture(null), updateSize).get(10, TimeUnit.MILLISECONDS));
     }
 
     /**

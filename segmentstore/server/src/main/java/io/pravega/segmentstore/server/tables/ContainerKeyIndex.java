@@ -860,7 +860,9 @@ class ContainerKeyIndex implements AutoCloseable {
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
-
+            if (isSystemCriticalSegment.test(segment) && throttler.getUsedCredits() + updateSize > totalCredits) {
+                log.warn("{}: System-critical TableSegment {} is blocked due to reaching max unindexed size.", traceObjectId, segment.getSegmentId());
+            }
             return throttler.run(toExecute, updateSize, false); // No need to force anything at this time.
         }
 
