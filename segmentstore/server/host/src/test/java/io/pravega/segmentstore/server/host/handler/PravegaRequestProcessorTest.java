@@ -77,7 +77,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import net.jcip.annotations.Immutable;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
