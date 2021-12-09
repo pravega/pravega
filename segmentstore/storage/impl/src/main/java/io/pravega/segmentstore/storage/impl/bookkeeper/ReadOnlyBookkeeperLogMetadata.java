@@ -15,35 +15,14 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import io.pravega.segmentstore.storage.ReadOnlyLogMetadata;
+
 import java.util.List;
 
 /**
  * Defines a read-only view of the BookKeeper Log Metadata.
  */
-public interface ReadOnlyLogMetadata {
-    /**
-     * Gets a value indicating the current epoch of this LogMetadata. This changes upon every successful log initialization,
-     * immediately after it was fenced.
-     *
-     * @return The current epoch.
-     */
-    long getEpoch();
-
-    /**
-     * Gets a value indicating the current version of the Metadata (this changes upon every successful metadata persist).
-     * Note: this is different from getEpoch() - which gets incremented with every successful recovery.
-     *
-     * @return The current version.
-     */
-    int getUpdateVersion();
-
-    /**
-     * Gets a value indicating whether this log is enabled or not.
-     *
-     * @return True if enabled, false otherwise.
-     */
-    boolean isEnabled();
-
+public interface ReadOnlyBookkeeperLogMetadata extends ReadOnlyLogMetadata {
     /**
      * Gets a read-only ordered list of LedgerMetadata instances representing the Ledgers that currently make up this
      * Log Metadata.
@@ -60,12 +39,12 @@ public interface ReadOnlyLogMetadata {
     LedgerAddress getTruncationAddress();
 
     /**
-     * Determines whether this {@link ReadOnlyLogMetadata} is equivalent to the other one.
+     * Determines whether this {@link ReadOnlyBookkeeperLogMetadata} is equivalent to the other one.
      *
      * @param other The other instance.
      * @return True if equivalent, false otherwise.
      */
-    default boolean equals(ReadOnlyLogMetadata other) {
+    default boolean equals(ReadOnlyBookkeeperLogMetadata other) {
         if (other == null) {
             return false;
         }

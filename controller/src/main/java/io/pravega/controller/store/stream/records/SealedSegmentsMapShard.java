@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /*
  * Data class for storing information about stream's truncation point.
@@ -97,6 +98,14 @@ public class SealedSegmentsMapShard {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "shardNumber", shardNumber) + "\n" +
+                String.format("%s = %s", "sealedSegmentsSizeMap", sealedSegmentsSizeMap.keySet().stream()
+                .map(key -> key + " : " + sealedSegmentsSizeMap.get(key))
+                .collect(Collectors.joining(", ", "{", "}")));
     }
 
     @Synchronized
