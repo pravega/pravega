@@ -553,14 +553,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
-                })).collect(toList()))
-               .thenAccept(mergeResults -> {
-                   connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
+                })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
+                    connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
                            mergeSegments.getTargetSegmentId(),
                            sources,
                            mergeResults));
                })
-               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e));
+               .exceptionally(e -> {
+                   log.debug("error");
+                   return handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e);
+               });
     }
 
     @Override

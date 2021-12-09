@@ -77,6 +77,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import net.jcip.annotations.Immutable;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -427,23 +428,6 @@ public class PravegaRequestProcessorTest {
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        // create txn segment
-        String transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionSegmentName));
-        // write to txn segment
-        assertTrue(append(transactionSegmentName, 1, store));
-        assertTrue(append(transactionSegmentName, 2, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
-        order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
-
-        List<String> txnSegmentNames = ImmutableList.of(transactionSegmentName);
-        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L)));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
-        // verify that txn segment is merged and so does not exist any more
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
-
         // Repeat with multiple txn segments
         UUID txnid1 = UUID.randomUUID();
         UUID txnid2 = UUID.randomUUID();
@@ -478,9 +462,9 @@ public class PravegaRequestProcessorTest {
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction3SegmentName, ""));
         order.verify(connection, times(3)).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
 
-        txnSegmentNames = ImmutableList.of(transaction1SegmentName, transaction2SegmentName, transaction3SegmentName);
+        List<String> txnSegmentNames = ImmutableList.of(transaction1SegmentName, transaction2SegmentName, transaction3SegmentName);
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 3L, 4L)));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 5L, 9L)));
 
         // verify that txn segments are merged and so do not exist any more
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction1SegmentName, ""));
@@ -491,7 +475,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, transaction3SegmentName, "", -1L));
 
         txnid = UUID.randomUUID();
-        transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String transactionSegmentName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
@@ -519,7 +503,7 @@ public class PravegaRequestProcessorTest {
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(4L)));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(11L)));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
@@ -536,9 +520,11 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).sealStreamSegment(
+
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        doReturn(Futures.failedFuture(new StreamSegmentMergedException(transactionName))).when(store).sealStreamSegment(
                 anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeStreamSegment(
+        doReturn(Futures.failedFuture(new StreamSegmentMergedException(transactionName))).when(store).mergeStreamSegment(
                 anyString(), anyString(), any());
 
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
@@ -547,27 +533,34 @@ public class PravegaRequestProcessorTest {
                 WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 0));
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), List.of(0L)));
+    }
 
-        txnid = UUID.randomUUID();
-        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+    @Test(timeout = 20000)
+    public void testTransactionTargetSegNotExists() throws Exception {
+        String streamSegmentName = "scope/stream/testSegNotExistsTxn";
+        UUID txnid = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
                 anyString(), anyString(), any(), any());
-
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
 
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
-                                                                                                                       txnid), "", -1L));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
     }
 
     @Test(timeout = 20000)
