@@ -19,6 +19,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 
+/**
+ * Helper class for file operations.
+ */
 public class FileHelper {
     /**
      * Creates the file (and parent directory if required).

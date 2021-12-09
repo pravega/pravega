@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.readerGroup;
 
+import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
@@ -41,9 +42,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -55,12 +57,10 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
     private final static int LENGTH = WireCommands.TYPE_PLUS_LENGTH_SIZE - WireCommands.TYPE_SIZE;
     private final static int TYPE = WireCommandType.EVENT.getCode();
     private final static int REQUEST_TIMEOUT_SECONDS = 10;
-
     private final GrpcAuthHelper authHelper;
 
     public ParseReaderGroupStreamCommand(CommandArgs args) {
         super(args);
-
         authHelper = new GrpcAuthHelper(true, "secret", 600);
     }
 
@@ -74,11 +74,13 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         String stream = NameUtils.getStreamForReaderGroup(readerGroup);
 
         @Cleanup
+        Controller controller = instantiateController();
+        @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        String tmpfilename = "tmp/RG_" + readerGroup + "_" + new Random().nextInt(1000);
-        readRGSegmentToFile(segmentHelper, segmentStoreHost, scope, stream, tmpfilename, fileName);
+
+        readRGSegmentToFile(segmentHelper, segmentStoreHost, controller, scope, stream, fileName);
         output("The readerGroup stream has been successfully written into %s", fileName);
     }
 
@@ -87,41 +89,46 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
      *
      * @param segmentHelper       A {@link SegmentHelper} instance to read the segment.
      * @param segmentStoreHost    Address of the segment-store to read from.
+     * @param controller          A {@link Controller} instance.
      * @param scope               The name of the scope.
      * @param stream              The name of the stream.
      * @param fileName            A name of the file to which the data will be written.
      * @throws IOException if the file create/write fails.
      * @throws Exception if the request fails.
      */
-    private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String scope, String stream,
-                                     String tmpfilename, String fileName) throws IOException, Exception {
+    private void readRGSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, Controller controller, String scope,
+                                     String stream, String fileName) throws Exception {
 
+        String tmpfilename = "tmp/" + stream + System.currentTimeMillis();
         File outputfile = FileHelper.createFileAndDirectory(fileName);
 
         @Cleanup
         BufferedWriter writer = new BufferedWriter(new FileWriter(outputfile));
 
-        Controller controller = instantiateController();
         CompletableFuture<StreamSegments> streamSegments = controller.getCurrentSegments(scope, stream);
-        StreamSegments ss = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        int segmentid = (ss.getNumberOfSegments() > 0) ? (ss.getNumberOfSegments() - 1) : 0;
-        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, segmentid);
+        StreamSegments segments = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        Preconditions.checkArgument(segments.getNumberOfSegments() > 0, "The reader group stream should contain atleast one segment.");
+        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, segments.getNumberOfSegments() - 1);
 
         CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfo = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
                             new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), authHelper.retrieveMasterToken(), 0L);
         WireCommands.StreamSegmentInfo streamSegmentInfo = segmentInfo.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
         long startOffset = streamSegmentInfo.getStartOffset();
         long length = streamSegmentInfo.getWriteOffset();
 
-        // create a temp file and write contents of the segment into it
-        AdminCommandState state = new AdminCommandState();
+        // Create a temp file and write contents of the segment into it.
+        AdminCommandState state = getCommandArgs().getState();
         ConfigUtils.loadProperties(state);
         List<String> args = Arrays.asList(fullyQualifiedSegmentName, String.valueOf(startOffset), String.valueOf(length), segmentStoreHost, tmpfilename);
         CommandArgs cmd = new CommandArgs(args, state);
         ReadSegmentRangeCommand rs = new ReadSegmentRangeCommand(cmd);
         rs.execute();
 
+        // Read contents from the temp file and serialize it to store the reader group state information at various offsets into the output file.
+        parseRGStateFromFile(tmpfilename, writer, startOffset);
+    }
+
+    private void parseRGStateFromFile(String tmpfilename, BufferedWriter writer, long startOffset) throws IOException {
         try {
             FileInputStream fileInputStream = new FileInputStream(tmpfilename);
             long offset = startOffset;
@@ -157,8 +164,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
             fileInputStream.close();
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
-        } finally {
-            controller.close();
+        }  finally {
+            Files.deleteIfExists(Paths.get(tmpfilename));
         }
     }
 
