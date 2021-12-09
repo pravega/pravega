@@ -58,7 +58,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         zkServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void failingTests() {
         final String process1 = UUID.randomUUID().toString();
         final String readerGroup1 = UUID.randomUUID().toString();
@@ -95,7 +95,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
                 () -> checkpointStore.removeReaderGroup(process1, readerGroup1), predicate);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testRemoveProcess() throws Exception {
         final String process1 = "process1";
         final String readerGroup1 = "rg1";
@@ -144,7 +144,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         });
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void readerWithoutCheckpointTest() throws Exception {
         final String process1 = "process1";
         final String readerGroup1 = "rg1";
