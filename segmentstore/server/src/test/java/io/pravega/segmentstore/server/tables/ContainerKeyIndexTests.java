@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
