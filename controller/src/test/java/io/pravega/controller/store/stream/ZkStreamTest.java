@@ -120,7 +120,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
     private static final String SCOPE = "scope";
 
     @Rule
-    public Timeout globalTimeout = new Timeout(90, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(180, TimeUnit.SECONDS);
 
     private StreamMetadataStore storePartialMock;
     private ScheduledExecutorService executor;
@@ -520,7 +520,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertFalse(store.isCold(SCOPE, streamName, 0L, null, executor).get());
     }
 
-    @Test(timeout = 10000)
+    @Test //(timeout = 30000)
     public void testTransaction() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -634,7 +634,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
                 .get().equals(TxnStatus.UNKNOWN);
     }
 
-    @Test(timeout = 10000)
+    @Test //(timeout = 10000)
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZkOrderedStore orderer = new ZkOrderedStore("txn", storeHelper, executor);
@@ -672,7 +672,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertEquals(1, result.size());
     }
 
-    @Test(timeout = 10000)
+    @Test //(timeout = 10000)
     public void testStreamRecreation() {
         // We will first create stream. Verify that its metadata is present in the cache.  
         ZKStoreHelper storeHelper = new ZKStoreHelper(cli, executor);
