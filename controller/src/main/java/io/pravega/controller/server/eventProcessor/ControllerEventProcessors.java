@@ -44,16 +44,16 @@ import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -69,6 +69,10 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,9 +89,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
@@ -328,7 +329,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         String scope = config.getScopeName();
         CompletableFuture<Void> future = createScope(scope);
-
         return future.thenCompose(ignore -> CompletableFuture.allOf(createStream(scope, config.getCommitStreamName(),
                                                                                  commitStreamConfig),
                                                                     createStream(scope, config.getAbortStreamName(),

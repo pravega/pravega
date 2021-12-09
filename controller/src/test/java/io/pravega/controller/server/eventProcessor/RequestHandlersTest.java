@@ -793,10 +793,10 @@ public abstract class RequestHandlersTest {
 
         // Submit the execute method of DeleteScopeTask
         deleteScopeTask.execute(deleteScopeEvent).join();
-        Thread.sleep(1000);
 
         // Verify that the scope is removed from the table
         assertFalse(streamStore.checkScopeInDeletingTable(scopeName, null, executor).join());
+        assertFalse(streamStore.checkScopeExists(scopeName, null, executor).join());
     }
 
     @Test

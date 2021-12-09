@@ -343,7 +343,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex instanceof StoreException.DataNotFoundException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
             } else {
-                log.error(context.getRequestId(), "DeleteScopeRecursive failed for scope {} due to {} ", scopeName, ex);
+                log.error(context.getRequestId(), "DeleteScope failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
             }
         }), executor);

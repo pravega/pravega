@@ -737,12 +737,12 @@ public class StreamMetadataTasks extends TaskBase {
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
                 .thenCompose(exists -> {
                     if (exists) {
-                        log.debug(requestId, "Scope {} delete is already in progress", scope);
-                        return CompletableFuture.completedFuture(DeleteScopeStatus.Status.FAILURE);
+                        log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
+                        return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
                     } else {
                         DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
                         return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
-                                .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeleted(scope, context)))
+                                .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
                                 .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
                     }
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
@@ -1640,7 +1640,9 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenApply(x -> !x);
     }
 
-    private CompletableFuture<Boolean> isScopeDeleted(String scope, OperationContext context) {
+    private CompletableFuture<Boolean> isScopeDeletionComplete(String scope, OperationContext context) {
+        // The last step of Recursive Delete Scope is to remove entry of scope from Deleting_Scopes_Table
+        // Method will return true if the entry is removed from Scopes Table
         return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
                 .thenApply(x -> !x);
     }

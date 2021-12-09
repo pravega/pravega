@@ -16,13 +16,13 @@
 package io.pravega.client.admin;
 
 import com.google.common.annotations.Beta;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+
 import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
@@ -189,7 +189,6 @@ public interface StreamManager extends AutoCloseable {
      * @deprecated As of Pravega release 0.11.0, replaced by {@link #deleteScopeRecursive(String)}.
      */
     @Deprecated
-    @SuppressFBWarnings(value = "DeleteScope", justification = "A new API with better handling via eventProcessor is created")
     boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException;
 
     /**
