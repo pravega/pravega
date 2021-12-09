@@ -153,8 +153,6 @@ import static org.mockito.Mockito.*;
 public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
@@ -2591,7 +2589,7 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null, executor).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deletePartiallyCreatedStreamTest() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
