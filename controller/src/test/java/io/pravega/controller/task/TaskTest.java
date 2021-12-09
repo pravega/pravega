@@ -187,7 +187,7 @@ public abstract class TaskTest {
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
-    @Test
+    //@Test
     public void testTaskSweeper() throws ExecutionException, InterruptedException {
         final String deadHost = "deadHost";
         final String deadThreadId = UUID.randomUUID().toString();
