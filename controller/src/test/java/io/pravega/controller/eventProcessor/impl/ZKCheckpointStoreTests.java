@@ -20,6 +20,7 @@ import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import java.io.IOException;
 import java.util.Collections;
@@ -35,10 +36,12 @@ import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Tests for Zookeeper based checkpoint store.
  */
+@RunWith(SerializedClassRunner.class)
 public class ZKCheckpointStoreTests extends CheckpointStoreTests {
     private TestingServer zkServer;
     private CuratorFramework cli;
@@ -49,7 +52,6 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryOneTime(10000));
         cli.start();
-        cli.blockUntilConnected();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
 
