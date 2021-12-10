@@ -326,7 +326,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         } else if (ex instanceof StoreException.DataNotEmptyException) {
             return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
         } else {
-            log.error(context.getRequestId(), message+" {} due to {} ", scopeName, ex);
+            log.error(context.getRequestId(), message + " {} due to {} ", scopeName, ex);
             return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
         }
     }
