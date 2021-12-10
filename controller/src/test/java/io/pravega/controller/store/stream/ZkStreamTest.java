@@ -62,6 +62,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -112,8 +113,6 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
 
     @Rule
     public Timeout globalTimeout = new Timeout(180, TimeUnit.SECONDS);
-
-    private StreamMetadataStore storePartialMock;
     private ScheduledExecutorService executor;
     private final CuratorFramework cli = ((ZKResource) RESOURCE).cli;
 
@@ -132,17 +131,16 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         } catch (KeeperException.NoNodeException e) {
             //ignore it.
         }
-        storePartialMock = Mockito.spy(new ZKStreamMetadataStore(((ZKResource) RESOURCE).cli, executor));
     }
 
     @After
     public void stopZookeeper() throws Exception {
-        storePartialMock.close();
     }
 
     @Test(timeout = 30000)
+    @Ignore
     public void testZkConnectionLoss() throws Exception {
-        try {
+        try (StreamMetadataStore storePartialMock = Mockito.spy(new ZKStreamMetadataStore(((ZKResource) RESOURCE).cli, executor))) {
             final ScalingPolicy policy = ScalingPolicy.fixed(5);
             final String streamName = "testfail";
             final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
@@ -154,7 +152,6 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
                 assert e.getCause() instanceof StoreException.StoreConnectionException;
             }
         } finally {
-            storePartialMock.close();
             ((ZKResource) RESOURCE).cli.close();
             ((ZKResource) RESOURCE).zkTestServer = new TestingServerStarter().start();
             ((ZKResource) RESOURCE).cli = CuratorFrameworkFactory.newClient(((ZKResource) RESOURCE).zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
