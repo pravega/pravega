@@ -20,7 +20,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Ignore;
 import org.junit.runner.RunWith;
 
 /**
@@ -28,7 +27,6 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SerializedClassRunner.class)
-@Ignore
 public class ZkTaskTest extends TaskTest {
     public ZkTaskTest() throws Exception {
     }
