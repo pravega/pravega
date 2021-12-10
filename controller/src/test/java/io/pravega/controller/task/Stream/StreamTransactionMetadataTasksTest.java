@@ -72,7 +72,6 @@ import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.time.Duration;
