@@ -80,6 +80,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+
 import java.io.PrintStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -477,7 +478,7 @@ public abstract class AdminCommand {
         return new ObjectMapper().writeValueAsString(object);
     }
 
-    public Controller instantiateController() {
+    protected Controller instantiateController() {
         ConnectionPool pool = createConnectionPool();
         return new ControllerImpl(ControllerImplConfig.builder()
                                     .clientConfig(getClientConfig())

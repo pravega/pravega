@@ -55,8 +55,6 @@ public abstract class ParseReaderGroupStreamCommandTest {
         STATE.set(new AdminCommandState());
         SETUP_UTILS.startAllServices(enableAuth, enableTls);
         Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
-        pravegaProperties.setProperty("cli.controller.connect.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
         pravegaProperties.setProperty("cli.controller.connect.grpc.uri", SETUP_UTILS.getControllerUri().getHost() + ":" + SETUP_UTILS.getControllerUri().getPort());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());

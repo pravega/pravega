@@ -17,18 +17,11 @@ package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.FileHelper;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import static io.pravega.cli.admin.utils.FileHelper.readAndWriteSegmentToFile;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
@@ -62,49 +55,9 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName);
-        output("\nThe segment data has been successfully written into %s", fileName);
-    }
-
-    /**
-     * Reads the contents of the segment starting from the given offset and writes into the provided file.
-     *
-     * @param segmentHelper             A {@link SegmentHelper} instance to read the segment.
-     * @param segmentStoreHost          Address of the segment-store to read from.
-     * @param fullyQualifiedSegmentName The name of the segment.
-     * @param offset                    The starting point from where the segment is to be read.
-     * @param length                    The number of bytes to read.
-     * @param fileName                  A name of the file to which the data will be written.
-     * @throws IOException if the file create/write fails.
-     * @throws Exception if the request fails.
-     */
-    public void readAndWriteSegmentToFile(SegmentHelper segmentHelper, String segmentStoreHost, String fullyQualifiedSegmentName,
-                                           long offset, long length, String fileName) throws IOException, Exception {
-        File file = FileHelper.createFileAndDirectory(fileName);
-
         output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
-        long currentOffset = offset;
-        long bytesToRead = length;
-        int progress = 0;
-        @Cleanup
-        FileOutputStream fileOutputStream = new FileOutputStream(file, true);
-        while (bytesToRead > 0) {
-            long bufferLength = Math.min(READ_WRITE_BUFFER_SIZE, bytesToRead);
-            CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                    currentOffset, (int) bufferLength, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
-            WireCommands.SegmentRead bufferRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            int bytesRead = bufferRead.getData().readableBytes();
-            // Write the buffer into the file.
-            bufferRead.getData().readBytes(fileOutputStream, bytesRead);
-
-            currentOffset += bytesRead;
-            bytesToRead -= bytesRead;
-            showProgress(progress++, String.format("Written %d/%d bytes.", length - bytesToRead, length));
-        }
-    }
-
-    private void showProgress(int progress, String message) {
-        System.out.print("\r Processing " + PROGRESS_BAR.charAt(progress % PROGRESS_BAR.length()) + " : " + message);
+        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName, getServiceConfig().getAdminGatewayPort(), super.authHelper.retrieveMasterToken());
+        output("\nThe segment data has been successfully written into %s", fileName);
     }
 
     public static CommandDescriptor descriptor() {

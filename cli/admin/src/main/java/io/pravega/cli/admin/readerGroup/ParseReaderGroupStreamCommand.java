@@ -17,10 +17,7 @@ package io.pravega.cli.admin.readerGroup;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.AdminCommand;
-import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
-import io.pravega.cli.admin.utils.ConfigUtils;
 import io.pravega.cli.admin.utils.FileHelper;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.control.impl.Controller;
@@ -44,11 +41,10 @@ import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static io.pravega.cli.admin.utils.FileHelper.readAndWriteSegmentToFile;
 import static org.junit.Assert.assertEquals;
 
 public class ParseReaderGroupStreamCommand extends AdminCommand {
@@ -107,8 +103,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
 
         CompletableFuture<StreamSegments> streamSegments = controller.getCurrentSegments(scope, stream);
         StreamSegments segments = streamSegments.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        Preconditions.checkArgument(segments.getNumberOfSegments() > 0, "The reader group stream should contain atleast one segment.");
-        String fullyQualifiedSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, segments.getNumberOfSegments() - 1);
+        Preconditions.checkArgument(segments.getSegments().size() == 1, "The reader group stream should contain only one segment.");
+        String fullyQualifiedSegmentName = segments.getSegments().iterator().next().getScopedName();
 
         CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfo = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
                             new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), authHelper.retrieveMasterToken(), 0L);
@@ -117,20 +113,14 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         long length = streamSegmentInfo.getWriteOffset();
 
         // Create a temp file and write contents of the segment into it.
-        AdminCommandState state = getCommandArgs().getState();
-        ConfigUtils.loadProperties(state);
-        List<String> args = Arrays.asList(fullyQualifiedSegmentName, String.valueOf(startOffset), String.valueOf(length), segmentStoreHost, tmpfilename);
-        CommandArgs cmd = new CommandArgs(args, state);
-        ReadSegmentRangeCommand rs = new ReadSegmentRangeCommand(cmd);
-        rs.execute();
+        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, startOffset, length, tmpfilename, getServiceConfig().getAdminGatewayPort(), authHelper.retrieveMasterToken());
 
         // Read contents from the temp file and serialize it to store the reader group state information at various offsets into the output file.
         parseRGStateFromFile(tmpfilename, writer, startOffset);
     }
 
     private void parseRGStateFromFile(String tmpfilename, BufferedWriter writer, long startOffset) throws IOException {
-        try {
-            FileInputStream fileInputStream = new FileInputStream(tmpfilename);
+        try (FileInputStream fileInputStream = new FileInputStream(tmpfilename)) {
             long offset = startOffset;
             while (fileInputStream.available() > 0) {
                 // read type
@@ -161,9 +151,8 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
 
                 offset = offset + HEADER + LENGTH + eventLength;
             }
-            fileInputStream.close();
-        } catch (Exception ex) {
-            System.err.println(ex.getMessage());
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
         }  finally {
             Files.deleteIfExists(Paths.get(tmpfilename));
         }
