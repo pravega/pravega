@@ -271,6 +271,7 @@ public abstract class StreamMetadataTasksTest {
     }
 
     abstract StreamMetadataStore getStore();
+
     abstract KVTableMetadataStore getKvtStore();
 
     @After

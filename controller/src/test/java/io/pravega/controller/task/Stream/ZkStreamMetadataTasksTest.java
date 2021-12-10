@@ -31,7 +31,9 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     }
 
     @Override
-    KVTableMetadataStore getKvtStore() { return KVTableStoreFactory.createZKStore(zkClient, executor); }
+    KVTableMetadataStore getKvtStore() {
+        return KVTableStoreFactory.createZKStore(zkClient, executor);
+    }
 
     @Test
     public void addSubscriberTest() throws InterruptedException, ExecutionException {
