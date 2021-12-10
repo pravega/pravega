@@ -208,7 +208,7 @@ public abstract class StreamMetadataTasksTest {
                 BucketStore.ServiceType.WatermarkingService, 1);
 
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
-        
+        kvtStore = spy(getKvtStore());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -271,6 +271,7 @@ public abstract class StreamMetadataTasksTest {
     }
 
     abstract StreamMetadataStore getStore();
+    abstract KVTableMetadataStore getKvtStore();
 
     @After
     public void tearDown() throws Exception {
@@ -278,6 +279,7 @@ public abstract class StreamMetadataTasksTest {
         streamTransactionMetadataTasks.close();
         streamStorePartialMock.close();
         streamStorePartialMock.close();
+        kvtStore.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();

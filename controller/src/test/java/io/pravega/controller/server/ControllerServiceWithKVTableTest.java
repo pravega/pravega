@@ -94,6 +94,7 @@ public abstract class ControllerServiceWithKVTableTest {
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         streamStore = spy(getStore());
+        kvtStore = spy(getKVTStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -122,7 +123,6 @@ public abstract class ControllerServiceWithKVTableTest {
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
 
-        kvtStore = spy(getKVTStore());
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
 

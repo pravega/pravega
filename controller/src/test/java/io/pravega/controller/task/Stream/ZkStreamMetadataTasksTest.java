@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import org.junit.Test;
@@ -27,6 +29,9 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
+
+    @Override
+    KVTableMetadataStore getKvtStore() { return KVTableStoreFactory.createZKStore(zkClient, executor); }
 
     @Test
     public void addSubscriberTest() throws InterruptedException, ExecutionException {

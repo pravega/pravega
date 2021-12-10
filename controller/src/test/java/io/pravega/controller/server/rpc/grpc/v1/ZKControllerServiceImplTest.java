@@ -121,6 +121,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
+        kvtStore = KVTableStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
@@ -176,6 +177,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        kvtStore.close();
         if (cluster != null) {
             cluster.close();
         }

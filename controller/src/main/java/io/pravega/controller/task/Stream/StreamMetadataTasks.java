@@ -746,7 +746,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
                     }
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
-        );
+        ).exceptionally(ex -> handleDeleteScopeError(ex, requestId, scope));
     }
 
     /**
@@ -2007,6 +2007,18 @@ public class StreamMetadataTasks extends TaskBase {
             throw new CompletionException(cause);
         } else {
             return DeleteStreamStatus.Status.FAILURE;
+        }
+    }
+
+    private DeleteScopeStatus.Status handleDeleteScopeError(Throwable ex, long requestId, String scopeName) {
+        Throwable cause = Exceptions.unwrap(ex);
+        log.error(requestId, "Exception deleting stream {}. Cause: {}", scopeName, ex);
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return DeleteScopeStatus.Status.SCOPE_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
+        } else {
+            return DeleteScopeStatus.Status.FAILURE;
         }
     }
 

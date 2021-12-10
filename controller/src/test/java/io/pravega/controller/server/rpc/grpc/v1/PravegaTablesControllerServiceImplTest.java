@@ -117,6 +117,8 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         taskMetadataStore = TaskStoreFactoryForTests.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executorService);
         streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
+        kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+                PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
@@ -141,8 +143,6 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // KVTable
-        this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
-                PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
@@ -174,6 +174,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        kvtStore.close();
         if (cluster != null) {
             cluster.close();
         }

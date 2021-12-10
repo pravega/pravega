@@ -311,18 +311,24 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         return Futures.completeOn(getScope(scopeName, context).deleteScope(context).handle((result, e) -> {
             Throwable ex = Exceptions.unwrap(e);
-            if (ex == null) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
-            }
-            if (ex instanceof StoreException.DataNotFoundException) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex instanceof StoreException.DataNotEmptyException) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
-            } else {
-                log.error(context.getRequestId(), "DeleteScope failed for scope {} due to {} ", scopeName, ex);
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
-            }
+            final String message = "DeleteScope failed for scope";
+            return getDeleteScopeStatus(scopeName, context, ex, message);
         }), executor);
+    }
+
+    private DeleteScopeStatus getDeleteScopeStatus(String scopeName, OperationContext context,
+                                                   Throwable ex, String message) {
+        if (ex == null) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+        }
+        if (ex instanceof StoreException.DataNotFoundException) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
+        } else if (ex instanceof StoreException.DataNotEmptyException) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
+        } else {
+            log.error(context.getRequestId(), message+" {} due to {} ", scopeName, ex);
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
+        }
     }
 
     /**
@@ -337,15 +343,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getScope(scopeName, context).deleteScopeRecursive(context).handle((result, e) -> {
             Throwable ex = Exceptions.unwrap(e);
-            if (ex == null) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
-            }
-            if (ex instanceof StoreException.DataNotFoundException) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else {
-                log.error(context.getRequestId(), "DeleteScope failed for scope {} due to {} ", scopeName, ex);
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
-            }
+            final String message = "DeleteScopeRecursive failed for scope";
+            return getDeleteScopeStatus(scopeName, context, ex, message);
         }), executor);
     }
 

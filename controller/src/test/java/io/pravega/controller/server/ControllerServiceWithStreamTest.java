@@ -137,6 +137,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.start();
 
         streamStore = spy(getStore());
+        kvtStore = spy(getKVTStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -171,6 +172,8 @@ public abstract class ControllerServiceWithStreamTest {
 
     abstract StreamMetadataStore getStore();
 
+    abstract KVTableMetadataStore getKVTStore();
+
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
@@ -179,6 +182,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        kvtStore.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
