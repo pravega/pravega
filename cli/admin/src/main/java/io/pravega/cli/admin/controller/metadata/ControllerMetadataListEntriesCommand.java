@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -55,7 +56,9 @@ public class ControllerMetadataListEntriesCommand extends ControllerMetadataComm
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
         HashTableIteratorItem<TableSegmentEntry> entries  = getIfTableExists(adminSegmentHelper.readTableEntries(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), entryCount,
                 HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L), tableName);

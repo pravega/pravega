@@ -20,6 +20,7 @@ import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.FileHelper;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -70,11 +71,13 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         String stream = NameUtils.getStreamForReaderGroup(readerGroup);
 
         @Cleanup
-        Controller controller = instantiateController();
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        Controller controller = instantiateController(pool);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
 
         readRGSegmentToFile(segmentHelper, segmentStoreHost, controller, scope, stream, fileName);
         output("The readerGroup stream has been successfully written into %s", fileName);

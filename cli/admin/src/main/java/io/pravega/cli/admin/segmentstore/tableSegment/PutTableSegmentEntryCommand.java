@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.connection.impl.ConnectionPool;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -43,7 +44,9 @@ public class PutTableSegmentEntryCommand extends TableSegmentCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
         long version = updateTableEntry(fullyQualifiedTableSegmentName, key, value, segmentStoreHost, adminSegmentHelper);
         output("Successfully updated the key %s in table %s with version %s", key, fullyQualifiedTableSegmentName, version);
     }

@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
@@ -53,7 +54,9 @@ public class FlushToStorageCommand extends ContainerCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
         if (containerId.equalsIgnoreCase(ALL_CONTAINERS)) {
             int containerCount = getServiceConfig().getContainerCount();
             for (int id = 0; id < containerCount; id++) {

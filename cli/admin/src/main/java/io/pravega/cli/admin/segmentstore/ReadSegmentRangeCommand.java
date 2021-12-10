@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.controller.server.SegmentHelper;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -24,11 +25,6 @@ import org.apache.curator.framework.CuratorFramework;
 import static io.pravega.cli.admin.utils.FileHelper.readAndWriteSegmentToFile;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
-
-    private static final int REQUEST_TIMEOUT_SECONDS = 10;
-    private static final int READ_WRITE_BUFFER_SIZE = 2 * 1024 * 1024;
-    private static final String PROGRESS_BAR = "|/-\\";
-
     /**
      * Creates a new instance of the ReadSegmentRangeCommand.
      *
@@ -54,7 +50,9 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
         readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName, getServiceConfig().getAdminGatewayPort(), super.authHelper.retrieveMasterToken());
         output("\nThe segment data has been successfully written into %s", fileName);

@@ -478,24 +478,21 @@ public abstract class AdminCommand {
         return new ObjectMapper().writeValueAsString(object);
     }
 
-    protected Controller instantiateController() {
-        ConnectionPool pool = createConnectionPool();
+    protected Controller instantiateController(ConnectionPool pool) {
         return new ControllerImpl(ControllerImplConfig.builder()
                                     .clientConfig(getClientConfig())
                                     .build(), pool.getInternalExecutor());
     }
 
     @VisibleForTesting
-    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient, ConnectionPool pool) {
         HostControllerStore hostStore = createHostControllerStore(zkClient);
-        ConnectionPool pool = createConnectionPool();
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
     @VisibleForTesting
-    public AdminSegmentHelper instantiateAdminSegmentHelper(CuratorFramework zkClient) {
+    public AdminSegmentHelper instantiateAdminSegmentHelper(CuratorFramework zkClient, ConnectionPool pool) {
         HostControllerStore hostStore = createHostControllerStore(zkClient);
-        ConnectionPool pool = createConnectionPool();
         return new AdminSegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
@@ -525,7 +522,7 @@ public abstract class AdminCommand {
         return clientConfig;
     }
 
-    private ConnectionPool createConnectionPool() {
+    protected ConnectionPool createConnectionPool() {
         ClientConfig clientConfig = getClientConfig();
         return new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
     }
