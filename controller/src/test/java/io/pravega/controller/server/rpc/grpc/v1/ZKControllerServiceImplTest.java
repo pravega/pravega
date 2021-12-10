@@ -114,6 +114,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        zkClient.blockUntilConnected();
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
@@ -179,6 +180,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         }
         storeClient.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();

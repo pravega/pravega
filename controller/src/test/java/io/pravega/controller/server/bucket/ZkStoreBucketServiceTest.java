@@ -77,6 +77,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         super.tearDown();
         streamMetadataStore.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
     }
 
@@ -134,6 +135,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer2.getConnectString(), 10000, 1000,
                 (r, e, s) -> false);
         zkClient2.start();
+        zkClient2.blockUntilConnected();
 
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor2 = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -169,6 +171,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         service2.stopAsync();
         service2.awaitTerminated();
         zkClient2.close();
+        zkServer2.stop();
         zkServer2.close();
         streamMetadataTasks2.close();
         ExecutorServiceHelpers.shutdown(executor2);

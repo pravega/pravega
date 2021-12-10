@@ -122,6 +122,7 @@ public abstract class ControllerEventProcessorTest {
 
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         zkClient.start();
+        zkClient.blockUntilConnected();
 
         streamStore = createStore();
         bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
@@ -149,6 +150,7 @@ public abstract class ControllerEventProcessorTest {
     @After
     public void tearDown() throws Exception {
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();

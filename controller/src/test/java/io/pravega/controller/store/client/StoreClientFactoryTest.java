@@ -51,6 +51,7 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() throws IOException {
+        zkServer.close();
         zkServer.stop();
     }
 

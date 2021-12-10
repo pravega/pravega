@@ -43,6 +43,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
                 (r, e, s) -> false);
 
         zkClient.start();
+        zkClient.blockUntilConnected();
         super.setup();
     }
 

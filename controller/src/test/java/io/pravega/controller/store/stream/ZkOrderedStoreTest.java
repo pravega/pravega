@@ -57,6 +57,7 @@ public class ZkOrderedStoreTest {
         zkServer = new TestingServerStarter().start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryNTimes(0, 0));
         cli.start();
+        cli.blockUntilConnected();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
 
@@ -64,6 +65,7 @@ public class ZkOrderedStoreTest {
     public void tearDown() throws IOException {
         ExecutorServiceHelpers.shutdown(executor);
         cli.close();
+        zkServer.stop();
         zkServer.close();
     }
 

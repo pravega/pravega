@@ -64,6 +64,7 @@ public abstract class ZkBasedControllerServiceMainTest extends ControllerService
 
     @Override
     public void tearDown() throws IOException {
+        zkServer.stop();
         zkServer.close();
     }
 

@@ -136,6 +136,7 @@ public abstract class RequestHandlersTest {
                 new ExponentialBackoffRetry(20, 1, 50));
 
         zkClient.start();
+        zkClient.blockUntilConnected();
 
         String hostId;
         try {
@@ -182,6 +183,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks.close();
         streamStore.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();

@@ -269,12 +269,12 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.close();
         streamStorePartialMock.close();
         zkClient.close();
+        ExecutorServiceHelpers.shutdown(executor);
         zkServer.stop();
         zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
-        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 30000)

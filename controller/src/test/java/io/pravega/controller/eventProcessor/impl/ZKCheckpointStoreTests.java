@@ -49,12 +49,14 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryOneTime(10000));
         cli.start();
+        cli.blockUntilConnected();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
 
     @Override
     public void cleanupCheckpointStore() throws IOException {
         cli.close();
+        zkServer.stop();
         zkServer.close();
     }
 

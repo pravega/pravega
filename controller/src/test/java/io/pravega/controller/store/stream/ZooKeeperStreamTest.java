@@ -39,6 +39,7 @@ public class ZooKeeperStreamTest extends StreamTestBase {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
+        cli.blockUntilConnected();
         storeHelper = new ZKStoreHelper(cli, executor);
         store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
     }
@@ -46,9 +47,10 @@ public class ZooKeeperStreamTest extends StreamTestBase {
     @Override
     public void tearDown() throws Exception {
         store.close();
-        cli.close();
-        zkServer.close();
         executor.shutdown();
+        cli.close();
+        zkServer.stop();
+        zkServer.close();
     }
 
     @Override

@@ -64,6 +64,7 @@ public class PravegaZkCuratorResource extends ExternalResource {
             client = CuratorFrameworkFactory.newClient(connectionString, sessionTimeoutMs, connectionTimeoutMs, retryPolicy);
         }
         client.start();
+        client.blockUntilConnected();
         storeClient = StoreClientFactory.createZKStoreClient(client);
     }
 
@@ -72,6 +73,7 @@ public class PravegaZkCuratorResource extends ExternalResource {
     public void after() {
         storeClient.close();
         client.close();
+        zkTestServer.stop();
         zkTestServer.close();
     }
 }

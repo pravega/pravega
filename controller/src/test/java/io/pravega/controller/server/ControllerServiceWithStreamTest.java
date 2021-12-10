@@ -125,7 +125,7 @@ public abstract class ControllerServiceWithStreamTest {
     private TableMetadataTasks kvtMetadataTasks;
 
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         try {
             zkServer = new TestingServerStarter().start();
         } catch (Exception e) {
@@ -134,6 +134,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        zkClient.blockUntilConnected();
 
         streamStore = spy(getStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
@@ -171,12 +172,13 @@ public abstract class ControllerServiceWithStreamTest {
 
     @After
     public void teardown() throws Exception {
+        connectionFactory.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
-        connectionFactory.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);

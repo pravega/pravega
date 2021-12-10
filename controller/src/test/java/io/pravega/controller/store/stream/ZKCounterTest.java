@@ -64,12 +64,14 @@ public class ZKCounterTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
+        cli.blockUntilConnected();
         executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
     }
 
     @After
     public void tearDown() throws Exception {
         cli.close();
+        zkServer.stop();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
