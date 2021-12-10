@@ -72,6 +72,7 @@ import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.time.Duration;
@@ -109,6 +110,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -131,11 +133,12 @@ import static org.mockito.Mockito.verify;
  * Tests for StreamTransactionMetadataTasks.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class StreamTransactionMetadataTasksTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
     @Rule
-    public Timeout globalTimeout = new Timeout(1, TimeUnit.MINUTES);
+    public Timeout globalTimeout = new Timeout(2, TimeUnit.MINUTES);
 
     boolean authEnabled = false;
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -180,7 +183,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         try {
             zkServer = new TestingServerStarter().start();
         } catch (Exception e) {
@@ -189,6 +192,7 @@ public class StreamTransactionMetadataTasksTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        zkClient.blockUntilConnected();
 
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
@@ -210,6 +214,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStore.close();
         txnTasks.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
@@ -858,10 +863,11 @@ public class StreamTransactionMetadataTasksTest {
         system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
+    @RunWith(SerializedClassRunner.class)
     public static class AuthEnabledTests extends StreamTransactionMetadataTasksTest {
         @Override
         @Before
-        public void setup() {
+        public void setup() throws InterruptedException {
             this.authEnabled = true;
             super.setup();
         }
