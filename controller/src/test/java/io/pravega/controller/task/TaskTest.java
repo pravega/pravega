@@ -112,6 +112,7 @@ public abstract class TaskTest {
 
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
+        cli.blockUntilConnected();
         streamStore = getStream();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
