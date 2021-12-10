@@ -31,6 +31,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.util.AbstractMap;
@@ -55,18 +56,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -81,24 +81,17 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
 @Slf4j
-//@RunWith(SerializedClassRunner.class)
+@RunWith(SerializedClassRunner.class)
 public class ZkStreamTest extends ThreadPooledTestSuite {
+
     public static class ZKResource extends ExternalResource {
         public TestingServer zkTestServer;
         public CuratorFramework cli;
 
-        public CuratorFramework getZKClient() {
-            return cli;
-        }
-
-        public TestingServer getZKServer() {
-            return zkTestServer;
-        }
-
         @Override
         protected void before() throws Throwable {
             zkTestServer = new TestingServerStarter().start();
-            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime( 2000));
+            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
             cli.start();
             cli.blockUntilConnected(); // wait until connected.
         }
@@ -122,19 +115,20 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
 
     private StreamMetadataStore storePartialMock;
     private ScheduledExecutorService executor;
-    private CuratorFramework cli = ((ZKResource) RESOURCE).cli;
+    private final CuratorFramework cli = ((ZKResource) RESOURCE).cli;
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 2;
     }
 
     @Before
     public void startZookeeper() throws Exception {
         executor = executorService();
-        List<String> res = ((ZKResource) RESOURCE).cli.getChildren().forPath("/");
+        Assert.assertFalse(executor.isShutdown() || executor.isTerminated());
+        cli.getChildren().forPath("/");
         try {
-            ((ZKResource) RESOURCE).cli.delete().deletingChildrenIfNeeded().forPath("/store");
+            cli.delete().deletingChildrenIfNeeded().forPath("/store");
         } catch (KeeperException.NoNodeException e) {
             //ignore it.
         }
@@ -146,18 +140,14 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         storePartialMock.close();
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testZkConnectionLoss() throws Exception {
         try {
             final ScalingPolicy policy = ScalingPolicy.fixed(5);
-
             final String streamName = "testfail";
-
             final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
             log.info("Stopping ZK Server");
             ((ZKResource) RESOURCE).zkTestServer.stop();
-
             try {
                 storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
             } catch (ExecutionException e) {
@@ -170,17 +160,15 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
             ((ZKResource) RESOURCE).cli = CuratorFrameworkFactory.newClient(((ZKResource) RESOURCE).zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
             ((ZKResource) RESOURCE).cli.start();
             ((ZKResource) RESOURCE).cli.blockUntilConnected(); // wait until connected.
-
         }
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testCreateStreamState() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         @Cleanup
-        final StreamMetadataStore store = new ZKStreamMetadataStore(((ZKResource) RESOURCE).cli, executor);
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
@@ -198,8 +186,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         store.deleteScope(SCOPE, null, executor);
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testZkCreateScope() throws Exception {
 
         // create new scope test
@@ -234,8 +221,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertTrue("Name of stream at index one", listOfStreams.containsKey("Stream2"));
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testZkDeleteScope() throws Exception {
         // create new scope
         @Cleanup
@@ -266,8 +252,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
                 deleteScopeStatus3.get().getStatus());
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testGetScope() throws Exception {
         @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -288,8 +273,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         }
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testZkListScope() throws Exception {
         // list scope test
         @Cleanup
@@ -306,8 +290,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertEquals("List Scopes ", 2, listScopes.size());
     }
 
-    @Test
-    @Ignore
+    @Test(timeout = 30000)
     public void testZkStream() throws Exception {
         double keyChunk = 1.0 / 5;
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
@@ -524,8 +507,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertFalse(store.isCold(SCOPE, streamName, 0L, null, executor).get());
     }
 
-    @Test //(timeout = 30000)
-    @Ignore
+    @Test(timeout = 30000)
     public void testTransaction() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -639,8 +621,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
                 .get().equals(TxnStatus.UNKNOWN);
     }
 
-    @Test //(timeout = 10000)
-    @Ignore
+    @Test(timeout = 30000)
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZkOrderedStore orderer = new ZkOrderedStore("txn", storeHelper, executor);
@@ -678,8 +659,7 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
         assertEquals(1, result.size());
     }
 
-    @Test //(timeout = 10000)
-    @Ignore
+    @Test(timeout = 30000)
     public void testStreamRecreation() {
         // We will first create stream. Verify that its metadata is present in the cache.  
         ZKStoreHelper storeHelper = new ZKStoreHelper(cli, executor);
