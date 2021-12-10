@@ -103,7 +103,6 @@ import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.AbstractMap;
