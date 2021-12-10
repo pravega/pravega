@@ -109,7 +109,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -132,7 +131,7 @@ import static org.mockito.Mockito.verify;
  * Tests for StreamTransactionMetadataTasks.
  */
 @Slf4j
-@RunWith(SerializedClassRunner.class)
+//@RunWith(SerializedClassRunner.class)
 public class StreamTransactionMetadataTasksTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
@@ -862,7 +861,7 @@ public class StreamTransactionMetadataTasksTest {
         system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
-    @RunWith(SerializedClassRunner.class)
+    //@RunWith(SerializedClassRunner.class)
     public static class AuthEnabledTests extends StreamTransactionMetadataTasksTest {
         @Override
         @Before
