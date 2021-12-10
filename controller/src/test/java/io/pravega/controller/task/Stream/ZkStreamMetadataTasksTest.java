@@ -17,11 +17,13 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import org.junit.Ignore;
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.ExecutionException;
 
+@Ignore
 public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     StreamMetadataStore getStore() {

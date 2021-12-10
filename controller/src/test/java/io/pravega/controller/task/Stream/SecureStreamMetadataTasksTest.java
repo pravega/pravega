@@ -18,7 +18,9 @@ package io.pravega.controller.task.Stream;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import org.junit.Before;
+import org.junit.Ignore;
 
+@Ignore
 public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     @Before
