@@ -189,6 +189,7 @@ public abstract class StreamMetadataTasksTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        zkClient.blockUntilConnected();
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -268,6 +269,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.close();
         streamStorePartialMock.close();
         zkClient.close();
+        zkServer.stop();
         zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
