@@ -105,7 +105,7 @@ plugins.withId('java') {
         testLogging.events = ["STARTED", "PASSED", "SKIPPED", "FAILED"]
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : Math.min(4, Runtime.runtime.availableProcessors())
         minHeapSize = "128m"
-        maxHeapSize = "512m"
+        maxHeapSize = "1024m"
         def jvmArgsCopy = jvmArgs
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=1g")
         jvmArgsCopy.add("-XX:+HeapDumpOnOutOfMemoryError")
