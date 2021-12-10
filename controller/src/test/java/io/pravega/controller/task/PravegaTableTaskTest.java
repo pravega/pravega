@@ -20,15 +20,13 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.runner.RunWith;
 
 /**
  * Task test cases.
  */
 @Slf4j
-@RunWith(SerializedClassRunner.class)
+//@RunWith(SerializedClassRunner.class)
 public class PravegaTableTaskTest extends TaskTest {
     @Override
     protected StreamMetadataStore getStream() {

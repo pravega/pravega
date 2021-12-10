@@ -38,7 +38,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -68,7 +67,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -78,7 +76,7 @@ import static org.junit.Assert.assertTrue;
  * Task test cases.
  */
 @Slf4j
-@RunWith(SerializedClassRunner.class)
+//@RunWith(SerializedClassRunner.class)
 public abstract class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";

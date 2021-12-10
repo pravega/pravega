@@ -139,7 +139,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -151,7 +150,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-@RunWith(SerializedClassRunner.class)
+//@RunWith(SerializedClassRunner.class)
 public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
