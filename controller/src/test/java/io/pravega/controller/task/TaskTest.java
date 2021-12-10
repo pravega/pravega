@@ -66,6 +66,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -80,6 +81,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 @RunWith(SerializedClassRunner.class)
+@Ignore
 public abstract class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
