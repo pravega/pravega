@@ -154,7 +154,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @RunWith(SerializedClassRunner.class)
-@Ignore
 public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
@@ -279,7 +278,7 @@ public abstract class StreamMetadataTasksTest {
         TransactionMetrics.reset();
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void testeventHelperNPE() throws Exception {
         StreamMetadataStore streamMetadataStore = getStore();
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
@@ -308,7 +307,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(ScaleResponse.ScaleStreamStatus.FAILURE, scaleResponse.join().getStatus());
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void updateStreamTest() throws Exception {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1, 0L).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -397,7 +396,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void updateStreamSegmentCountFixedPolicyTest() throws Exception {
         // simple test. change the stream config with min segments and verify that number of segments indeed changes. 
         int initialSegments = consumer.getCurrentSegments(SCOPE, stream1, 0L).get().size();
@@ -432,7 +431,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(configProp.getStreamConfiguration(), streamConfiguration);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void updateStreamSegmentCountScalingPolicyTest() throws Exception {
         int initialSegments = streamStorePartialMock.getActiveSegments(SCOPE, stream1, null, executor).join().size();
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -463,7 +462,7 @@ public abstract class StreamMetadataTasksTest {
                 etr.getObject().getActiveEpoch(), 0L).join().getStatus(), Controller.ScaleStatusResponse.ScaleStatus.SUCCESS);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // no subscribers found for existing Stream
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, 0L).get();
@@ -697,7 +696,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void readerGroupFailureTests() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -734,7 +733,7 @@ public abstract class StreamMetadataTasksTest {
                 startStreamCuts, endStreamCuts, createTimestamp);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
         final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE, stream1);
         final UUID rgId = UUID.randomUUID();
@@ -805,7 +804,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void truncateStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
@@ -923,7 +922,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void timeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
@@ -1045,7 +1044,7 @@ public abstract class StreamMetadataTasksTest {
         doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void sizeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
@@ -1368,7 +1367,7 @@ public abstract class StreamMetadataTasksTest {
         doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionSizeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(2L, 10L);
@@ -1540,7 +1539,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionTimeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(1L), Duration.ofMillis(10L));
@@ -1724,7 +1723,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionSizeLimitWithOverlappingMinTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(2L, 20L);
@@ -1815,7 +1814,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionTimeLimitWithOverlappingMinTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(10), Duration.ofMillis(50));
@@ -1914,7 +1913,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoSubscriber() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(0L), Duration.ofMillis(Long.MAX_VALUE));
@@ -1991,7 +1990,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(3);
         final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
@@ -2099,7 +2098,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale2() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
@@ -2220,7 +2219,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoBounds() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(0L), Duration.ofMillis(Long.MAX_VALUE));
@@ -2363,7 +2362,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void retentionPolicyUpdateTest() {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
@@ -2403,7 +2402,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void sealStreamTest() throws Exception {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1, 0L).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -2444,7 +2443,7 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void sealStreamFailing() throws Exception {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -2467,7 +2466,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, statusFuture.join());
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void sealStreamWithTxnTest() throws Exception {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -2564,7 +2563,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void deleteStreamTest() throws Exception {
         deleteStreamTest(stream1);
     }
@@ -2598,7 +2597,7 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null, executor).join());
     }
 
-    @Test
+    //@Test
     public void deletePartiallyCreatedStreamTest() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -2667,7 +2666,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void eventWriterInitializationTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -2698,7 +2697,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void manualScaleTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -2743,7 +2742,7 @@ public abstract class StreamMetadataTasksTest {
                              && AssertExtensions.nearlyEquals(x.getValue().getValue(), 1.0, 0)));
     }
 
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void checkScaleCompleteTest() throws ExecutionException, InterruptedException {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -2803,7 +2802,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
     
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void checkUpdateCompleteTest() throws ExecutionException, InterruptedException {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -2873,7 +2872,7 @@ public abstract class StreamMetadataTasksTest {
         // end region
     }
     
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void checkTruncateCompleteTest() throws ExecutionException, InterruptedException {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -2944,7 +2943,7 @@ public abstract class StreamMetadataTasksTest {
         // end region
     }
 
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void testThrowSynchronousExceptionOnWriteEvent() {
         @SuppressWarnings("unchecked")
         EventStreamWriter<ControllerEvent> requestEventWriter = mock(EventStreamWriter.class);
@@ -2958,7 +2957,7 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
     }
 
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void testAddIndexAndSubmitTask() {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -2987,7 +2986,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(requestEventWriter.eventQueue.isEmpty());
     }
     
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void concurrentCreateStreamTest() throws Exception {
         TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
 
@@ -3062,7 +3061,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(createStreamFuture2.join(), Controller.CreateStreamStatus.Status.STREAM_EXISTS);
     }
 
-    @Test(timeout = 30000)
+    //@Test(timeout = 30000)
     public void testWorkflowCompletionTimeout() {
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", 
                 ((AbstractStreamMetadataStore) streamStorePartialMock).getHostTaskIndex());

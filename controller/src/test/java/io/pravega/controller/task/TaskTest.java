@@ -81,7 +81,6 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 @RunWith(SerializedClassRunner.class)
-@Ignore
 public abstract class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
@@ -182,7 +181,7 @@ public abstract class TaskTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
+    //@Test
     public void testMethods() throws InterruptedException, ExecutionException {
         CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, 
                 System.currentTimeMillis(), 0L).join();
@@ -193,7 +192,7 @@ public abstract class TaskTest {
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
-    @Test
+    //@Test
     public void testTaskSweeper() throws ExecutionException, InterruptedException {
         final String deadHost = "deadHost";
         final String deadThreadId = UUID.randomUUID().toString();
@@ -229,7 +228,7 @@ public abstract class TaskTest {
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
-    @Test(timeout = 10000)
+    //@Test(timeout = 10000)
     public void testStreamTaskSweeping() throws Exception {
         final String stream = "testPartialCreationStream";
         final String deadHost = "deadHost";
@@ -268,7 +267,7 @@ public abstract class TaskTest {
         assertFalse(child.isPresent());
     }
 
-    @Test
+    //@Test
     public void parallelTaskSweeperTest() throws InterruptedException, ExecutionException {
         final String deadHost = "deadHost";
         final String deadThreadId1 = UUID.randomUUID().toString();
@@ -332,7 +331,7 @@ public abstract class TaskTest {
         assertEquals(config2, config);
     }
 
-    @Test
+    //@Test
     public void testLocking() throws Exception {
         @Cleanup
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
