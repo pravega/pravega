@@ -135,6 +135,14 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
 
     @After
     public void stopZookeeper() throws Exception {
+        Arrays.asList("/pravega", "/hostIndex", "/store", "/taskIndex", "/hostTxnIndex", "/hostRequestIndex",
+                "/txnCommitOrderer", "/store", "/lastActiveStreamSegment", "/transactions", "/completedTxnGC").forEach(s -> {
+            try {
+                cli.delete().deletingChildrenIfNeeded().forPath(s);
+            } catch (Exception e) {
+                // Do nothing.
+            }
+        });
     }
 
     @Test(timeout = 30000)
