@@ -17,46 +17,44 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import org.junit.Ignore;
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.ExecutionException;
 
-@Ignore
 public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
 
-    //@Test
+    @Test
     public void addSubscriberTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
 
-    //@Test
+    @Test
     public void removeSubscriberTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
 
     @Override
-    //@Test
+    @Test
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
 
     @Override
-    //@Test
+    @Test
     public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
 
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionSizeLimitTest() {
         // no op
@@ -68,49 +66,49 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
         // no op
     }
     
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionWithScale() {
         // no op
     }
     
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionWithScale2() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionWithNoBounds() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionWithNoSubscriber() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionSizeLimitWithOverlappingMinTest() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void consumptionBasedRetentionTimeLimitWithOverlappingMinTest() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void sizeBasedRetentionStreamTest() {
         // no op
     }
 
-    //@Test
+    @Test
     @Override
     public void readerGroupFailureTests() {
         // no op
