@@ -36,7 +36,7 @@ public interface StreamManager extends AutoCloseable {
      * @param controller The Controller URI.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(URI controller) {
+    static StreamManager create(URI controller) {
         return create(ClientConfig.builder().controllerURI(controller).build());
     }
 
@@ -46,7 +46,7 @@ public interface StreamManager extends AutoCloseable {
      * @param clientConfig Configuration for the client connection to Pravega.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(ClientConfig clientConfig) {
+    static StreamManager create(ClientConfig clientConfig) {
         return new StreamManagerImpl(clientConfig);
     }
 
