@@ -20,7 +20,10 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.test.common.SerializedClassRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(SerializedClassRunner.class)
 public class PravegaTablesStreamMetadataTasksTest extends StreamMetadataTasksTest {
     SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
     

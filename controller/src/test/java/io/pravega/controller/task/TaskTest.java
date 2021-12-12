@@ -18,13 +18,11 @@ package io.pravega.controller.task;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -38,7 +36,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -54,19 +51,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -76,27 +76,22 @@ import static org.junit.Assert.assertTrue;
  * Task test cases.
  */
 @Slf4j
-//@RunWith(SerializedClassRunner.class)
+@RunWith(SerializedClassRunner.class)
 public abstract class TaskTest {
+    @ClassRule
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(180, TimeUnit.SECONDS);
-    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    protected CuratorFramework cli;
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+    protected CuratorFramework cli = ((PravegaZkCuratorResource) RESOURCE).client;
 
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
-
     private StreamMetadataStore streamStore;
-
-    private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-
     private TaskMetadataStore taskMetadataStore;
-
-    private TestingServer zkServer;
-
     private StreamMetadataTasks streamMetadataTasks;
     private SegmentHelper segmentHelperMock;
 
@@ -104,12 +99,6 @@ public abstract class TaskTest {
 
     @Before
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
-        cli.start();
-        cli.blockUntilConnected();
         streamStore = getStream();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
@@ -169,16 +158,14 @@ public abstract class TaskTest {
 
     @After
     public void tearDown() throws Exception {
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
         streamMetadataTasks.close();
         streamStore.close();
-        cli.close();
-        zkServer.stop();
-        zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    //@Test
-    public void testMethods() throws InterruptedException, ExecutionException {
+    @Test
+    public void testMethods() {
         CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, 
                 System.currentTimeMillis(), 0L).join();
         assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, status);
@@ -188,7 +175,7 @@ public abstract class TaskTest {
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
-    //@Test
+    @Test
     public void testTaskSweeper() throws ExecutionException, InterruptedException {
         final String deadHost = "deadHost";
         final String deadThreadId = UUID.randomUUID().toString();
@@ -224,7 +211,7 @@ public abstract class TaskTest {
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void testStreamTaskSweeping() throws Exception {
         final String stream = "testPartialCreationStream";
         final String deadHost = "deadHost";
@@ -263,7 +250,7 @@ public abstract class TaskTest {
         assertFalse(child.isPresent());
     }
 
-    //@Test
+    @Test
     public void parallelTaskSweeperTest() throws InterruptedException, ExecutionException {
         final String deadHost = "deadHost";
         final String deadThreadId1 = UUID.randomUUID().toString();
@@ -327,7 +314,7 @@ public abstract class TaskTest {
         assertEquals(config2, config);
     }
 
-    //@Test
+    @Test
     public void testLocking() throws Exception {
         @Cleanup
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
