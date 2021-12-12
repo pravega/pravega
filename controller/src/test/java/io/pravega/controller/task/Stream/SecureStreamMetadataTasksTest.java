@@ -15,15 +15,9 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.test.common.SerializedClassRunner;
-import org.junit.Before;
-import org.junit.runner.RunWith;
-
-@RunWith(SerializedClassRunner.class)
-public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
-    @Override
+//@RunWith(SerializedClassRunner.class)
+public class SecureStreamMetadataTasksTest { //extends StreamMetadataTasksTest {
+    /*@Override
     @Before
     public void setup() throws Exception {
         this.authEnabled = true;
@@ -33,5 +27,5 @@ public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createInMemoryStore();
-    }
+    }*/
 }
