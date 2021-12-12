@@ -37,6 +37,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -104,7 +105,6 @@ import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -130,12 +130,8 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryNTimes;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -169,36 +165,15 @@ import static org.mockito.Mockito.spy;
 @RunWith(SerializedClassRunner.class)
 public abstract class StreamMetadataTasksTest {
 
-    public static class ZKResource extends ExternalResource {
-        public TestingServer zkTestServer;
-        public CuratorFramework cli;
-
-        @Override
-        protected void before() throws Throwable {
-            zkTestServer = new TestingServerStarter().start();
-            cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
-            cli.start();
-            cli.blockUntilConnected(); // wait until connected.
-        }
-
-        @SneakyThrows
-        @Override
-        protected void after() {
-            cli.close();
-            zkTestServer.stop();
-            zkTestServer.close();
-        }
-    }
-
     @ClassRule
-    public static final ExternalResource RESOURCE = new StreamMetadataTasksTest.ZKResource();
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
 
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(180, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
     protected boolean authEnabled = false;
-    protected CuratorFramework zkClient = ((ZKResource) RESOURCE).cli;
+    protected CuratorFramework zkClient = ((PravegaZkCuratorResource) RESOURCE).client;
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final String stream3 = "stream3";
@@ -211,8 +186,7 @@ public abstract class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactory connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker(true);
-    private EventStreamWriterMock<CommitEvent> commitWriter;
+    private final RequestTracker requestTracker = new RequestTracker(true);
     private EventStreamWriterMock<AbortEvent> abortWriter;
     @Mock
     private KVTableMetadataStore kvtStore;
@@ -256,7 +230,7 @@ public abstract class StreamMetadataTasksTest {
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
-        commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         abortWriter = new EventStreamWriterMock<>();
         streamTransactionMetadataTasks.initializeStreamWriters(commitWriter, abortWriter);
 
@@ -295,15 +269,7 @@ public abstract class StreamMetadataTasksTest {
 
     @After
     public void tearDown() throws Exception {
-        Arrays.asList("/pravega", "/hostIndex", "/store", "/taskIndex", "/hostTxnIndex", "/hostRequestIndex",
-                "/txnCommitOrderer", "/store", "/lastActiveStreamSegment", "/transactions", "/completedTxnGC").forEach(s -> {
-            try {
-                zkClient.delete().deletingChildrenIfNeeded().forPath(s);
-            } catch (Exception e) {
-                // Do nothing.
-            }
-        });
-
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStorePartialMock.close();

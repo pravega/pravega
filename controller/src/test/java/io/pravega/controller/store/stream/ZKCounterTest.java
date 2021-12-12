@@ -18,9 +18,9 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
-import io.pravega.test.common.TestingServerStarter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -28,13 +28,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -50,29 +49,23 @@ import static org.mockito.Mockito.verify;
  * Zookeeper based counter tests.
  */
 public class ZKCounterTest {
+    @ClassRule
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
+
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    private TestingServer zkServer;
     private CuratorFramework cli;
     private ScheduledExecutorService executor;
 
     @Before
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        int sessionTimeout = 8000;
-        int connectionTimeout = 5000;
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
-        cli.start();
-        cli.blockUntilConnected();
+        cli = ((PravegaZkCuratorResource) RESOURCE).client;
         executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
     }
 
     @After
     public void tearDown() throws Exception {
-        cli.close();
-        zkServer.stop();
-        zkServer.close();
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

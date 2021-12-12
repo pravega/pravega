@@ -27,6 +27,8 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.rules.ExternalResource;
 
+import java.util.Arrays;
+
 @Slf4j
 public class PravegaZkCuratorResource extends ExternalResource {
     public CuratorFramework client;
@@ -49,6 +51,17 @@ public class PravegaZkCuratorResource extends ExternalResource {
         this.sessionTimeoutMs = sessionTimeoutMs;
         this.connectionTimeoutMs = connectionTimeoutMs;
         this.retryPolicy = retryPolicy;
+    }
+
+    public void cleanupZookeeperData() {
+        Arrays.asList("/pravega", "/hostIndex", "/store", "/taskIndex", "/hostTxnIndex", "/hostRequestIndex",
+                "/txnCommitOrderer", "/lastActiveStreamSegment", "/transactions", "/completedTxnGC", "/counter").forEach(s -> {
+            try {
+                client.delete().deletingChildrenIfNeeded().forPath(s);
+            } catch (Exception e) {
+                // Do nothing.
+            }
+        });
     }
 
     @Override
