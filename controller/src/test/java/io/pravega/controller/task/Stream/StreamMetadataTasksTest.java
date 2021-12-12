@@ -171,7 +171,7 @@ public abstract class StreamMetadataTasksTest {
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(180, TimeUnit.SECONDS);
-    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(8, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient = ((PravegaZkCuratorResource) RESOURCE).client;
     private final String stream1 = "stream1";
