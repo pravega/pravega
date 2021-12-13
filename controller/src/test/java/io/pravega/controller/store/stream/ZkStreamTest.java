@@ -96,12 +96,14 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
 
     @Before
     public void before() throws Exception {
+        super.before();
         executor = executorService();
         Assert.assertFalse(executor.isShutdown() || executor.isTerminated());
     }
 
     @After
     public void after() throws Exception {
+        super.after();
         ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
     }
 
