@@ -33,7 +33,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestingServerStarter;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -54,8 +53,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryNTimes;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -98,13 +95,13 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
     }
 
     @Before
-    public void startZookeeper() throws Exception {
+    public void before() throws Exception {
         executor = executorService();
         Assert.assertFalse(executor.isShutdown() || executor.isTerminated());
     }
 
     @After
-    public void stopZookeeper() throws Exception {
+    public void after() throws Exception {
         ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
     }
 
@@ -124,10 +121,10 @@ public class ZkStreamTest extends ThreadPooledTestSuite {
             }
         } finally {
             ((PravegaZkCuratorResource) RESOURCE).client.close();
-            ((PravegaZkCuratorResource) RESOURCE).zkTestServer = new TestingServerStarter().start();
-            ((PravegaZkCuratorResource) RESOURCE).client = CuratorFrameworkFactory.newClient(((PravegaZkCuratorResource) RESOURCE).zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
-            ((PravegaZkCuratorResource) RESOURCE).client.start();
-            ((PravegaZkCuratorResource) RESOURCE).client.blockUntilConnected(); // wait until connected.
+            //((PravegaZkCuratorResource) RESOURCE).zkTestServer = new TestingServerStarter().start();
+            //((PravegaZkCuratorResource) RESOURCE).client = CuratorFrameworkFactory.newClient(((PravegaZkCuratorResource) RESOURCE).zkTestServer.getConnectString(), new RetryNTimes(2, 2000));
+            //((PravegaZkCuratorResource) RESOURCE).client.start();
+            //((PravegaZkCuratorResource) RESOURCE).client.blockUntilConnected(); // wait until connected.
         }
     }
 

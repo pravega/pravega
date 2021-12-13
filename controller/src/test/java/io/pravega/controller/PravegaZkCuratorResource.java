@@ -17,23 +17,24 @@ package io.pravega.controller;
 
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.TestUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.rules.ExternalResource;
-
 import java.util.Arrays;
 
 @Slf4j
 public class PravegaZkCuratorResource extends ExternalResource {
+
+    private static final String LOOPBACK_ADDRESS = "127.0.0.1";
+
     public CuratorFramework client;
 
-    public TestingServer zkTestServer;
+    public ZooKeeperServiceRunner zkTestServer;
     public StoreClient storeClient;
     public RetryPolicy retryPolicy;
     public int sessionTimeoutMs;
@@ -67,8 +68,15 @@ public class PravegaZkCuratorResource extends ExternalResource {
     @Override
     public void before() throws Exception {
         //Instantiate test ZK service
-        zkTestServer = new TestingServerStarter().start();
-        String connectionString = zkTestServer.getConnectString();
+        int zkPort = TestUtils.getAvailableListenPort();
+        zkTestServer = new ZooKeeperServiceRunner(zkPort, false, "", "", "");
+        // Start or resume ZK.
+        zkTestServer.initialize();
+        zkTestServer.start();
+        ZooKeeperServiceRunner.waitForServerUp(zkPort);
+        log.info("ZooKeeper started.");
+
+        String connectionString = LOOPBACK_ADDRESS + ":" + zkPort;
 
         //Initialize ZK client
         if (sessionTimeoutMs == 0 && connectionTimeoutMs == 0) {
