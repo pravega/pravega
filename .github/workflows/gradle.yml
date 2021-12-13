@@ -64,6 +64,8 @@ jobs:
     name: Build
     runs-on: ubuntu-20.04
     steps:
+      - name: uname
+        run: uname -a
       - name: Build Information
         run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
