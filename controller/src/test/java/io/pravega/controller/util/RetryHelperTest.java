@@ -22,6 +22,7 @@ import io.pravega.controller.retryable.RetryableException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.time.Duration;
@@ -71,6 +72,7 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
+    @Ignore
     public void testWithRetriesAsync() {
 
         try {
