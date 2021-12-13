@@ -63,7 +63,7 @@ public abstract class ThreadPooledTestSuite {
      * @param threadPoolSize Maximum number of threads in the pool.
      * @return A new {@link ScheduledExecutorService} instance.
      */
-    static ScheduledExecutorService createExecutorService(int threadPoolSize) {
+    static synchronized ScheduledExecutorService createExecutorService(int threadPoolSize) {
         ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
         es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
