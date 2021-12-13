@@ -101,7 +101,7 @@ public abstract class StreamMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
     protected TestStore store;
     protected BucketStore bucketStore;
-    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
+    protected ScheduledExecutorService executor;
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
     protected final String stream2 = "stream2";
@@ -111,13 +111,18 @@ public abstract class StreamMetadataStoreTest {
     protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
     @Before
+    public void setUp() throws Exception {
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+        this.setupStore();
+    }
+
     public abstract void setupStore() throws Exception;
 
-    @After
     public abstract void cleanupStore() throws Exception;
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        this.cleanupStore();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
