@@ -62,12 +62,16 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Build Information
         run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -101,10 +105,14 @@ jobs:
   unit_client:
     name: Client Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -134,10 +142,14 @@ jobs:
   unit_controller:
     name: Controller Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -167,10 +179,14 @@ jobs:
   unit_segment_store:
     name: Segment Store Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -205,10 +221,14 @@ jobs:
   unit_storage:
     name: Storage Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -242,10 +262,14 @@ jobs:
   unit_other:
     name: All Other Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -293,10 +317,14 @@ jobs:
   integration:
     name: Integration Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -319,7 +347,7 @@ jobs:
   build_and_test_complete:
     name: CI Complete
     needs: [build, integration, unit_other, unit_segment_store, unit_storage, unit_controller, unit_client]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
@@ -327,6 +355,10 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
       - name: Untar reports
@@ -339,12 +371,16 @@ jobs:
     needs: [build_and_test_complete]
     # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
