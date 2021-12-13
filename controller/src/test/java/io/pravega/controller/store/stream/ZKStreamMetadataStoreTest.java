@@ -31,13 +31,16 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.shared.NameUtils;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
+import org.junit.runner.RunWith;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
@@ -61,6 +64,8 @@ import static org.junit.Assert.assertFalse;
 /**
  * Zookeeper based stream metadata store tests.
  */
+@Slf4j
+@RunWith(SerializedClassRunner.class)
 public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @ClassRule

@@ -17,7 +17,10 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,6 +29,8 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * In-memory stream metadata store tests.
  */
+@Slf4j
+@RunWith(SerializedClassRunner.class)
 public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override

@@ -112,7 +112,7 @@ public abstract class StreamMetadataStoreTest {
 
     @Before
     public void setUp() throws Exception {
-        executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(6, "test");
         this.setupStore();
     }
 

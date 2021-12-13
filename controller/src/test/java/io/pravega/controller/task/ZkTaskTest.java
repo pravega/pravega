@@ -18,13 +18,15 @@ package io.pravega.controller.task;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.runner.RunWith;
 
 /**
  * Task test cases.
  */
 @Slf4j
-//@RunWith(SerializedClassRunner.class)
+@RunWith(SerializedClassRunner.class)
 public class ZkTaskTest extends TaskTest {
     public ZkTaskTest() throws Exception {
     }
