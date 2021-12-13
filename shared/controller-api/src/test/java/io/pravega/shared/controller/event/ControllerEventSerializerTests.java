@@ -201,6 +201,11 @@ public class ControllerEventSerializerTests {
         testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, false, ImmutableSet.of()));
     }
 
+    @Test
+    public void testDeleteScopeRecursive() {
+        testClass(() -> new DeleteScopeEvent(SCOPE, 777L));
+    }
+
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
         val s = new ControllerEventSerializer();
         T baseInstance = generateInstance.get();
