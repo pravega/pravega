@@ -45,10 +45,10 @@ public abstract class KVTableMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
     protected KVTableMetadataStore store;
     protected StreamMetadataStore streamStore;
-    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
     protected final String scope = "storescope";
     protected final String kvtable1 = "kvt1";
     protected final String kvtable2 = "kvt2";

@@ -29,11 +29,10 @@ import io.pravega.controller.store.stream.TestStreamStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.retry.RetryOneTime;
 
 import org.junit.Assert;
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.ClassRule;
 
@@ -53,10 +52,8 @@ import static org.mockito.Mockito.when;
  * Zookeeper based stream metadata store tests.
  */
 public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest {
-
-    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(8000, 5000, RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private SegmentHelper segmentHelperMockForTables;
 
     @Override
@@ -82,6 +79,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
     }
 
     @Test
+    @Ignore
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
         streamStore.createScope(scope, null, executor).get();
