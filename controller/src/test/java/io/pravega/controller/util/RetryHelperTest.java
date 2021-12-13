@@ -44,6 +44,7 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
+    @Ignore
     public void testWithRetries() {
         try {
             RetryHelper.withRetries(() -> {
@@ -102,6 +103,7 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 30000L)
+    @Ignore
     public void testLoopWithDelay() {
         final int maxLoops = 5;
         AtomicInteger loopCounter = new AtomicInteger();
@@ -127,6 +129,7 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 30000L)
+    @Ignore
     public void testLoopWithTimeout() {
         AtomicInteger i = new AtomicInteger();
         AssertExtensions.assertFutureThrows("Timeout expected", 
