@@ -39,13 +39,14 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.retry.RetryOneTime;
 import org.junit.Test;
 import org.junit.ClassRule;
+import org.junit.runner.RunWith;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
@@ -81,11 +82,11 @@ import static org.mockito.Mockito.spy;
 /**
  * Zookeeper based stream metadata store tests.
  */
+@Slf4j
+@RunWith(SerializedClassRunner.class)
 public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTest {
-
-    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(8000, 5000, RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private SegmentHelper segmentHelperMockForTables;
 
     @Override

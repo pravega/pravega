@@ -28,6 +28,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -50,9 +51,6 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
@@ -72,7 +70,7 @@ import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.SerializedClassRunner;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -100,14 +98,15 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -130,8 +129,10 @@ import static org.mockito.Mockito.verify;
  * Tests for StreamTransactionMetadataTasks.
  */
 @Slf4j
-//@RunWith(SerializedClassRunner.class)
+@RunWith(SerializedClassRunner.class)
 public class StreamTransactionMetadataTasksTest {
+    @ClassRule
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
     @Rule
@@ -142,12 +143,10 @@ public class StreamTransactionMetadataTasksTest {
 
     private ControllerService consumer;
 
-    private CuratorFramework zkClient;
-    private TestingServer zkServer;
+    private final CuratorFramework zkClient = ((PravegaZkCuratorResource) RESOURCE).client;
 
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
-    private HostControllerStore hostStore;
     private SegmentHelper segmentHelperMock;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks txnTasks;
@@ -157,11 +156,11 @@ public class StreamTransactionMetadataTasksTest {
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
 
-    private RequestTracker requestTracker = new RequestTracker(true);
+    private final RequestTracker requestTracker = new RequestTracker(true);
 
     private static class SequenceAnswer<T> implements Answer<T> {
 
-        private Iterator<T> resultIterator;
+        private final Iterator<T> resultIterator;
 
         // null is returned once the iterator is exhausted
 
@@ -181,22 +180,9 @@ public class StreamTransactionMetadataTasksTest {
 
     @Before
     public void setup() throws InterruptedException {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting ZK server", e);
-        }
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-        zkClient.blockUntilConnected();
-
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-
         bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
@@ -207,12 +193,10 @@ public class StreamTransactionMetadataTasksTest {
 
     @After
     public void teardown() throws Exception {
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
         streamMetadataTasks.close();
         streamStore.close();
         txnTasks.close();
-        zkClient.close();
-        zkServer.stop();
-        zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
@@ -233,7 +217,7 @@ public class StreamTransactionMetadataTasksTest {
         return ackFutures;
     }
 
-    //@Test(timeout = 5000)
+    @Test(timeout = 5000)
     @SuppressWarnings("unchecked")
     public void commitAbortTests() {
         // Create mock writer objects.
@@ -277,7 +261,7 @@ public class StreamTransactionMetadataTasksTest {
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
-    //@Test(timeout = 60000)
+    @Test(timeout = 60000)
     public void failOverTests() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -405,7 +389,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void idempotentOperationsTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -482,7 +466,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, 0L).join());
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void partialTxnCreationTest() {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -525,7 +509,7 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(txnTasks.getTimeoutService().containsTxn(SCOPE, STREAM, txn1));
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void txnCreationTest() {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -601,7 +585,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(2, txnId.getLeastSignificantBits());
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void txnPingTest() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -674,7 +658,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.setMaxExecutionTime(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
     
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void writerInitializationTest() throws Exception {
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
@@ -747,7 +731,7 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(Futures.await(txnTasks.abortTxn(SCOPE, STREAM, txnId2, null, 0L)));
     }
     
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void writerRoutingKeyTest() throws InterruptedException {
         StreamMetadataStore streamStoreMock = StreamStoreFactory.createZKStore(zkClient, executor);
 
@@ -860,7 +844,7 @@ public class StreamTransactionMetadataTasksTest {
         system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
-    //@RunWith(SerializedClassRunner.class)
+    @RunWith(SerializedClassRunner.class)
     public static class AuthEnabledTests extends StreamTransactionMetadataTasksTest {
         @Override
         @Before
