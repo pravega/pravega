@@ -15,29 +15,32 @@
  */
 package io.pravega.controller.store.client;
 
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.Timeout;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
+    @ClassRule
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    TestingServer zkServer;
 
     @Override
     protected int getThreadPoolSize() {
@@ -46,13 +49,13 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
+        super.before();
     }
 
     @After
-    public void tearDown() throws IOException {
-        zkServer.close();
-        zkServer.stop();
+    public void tearDown() throws Exception {
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
+        super.after();
     }
 
     /**
@@ -78,8 +81,10 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         Consumer<Void> expirationHandler = x -> sessionExpiry.complete(null);
 
         StoreClientFactory.ZKClientFactory storeClientFactory = new StoreClientFactory.ZKClientFactory();
+        String connectionString = ((PravegaZkCuratorResource) RESOURCE).client.getZookeeperClient().getCurrentConnectionString();
+        @Cleanup
         CuratorFramework client = StoreClientFactory.createZKClient(ZKClientConfigImpl.builder()
-                                                                                      .connectionString(zkServer.getConnectString())
+                                                                                      .connectionString(connectionString)
                                                                                       .namespace("test")
                                                                                       .maxRetries(10)
                                                                                       .initialSleepInterval(10)

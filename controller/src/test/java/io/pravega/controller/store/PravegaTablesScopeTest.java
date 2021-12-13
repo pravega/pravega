@@ -51,7 +51,7 @@ public class PravegaTablesScopeTest extends ThreadPooledTestSuite {
     private final OperationContext context = new TestOperationContext();
     private List<TableSegmentKey> keySnapshot;
 
-    @Test(timeout = 5000)
+    @Test(timeout = 30000)
     @SuppressWarnings("unchecked")
     public void testRemoveTagsUnderScope() {
         // Setup Mocks.
