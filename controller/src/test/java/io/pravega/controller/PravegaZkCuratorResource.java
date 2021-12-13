@@ -55,7 +55,7 @@ public class PravegaZkCuratorResource extends ExternalResource {
     }
 
     public void cleanupZookeeperData() {
-        Arrays.asList("/pravega", "/hostIndex", "/store", "/taskIndex", "/hostTxnIndex", "/hostRequestIndex",
+        Arrays.asList("/pravega", "/hostIndex", "/store", "/taskIndex", "/hostTxnIndex", "/hostRequestIndex", "/watermarks", "/buckets",
                 "/txnCommitOrderer", "/lastActiveStreamSegment", "/transactions", "/completedTxnGC", "/counter").forEach(s -> {
             try {
                 client.delete().deletingChildrenIfNeeded().forPath(s);

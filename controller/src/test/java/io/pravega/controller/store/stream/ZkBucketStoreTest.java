@@ -16,38 +16,33 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.controller.PravegaZkCuratorResource;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class ZkBucketStoreTest extends BucketStoreTest {
-    private TestingServer zkServer;
-    private CuratorFramework cli;
+    @ClassRule
+    public static final ExternalResource RESOURCE = new PravegaZkCuratorResource();
+    private final CuratorFramework cli = ((PravegaZkCuratorResource) RESOURCE).client;
 
     @Before
     @Override
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000,
-                (r, e, s) -> false);
-        cli.start();
         super.setUp();
     }
 
     @After
     @Override
     public void tearDown() throws Exception {
-        cli.close();
-        zkServer.close();
+        ((PravegaZkCuratorResource) RESOURCE).cleanupZookeeperData();
         super.tearDown();
     }
 
