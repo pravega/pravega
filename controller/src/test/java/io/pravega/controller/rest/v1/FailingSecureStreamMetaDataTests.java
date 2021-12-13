@@ -31,7 +31,6 @@ import java.util.concurrent.ExecutionException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Response;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -56,7 +55,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testCreateStream() {
         String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
         Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
@@ -65,7 +64,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testUpdateStreamState() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/state";
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
@@ -75,7 +74,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testDeleteScope() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1";
 
@@ -86,7 +85,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testGetScope() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1";
         final String resourceURI2 = getURI() + "v1/scopes/scope2";
@@ -98,7 +97,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testCreateScope() throws ExecutionException, InterruptedException {
         final CreateScopeRequest createScopeRequest = new CreateScopeRequest().scopeName(scope1);
         final String resourceURI = getURI() + "v1/scopes/";
@@ -110,7 +109,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testUpdateStream() throws ExecutionException, InterruptedException {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/stream1";
 
@@ -120,7 +119,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testListReaderGroups() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups";
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -128,6 +127,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
+    //@Test
     public void testGetReaderGroup() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -135,7 +135,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testDeleteStream() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1";
 
@@ -146,7 +146,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testGetScalingEvents() throws Exception {
         String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/scaling-events";
         Response response = addAuthHeaders(client.target(resourceURI).queryParam("from", new Date()).
@@ -156,7 +156,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testGetStream() throws ExecutionException, InterruptedException {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/stream1";
         String resourceURI2 = getURI() + "v1/scopes/" + scope1 + "/streams/stream2";
@@ -167,7 +167,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testlistScopes() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes";
 
@@ -179,7 +179,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
-    @Test
+    //@Test
     public void testListStreams() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams";
 

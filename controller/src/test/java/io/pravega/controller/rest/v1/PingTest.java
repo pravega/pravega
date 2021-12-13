@@ -35,7 +35,6 @@ import org.glassfish.jersey.SslConfigurator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -74,7 +73,7 @@ public abstract class PingTest {
         restServer.awaitTerminated();
     }
 
-    @Test
+    //@Test
     public void test() {
         URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
                                           .scheme(getURLScheme()).build();
@@ -148,7 +147,7 @@ public abstract class PingTest {
         }
 
         @Override
-        @Test
+        //@Test
         public void test() {
             AssertExtensions.assertThrows(ProcessingException.class, () -> {
                 super.test();
