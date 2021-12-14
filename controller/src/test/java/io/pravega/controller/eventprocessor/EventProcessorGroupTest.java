@@ -118,8 +118,8 @@ public class EventProcessorGroupTest {
 
     @After
     public void tearDown() {
-	requestEventProcessors.stopAsync();
-	requestEventProcessors.awaitTerminated();
+        requestEventProcessors.stopAsync();
+        requestEventProcessors.awaitTerminated();
         ExecutorServiceHelpers.shutdown(executor);
         ExecutorServiceHelpers.shutdown(rebalanceExecutor);
     }
