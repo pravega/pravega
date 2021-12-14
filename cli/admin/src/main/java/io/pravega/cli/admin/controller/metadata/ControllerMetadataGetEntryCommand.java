@@ -15,12 +15,19 @@
  */
 package io.pravega.cli.admin.controller.metadata;
 
+import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
+import io.pravega.client.tables.impl.TableSegmentEntry;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
+
+import java.io.FileWriter;
+
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 
 public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand {
 
@@ -34,8 +41,8 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
     }
 
     @Override
-    public void execute() {
-        ensureArgCount(3);
+    public void execute() throws Exception {
+        Preconditions.checkArgument(getArgCount() >= 3 && getArgCount() < 5, "Incorrect argument count.");
 
         final String tableName = getArg(0);
         final String key = getArg(1);
@@ -45,19 +52,34 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
-        val value = getTableEntry(tableName, key, segmentStoreHost, serializer, adminSegmentHelper);
-        if (value == null) {
+        TableSegmentEntry entry = getTableEntry(tableName, key, segmentStoreHost, adminSegmentHelper);
+        if (entry == null) {
             return;
         }
+        val value = serializer.deserialize(getByteBuffer(entry.getValue()));
         output("For the given key: %s", key);
-        userFriendlyOutput(value.toString(), serializer.getMetadataType());
+        if (getArgCount() == 4) {
+            final String jsonFile = getArg(3);
+
+            ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
+            @Cleanup
+            FileWriter writer = new FileWriter(createFileAndDirectory(jsonFile));
+            writer.write(jsonSerializer.toJson(value));
+            writer.flush();
+
+            output("Successfully wrote the value to %s in JSON.", jsonFile);
+        } else {
+            userFriendlyOutput(value.toString(), serializer.getMetadataType());
+        }
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get", "Get the controller metadata entry for the given key in the table.",
+        return new CommandDescriptor(COMPONENT, "get", "Get the value for the specified key from the specified controller metadata table.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment to get the entry from. " +
                         "Run \"controller-metadata tables-info\" to get information about the controller metadata tables."),
                 new ArgDescriptor("key", "The key to be queried."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
+                new ArgDescriptor("json-file", "An optional argument which, if provided, will write the value as " +
+                        "JSON into the given file path.", true));
     }
 }

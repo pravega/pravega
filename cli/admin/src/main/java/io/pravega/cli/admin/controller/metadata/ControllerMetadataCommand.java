@@ -20,7 +20,6 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.controller.ControllerCommand;
 import io.pravega.cli.admin.serializers.controller.ControllerKeySerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -65,18 +64,16 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * @param tableName          The name of the table.
      * @param key                The key.
      * @param segmentStoreHost   The address of the segment store instance.
-     * @param serializer         The valid {@link ControllerMetadataSerializer}.
      * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
-     * @return The object in the queried table segment entry.
+     * @return The queried table segment entry.
      */
-    Object getTableEntry(String tableName, String key, String segmentStoreHost,
-                         ControllerMetadataSerializer serializer, AdminSegmentHelper adminSegmentHelper) {
+    TableSegmentEntry getTableEntry(String tableName, String key, String segmentStoreHost, AdminSegmentHelper adminSegmentHelper) {
         ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
 
-        List<TableSegmentEntry> entryList = getIfTableExists(adminSegmentHelper.readTable(tableName,
+        List<TableSegmentEntry> entryList = completeSafely(adminSegmentHelper.readTable(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
                 Collections.singletonList(TableSegmentKey.unversioned(serializedKey.getCopy())),
-                authHelper.retrieveMasterToken(), 0L), tableName);
+                authHelper.retrieveMasterToken(), 0L), tableName, key);
         if (entryList == null) {
             return null;
         }
@@ -85,7 +82,33 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
             output(String.format("Key not found: %s", key));
             return null;
         }
-        return serializer.deserialize(getByteBuffer(entryList.get(0).getValue()));
+        return entryList.get(0);
+    }
+
+    /**
+     * Method to update entry corresponding to the provided key in the table.
+     *
+     * @param tableName          The name of the table.
+     * @param key                The key.
+     * @param value              The new value.
+     * @param version            The expected update version.
+     * @param segmentStoreHost   The address of the segment store instance.
+     * @param adminSegmentHelper An instance of {@link AdminSegmentHelper}.
+     * @return The new key version after the update takes place successfully.
+     */
+    TableSegmentKeyVersion updateTableEntry(String tableName, String key, ByteBuffer value, long version, String segmentStoreHost, AdminSegmentHelper adminSegmentHelper) {
+        ByteArraySegment serializedKey = new ByteArraySegment(KEY_SERIALIZER.serialize(key));
+        ByteArraySegment serializedValue = new ByteArraySegment(value);
+
+        TableSegmentEntry updatedEntry = TableSegmentEntry.versioned(serializedKey.getCopy(), serializedValue.getCopy(), version);
+        List<TableSegmentKeyVersion> keyVersions = completeSafely(adminSegmentHelper.updateTableEntries(tableName,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()),
+                Collections.singletonList(updatedEntry), authHelper.retrieveMasterToken(), 0L), tableName, key);
+        if (keyVersions == null) {
+            return null;
+        }
+
+        return keyVersions.get(0);
     }
 
     /**
@@ -93,10 +116,11 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      *
      * @param future    The CompletableFuture containing the table query.
      * @param tableName The table name.
+     * @param key       The key.
      * @param <T>       Type of the result of the table query.
      * @return The result of future.join() and null in case of an exception.
      */
-    <T> T getIfTableExists(CompletableFuture<T> future, String tableName) {
+    <T> T completeSafely(CompletableFuture<T> future, String tableName, String key) {
         try {
             return Futures.getThrowingException(future);
         } catch (WireCommandFailedException e) {
@@ -109,6 +133,13 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
                     break;
                 case UnknownHost:
                     output("Unknown host provided. Retry with the correct segment store address.");
+                    break;
+                case TableKeyDoesNotExist:
+                    output("Key not found: %s", key);
+                    break;
+                case TableKeyBadVersion:
+                    output("Update failed due to incorrect key version. " +
+                            "This indicates that the record has been updated since you last read it, please try again.");
                     break;
                 default:
                     output("Something unexpected happened.");
