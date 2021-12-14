@@ -1684,7 +1684,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void sizeTest() throws Exception {
         final String scope = "ScopeSize";
         final String stream = "StreamSize";
