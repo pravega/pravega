@@ -239,7 +239,7 @@ public class ControllerWrapper implements AutoCloseable {
 
     @SneakyThrows
     public void awaitPaused() {
-        this.controllerServiceMain.awaitServicePausing().awaitTerminated(60, TimeUnit.SECONDS);
+        this.controllerServiceMain.awaitServicePausing().awaitTerminated(30, TimeUnit.SECONDS);
     }
 
     @SneakyThrows
