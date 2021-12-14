@@ -188,6 +188,6 @@ public final class AdminCLIRunner {
     }
 
     private static String formatArgName(AdminCommand.ArgDescriptor ad) {
-        return String.format("<%s>", ad.getName());
+        return ad.isOptional() ? String.format("[%s]", ad.getName()) : String.format("<%s>", ad.getName());
     }
 }
