@@ -20,6 +20,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -28,6 +29,8 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -785,6 +788,55 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         expectedUnindexedBytes = updateBatch4.getLength();
         Assert.assertEquals("Unexpected unindexed bytes after writing update4.",
                 expectedUnindexedBytes, context.index.getUnindexedSizeBytes(context.segment.getSegmentId()));
+    }
+
+    /**
+     * Tests that system-critical Segments get the right amount of credits.
+     */
+    @Test
+    public void testCriticalSegmentThrottling() {
+        @Cleanup
+        val context = new TestContext();
+        @Cleanup
+        ContainerKeyIndex.SegmentTracker segmentTracker = context.index.new SegmentTracker();
+        DirectSegmentAccess mockSegment = Mockito.mock(DirectSegmentAccess.class);
+        SegmentMetadata mockSegmentMetadata = Mockito.mock(SegmentMetadata.class);
+        // System critical segment.
+        SegmentType segmentType = SegmentType.builder().critical().system().build();
+        Mockito.when(mockSegmentMetadata.getType()).thenReturn(segmentType);
+
+        Mockito.when(mockSegment.getInfo()).thenReturn(mockSegmentMetadata);
+        Mockito.when(mockSegment.getSegmentId()).thenReturn(1L);
+        // Update size is 1 byte smaller than the limit, so it should not block.
+        int updateSize = TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH.getDefaultValue() - 1;
+        segmentTracker.throttleIfNeeded(mockSegment, () -> CompletableFuture.completedFuture(null), updateSize).join();
+        Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L),
+                TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
+        // Now, we do another update and check that the Segment has no credit.
+        AssertExtensions.assertThrows(TimeoutException.class, () -> segmentTracker.throttleIfNeeded(mockSegment,
+                () -> CompletableFuture.completedFuture(null), updateSize).get(10, TimeUnit.MILLISECONDS));
+    }
+
+    /**
+     * Tests that regular Segments get the right amount of credits.
+     */
+    @Test
+    public void testRegularSegmentThrottling() {
+        @Cleanup
+        val context = new TestContext();
+        @Cleanup
+        ContainerKeyIndex.SegmentTracker segmentTracker = context.index.new SegmentTracker();
+        DirectSegmentAccess mockSegment = Mockito.mock(DirectSegmentAccess.class);
+        SegmentMetadata mockSegmentMetadata = Mockito.mock(SegmentMetadata.class);
+        // Regular segment.
+        SegmentType segmentType = SegmentType.builder().build();
+        Mockito.when(mockSegmentMetadata.getType()).thenReturn(segmentType);
+
+        Mockito.when(mockSegment.getInfo()).thenReturn(mockSegmentMetadata);
+        Mockito.when(mockSegment.getSegmentId()).thenReturn(1L);
+        int updateSize = TableExtensionConfig.MAX_UNINDEXED_LENGTH.getDefaultValue() - 1;
+        segmentTracker.throttleIfNeeded(mockSegment, () -> CompletableFuture.completedFuture(null), updateSize).join();
+        Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L), TableExtensionConfig.MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
     }
 
     private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {
