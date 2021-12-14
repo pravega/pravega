@@ -17,15 +17,12 @@ package io.pravega.controller.fault;
 
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.util.Config;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -34,11 +31,7 @@ import static org.junit.Assert.assertTrue;
 
 public class UniformContainerBalancerTest {
 
-    //Ensure test completes within 5 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
-
-    @Test
+    @Test(timeout = 5000)
     public void testRebalancer() {
         UniformContainerBalancer balancer = new UniformContainerBalancer();
 
