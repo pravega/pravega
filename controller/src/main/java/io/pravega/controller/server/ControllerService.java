@@ -383,6 +383,7 @@ public class ControllerService {
                                   return CreateStreamStatus.newBuilder().setStatus(status).build();
                               }, executor);
                           } else {
+                              log.info(requestId, "Stream {} already exists ", NameUtils.getScopedStreamName(scope, stream));
                               return CompletableFuture.completedFuture(
                                       CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
                           }
