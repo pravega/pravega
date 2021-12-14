@@ -51,15 +51,12 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.Mockito.spy;
@@ -72,8 +69,7 @@ public abstract class ControllerServiceWithKVTableTest {
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected SegmentHelper segmentHelperMock;
 

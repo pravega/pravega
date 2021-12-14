@@ -42,12 +42,9 @@ import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -61,8 +58,6 @@ import static org.mockito.Mockito.times;
 
 @Slf4j
 public class EventProcessorGroupTest {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private ScheduledExecutorService executor;
     private ScheduledExecutorService rebalanceExecutor;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
@@ -118,8 +113,10 @@ public class EventProcessorGroupTest {
 
     @After
     public void tearDown() {
-        executor.shutdownNow();
-        rebalanceExecutor.shutdownNow();
+        requestEventProcessors.stopAsync();
+        requestEventProcessors.awaitTerminated();
+        ExecutorServiceHelpers.shutdown(executor);
+        ExecutorServiceHelpers.shutdown(rebalanceExecutor);
     }
 
     @Test(timeout = 10000)
