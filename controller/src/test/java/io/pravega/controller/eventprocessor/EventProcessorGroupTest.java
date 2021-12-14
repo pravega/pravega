@@ -113,8 +113,8 @@ public class EventProcessorGroupTest {
 
     @After
     public void tearDown() {
-        executor.shutdownNow();
-        rebalanceExecutor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executor);
+        ExecutorServiceHelpers.shutdown(rebalanceExecutor);
     }
 
     @Test(timeout = 10000)
