@@ -120,7 +120,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -136,9 +135,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -153,8 +150,6 @@ import static org.mockito.Mockito.*;
 public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
@@ -2591,7 +2586,7 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null, executor).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deletePartiallyCreatedStreamTest() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
