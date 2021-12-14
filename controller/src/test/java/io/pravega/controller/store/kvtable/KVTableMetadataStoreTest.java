@@ -25,13 +25,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
@@ -42,10 +39,6 @@ import static org.junit.Assert.assertTrue;
  * Stream metadata test.
  */
 public abstract class KVTableMetadataStoreTest {
-
-    //Ensure each test completes within 10 seconds.
-    @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected KVTableMetadataStore store;
     protected StreamMetadataStore streamStore;
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -68,7 +61,7 @@ public abstract class KVTableMetadataStoreTest {
 
     abstract Controller.CreateScopeStatus createScope(String scopeName) throws Exception;
 
-    @Test
+    @Test(timeout = 30000)
     public void testKVTableMetadataStore() throws Exception {
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scope);
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
@@ -97,7 +90,7 @@ public abstract class KVTableMetadataStoreTest {
         // endregion
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void listTablesInScope() throws Exception {
         // list KeyValueTables in scope
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scope);
@@ -136,7 +129,7 @@ public abstract class KVTableMetadataStoreTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deleteKeyValueTableTest() throws Exception {
         final String scopeName = "ScopeDelete";
         final String kvtName = "KVTableDelete";
