@@ -146,7 +146,7 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testDeleteScopeEvent() {
-        testClass(() -> new DeleteScopeEvent(SCOPE, 117L));
+        testClass(() -> new DeleteScopeEvent(SCOPE, 117L, UUID.randomUUID()));
     }
 
     @Test
@@ -199,11 +199,6 @@ public class ControllerEventSerializerTests {
     @Test
     public void testUpdateReaderGroupEvent() {
         testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, false, ImmutableSet.of()));
-    }
-
-    @Test
-    public void testDeleteScopeRecursive() {
-        testClass(() -> new DeleteScopeEvent(SCOPE, 777L));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
