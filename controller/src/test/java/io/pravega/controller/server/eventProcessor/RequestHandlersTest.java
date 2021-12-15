@@ -94,6 +94,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -780,16 +781,19 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void testDeleteScopeRecursive() {
+    public void testDeleteScopeRecursive() throws ExecutionException, InterruptedException {
         final String scopeName = "deleteScope";
         final String testScopeName = "testScope";
 
         OperationContext context = streamStore.createScopeContext(scopeName, 123L);
         // Create a scope
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, streamStore.createScope(scopeName, context, executor).join());
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS,
+                streamStore.createScope(scopeName, context, executor).join().getStatus());
         // Verify that the scope is created
         assertTrue(streamStore.checkScopeExists(scopeName, context, executor).join());
         assertFalse(streamStore.checkScopeExists(testScopeName, context, executor).join());
+
+        UUID scopeId = streamStore.getScopeId(scopeName, context, executor).get();
 
         // Add entry to Deleting_Scopes_Table
         streamStore.addEntryToDeletingScope(scopeName, context, executor).join();
@@ -798,7 +802,7 @@ public abstract class RequestHandlersTest {
 
         // Instantiate DeleteScopeEvent and DeleteScopeTask
         DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
-        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 123L);
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 123L, scopeId);
 
         // Submit the execute method of DeleteScopeTask
         deleteScopeTask.execute(deleteScopeEvent).join();

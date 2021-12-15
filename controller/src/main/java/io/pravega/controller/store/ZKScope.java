@@ -376,6 +376,11 @@ public class ZKScope implements Scope {
         return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for ZK scope"));
     }
 
+    @Override
+    public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for ZK scope"));
+    }
+
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
         return getKVTableInScopeZNodePath(this.scopeName, kvt).thenCompose(path -> store.checkExists(path));
     }

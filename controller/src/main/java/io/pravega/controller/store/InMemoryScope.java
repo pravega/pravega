@@ -206,6 +206,11 @@ public class InMemoryScope implements Scope {
         return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for In Memory Scope"));
     }
 
+    @Override
+    public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for ZK scope"));
+    }
+
     @Synchronized
     public CompletableFuture<Void> removeKVTableFromScope(String kvtName) {
         kvTablesMap.remove(kvtName);

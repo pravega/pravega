@@ -740,10 +740,18 @@ public class StreamMetadataTasks extends TaskBase {
                         log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
                         return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
                     } else {
-                        DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId);
-                        return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
-                                .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
-                                .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
+                        return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose(scopeExist -> {
+                            if (!scopeExist) {
+                                log.info(requestId, "Requested Scope {} Doesn't exist", scope);
+                                return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
+                            }
+                            return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(scopeId -> {
+                                DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId, scopeId);
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
+                                        .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
+                                        .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
+                            });
+                        });
                     }
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
         ).exceptionally(ex -> handleDeleteScopeError(ex, requestId, scope));
@@ -881,7 +889,6 @@ public class StreamMetadataTasks extends TaskBase {
                                 }
                             });
                 });
-
     }
 
     /**

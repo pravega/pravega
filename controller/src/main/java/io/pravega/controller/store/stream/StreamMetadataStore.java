@@ -1615,5 +1615,14 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
                                              Executor executor);
 
+    /**
+     * Api to retrieve UUID of scope from the metadata.
+     * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
+     * @return UUID of scope
+     */
+    CompletableFuture<UUID> getScopeId(final String scopeName, OperationContext context, Executor executor);
+
     CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor);
 }

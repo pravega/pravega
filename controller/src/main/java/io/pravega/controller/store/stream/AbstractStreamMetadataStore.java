@@ -30,7 +30,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.ScopeSealedException;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -1136,6 +1135,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Scope scope = scopeCache.getUnchecked(scopeName);
         scope.refresh();
         return scope;
+    }
+
+    @Override
+    public CompletableFuture<UUID> getScopeId(final String scopeName, OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getScope(scopeName, context).getScopeId(scopeName, context), executor);
     }
 
     // region ReaderGroup

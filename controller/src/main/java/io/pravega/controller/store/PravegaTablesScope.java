@@ -22,7 +22,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.ScopeSealedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.TagRecord;
@@ -483,6 +482,12 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> storeHelper.getEntry(tableName, readerGroupName, BYTES_TO_UUID_FUNCTION,
                                                                context.getRequestId())
                                                      .thenApply(VersionedMetadata::getObject));
+    }
+
+    @Override
+    public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
+        return getId(context);
     }
 
     @Override

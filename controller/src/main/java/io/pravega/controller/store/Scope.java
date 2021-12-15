@@ -112,6 +112,8 @@ public interface Scope {
 
     CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context);
 
+    CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context);
+
     default UUID newId() {
         return UUID.randomUUID();
     }

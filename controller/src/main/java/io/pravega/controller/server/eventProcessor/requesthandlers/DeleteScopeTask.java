@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
@@ -77,16 +78,23 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     public CompletableFuture<Void> execute(final DeleteScopeEvent request) {
         String scope = request.getScope();
         long requestId = request.getRequestId();
+        UUID scopeId = request.getScopeId();
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
         log.debug(requestId, "Deleting {} scope recursively", scope);
-        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose( exists -> {
-            if (exists) {
-                return deleteScopeContent(scope, context, requestId);
-            } else {
-                log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
-                        " does not exist in deleting table", scope);
+        return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(id -> {
+            if (!id.equals(scopeId)) {
+                log.warn("UUID {} of scope doesn't match with requested scope's UUID {} ", id, scopeId);
                 return CompletableFuture.completedFuture(null);
             }
+            return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose( exists -> {
+                if (exists) {
+                    return deleteScopeContent(scope, context, requestId);
+                } else {
+                    log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
+                            " does not exist in deleting table", scope);
+                    return CompletableFuture.completedFuture(null);
+                }
+            });
         });
     }
 
