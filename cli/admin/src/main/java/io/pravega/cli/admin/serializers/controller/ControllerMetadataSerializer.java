@@ -163,6 +163,30 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
                     .put(COMPLETED_TXN_RECORD, Map.entry(CompletedTxnRecord::fromBytes, x -> ((CompletedTxnRecord) x).toBytes()))
                     .build();
 
+    private static final Map<String, Class<?>> METADATA_CLASSES =
+            ImmutableMap.<String, Class<?>>builder()
+                    .put(STRING, String.class)
+                    .put(INTEGER, Integer.class)
+                    .put(LONG, Long.class)
+                    // The value returned in the EMPTY case is integer 0.
+                    .put(EMPTY, Integer.class)
+                    .put(STREAM_CONFIGURATION_RECORD, StreamConfigurationRecord.class)
+                    .put(STREAM_TRUNCATION_RECORD, StreamTruncationRecord.class)
+                    .put(STATE_RECORD, StateRecord.class)
+                    .put(EPOCH_TRANSITION_RECORD, EpochTransitionRecord.class)
+                    .put(RETENTION_SET, RetentionSet.class)
+                    .put(STREAM_CUT_RECORD, StreamCutRecord.class)
+                    .put(EPOCH_RECORD, EpochRecord.class)
+                    .put(HISTORY_TIME_SERIES, HistoryTimeSeries.class)
+                    .put(SEALED_SEGMENTS_MAP_SHARD, SealedSegmentsMapShard.class)
+                    .put(COMMITTING_TRANSACTIONS_RECORD, CommittingTransactionsRecord.class)
+                    .put(STREAM_SUBSCRIBER, StreamSubscriber.class)
+                    .put(SUBSCRIBERS, Subscribers.class)
+                    .put(WRITER_MARK, WriterMark.class)
+                    .put(ACTIVE_TXN_RECORD, ActiveTxnRecord.class)
+                    .put(COMPLETED_TXN_RECORD, CompletedTxnRecord.class)
+                    .build();
+
     @Getter
     private final String metadataType;
 
@@ -184,6 +208,15 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     @Override
     public Object deserialize(ByteBuffer serializedValue) {
         return BYTE_CONVERTERS.get(metadataType).getKey().apply(new ByteArraySegment(serializedValue).getCopy());
+    }
+
+    /**
+     * Method to get the {@link Class} of the metadata associated to the serializer instance.
+     *
+     * @return The class of the metadata.
+     */
+    public Class<?> getMetadataClass() {
+        return METADATA_CLASSES.get(metadataType);
     }
 
     /**

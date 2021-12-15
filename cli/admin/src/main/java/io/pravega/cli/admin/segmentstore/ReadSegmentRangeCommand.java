@@ -26,9 +26,10 @@ import org.apache.curator.framework.CuratorFramework;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
@@ -64,27 +65,6 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName);
         output("\nThe segment data has been successfully written into %s", fileName);
-    }
-
-    /**
-     * Creates the file (and parent directory if required) into which thee segment data is written.
-     *
-     * @param fileName The name of the file to create.
-     * @return A {@link File} object representing the filename provided.
-     * @throws FileAlreadyExistsException if the file already exists, to avoid any accidental overwrites.
-     * @throws IOException if the file/directory creation fails.
-     */
-    private File createFileAndDirectory(String fileName) throws IOException {
-        File f = new File(fileName);
-        // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
-        if (f.exists()) {
-            throw new FileAlreadyExistsException("Cannot write segment data into a file that already exists.");
-        }
-        if (!f.getParentFile().exists()) {
-            f.getParentFile().mkdirs();
-        }
-        f.createNewFile();
-        return f;
     }
 
     /**
