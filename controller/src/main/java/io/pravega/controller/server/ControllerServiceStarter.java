@@ -47,6 +47,7 @@ import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.shared.health.HealthServiceManager;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.controller.server.health.ClusterListenerHealthContributor;
 import io.pravega.controller.server.health.EventProcessorHealthContributor;
@@ -200,18 +201,18 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
                                                                                "watermarkingpool");
-            
-            log.info("Creating the bucket store");
+
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
+            log.info("Created the bucket store.");
 
-            log.info("Creating the task store");
             taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
+            log.info("Created the task store.");
 
-            log.info("Creating the host store");
             hostStore = HostStoreFactory.createStore(serviceConfig.getHostMonitorConfig(), storeClient);
+            log.info("Created the host store.");
 
-            log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
+            log.info("Created the checkpoint store.");
 
             // Initialize Stream and Transaction metrics.
             StreamMetrics.initialize();
@@ -234,8 +235,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
                         new UniformContainerBalancer(),
                         serviceConfig.getHostMonitorConfig().getHostMonitorMinRebalanceInterval());
-                log.info("Starting segment container monitor");
                 monitor.startAsync();
+                log.info("Started Segment Container Monitor service.");
                 SegmentContainerMonitorHealthContributor segmentContainerMonitorHC = new SegmentContainerMonitorHealthContributor("segmentContainerMonitor", monitor );
                 healthServiceManager.register(segmentContainerMonitorHC);
             }
@@ -262,8 +263,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                                                            grpcServerConfig.getTokenSigningKey(),
                                                            grpcServerConfig.getAccessTokenTTLInSeconds());
 
-            log.info("Creating the stream store");
             streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            log.info("Created the stream store.");
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,
@@ -277,9 +278,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 
-            log.info("starting background periodic service for retention");
             retentionService.startAsync();
             retentionService.awaitRunning();
+            log.info("Started background periodic service for Retention.");
             RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
             healthServiceManager.register(retentionServiceHC);
 
@@ -289,9 +290,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
-            log.info("starting background periodic service for watermarking");
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
+            log.info("Started background periodic service for Watermarking.");
             WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
             healthServiceManager.register(watermarkingServiceHC);
 
@@ -334,7 +335,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         kvtMetadataTasks, eventExecutor);
 
                 // Bootstrap and start it asynchronously.
-                log.info("Starting event processors");
                 eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks,
                         streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
@@ -354,22 +354,18 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 }
 
                 controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor, failoverSweepers);
-
-                log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
                 ClusterListenerHealthContributor clusterListenerHC = new ClusterListenerHealthContributor("clusterListener", controllerClusterListener);
                 healthServiceManager.register(clusterListenerHC);
             }
 
             // Start the Health Service.
-            log.info("Starting health manager");
             healthServiceManager.start();
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
-                log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();
                 GRPCServerHealthContributor grpcServerHC = new GRPCServerHealthContributor("GRPCServer", grpcServer);
                 healthServiceManager.register(grpcServerHC);
@@ -377,22 +373,22 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(serviceConfig.getRestServerConfig().get(),
-                        Set.of(new StreamMetadataResourceImpl(this.localController,
-                                        controllerService,
-                                        grpcServer.getAuthHandlerManager(),
-                                        connectionFactory,
-                                        clientConfig),
-                                new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
-                                new PingImpl()));
+                List<Object> resources = new ArrayList<>();
+                resources.add(new StreamMetadataResourceImpl(this.localController,
+                                controllerService,
+                                grpcServer.getAuthHandlerManager(),
+                                connectionFactory,
+                                clientConfig));
+                resources.add(new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()));
+                resources.add(new PingImpl());
+                MetricsProvider.getMetricsProvider().prometheusResource().ifPresent(resources::add);
+                restServer = new RESTServer(serviceConfig.getRestServerConfig().get(), Set.copyOf(resources));
                 restServer.startAsync();
-                log.info("Awaiting start of REST server");
                 restServer.awaitRunning();
             }
 
             // Wait for controller event processors to start.
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
-                log.info("Awaiting start of controller event processors");
                 // if store client has failed because of session expiration, there are two possibilities where 
                 // controllerEventProcessors.awaitRunning may be stuck forever -
                 // 1. stream creation is retried indefinitely and cannot complete because of zk session expiration
@@ -404,7 +400,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Wait for controller cluster listeners to start.
             if (serviceConfig.isControllerClusterListenerEnabled()) {
-                log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
             }
         } catch (Exception e) {
@@ -418,12 +413,12 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     @Override
     protected void shutDown() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
-        log.info("Initiating controller service shutDown");
+        log.info("Initiating controller service shutDown....");
 
         try {
             if (healthServiceManager != null) {
-                log.info("Stopping the HealthService.");
                 healthServiceManager.close();
+                log.info("HealthService shutdown.");
             }
 
             if (restServer != null) {
@@ -433,75 +428,70 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 grpcServer.stopAsync();
             }
             if (controllerEventProcessors != null) {
-                log.info("Stopping controller event processors");
                 controllerEventProcessors.stopAsync();
             }
             if (monitor != null) {
-                log.info("Stopping the segment container monitor");
                 monitor.stopAsync();
             }
             if (controllerClusterListener != null) {
-                log.info("Stopping controller cluster listener");
                 controllerClusterListener.stopAsync();
-                log.info("Controller cluster listener shutdown");
             }
 
             if (retentionService != null) {
-                log.info("Stopping auto retention service");
                 retentionService.stopAsync();
+
             }
 
             if (watermarkingService != null) {
-                log.info("Stopping watermarking service");
                 watermarkingService.stopAsync();
             }
 
             close(watermarkingWork);
 
             if (streamMetadataTasks != null) {
-                log.info("Closing stream metadata tasks");
                 streamMetadataTasks.close();
+                log.debug("StreamMetadataTasks closed.");
             }
 
             if (streamTransactionMetadataTasks != null) {
-                log.info("Closing stream transaction metadata tasks");
                 streamTransactionMetadataTasks.close();
+                log.debug("StreamTransactionMetadataTasks closed.");
             }
 
             // Await termination of all services
             if (restServer != null) {
-                log.info("Awaiting termination of REST server");
                 restServer.awaitTerminated();
+                log.info("REST Server shutdown.");
             }
 
             if (grpcServer != null) {
-                log.info("Awaiting termination of gRPC server");
                 grpcServer.awaitTerminated();
+                log.info("GRPC Server shutdown.");
             }
 
             if (controllerEventProcessors != null) {
-                log.info("Awaiting termination of controller event processors");
                 controllerEventProcessors.awaitTerminated();
+                log.info("Controller Event Processors shutdown.");
             }
 
             if (monitor != null) {
-                log.info("Awaiting termination of segment container monitor");
                 monitor.awaitTerminated();
+                log.info("Segment Container Monitor shutdown.");
             }
 
             if (controllerClusterListener != null) {
-                log.info("Awaiting termination of controller cluster listener");
                 controllerClusterListener.awaitTerminated();
+                log.info("Controller Cluster Listener shutdown.");
             }
 
             if (retentionService != null) {
-                log.info("Awaiting termination of auto retention");
                 retentionService.awaitTerminated();
+                log.info("Retention service shutdown.");
             }
 
             if (watermarkingService != null) {
-                log.info("Awaiting termination of watermarking service");
                 watermarkingService.awaitTerminated();
+                log.info("Watermarking service shutdown.");
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -511,41 +501,38 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             // lingering threads that prevent our process from exiting.
 
             // Next stop all executors
-            log.info("Stopping controller executors");
+            log.debug("Shutting down executor thread pools....");
             ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
 
             if (cluster != null) {
-                log.info("Closing controller cluster instance");
                 cluster.close();
+                log.debug("Closed controller cluster instance.");
             }
 
             if (segmentHelper != null) {
-                log.info("closing segment helper");
                 segmentHelper.close();
+                log.debug("Closed segment helper.");
             }
 
             close(kvtMetadataStore);
             close(kvtMetadataTasks);
-
-            log.info("Closing connection pool");
+            log.debug("Closed KVT Store and Tasks.");
             close(connectionPool);
-
-            log.info("Closing connection factory");
+            log.debug("Closed connection pool.");
             close(connectionFactory);
-
-            log.info("Closing storeClient");
+            log.debug("Closed connection factory.");
             close(storeClient);
-
-            log.info("Closing store");
+            log.debug("Closing storeClient");
             close(streamStore);
-
+            log.debug("Closed stream store.");
             close(controllerEventProcessors);
+            log.debug("Closed controllerEventProcessors.");
 
             // Close metrics.
             StreamMetrics.reset();
             TransactionMetrics.reset();
 
-            log.info("Finishing controller service shutDown");
+            log.info("Completed controller service shutDown.");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }

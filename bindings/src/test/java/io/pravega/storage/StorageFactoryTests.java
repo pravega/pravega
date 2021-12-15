@@ -165,7 +165,34 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testS3StorageFactoryCreator() {
+    public void testS3StorageFactoryCreatorWithoutRole() {
+        val config = S3StorageConfig.builder()
+                .with(S3StorageConfig.CONFIGURI, "http://127.0.0.1")
+                .with(S3StorageConfig.BUCKET, "bucket")
+                .with(S3StorageConfig.PREFIX, "samplePrefix")
+                .with(S3StorageConfig.ACCESS_KEY, "user")
+                .with(S3StorageConfig.SECRET_KEY, "secret")
+                .build();
+
+        testS3StorageFactoryCreator(config);
+    }
+
+    @Test
+    public void testS3StorageFactoryCreatorWithRole() {
+        val config = S3StorageConfig.builder()
+                .with(S3StorageConfig.CONFIGURI, "http://127.0.0.1")
+                .with(S3StorageConfig.ASSUME_ROLE, true)
+                .with(S3StorageConfig.BUCKET, "bucket")
+                .with(S3StorageConfig.PREFIX, "samplePrefix")
+                .with(S3StorageConfig.ACCESS_KEY, "user")
+                .with(S3StorageConfig.SECRET_KEY, "secret")
+                .with(S3StorageConfig.USER_ROLE, "role")
+                .build();
+
+        testS3StorageFactoryCreator(config);
+    }
+
+    private void testS3StorageFactoryCreator(S3StorageConfig config) {
         StorageFactoryCreator factoryCreator = new S3StorageFactoryCreator();
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
@@ -180,13 +207,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-        val config = S3StorageConfig.builder()
-                .with(S3StorageConfig.CONFIGURI, "http://127.0.0.1")
-                .with(S3StorageConfig.BUCKET, "bucket")
-                .with(S3StorageConfig.PREFIX, "samplePrefix")
-                .with(S3StorageConfig.ACCESS_KEY, "user")
-                .with(S3StorageConfig.SECRET_KEY, "secret")
-                .build();
+
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof S3SimpleStorageFactory);

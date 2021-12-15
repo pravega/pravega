@@ -29,6 +29,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListAllLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
+import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
@@ -36,7 +37,13 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataTablesInfoCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
+import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
@@ -109,6 +116,11 @@ public abstract class AdminCommand {
     @Setter(AccessLevel.PUBLIC)
     private PrintStream out = System.out;
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PUBLIC)
+    @Setter(AccessLevel.PUBLIC)
+    private PrintStream err = System.err;
+
     //endregion
 
     //region Constructor
@@ -166,8 +178,33 @@ public abstract class AdminCommand {
         return zkClient;
     }
 
+    /**
+     * Outputs the message to the console.
+     *
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
+     */
     protected void output(String messageTemplate, Object... args) {
-        this.out.println(String.format(messageTemplate, args));
+        this.out.printf(messageTemplate + System.lineSeparator(), args);
+    }
+
+    /**
+     * Outputs the message to the console (error out).
+     *
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
+     */
+    protected void outputError(String messageTemplate, Object... args) {
+        this.err.printf(messageTemplate + System.lineSeparator(), args);
+    }
+
+    /**
+     * Gets an exception and prints the stacktrace to the console (error out).
+     *
+     * @param exception   The exception.
+     */
+    protected void outputException(Throwable exception) {
+        exception.printStackTrace(this.err);
     }
 
     protected void prettyJSONOutput(String jsonString) {
@@ -182,12 +219,45 @@ public abstract class AdminCommand {
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
-    protected boolean confirmContinue() {
+    @VisibleForTesting
+    public boolean confirmContinue() {
         output("Do you want to continue?[yes|no]");
         @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         String input = s.nextLine();
         return input.equals("yes");
+    }
+
+    @VisibleForTesting
+    public String getStringUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextLine();
+    }
+
+    @VisibleForTesting
+    public long getLongUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextLong();
+    }
+
+    @VisibleForTesting
+    public int getIntUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextInt();
+    }
+
+    @VisibleForTesting
+    public boolean getBooleanUserInput(String message) {
+        output(message);
+        @SuppressWarnings("resource")
+        Scanner s = new Scanner(System.in);
+        return s.nextBoolean();
     }
 
     //endregion
@@ -240,6 +310,13 @@ public abstract class AdminCommand {
     public static class ArgDescriptor {
         private final String name;
         private final String description;
+        private boolean optional = false;
+
+        public ArgDescriptor(String name, String description, boolean optional) {
+            this.name = name;
+            this.description = description;
+            this.optional = optional;
+        }
     }
 
     /**
@@ -279,6 +356,7 @@ public abstract class AdminCommand {
                         .put(BookKeeperLogReconcileCommand::descriptor, BookKeeperLogReconcileCommand::new)
                         .put(BookKeeperListAllLedgersCommand::descriptor, BookKeeperListAllLedgersCommand::new)
                         .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
+                        .put(ContainerContinuousRecoveryCommand::descriptor, ContainerContinuousRecoveryCommand::new)
                         .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
                         .put(ControllerListStreamsInScopeCommand::descriptor, ControllerListStreamsInScopeCommand::new)
@@ -291,6 +369,7 @@ public abstract class AdminCommand {
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
+                        .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)
                         .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
                         .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
@@ -302,6 +381,11 @@ public abstract class AdminCommand {
                         .put(SetSerializerCommand::descriptor, SetSerializerCommand::new)
                         .put(ListTableSegmentKeysCommand::descriptor, ListTableSegmentKeysCommand::new)
                         .put(ModifyTableSegmentEntry::descriptor, ModifyTableSegmentEntry::new)
+                        .put(ControllerMetadataGetEntryCommand::descriptor, ControllerMetadataGetEntryCommand::new)
+                        .put(ControllerMetadataTablesInfoCommand::descriptor, ControllerMetadataTablesInfoCommand::new)
+                        .put(ControllerMetadataListKeysCommand::descriptor, ControllerMetadataListKeysCommand::new)
+                        .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
+                        .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .build());
 
         /**

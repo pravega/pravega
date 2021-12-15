@@ -71,7 +71,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -80,9 +79,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
@@ -103,8 +100,7 @@ public abstract class ControllerServiceWithStreamTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
     private static final String STREAM1 = "stream1";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 

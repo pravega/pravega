@@ -62,7 +62,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
@@ -74,9 +73,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
@@ -97,10 +94,6 @@ import static org.mockito.Mockito.times;
  */
 @Slf4j
 public class StreamMetaDataTests {
-
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     protected final String scope1 = "scope1";
     protected final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
@@ -327,7 +320,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testCreateStream() throws ExecutionException, InterruptedException {
         String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
 
@@ -390,7 +383,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testUpdateStream() throws ExecutionException, InterruptedException {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/" + stream1;
 
@@ -440,7 +433,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testGetStream() throws ExecutionException, InterruptedException {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/" + stream1;
         String resourceURI2 = getURI() + "v1/scopes/" + scope1 + "/streams/" + stream2;
@@ -508,7 +501,7 @@ public class StreamMetaDataTests {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 30000)
     public void testDeleteStream() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1";
 
@@ -546,7 +539,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testCreateScope() throws ExecutionException, InterruptedException {
         final CreateScopeRequest createScopeRequest = new CreateScopeRequest().scopeName(scope1);
         final String resourceURI = getURI() + "v1/scopes/";
@@ -588,7 +581,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testDeleteScope() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1";
 
@@ -627,7 +620,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testGetScope() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1";
         final String resourceURI2 = getURI() + "v1/scopes/scope2";
@@ -661,7 +654,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testlistScopes() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes";
 
@@ -698,7 +691,7 @@ public class StreamMetaDataTests {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    @Test
+    @Test(timeout = 30000)
     public void testListStreams() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams";
 
@@ -818,7 +811,7 @@ public class StreamMetaDataTests {
     /**
      * Test for updateStreamState REST API.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testUpdateStreamState() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/state";
 
@@ -858,7 +851,7 @@ public class StreamMetaDataTests {
     /**
      * Test for getScalingEvents REST API.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testGetScalingEvents() throws Exception {
         String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/scaling-events";
         List<ScaleMetadata> scaleMetadataList = new ArrayList<>();
@@ -981,7 +974,7 @@ public class StreamMetaDataTests {
     /**
      * Test for listReaderGroups REST API.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testListReaderGroups() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups";
 
@@ -1046,7 +1039,7 @@ public class StreamMetaDataTests {
         response.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testGetReaderGroup() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
 

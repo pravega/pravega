@@ -32,6 +32,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.stream.Collectors;
 
 /**
  * Data class for storing information about stream's truncation point.
@@ -132,6 +133,22 @@ public class StreamTruncationRecord {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "streamCut", streamCut.keySet().stream()
+                .map(key -> key + " : " + streamCut.get(key))
+                .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
+                String.format("%s = {%n    %s%n}", "span", span.keySet().stream()
+                        .map(streamSegmentRecord ->
+                                String.format("key: %n    %s%nvalue: %s", streamSegmentRecord.toString().replace("\n", "\n    "),
+                                        span.get(streamSegmentRecord)).replace("\n", "\n    "))
+                        .collect(Collectors.joining("\n,\n    "))) + "\n" +
+                String.format("%s = %s", "deletedSegments", deletedSegments) + "\n" +
+                String.format("%s = %s", "toDelete", toDelete) + "\n" +
+                String.format("%s = %s", "sizeTill", sizeTill) + "\n" +
+                String.format("%s = %s", "updating", updating);
     }
     
     private static class TruncationRecordSerializer

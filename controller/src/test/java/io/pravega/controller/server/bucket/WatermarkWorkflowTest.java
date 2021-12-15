@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -68,10 +67,8 @@ import lombok.Synchronized;
 import org.apache.curator.RetryPolicy;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -90,8 +87,6 @@ public class WatermarkWorkflowTest {
     private static final RetryPolicy RETRY_POLICY = (r, e, s) -> false;
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(10000, 1000, RETRY_POLICY);
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;

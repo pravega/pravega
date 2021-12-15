@@ -55,6 +55,11 @@ public class S3SimpleStorageTests extends SimpleStorageTests {
         return new S3ChunkStorage(testContext.s3Client, testContext.adapterConfig, executorService(), false);
     }
 
+    @Override
+    protected ChunkedSegmentStorageConfig getDefaultConfig() {
+        return this.testContext.defaultConfig;
+    }
+
     /**
      * {@link ChunkedRollingStorageTests} tests for {@link S3ChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
@@ -80,10 +85,7 @@ public class S3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkedSegmentStorageConfig getDefaultConfig() {
-            return ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                    .minSizeLimitForConcat(5 * 1024 * 1024)
-                    .maxSizeLimitForConcat(5 * 1024 * 1024 * 1024)
-                    .build();
+            return this.testContext.defaultConfig;
         }
     }
 
@@ -112,6 +114,11 @@ public class S3SimpleStorageTests extends SimpleStorageTests {
         @Override
         protected ChunkStorage createChunkStorage() {
             return new S3ChunkStorage(testContext.s3Client, testContext.adapterConfig, executorService(), false);
+        }
+
+        @Override
+        protected int getMinimumConcatSize() {
+            return Math.max(1, Math.toIntExact(this.testContext.defaultConfig.getMinSizeLimitForConcat()));
         }
 
         /**

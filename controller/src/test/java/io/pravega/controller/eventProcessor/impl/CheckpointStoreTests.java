@@ -23,9 +23,7 @@ import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,15 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Checkpoint store test.
  */
 public abstract class CheckpointStoreTests {
 
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected CheckpointStore checkpointStore;
 
     @Before
@@ -70,7 +65,7 @@ public abstract class CheckpointStoreTests {
         checkpointStore.removeReaderGroup(process1, readerGroup1);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void folderOperationTests() throws CheckpointStoreException {
 
         final String process1 = "process1";

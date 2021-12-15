@@ -28,7 +28,11 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.SealStreamEvent;
+
+import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
@@ -61,7 +65,6 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         this.executor = executor;
     }
 
-
     @Override
     public CompletableFuture<Void> execute(final SealStreamEvent request) {
         String scope = request.getScope();
@@ -76,7 +79,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                         throw new IllegalStateException("Seal stream not started.");
                     }
                 })
-                .thenCompose(x -> abortTransaction(context, scope, stream, requestId)
+                .thenCompose(x -> abortTransaction(context, scope, stream)
                         .thenAccept(noTransactions -> {
                             if (!noTransactions) {
                                 // If transactions exist on the stream, we will throw OperationNotAllowed so that this task
@@ -107,21 +110,25 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
      * @param context operation context
      * @param scope scope
      * @param stream stream
-     * @param requestId requestId
      * @return CompletableFuture which when complete will contain a boolean indicating if there are transactions of the
      * stream or not.
      */
-    private CompletableFuture<Boolean> abortTransaction(OperationContext context, String scope, String stream, long requestId) {
+    private CompletableFuture<Boolean> abortTransaction(OperationContext context, String scope, String stream) {
         return streamMetadataStore.getActiveTxns(scope, stream, context, executor)
                 .thenCompose(activeTxns -> {
                     if (activeTxns == null || activeTxns.isEmpty()) {
                         return CompletableFuture.completedFuture(true);
                     } else {
-                        // abort transactions
+                        Map<UUID, TxnStatus> pendingTxns = activeTxns.entrySet().stream().map(txn -> new AbstractMap.SimpleEntry<>(txn.getKey(), txn.getValue().getTxnStatus()))
+                                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+                        // log list of pending txns on the Stream
+                        log.info(context.getRequestId(), "Found pending transactions {} on Stream {}/{}.", pendingTxns, scope, stream);
                         return Futures.allOf(activeTxns.entrySet().stream().map(txIdPair -> {
                             CompletableFuture<Void> voidCompletableFuture;
                             TxnStatus txnStatus = txIdPair.getValue().getTxnStatus();
                             if (txnStatus.equals(TxnStatus.OPEN) || txnStatus.equals(TxnStatus.ABORTING)) {
+                                // abort open transactions
+                                log.trace(context.getRequestId(), "Aborting txn {} in state {}.", txIdPair.getKey(), txnStatus);
                                 voidCompletableFuture = Futures.toVoid(streamTransactionMetadataTasks
                                         .abortTxn(scope, stream, txIdPair.getKey(), null, context)
                                         .exceptionally(e -> {
@@ -136,7 +143,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                                                 // already being aborted.
                                                 // DataNotFoundException: If transaction metadata is cleaned up after reading list
                                                 // of active segments
-                                                log.debug(requestId, "A known exception thrown during seal stream " +
+                                                log.warn(context.getRequestId(), "A known exception thrown during seal stream " +
                                                         "while trying to abort transaction on stream {}/{}", scope, stream, cause);
                                             } else {
                                                 // throw the original exception
@@ -145,7 +152,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                                                 // So in subsequent iteration it will reattempt to abort all active transactions.
                                                 // This is a valid course of action because it is important to understand that
                                                 // all transactions are completable (either via abort of commit).
-                                                log.warn(requestId, "Exception thrown during seal stream while trying " +
+                                                log.warn(context.getRequestId(), "Exception thrown during seal stream while trying " +
                                                         "to abort transaction on stream {}/{}", scope, stream, cause);
                                             }
                                             return null;
@@ -153,7 +160,6 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                             } else {
                                 voidCompletableFuture = CompletableFuture.completedFuture(null);
                             }
-
                             return voidCompletableFuture;
                         }).collect(Collectors.toList())).thenApply(v -> false);
                     }

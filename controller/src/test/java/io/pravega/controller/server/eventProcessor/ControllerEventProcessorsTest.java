@@ -66,9 +66,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.listen.Listenable;
 import org.apache.curator.framework.state.ConnectionStateListener;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -89,8 +87,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     public int getThreadPoolSize() {
@@ -102,7 +98,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         UUID txid = UUID.randomUUID();
         String scope = "test";
         String stream = "test";
-        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
+        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid, 21L);
         CommitEvent commitEvent = new CommitEvent(scope, stream, 0);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
