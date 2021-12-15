@@ -104,8 +104,8 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> deleteScope(final String scopeName);
 
     /**
-     * API to delete a scope recursively. This method once invoked will not allow any
-     * operation(create/update/seal/delete) on Stream/Rg/KVT within the scope
+     * API to delete a scope recursively. This method once invoked will cause failure of
+     * create operation on Stream/RG/KVT within the scope if the scope is in sealed state
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
