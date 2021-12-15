@@ -23,6 +23,7 @@ import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
 import static io.pravega.cli.admin.utils.FileHelper.readAndWriteSegmentToFile;
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
     /**

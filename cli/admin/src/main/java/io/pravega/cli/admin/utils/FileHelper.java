@@ -43,14 +43,17 @@ public class FileHelper {
      * @return A {@link File} object representing the filename provided.
      * @throws IOException if the file/directory already exists or if creation fails.
      */
-    public static File createFileAndDirectory(String fileName) throws IOException {
+    public static File createFileAndDirectory(String fileName) throws IOException, FileAlreadyExistsException {
+
         File f = new File(fileName);
         // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
         if (f.exists()) {
             throw new FileAlreadyExistsException("Cannot write segment data into a file that already exists.");
         }
-        if (!f.getParentFile().exists()) {
-            f.getParentFile().mkdirs();
+        if (f.getParentFile() != null) {
+            if (!f.getParentFile().exists()) {
+                f.getParentFile().mkdirs();
+            }
         }
         f.createNewFile();
         return f;

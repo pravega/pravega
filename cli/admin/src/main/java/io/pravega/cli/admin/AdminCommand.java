@@ -41,6 +41,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataTablesInfoComm
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
@@ -314,6 +315,13 @@ public abstract class AdminCommand {
     public static class ArgDescriptor {
         private final String name;
         private final String description;
+        private boolean optional = false;
+
+        public ArgDescriptor(String name, String description, boolean optional) {
+            this.name = name;
+            this.description = description;
+            this.optional = optional;
+        }
     }
 
     /**
@@ -383,6 +391,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataListKeysCommand::descriptor, ControllerMetadataListKeysCommand::new)
                         .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
                         .put(ParseReaderGroupStreamCommand::descriptor, ParseReaderGroupStreamCommand::new)
+                        .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .build());
 
         /**

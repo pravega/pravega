@@ -26,15 +26,12 @@ import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
@@ -45,8 +42,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     public int getThreadPoolSize() {

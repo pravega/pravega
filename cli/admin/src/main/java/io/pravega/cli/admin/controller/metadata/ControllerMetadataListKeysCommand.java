@@ -51,9 +51,9 @@ public class ControllerMetadataListKeysCommand extends ControllerMetadataCommand
         ConnectionPool pool = createConnectionPool();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
-        HashTableIteratorItem<TableSegmentKey> keys = getIfTableExists(adminSegmentHelper.readTableKeys(tableName,
+        HashTableIteratorItem<TableSegmentKey> keys = completeSafely(adminSegmentHelper.readTableKeys(tableName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), keyCount,
-                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L), tableName);
+                HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L), tableName, null);
         if (keys == null) {
             return;
         }
