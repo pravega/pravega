@@ -49,6 +49,7 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -778,25 +779,32 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void testDeleteScopeRecursive() throws Exception {
+    public void testDeleteScopeRecursive() {
         final String scopeName = "deleteScope";
         final String testScopeName = "testScope";
+
+        OperationContext context = streamStore.createScopeContext(scopeName, 123L);
         // Create a scope
-        streamStore.createScope(scopeName, null, executor).join();
+        streamStore.createScope(scopeName, context, executor).join();
         // Verify that the scope is created
-        assertTrue(streamStore.checkScopeExists(scope, null, executor).join());
-        assertFalse(streamStore.checkScopeExists(testScopeName, null, executor).join());
+        assertTrue(streamStore.checkScopeExists(scopeName, context, executor).join());
+        assertFalse(streamStore.checkScopeExists(testScopeName, context, executor).join());
+
+        // Add entry to Deleting_Scopes_Table
+        streamStore.addEntryToDeletingScope(scopeName, context, executor).join();
+        // Verify the entry
+        assertTrue(streamStore.checkScopeInDeletingTable(scopeName, context, executor).join());
 
         // Instantiate DeleteScopeEvent and DeleteScopeTask
         DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
-        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 0L);
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 123L);
 
         // Submit the execute method of DeleteScopeTask
         deleteScopeTask.execute(deleteScopeEvent).join();
 
         // Verify that the scope is removed from the table
-        assertFalse(streamStore.checkScopeInDeletingTable(scopeName, null, executor).join());
-        assertFalse(streamStore.checkScopeExists(scopeName, null, executor).join());
+        assertFalse(streamStore.checkScopeInDeletingTable(scopeName, context, executor).join());
+        assertFalse(streamStore.checkScopeExists(scopeName, context, executor).join());
     }
 
     @Test

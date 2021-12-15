@@ -82,10 +82,12 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose( exists -> {
             if (exists) {
                 return deleteScopeContent(scope, context, requestId);
+            } else {
+                log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
+                        " does not exist in deleting table", scope);
+                return CompletableFuture.completedFuture(null);
             }
-            log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
-                            " does not exist in deleting table", scope);
-            return CompletableFuture.completedFuture(null);
+
         });
     }
 
