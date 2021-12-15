@@ -178,7 +178,6 @@ public class UtilsWrapper {
                                             }, chunkedSegmentStorage.getExecutor()),
                                         chunkedSegmentStorage.getExecutor()),
                                     chunkedSegmentStorage.getExecutor());
-
                 }, chunkedSegmentStorage.getExecutor());
 
     }
@@ -239,7 +238,7 @@ public class UtilsWrapper {
                                                     .thenComposeAsync(doesExist -> {
                                                         if (doesExist) {
                                                             return chunkedSegmentStorage.getChunkStorage().getInfo(info.getChunkName())
-                                                                    .thenAcceptAsync( chunkInfo -> {
+                                                                    .thenAcceptAsync(chunkInfo -> {
                                                                         info.setLengthInStorage(chunkInfo.getLength());
                                                                         info.setExistsInStorage(true);
                                                                     }, chunkedSegmentStorage.getExecutor());
