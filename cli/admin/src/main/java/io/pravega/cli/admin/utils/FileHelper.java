@@ -43,7 +43,7 @@ public class FileHelper {
      * @return A {@link File} object representing the filename provided.
      * @throws IOException if the file/directory already exists or if creation fails.
      */
-    public static File createFileAndDirectory(String fileName) throws IOException, FileAlreadyExistsException {
+    public static File createFileAndDirectory(String fileName) throws IOException {
 
         File f = new File(fileName);
         // If file exists throw FileAlreadyExistsException, an existing file should not be overwritten with new data.
