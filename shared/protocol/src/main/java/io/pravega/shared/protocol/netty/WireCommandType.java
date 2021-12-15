@@ -118,7 +118,7 @@ public enum WireCommandType {
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
     MERGE_SEGMENTS_BATCH(90, WireCommands.MergeSegmentsBatch::readFrom),
-    SEGMENTS_MERGED_BATCH(91, WireCommands.SegmentsMergedBatch::readFrom),
+    SEGMENTS_BATCH_MERGED(91, WireCommands.SegmentsBatchMerged::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

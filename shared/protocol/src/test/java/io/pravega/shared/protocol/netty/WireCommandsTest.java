@@ -654,10 +654,10 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testSegmentsMergedBatch() throws IOException {
+    public void testSegmentsBatchMerged() throws IOException {
         List<String> txnSegmentIds = ImmutableList.of("txn1seg0", "txn2seg0");
         String streamSegmentId = "seg0";
-        testCommand(new WireCommands.SegmentsMergedBatch(l, streamSegmentId, txnSegmentIds, ImmutableList.of(10L, 11L)));
+        testCommand(new WireCommands.SegmentsBatchMerged(l, streamSegmentId, txnSegmentIds, ImmutableList.of(10L, 11L)));
     }
 
     @Test

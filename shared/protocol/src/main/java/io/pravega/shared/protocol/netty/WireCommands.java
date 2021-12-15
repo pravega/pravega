@@ -63,7 +63,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 14;
+    public static final int WIRE_VERSION = 15;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1523,11 +1523,12 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentsMergedBatch implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.SEGMENTS_MERGED_BATCH;
+    public static final class SegmentsBatchMerged implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENTS_BATCH_MERGED;
         final long requestId;
         final String target;
         final List<String> sources;
+        /** newTargetWriteOffset may not be the exact offset on the Segment post merge but just some offset following the merge.**/
         final List<Long> newTargetWriteOffset;
 
         @Override
@@ -1557,7 +1558,7 @@ public final class WireCommands {
                 offsets.add(in.readLong());
             }
 
-            return new SegmentsMergedBatch(requestId, target, sources, offsets);
+            return new SegmentsBatchMerged(requestId, target, sources, offsets);
         }
     }
 

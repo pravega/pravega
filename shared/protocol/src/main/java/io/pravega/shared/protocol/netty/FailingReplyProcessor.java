@@ -142,7 +142,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void segmentsMergedBatch(WireCommands.SegmentsMergedBatch segmentsMerged) {
+    public void segmentsMergedBatch(WireCommands.SegmentsBatchMerged segmentsMerged) {
         throw new IllegalStateException("Unexpected operation: " + segmentsMerged);
     }
 

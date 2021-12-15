@@ -17,7 +17,6 @@ package io.pravega.controller.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.Unpooled;
@@ -97,7 +96,7 @@ public class SegmentHelper implements AutoCloseable {
                     WireCommands.SegmentIsTruncated.class))
             .put(WireCommands.MergeSegments.class, ImmutableSet.of(WireCommands.SegmentsMerged.class,
                     WireCommands.NoSuchSegment.class))
-            .put(WireCommands.MergeSegmentsBatch.class, ImmutableSet.of(WireCommands.SegmentsMergedBatch.class))
+            .put(WireCommands.MergeSegmentsBatch.class, ImmutableSet.of(WireCommands.SegmentsBatchMerged.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttribute.class))
             .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttributeUpdated.class))
@@ -291,7 +290,7 @@ public class SegmentHelper implements AutoCloseable {
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(r -> {
                         handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
-                        return ((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset();
+                        return ((WireCommands.SegmentsBatchMerged) r).getNewTargetWriteOffset();
                 });
     }
 

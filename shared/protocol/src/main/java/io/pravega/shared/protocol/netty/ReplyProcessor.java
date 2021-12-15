@@ -62,7 +62,7 @@ public interface ReplyProcessor {
 
     void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged);
     
-    void segmentsMergedBatch(WireCommands.SegmentsMergedBatch segmentsMerged);
+    void segmentsMergedBatch(WireCommands.SegmentsBatchMerged segmentsMerged);
 
     void segmentSealed(WireCommands.SegmentSealed segmentSealed);
 

@@ -463,7 +463,7 @@ public class PravegaRequestProcessorTest {
 
         List<String> txnSegmentNames = ImmutableList.of(transaction1SegmentName, transaction2SegmentName, transaction3SegmentName);
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 5L, 9L)));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 5L, 9L)));
 
         // verify that txn segments are merged and so do not exist any more
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction1SegmentName, ""));
@@ -502,7 +502,7 @@ public class PravegaRequestProcessorTest {
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(11L)));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(11L)));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
@@ -535,7 +535,7 @@ public class PravegaRequestProcessorTest {
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
-        order.verify(connection).send(new WireCommands.SegmentsMergedBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), List.of(0L)));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), List.of(0L)));
     }
 
     @Test(timeout = 20000)

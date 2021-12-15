@@ -124,6 +124,7 @@ import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
@@ -229,6 +230,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         boolean isTokenValid = false;
         try {
             tokenVerifier.verifyToken(segment, delegationToken, READ);
+            isTokenValid = true;
+        } catch (TokenException e) {
+            handleException(requestId, segment, operation, e);
+        }
+        return isTokenValid;
+    }
+
+    protected boolean verifyTokenForUpdate(String segment, long requestId, String delegationToken, String operation) {
+        boolean isTokenValid = false;
+        try {
+            tokenVerifier.verifyToken(segment, delegationToken, READ_UPDATE);
             isTokenValid = true;
         } catch (TokenException e) {
             handleException(requestId, segment, operation, e);
@@ -527,6 +539,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
         final String operation = "mergeSegmentsBatch";
         List<String> sources = mergeSegments.getSourceSegmentIds();
+        if (!verifyTokenForUpdate(mergeSegments.getTargetSegmentId(), mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
+            return;
+        }
         for (String s : sources) {
             if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
                 return;
@@ -554,7 +569,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
                 })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
-                    connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
+                    connection.send(new WireCommands.SegmentsBatchMerged(mergeSegments.getRequestId(),
                            mergeSegments.getTargetSegmentId(),
                            sources,
                            mergeResults));
