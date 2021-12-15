@@ -147,6 +147,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                                    .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig,
                                                            createTimestamp, executor, context));
                                        }
+                                       log.info(requestId, "KeyValue table {}/{} already exists", scope, kvtName);
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor, context);
                                  });
                             });
