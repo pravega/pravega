@@ -17,6 +17,7 @@ package io.pravega.controller.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.Unpooled;
@@ -288,9 +289,9 @@ public class SegmentHelper implements AutoCloseable {
         WireCommands.MergeSegmentsBatch request = new WireCommands.MergeSegmentsBatch(requestId, qualifiedNameTarget, transactionNames, delegationToken);
 
         return sendRequest(connection, clientRequestId, request)
-                .thenCompose(r -> {
-                    handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
-                    return CompletableFuture.completedFuture(((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset());
+                .thenApply(r -> {
+                        handleReply(clientRequestId, r, connection, qualifiedNameTarget, WireCommands.MergeSegmentsBatch.class, type);
+                        return ((WireCommands.SegmentsMergedBatch) r).getNewTargetWriteOffset();
                 });
     }
 

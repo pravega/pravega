@@ -38,6 +38,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -125,6 +126,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -1976,15 +1978,8 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Map<Long, List<Long>>> mergeTxnSegmentsIntoStreamSegments(final String scope, final String stream,
                                                                                        final List<Long> segments, final List<UUID> txnIds, long requestId) {
-        Timer timer = new Timer();
         return Futures.allOfWithResults(segments.stream()
-                        .collect(Collectors.toMap(segId -> segId, segId -> mergeTxnSegments(scope, stream, segId, txnIds, requestId))))
-                .whenComplete((r, e) -> {
-                    if (e != null) {
-                        Duration elapsed = timer.getElapsed();
-                        TransactionMetrics.getInstance().commitTransactionSegments(elapsed);
-                    }
-                });
+                        .collect(Collectors.toMap(segId -> segId, segId -> mergeTxnSegments(scope, stream, segId, txnIds, requestId))));
     }
 
     private CompletableFuture<List<Long>> mergeTxnSegments(final String scope, final String stream,
@@ -1994,7 +1989,17 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentNumber,
                 segmentNumber,
                 txnIds,
-                this.retrieveDelegationToken(), requestId), executor);
+                this.retrieveDelegationToken(), requestId).exceptionally(ex -> {
+                    if (ex instanceof WireCommandFailedException) {
+                        WireCommandFailedException wcfe = (WireCommandFailedException) ex;
+                        if (WireCommandFailedException.Reason.SegmentDoesNotExist.equals(wcfe.getReason())) {
+                            final String qualifiedSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentNumber);
+                            String message = String.format("Segment Merge failed as source segment [%s] was not found.", qualifiedSegmentName);
+                            throw new IllegalStateException(message);
+                        }
+                    }
+                    throw new CompletionException(ex);
+        }), executor);
     }
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
