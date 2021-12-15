@@ -57,7 +57,8 @@ public class UtilsWrapper {
     private Duration timeout;
 
     /**
-     * Evict metadata cache.
+     * Evicts all eligible entries from buffer cache and all entries from guava cache.
+     * This should be invoked after directly changing the metadata in table segment to ignore cached values.
      *
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      *         If the operation failed, it will be completed with the appropriate exception.
@@ -71,7 +72,8 @@ public class UtilsWrapper {
     }
 
     /**
-     * Evict {@link ReadIndexCache}.
+     * Evict entire {@link ReadIndexCache}.
+     * This should be invoked after directly changing the metadata in table segment to ignore cached values.
      *
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      *         If the operation failed, it will be completed with the appropriate exception.
@@ -85,6 +87,7 @@ public class UtilsWrapper {
 
     /**
      * Evict {@link ReadIndexCache} for given segment.
+     * This should be invoked after directly changing the metadata in table segment to ignore cached values.
      *
      * @param segmentName Name of the segment.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
@@ -204,7 +207,7 @@ public class UtilsWrapper {
      * @param streamSegmentName Name of the segment.
      * @param checkStorage Whether to retrieve information from underlying {@link ChunkStorage}.
      * @return A CompletableFuture that, when completed, will contain a list of {@link ExtendedChunkInfo} objects associated with the segment.
-     *  If the operation failed, it will be completed with the appropriate exception. Notable Exceptions
+     *  If the operation failed, it will be completed with the appropriate exception.
      */
     public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfoList(String streamSegmentName, boolean checkStorage) {
         Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
