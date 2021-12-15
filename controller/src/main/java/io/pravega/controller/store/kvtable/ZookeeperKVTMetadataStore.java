@@ -70,7 +70,7 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext ctx, Executor executor) {
+    public CompletableFuture<Boolean> checkScopeInSealedState(String scope, OperationContext ctx, Executor executor) {
         String scopePath = ZKPaths.makePath(SCOPE_DELETE_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }

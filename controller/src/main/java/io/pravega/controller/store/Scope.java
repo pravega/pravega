@@ -110,6 +110,8 @@ public interface Scope {
 
     CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context);
 
+    CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context);
+
     default UUID newId() {
         return UUID.randomUUID();
     }

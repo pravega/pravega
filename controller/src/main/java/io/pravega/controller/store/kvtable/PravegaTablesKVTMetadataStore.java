@@ -133,7 +133,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext context, Executor executor) {
+    public CompletableFuture<Boolean> checkScopeInSealedState(String scope, OperationContext context, Executor executor) {
         long requestId = getOperationContext(context).getRequestId();
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(DELETING_SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),

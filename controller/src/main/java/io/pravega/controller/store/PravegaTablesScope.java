@@ -22,7 +22,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.server.ScopeDeletionInProgressException;
+import io.pravega.controller.server.ScopeSealedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.TagRecord;
@@ -91,18 +91,13 @@ public class PravegaTablesScope implements Scope {
     @Override
     public CompletableFuture<Void> createScope(OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
-        // We will first attempt to check if there is entry in DELETING_SCOPES_TABLE and will throw exception if true
         // We will first attempt to create the entry for the scope in scopes table.
         // If scopes table does not exist, we create the scopes table (idempotent)
         // followed by creating a new entry for this scope with a new unique id.
         // We then retrieve id from the store (in case someone concurrently created the entry or entry already existed.
         // This unique id is used to create scope specific table with unique id.
         // If scope entry exists in Scopes table, create the streamsInScope table before throwing DataExists exception
-        return checkScopeExistsInTable(scopeName, context).thenCompose(exist -> {
-            if (exist) {
-                throw new ScopeDeletionInProgressException("Scope deletion in progress");
-            } else {
-                return Futures.handleCompose(
+        return Futures.handleCompose(
                         withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
                                 SCOPES_TABLE, scopeName, newId(), UUID_TO_BYTES_FUNCTION, context.getRequestId()), SCOPES_TABLE, context), (r, e) -> {
                             if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
@@ -148,9 +143,6 @@ public class PravegaTablesScope implements Scope {
                                 throw new CompletionException(e);
                             }
                         });
-            }
-        });
-
     }
 
     public CompletableFuture<String> getStreamsInScopeTableName(OperationContext context) {
@@ -431,7 +423,8 @@ public class PravegaTablesScope implements Scope {
                         false));
     }
 
-    public CompletableFuture<Boolean> checkScopeExistsInTable(String scopeName, OperationContext context) {
+    @Override
+    public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(DELETING_SCOPES_TABLE, scopeName, x -> x, context.getRequestId()).thenApply(v -> true),

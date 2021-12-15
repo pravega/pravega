@@ -30,7 +30,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.ScopeDeletionInProgressException;
+import io.pravega.controller.server.ScopeSealedException;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -188,16 +188,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         Futures.completeOn(checkScopeExists(scope, context, executor)
                                 .thenCompose(exists -> {
                                     if (exists) {
-                                        checkScopeInDeletingTable(scope, context, executor)
-                                                .thenCompose(exist -> {
-                                                    if (exist) {
-                                                        log.warn("scope {} is already in deleting state", scope);
-                                                        throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
-                                                    }
-                                                    // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
-                                                    return getStream(scope, name, context)
-                                                            .create(configuration, createTimestamp, startingSegmentNumber, context);
-                                                });
                                         // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
                                         return getStream(scope, name, context)
                                                 .create(configuration, createTimestamp, startingSegmentNumber, context);
@@ -285,16 +275,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         OperationContext context = getOperationContext(ctx);
 
         Scope scope = getScope(scopeName, context);
-        return Futures.completeOn(scope.createScope(context).handle((result, ex) -> {
-            if (ex == null) {
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+        return Futures.completeOn(scope.checkScopeInSealedState(scopeName, context).thenCompose(isScopeSealed -> {
+            if (isScopeSealed) {
+                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().
+                        setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build());
             }
-            if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
-            } else {
-                log.error(context.getRequestId(), "Create scope failed for scope {} due to ", scopeName, ex);
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
-            }
+                return scope.createScope(context).handle((result, ex) -> {
+                    if (ex == null) {
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+                    }
+                    if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
+                    } else {
+                        log.error(context.getRequestId(), "Create scope failed for scope {} due to ", scopeName, ex);
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
+                    }
+                });
         }), executor);
     }
 
@@ -1220,14 +1216,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.completeOn(checkScopeExists(scope, context, executor)
                    .thenCompose(exists -> {
                    if (exists) {
-                       checkScopeInDeletingTable(scope, context, executor)
-                               .thenCompose(exist -> {
-                                   if (exist) {
-                                       log.warn("scope {} is already in deleting state", scope);
-                                       throw new ScopeDeletionInProgressException("Scope already in deleting state: " + scope);
-                                   }
-                                   return null;
-                               });
                      // Create reader group may fail, if scope is deleted as we attempt to create the reader group under scope.
                      return getReaderGroup(scope, rgName, context)
                                     .create(configuration, createTimestamp, context);

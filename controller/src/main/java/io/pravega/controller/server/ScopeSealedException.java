@@ -19,8 +19,8 @@ package io.pravega.controller.server;
  * Class for exceptions thrown from controller server if create API is called
  * for Scopes/Streams/RGs/KVTs while the deletion is already in progress of the same scope.
  */
-public class ScopeDeletionInProgressException extends UnsupportedOperationException {
-    public ScopeDeletionInProgressException(String message) {
+public class ScopeSealedException extends UnsupportedOperationException {
+    public ScopeSealedException(String message) {
         super(message);
     }
 }

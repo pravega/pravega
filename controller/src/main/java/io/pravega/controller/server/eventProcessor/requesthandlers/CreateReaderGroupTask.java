@@ -66,22 +66,27 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         ReaderGroupConfig config = getConfigFromEvent(request);
         long requestId = request.getRequestId();
         OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
-
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
-                          .thenCompose(rgId -> {
-                    if (!rgId.equals(readerGroupId)) {
-                        log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
-                        return CompletableFuture.completedFuture(null);
-                    }
-                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
-                            .thenCompose(complete -> {
-                                if (!complete) {
-                                    return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, request.getCreateTimeStamp(), context));
-                                }
-                                return CompletableFuture.completedFuture(null);
-                            });
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose(exists -> {
+            if (exists) {
+                log.warn(requestId, "Scope {} already in sealed state", scope);
+                return CompletableFuture.completedFuture(null);
+            }
+            return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+                    .thenCompose(rgId -> {
+                        if (!rgId.equals(readerGroupId)) {
+                            log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
+                                .thenCompose(complete -> {
+                                    if (!complete) {
+                                        return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
+                                                config, request.getCreateTimeStamp(), context));
+                                    }
+                                    return CompletableFuture.completedFuture(null);
+                                });
+                    }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        });
     }
 
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {

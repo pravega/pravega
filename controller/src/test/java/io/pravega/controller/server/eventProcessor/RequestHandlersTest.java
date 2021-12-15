@@ -61,6 +61,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
@@ -785,7 +786,7 @@ public abstract class RequestHandlersTest {
 
         OperationContext context = streamStore.createScopeContext(scopeName, 123L);
         // Create a scope
-        streamStore.createScope(scopeName, context, executor).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, streamStore.createScope(scopeName, context, executor).join());
         // Verify that the scope is created
         assertTrue(streamStore.checkScopeExists(scopeName, context, executor).join());
         assertFalse(streamStore.checkScopeExists(testScopeName, context, executor).join());

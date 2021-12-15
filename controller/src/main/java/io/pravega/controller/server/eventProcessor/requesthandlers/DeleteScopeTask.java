@@ -87,7 +87,6 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                         " does not exist in deleting table", scope);
                 return CompletableFuture.completedFuture(null);
             }
-
         });
     }
 

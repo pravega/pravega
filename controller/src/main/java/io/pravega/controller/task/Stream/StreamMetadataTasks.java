@@ -764,11 +764,15 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, config, createTimestamp, requestId},
-                () -> createStreamBody(scope, stream, config, createTimestamp, context));
+        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose(isScopeSealed -> {
+            if (isScopeSealed) {
+                return CompletableFuture.completedFuture(CreateStreamStatus.Status.SCOPE_NOT_FOUND);
+            }
+            return execute(
+                    new Resource(scope, stream),
+                    new Serializable[]{scope, stream, config, createTimestamp, requestId},
+                    () -> createStreamBody(scope, stream, config, createTimestamp, context));
+        });
     }
 
     /**

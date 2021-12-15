@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.InMemoryReaderGroup;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.Synchronized;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -198,6 +199,11 @@ public class InMemoryScope implements Scope {
             return CompletableFuture.completedFuture(this.readerGroupsMap.get(rgName).getId());
         }
         return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "reader group not found in scope."));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for In Memory Scope"));
     }
 
     @Synchronized
