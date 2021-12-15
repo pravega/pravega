@@ -35,7 +35,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -1143,7 +1142,6 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     /**
      * Test for Max Attempts.
      */
-    @Ignore("Should be fixed or removed.")
     @Test
     public void testMaxAttempts() throws Exception {
         @Cleanup
@@ -1159,7 +1157,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
 
-        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true).join();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
