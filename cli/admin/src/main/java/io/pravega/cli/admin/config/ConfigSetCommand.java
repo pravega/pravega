@@ -21,6 +21,8 @@ import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import java.util.Properties;
 
+import static io.pravega.cli.admin.utils.ConfigUtils.getIfEnv;
+
 /**
  * Updates the shared AdminCommandState with new config values.
  */
@@ -42,7 +44,7 @@ public class ConfigSetCommand extends AdminCommand {
             Preconditions.checkArgument(items.length == 2, "Invalid name=value pair: '%s'.", s);
             Preconditions.checkArgument(!Strings.isNullOrEmpty(items[0]) && !Strings.isNullOrEmpty(items[1]),
                     "Invalid name=value pair: '%s'.", s);
-            newValues.setProperty(items[0], items[1]);
+            newValues.setProperty(items[0], getIfEnv(items[1]));
         });
 
         Preconditions.checkArgument(newValues.size() > 0, "Expecting at least one argument.");
