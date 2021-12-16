@@ -207,8 +207,8 @@ public class StreamManagerImpl implements StreamManager {
     @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
-        log.info("Deleting scope: {}", scopeName);
         if (forceDelete) {
+            log.info("Deleting scope recursively: {}", scopeName);
             List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {

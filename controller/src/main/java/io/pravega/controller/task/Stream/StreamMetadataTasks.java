@@ -734,7 +734,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<DeleteScopeStatus.Status> deleteScopeRecursive(final String scope,
                                                                               final long requestId) {
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkScopeSealed(scope, context, executor)
                 .thenCompose(exists -> {
                     if (exists) {
                         log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
@@ -747,7 +747,7 @@ public class StreamMetadataTasks extends TaskBase {
                             }
                             return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(scopeId -> {
                                 DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId, scopeId);
-                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScope(scope, context, executor))
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScopesTable(scope, context, executor))
                                         .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
                                         .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
                             });
@@ -1650,7 +1650,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Boolean> isScopeDeletionComplete(String scope, OperationContext context) {
         // The last step of Recursive Delete Scope is to remove entry of scope from Deleting_Scopes_Table
         // Method will return true if the entry is removed from Scopes Table
-        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor)
+        return streamMetadataStore.checkScopeSealed(scope, context, executor)
                 .thenApply(x -> !x);
     }
 
@@ -1780,63 +1780,68 @@ public class StreamMetadataTasks extends TaskBase {
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config,
                                                                   long timestamp, OperationContext context) {
         long requestId = getRequestId(context);
-
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context, executor)
-                .thenComposeAsync(response -> {
-                    log.debug(requestId, "{}/{} created in metadata store", scope, stream);
-                    CreateStreamStatus.Status status = translate(response.getStatus());
-                    // only if its a new stream or an already existing non-active stream then we will create
-                    // segments and change the state of the stream to active.
-                    if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
-                            response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        final int startingSegmentNumber = response.getStartingSegmentNumber();
-                        final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
-                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
-                                                           .boxed()
-                                                           .map(x -> NameUtils.computeSegmentId(x, 0))
-                                                           .collect(Collectors.toList());
-                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments,
-                                this.retrieveDelegationToken(), requestId)
-                                .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
-                                .thenCompose(y -> {
-                                    return withRetries(() -> {
-                                        CompletableFuture<Void> future;
-                                        if (config.getRetentionPolicy() != null) {
-                                            future = bucketStore.addStreamToBucketStore(
-                                                    BucketStore.ServiceType.RetentionService, scope, stream, executor);
-                                        } else {
-                                            future = CompletableFuture.completedFuture(null);
-                                        }
-                                        return future.thenCompose(v -> streamMetadataStore.addStreamTagsToIndex(scope, stream, config, context, executor) )
-                                                .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                                                .thenCompose(state -> {
-                                                    if (state.getObject().equals(State.CREATING)) {
-                                                        return streamMetadataStore.updateVersionedState(
-                                                                scope, stream, State.ACTIVE, state, context, executor);
-                                                    } else {
-                                                        return CompletableFuture.completedFuture(state);
-                                                    }
-                                                }));
-                                    }, executor)
-                                            .thenApply(z -> status);
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(status);
-                    }
-                }, executor)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        Throwable cause = Exceptions.unwrap(ex);
-                        log.warn(requestId, "Create stream failed due to ", ex);
-                        if (cause instanceof StoreException.DataNotFoundException) {
-                            return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+        return this.streamMetadataStore.checkScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
+           if (scopeSealed) {
+               log.warn(requestId, "Create stream failed due to scope in sealed state");
+               return CompletableFuture.completedFuture(CreateStreamStatus.Status.SCOPE_NOT_FOUND);
+           }
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context, executor)
+                    .thenComposeAsync(response -> {
+                        log.debug(requestId, "{}/{} created in metadata store", scope, stream);
+                        CreateStreamStatus.Status status = translate(response.getStatus());
+                        // only if it's a new stream or an already existing non-active stream then we will create
+                        // segments and change the state of the stream to active.
+                        if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
+                                response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
+                            final int startingSegmentNumber = response.getStartingSegmentNumber();
+                            final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
+                            List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                    .boxed()
+                                    .map(x -> NameUtils.computeSegmentId(x, 0))
+                                    .collect(Collectors.toList());
+                            return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments,
+                                    this.retrieveDelegationToken(), requestId)
+                                    .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
+                                    .thenCompose(y -> {
+                                        return withRetries(() -> {
+                                            CompletableFuture<Void> future;
+                                            if (config.getRetentionPolicy() != null) {
+                                                future = bucketStore.addStreamToBucketStore(
+                                                        BucketStore.ServiceType.RetentionService, scope, stream, executor);
+                                            } else {
+                                                future = CompletableFuture.completedFuture(null);
+                                            }
+                                            return future.thenCompose(v -> streamMetadataStore.addStreamTagsToIndex(scope, stream, config, context, executor) )
+                                                    .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                                                            .thenCompose(state -> {
+                                                                if (state.getObject().equals(State.CREATING)) {
+                                                                    return streamMetadataStore.updateVersionedState(
+                                                                            scope, stream, State.ACTIVE, state, context, executor);
+                                                                } else {
+                                                                    return CompletableFuture.completedFuture(state);
+                                                                }
+                                                            }));
+                                        }, executor)
+                                                .thenApply(z -> status);
+                                    });
                         } else {
-                            return CreateStreamStatus.Status.FAILURE;
+                            return CompletableFuture.completedFuture(status);
                         }
-                    } else {
-                        return result;
-                    }
-                });
+                    }, executor)
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            Throwable cause = Exceptions.unwrap(ex);
+                            log.warn(requestId, "Create stream failed due to ", ex);
+                            if (cause instanceof StoreException.DataNotFoundException) {
+                                return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+                            } else {
+                                return CreateStreamStatus.Status.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        });
     }
 
     /**

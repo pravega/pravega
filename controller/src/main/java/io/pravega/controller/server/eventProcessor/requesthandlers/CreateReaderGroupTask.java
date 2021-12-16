@@ -66,7 +66,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         ReaderGroupConfig config = getConfigFromEvent(request);
         long requestId = request.getRequestId();
         OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
-        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose(exists -> {
+        return streamMetadataStore.checkScopeSealed(scope, context, executor).thenCompose(exists -> {
             if (exists) {
                 log.warn(requestId, "Scope {} already in sealed state", scope);
                 return CompletableFuture.completedFuture(null);

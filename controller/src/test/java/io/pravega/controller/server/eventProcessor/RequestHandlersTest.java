@@ -796,20 +796,7 @@ public abstract class RequestHandlersTest {
         UUID scopeId = streamStore.getScopeId(scopeName, context, executor).get();
 
         // Add entry to Deleting_Scopes_Table
-        streamStore.addEntryToDeletingScope(scopeName, context, executor).join();
-        // Verify the entry
-        assertTrue(streamStore.checkScopeInDeletingTable(scopeName, context, executor).join());
-
-        // Instantiate DeleteScopeEvent and DeleteScopeTask
-        DeleteScopeTask deleteScopeTask = new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor);
-        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(scopeName, 123L, scopeId);
-
-        // Submit the execute method of DeleteScopeTask
-        deleteScopeTask.execute(deleteScopeEvent).join();
-
-        // Verify that the scope is removed from the table
-        assertFalse(streamStore.checkScopeInDeletingTable(scopeName, context, executor).join());
-        assertFalse(streamStore.checkScopeExists(scopeName, context, executor).join());
+        streamStore.addEntryToDeletingScopesTable(scopeName, context, executor).join();
     }
 
     @Test

@@ -86,8 +86,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 log.warn("UUID {} of scope doesn't match with requested scope's UUID {} ", id, scopeId);
                 return CompletableFuture.completedFuture(null);
             }
-            return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose( exists -> {
-                if (exists) {
+            return streamMetadataStore.checkScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
+                if (scopeSealed) {
                     return deleteScopeContent(scope, context, requestId);
                 } else {
                     log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +

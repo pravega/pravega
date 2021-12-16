@@ -122,7 +122,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope, OperationContext context, Executor executor) {
+    public CompletableFuture<Boolean> checkScopeSealed(String scope, OperationContext context, Executor executor) {
         log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(deletingScopes.containsKey(scope));
     }
@@ -298,7 +298,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
+    public CompletableFuture<Void> addEntryToDeletingScopesTable(String scope, OperationContext context, ScheduledExecutorService executor) {
         return CompletableFuture.completedFuture(null);
     }
 

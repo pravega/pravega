@@ -132,7 +132,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     @VisibleForTesting
-    public CompletableFuture<Void> addEntryToDeletingScope(String scope, OperationContext context, ScheduledExecutorService executor) {
+    public CompletableFuture<Void> addEntryToDeletingScopesTable(String scope, OperationContext context, ScheduledExecutorService executor) {
         log.info("Add entry to Deleting Table called for scope {}", scope);
         return Futures.toVoid(
                 new PravegaTablesScope(scope, storeHelper).addEntryToDeletingTable(scope, context)
@@ -223,7 +223,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInDeletingTable(String scope,  OperationContext context, Executor executor) {
+    public CompletableFuture<Boolean> checkScopeSealed(String scope, OperationContext context, Executor executor) {
         long requestId = getOperationContext(context).getRequestId();
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(DELETING_SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
