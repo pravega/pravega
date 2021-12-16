@@ -76,6 +76,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerCommandsTest extends SecureControllerCommandsTest {
     private static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
     private static final AdminCommandState STATE;
+    private static final ClientConfig CLIENT_CONFIG;
 
     // The controller REST URI is generated only after the Pravega cluster has been started. So to maintain STATE as
     // static final, we use this instead of @BeforeClass.
@@ -86,11 +87,11 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
                 false, false, CLUSTER.getAccessTokenTtl());
         String scope = "testScope";
         String testStream = "testStream";
-        ClientConfig clientConfig = prepareValidClientConfig(CLUSTER.controllerUri(), false, false);
+        CLIENT_CONFIG = prepareValidClientConfig(CLUSTER.controllerUri(), false, false);
 
         // Generate the scope and stream required for testing.
         @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
+        StreamManager streamManager = StreamManager.create(CLIENT_CONFIG);
         assertNotNull(streamManager);
 
         boolean isScopeCreated = streamManager.createScope(scope);
@@ -152,7 +153,9 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
                 new RetryOneTime(5000));
         curatorFramework.start();
         @Cleanup
-        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework);
+        ConnectionPool pool = new ConnectionPoolImpl(CLIENT_CONFIG, new SocketConnectionFactoryImpl(CLIENT_CONFIG));
+        @Cleanup
+        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework, pool);
         Assert.assertNotNull(sh);
 
         // Try the Zookeeper backend, which is expected to fail and be handled by the command.
@@ -190,7 +193,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         }
 
         @Override
-        public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+        public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient, ConnectionPool pool) {
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(false)
                     .hostContainerMap(getHostContainerMap(Collections.singletonList("localhost:" + CLUSTER.getSegmentStorePort()),
@@ -205,7 +208,6 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
                     .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(),
                             getCLIControllerConfig().getUserName()))
                     .build();
-            ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
             return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
         }
 
