@@ -30,7 +30,17 @@ import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSeri
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isStreamMetadataTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isTransactionsInEpochTableName;
 import static io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer.isWriterPositionsTableName;
-import static io.pravega.shared.NameUtils.*;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.CREATION_TIME_KEY;
+import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
+import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
+import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.METADATA_TABLE;
+import static io.pravega.shared.NameUtils.STATE_KEY;
+import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.WRITERS_POSITIONS_TABLE;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
