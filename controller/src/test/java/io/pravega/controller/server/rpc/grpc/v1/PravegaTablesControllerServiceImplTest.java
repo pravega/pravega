@@ -117,8 +117,16 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         taskMetadataStore = TaskStoreFactoryForTests.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executorService);
         streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
+        // KVTable
         kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
+        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
+                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
+        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), this.kvtStore, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
@@ -135,21 +143,13 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
-                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executorService),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executorService),
                 executorService));
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        // KVTable
-        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
-                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
-        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
-        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
-                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
-                executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 
         cluster = new ClusterZKImpl(PRAVEGA_ZK_CURATOR_RESOURCE.client, ClusterType.CONTROLLER);

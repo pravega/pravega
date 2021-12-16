@@ -210,7 +210,9 @@ public abstract class StreamMetadataTasksTest {
                 ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), helper));
-
+        EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
+        kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, segmentHelperMock, executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));
@@ -225,7 +227,7 @@ public abstract class StreamMetadataTasksTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStorePartialMock,
-                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, executor),
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executor),
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);

@@ -32,6 +32,7 @@ import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import org.slf4j.LoggerFactory;
@@ -60,19 +61,23 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
     private final KVTableMetadataStore kvtMetadataStore;
+    private final TableMetadataTasks kvtMetadataTasks;
     private final ScheduledExecutorService executor;
 
     public DeleteScopeTask(final StreamMetadataTasks streamMetadataTasks,
                            final StreamMetadataStore streamMetaStore,
                            final KVTableMetadataStore kvtMetadataStore,
+                           final TableMetadataTasks kvtMetadataTasks,
                            final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(streamMetaStore);
         Preconditions.checkNotNull(kvtMetadataStore);
+        Preconditions.checkNotNull(kvtMetadataTasks);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetaStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.kvtMetadataStore = kvtMetadataStore;
+        this.kvtMetadataTasks = kvtMetadataTasks;
         this.executor = executor;
     }
 
@@ -144,10 +149,15 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         // Delete KVTs
         Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
          while (kvtIterator.hasNext()) {
-         KeyValueTableInfo kvt = kvtIterator.next();
-             log.debug("Processing delete kvt for {}", kvt);
-         Futures.getThrowingException(kvtMetadataStore
-                 .deleteKeyValueTable(scopeName, kvt.getKeyValueTableName(), context, executor));
+         String kvt = kvtIterator.next().getKeyValueTableName();
+         Timer timer = new Timer();
+         log.debug("Processing delete kvt for {}", kvt);
+         Futures.getThrowingException(kvtMetadataTasks
+                 .deleteKeyValueTable(scopeName, kvt, context.getRequestId())
+                 .thenCompose(status -> {
+                     ControllerService.reportDeleteKVTableMetrics(scopeName, kvt, status, timer.getElapsed());
+                     return CompletableFuture.completedFuture(null);
+                 }));
          }
         return streamMetadataStore.deleteScopeRecursive(scopeName, context, executor)
                 .thenApply(status -> {
