@@ -772,15 +772,11 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return streamMetadataStore.checkScopeInDeletingTable(scope, context, executor).thenCompose(isScopeSealed -> {
-            if (isScopeSealed) {
-                return CompletableFuture.completedFuture(CreateStreamStatus.Status.SCOPE_NOT_FOUND);
-            }
+
             return execute(
                     new Resource(scope, stream),
                     new Serializable[]{scope, stream, config, createTimestamp, requestId},
                     () -> createStreamBody(scope, stream, config, createTimestamp, context));
-        });
     }
 
     /**
@@ -2023,7 +2019,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private DeleteScopeStatus.Status handleDeleteScopeError(Throwable ex, long requestId, String scopeName) {
         Throwable cause = Exceptions.unwrap(ex);
-        log.error(requestId, "Exception deleting stream {}. Cause: {}", scopeName, ex);
+        log.error(requestId, "Exception deleting scope {}. Cause: {}", scopeName, ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteScopeStatus.Status.SCOPE_NOT_FOUND;
         } else if (cause instanceof TimeoutException) {

@@ -294,6 +294,7 @@ public class ScopeTest {
     @Test
     public void testDeleteScopeRecursive() throws Exception {
         final String scope = "testDeleteScope";
+        final String testFalseScope = "falseScope";
         final String streamName1 = "test1";
         final String streamName2 = "test2";
         final String streamName3 = "test3";
@@ -329,6 +330,9 @@ public class ScopeTest {
         KeyValueTableManager keyValueTableManager = new KeyValueTableManagerImpl(clientConfig);
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
+
+        // 1. Call deleteScopeRecursive() without creating a scope
+        assertTrue(streamManager.deleteScopeRecursive(testFalseScope));
 
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         assertTrue(keyValueTableManager.createKeyValueTable(scope, kvtName1, kvtConfig));

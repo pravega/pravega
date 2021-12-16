@@ -61,6 +61,7 @@ public class ZKScope implements Scope {
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH = "/store/" + KVTABLES_IN_SCOPE + "/%s";
     // This is a path like: /store/_kvtablesinscope/scope1/kvtable1
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
+    private static final String DELETE_SCOPE_TABLE_FORMAT = "/store/deletingTable";
 
     private final String scopePath;
     private final String counterPath;
@@ -373,7 +374,7 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
-        return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for ZK scope"));
+        return getScopeInDeletingTable(scopeName).thenCompose(store::checkExists);
     }
 
     @Override
@@ -387,5 +388,9 @@ public class ZKScope implements Scope {
 
     public static CompletableFuture<String> getKVTableInScopeZNodePath(String scopeName, String kvtName) {
         return CompletableFuture.completedFuture(String.format(KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT, scopeName, kvtName));
+    }
+
+    public static CompletableFuture<String> getScopeInDeletingTable(String scopeName) {
+        return CompletableFuture.completedFuture(String.format(DELETE_SCOPE_TABLE_FORMAT, scopeName));
     }
 }
