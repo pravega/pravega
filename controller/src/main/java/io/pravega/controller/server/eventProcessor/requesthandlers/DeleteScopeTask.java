@@ -132,7 +132,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
         }
 
         // Delete ReaderGroups
-        for (Map.Entry<String,String> rgMapEntry: readerGroupMap.entrySet()) {
+        for (Map.Entry<String, String> rgMapEntry: readerGroupMap.entrySet()) {
             log.debug("Processing delete ReaderGroup for {}", rgMapEntry.getKey());
             Timer timer = new Timer();
             Futures.getThrowingException(streamMetadataTasks.getReaderGroupConfig(scopeName, rgMapEntry.getKey(), requestId)
