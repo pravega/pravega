@@ -500,8 +500,9 @@ public abstract class AdminCommand {
     }
 
     @VisibleForTesting
-    public AdminSegmentHelper instantiateAdminSegmentHelper(CuratorFramework zkClient, ConnectionPool pool) {
+    public AdminSegmentHelper instantiateAdminSegmentHelper(CuratorFramework zkClient) {
         HostControllerStore hostStore = createHostControllerStore(zkClient);
+        ConnectionPool pool = createConnectionPool();
         return new AdminSegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 

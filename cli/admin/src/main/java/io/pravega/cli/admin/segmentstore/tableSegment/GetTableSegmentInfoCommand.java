@@ -18,7 +18,6 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
@@ -63,9 +62,7 @@ public class GetTableSegmentInfoCommand extends TableSegmentCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         CompletableFuture<WireCommands.TableSegmentInfo> reply = adminSegmentHelper.getTableSegmentInfo(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
 

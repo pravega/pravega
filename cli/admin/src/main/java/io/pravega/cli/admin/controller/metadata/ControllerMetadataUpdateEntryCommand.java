@@ -19,7 +19,6 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import lombok.Cleanup;
@@ -52,9 +51,7 @@ public class ControllerMetadataUpdateEntryCommand extends ControllerMetadataComm
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
         ControllerMetadataJsonSerializer jsonSerializer = new ControllerMetadataJsonSerializer();
 

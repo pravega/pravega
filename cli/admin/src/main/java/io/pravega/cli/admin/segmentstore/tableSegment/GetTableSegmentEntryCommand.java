@@ -17,7 +17,6 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.connection.impl.ConnectionPool;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -47,9 +46,7 @@ public class GetTableSegmentEntryCommand extends TableSegmentCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         String value = getTableEntry(fullyQualifiedTableSegmentName, key, segmentStoreHost, adminSegmentHelper);
         output("For the given key: %s", key);
         userFriendlyOutput(value);

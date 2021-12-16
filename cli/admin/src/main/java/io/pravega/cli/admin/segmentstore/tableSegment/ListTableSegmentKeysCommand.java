@@ -17,7 +17,6 @@ package io.pravega.cli.admin.segmentstore.tableSegment;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -51,9 +50,7 @@ public class ListTableSegmentKeysCommand extends TableSegmentCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         CompletableFuture<HashTableIteratorItem<TableSegmentKey>> reply = adminSegmentHelper.readTableKeys(fullyQualifiedTableSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), keyCount,
                 HashTableIteratorItem.State.EMPTY, super.authHelper.retrieveMasterToken(), 0L);

@@ -20,7 +20,6 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.json.ControllerMetadataJsonSerializer;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.serializers.controller.ControllerMetadataSerializer;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import lombok.Cleanup;
 import lombok.val;
@@ -51,9 +50,7 @@ public class ControllerMetadataGetEntryCommand extends ControllerMetadataCommand
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient, pool);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         ControllerMetadataSerializer serializer = new ControllerMetadataSerializer(tableName, key);
         TableSegmentEntry entry = getTableEntry(tableName, key, segmentStoreHost, adminSegmentHelper);
         if (entry == null) {

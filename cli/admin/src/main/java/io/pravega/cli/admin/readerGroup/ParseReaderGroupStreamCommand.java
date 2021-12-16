@@ -48,6 +48,9 @@ import java.util.concurrent.TimeUnit;
 import static io.pravega.cli.admin.utils.FileHelper.readAndWriteSegmentToFile;
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Executes a ParseReaderGroupStream request against the chosen Segment Store instance.
+ */
 public class ParseReaderGroupStreamCommand extends AdminCommand {
 
     private final static int HEADER = WireCommands.TYPE_SIZE;
@@ -56,6 +59,11 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
     private final static int REQUEST_TIMEOUT_SECONDS = 10;
     private final GrpcAuthHelper authHelper;
 
+    /**
+     * Creates new instance of the ParseReaderGroupStreamCommand.
+     *
+     * @param args The arguments for the command.
+     */
     public ParseReaderGroupStreamCommand(CommandArgs args) {
         super(args);
         authHelper = new GrpcAuthHelper(true, "secret", 600);
