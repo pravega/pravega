@@ -1994,7 +1994,7 @@ public class StreamMetadataTasks extends TaskBase {
                         WireCommandFailedException wcfe = (WireCommandFailedException) ex;
                         if (WireCommandFailedException.Reason.SegmentDoesNotExist.equals(wcfe.getReason())) {
                             final String qualifiedSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentNumber);
-                            String message = String.format("Segment Merge failed as source segment [%s] was not found.", qualifiedSegmentName);
+                            String message = String.format("Segment Merge failed as target segment [%s] was not found.", qualifiedSegmentName);
                             throw new IllegalStateException(message);
                         }
                     }

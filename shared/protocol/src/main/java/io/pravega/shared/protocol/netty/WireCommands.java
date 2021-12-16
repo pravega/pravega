@@ -1533,7 +1533,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.segmentsMergedBatch(this);
+            cp.segmentsBatchMerged(this);
         }
 
         @Override

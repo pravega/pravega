@@ -426,8 +426,27 @@ public class PravegaRequestProcessorTest {
         // create stream segment
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        // create txn segment
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        // write to txn segment
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
+        order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
 
-        // Repeat with multiple txn segments
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), ImmutableList.of(2L)));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), ImmutableList.of(2L)));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+
+        //Segment Merge with multiple txns
         UUID txnid1 = UUID.randomUUID();
         UUID txnid2 = UUID.randomUUID();
         UUID txnid3 = UUID.randomUUID();
@@ -463,7 +482,7 @@ public class PravegaRequestProcessorTest {
 
         List<String> txnSegmentNames = ImmutableList.of(transaction1SegmentName, transaction2SegmentName, transaction3SegmentName);
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, txnSegmentNames, ""));
-        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(2L, 5L, 9L)));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, txnSegmentNames, ImmutableList.of(4L, 7L, 11L)));
 
         // verify that txn segments are merged and so do not exist any more
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transaction1SegmentName, ""));
@@ -502,7 +521,7 @@ public class PravegaRequestProcessorTest {
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ""));
-        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(11L)));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionSegmentName), ImmutableList.of(13L)));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionSegmentName, ""));
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
