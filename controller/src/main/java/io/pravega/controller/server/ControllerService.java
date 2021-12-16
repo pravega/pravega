@@ -938,7 +938,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+    public static void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
         if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
         } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
@@ -990,7 +990,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, 
+    public static void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status,
                                                 Duration latency) {
         if (status.equals(DeleteReaderGroupStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
@@ -1017,7 +1017,7 @@ public class ControllerService {
         }
     }
 
-    private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+    public static void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().sealStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
@@ -1025,7 +1025,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
+    public static void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
         if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteStream(scope, streamName, latency);
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {

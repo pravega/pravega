@@ -22,10 +22,12 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -37,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -99,15 +102,16 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
     }
 
     public CompletableFuture<Void> deleteScopeContent(String scopeName, OperationContext context, long requestId) {
-        List<String> readerGroupList = new ArrayList<>();
+        Map<String, String> readerGroupMap = new HashMap<>();
         Iterator<Stream> iterator = listStreams(scopeName, context).asIterator();
 
         // Seal and delete streams and add entry to RGList
         while (iterator.hasNext()) {
             Stream stream = iterator.next();
+            Timer timer = new Timer();
             if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
-                readerGroupList.add(stream.getStreamName().substring(
-                        READER_GROUP_STREAM_PREFIX.length()));
+                readerGroupMap.put(stream.getStreamName().substring(
+                        READER_GROUP_STREAM_PREFIX.length()), stream.getStreamName());
             }
             log.debug("Processing seal and delete stream for Stream {}", stream);
             Futures.getThrowingException(Futures.exceptionallyExpecting(streamMetadataTasks.sealStream(scopeName, stream.getStreamName(), requestId),
@@ -117,15 +121,26 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                         // ignore failures if the stream doesn't exist or we are unable to seal it.
                         return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
                     }, Controller.UpdateStreamStatus.Status.STREAM_NOT_FOUND)
-                    .thenCompose(sealed -> streamMetadataTasks.deleteStream(stream.getScope(), stream.getStreamName(), requestId)));
+                    .thenCompose(sealed -> {
+                        ControllerService.reportSealStreamMetrics(scopeName, stream.getStreamName(), sealed, timer.getElapsed());
+                        return CompletableFuture.completedFuture(null);
+                    }).thenCompose(x -> streamMetadataTasks.deleteStream(stream.getScope(), stream.getStreamName(), requestId)
+                            .thenCompose(status -> {
+                                ControllerService.reportDeleteStreamMetrics(scopeName, stream.getStreamName(), status, timer.getElapsed());
+                                return CompletableFuture.completedFuture(null);
+                            })));
         }
 
         // Delete ReaderGroups
-        for (String rgName: readerGroupList) {
-            log.debug("Processing delete ReaderGroup for {}", rgName);
-            Futures.getThrowingException(streamMetadataTasks.getReaderGroupConfig(scopeName, rgName, requestId)
-                    .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgName,
-                            conf.getConfig().getReaderGroupId(), requestId)));
+        for (Map.Entry<String,String> rgMapEntry: readerGroupMap.entrySet()) {
+            log.debug("Processing delete ReaderGroup for {}", rgMapEntry.getKey());
+            Timer timer = new Timer();
+            Futures.getThrowingException(streamMetadataTasks.getReaderGroupConfig(scopeName, rgMapEntry.getKey(), requestId)
+                    .thenCompose(conf -> streamMetadataTasks.deleteReaderGroup(scopeName, rgMapEntry.getKey(),
+                            conf.getConfig().getReaderGroupId(), requestId).thenCompose(status -> {
+                                ControllerService.reportDeleteReaderGroupMetrics(scopeName, rgMapEntry.getValue(), status, timer.getElapsed());
+                        return CompletableFuture.completedFuture(null);
+                    })));
         }
         // Delete KVTs
         Iterator<KeyValueTableInfo> kvtIterator = listKVTs(scopeName, requestId, context).asIterator();
