@@ -117,6 +117,8 @@ public enum WireCommandType {
     READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
+    MERGE_SEGMENTS_BATCH(90, WireCommands.MergeSegmentsBatch::readFrom),
+    SEGMENTS_BATCH_MERGED(91, WireCommands.SegmentsBatchMerged::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
