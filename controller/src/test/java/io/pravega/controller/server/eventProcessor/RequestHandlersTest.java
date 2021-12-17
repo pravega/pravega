@@ -184,6 +184,7 @@ public abstract class RequestHandlersTest {
     }
 
     abstract StreamMetadataStore getStore();
+
     abstract KVTableMetadataStore getKvtStore();
 
     @After
@@ -792,6 +793,7 @@ public abstract class RequestHandlersTest {
             public long getOperationStartTime() {
                 return 0;
             }
+
             @Override
             public long getRequestId() {
                 return 0;
