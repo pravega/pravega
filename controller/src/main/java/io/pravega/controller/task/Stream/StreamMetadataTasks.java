@@ -737,8 +737,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                                               final long requestId) {
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.isScopeSealed(scope, context, executor)
-                .thenCompose(exists -> {
-                    if (exists) {
+                .thenCompose(sealed -> {
+                    if (sealed) {
                         log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
                         return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
                     } else {

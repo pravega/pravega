@@ -729,11 +729,18 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test
-    public void deleteScopeRecursiveTest() throws InterruptedException {
+    public void deleteScopeRecursiveTest() {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        StreamMetadataStore storeSpy = spy(getStore());
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(SCOPE, 2L, UUID.randomUUID());
         requestEventWriter.writeEvent(deleteScopeEvent);
+        doAnswer(x -> {
+            CompletableFuture<Boolean> future = new CompletableFuture<>();
+            future.complete(true);
+            return future;
+        }).when(spy(storeSpy)).isScopeSealed(SCOPE, null, executor);
+        consumer.deleteScopeRecursive(SCOPE, 123L);
     }
 
     private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
