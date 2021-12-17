@@ -180,6 +180,11 @@ public class ChunkedSegmentStorageConfigTests {
         testNonFailingValue(name, "1");
     }
 
+    /**
+     * Testing for which particular value does the test throw exception
+     * @param name The name of the property
+     * @param value The value associated with the property
+     */
     private void testValueThrowsException(String name, String value) {
         Properties props = new Properties();
         props.setProperty(name, value);
@@ -191,6 +196,11 @@ public class ChunkedSegmentStorageConfigTests {
                 ex -> ex instanceof ConfigurationException);
     }
 
+    /**
+     * Testing if the value of the property passes the test for particular values without any failure
+     * @param name The name of the property
+     * @param value The value associated with the property
+     */
     private void testNonFailingValue(String name, String value) {
         Properties props = new Properties();
         props.setProperty(name, value);
