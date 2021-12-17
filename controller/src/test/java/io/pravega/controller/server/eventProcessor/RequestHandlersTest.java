@@ -798,7 +798,7 @@ public abstract class RequestHandlersTest {
         UUID scopeId = streamStore.getScopeId(scopeName, context, executor).get();
 
         // Add entry to Deleting_Scopes_Table
-        streamStore.addEntryToDeletingScopesTable(scopeName, context, executor).join();
+        streamStore.sealScope(scopeName, context, executor).join();
     }
 
     @Test

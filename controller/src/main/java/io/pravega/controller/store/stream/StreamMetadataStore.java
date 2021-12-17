@@ -128,7 +128,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return true if scope exists, false otherwise
      */
-    CompletableFuture<Boolean> checkScopeSealed(final String scopeName, OperationContext context, Executor executor);
+    CompletableFuture<Boolean> isScopeSealed(final String scopeName, OperationContext context, Executor executor);
 
     /**
      * Api to get creation time for the stream. 
@@ -1624,5 +1624,5 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<UUID> getScopeId(final String scopeName, OperationContext context, Executor executor);
 
-    CompletableFuture<Void> addEntryToDeletingScopesTable(String scope, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<Void> sealScope(String scope, OperationContext context, ScheduledExecutorService executor);
 }

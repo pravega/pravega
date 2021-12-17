@@ -734,7 +734,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<DeleteScopeStatus.Status> deleteScopeRecursive(final String scope,
                                                                               final long requestId) {
         final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkScopeSealed(scope, context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.isScopeSealed(scope, context, executor)
                 .thenCompose(exists -> {
                     if (exists) {
                         log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
@@ -742,12 +742,12 @@ public class StreamMetadataTasks extends TaskBase {
                     } else {
                         return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose(scopeExist -> {
                             if (!scopeExist) {
-                                log.info(requestId, "Requested Scope {} Doesn't exist", scope);
+                                log.info(requestId, "Requested Scope {} doesn't exist", scope);
                                 return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
                             }
                             return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(scopeId -> {
                                 DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId, scopeId);
-                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.addEntryToDeletingScopesTable(scope, context, executor))
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.sealScope(scope, context, executor))
                                         .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
                                         .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
                             });
@@ -1650,7 +1650,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Boolean> isScopeDeletionComplete(String scope, OperationContext context) {
         // The last step of Recursive Delete Scope is to remove entry of scope from Deleting_Scopes_Table
         // Method will return true if the entry is removed from Scopes Table
-        return streamMetadataStore.checkScopeSealed(scope, context, executor)
+        return streamMetadataStore.isScopeSealed(scope, context, executor)
                 .thenApply(x -> !x);
     }
 
@@ -1780,7 +1780,7 @@ public class StreamMetadataTasks extends TaskBase {
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config,
                                                                   long timestamp, OperationContext context) {
         long requestId = getRequestId(context);
-        return this.streamMetadataStore.checkScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
+        return this.streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
            if (scopeSealed) {
                log.warn(requestId, "Create stream failed due to scope in sealed state");
                return CompletableFuture.completedFuture(CreateStreamStatus.Status.SCOPE_NOT_FOUND);

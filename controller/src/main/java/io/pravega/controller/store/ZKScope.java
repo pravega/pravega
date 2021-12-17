@@ -373,7 +373,7 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
+    public CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context) {
         return getScopeInDeletingTable(scopeName).thenCompose(store::checkExists);
     }
 

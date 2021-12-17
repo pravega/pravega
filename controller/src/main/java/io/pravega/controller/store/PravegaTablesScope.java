@@ -141,7 +141,12 @@ public class PravegaTablesScope implements Scope {
                             } else {
                                 throw new CompletionException(e);
                             }
-                        });
+                        }).thenCompose(v -> {
+                            if (scopeName.equals(INTERNAL_SCOPE_NAME)) {
+                                return storeHelper.createTable(DELETING_SCOPES_TABLE, context.getRequestId());
+                            }
+                            return CompletableFuture.completedFuture(null);
+        });
     }
 
     public CompletableFuture<String> getStreamsInScopeTableName(OperationContext context) {
@@ -328,10 +333,8 @@ public class PravegaTablesScope implements Scope {
                                                 tableName, context)));
     }
 
-    public CompletableFuture<Void> addEntryToDeletingTable(String scope, OperationContext context) {
-        return Futures.toVoid(getId(context).thenApply(id ->
-                withCreateTableIfAbsent(() -> storeHelper.addNewEntry(
-                        DELETING_SCOPES_TABLE, scope, id, UUID_TO_BYTES_FUNCTION, context.getRequestId()), DELETING_SCOPES_TABLE, context)));
+    public CompletableFuture<Void> sealScope(String scope, OperationContext context) {
+        return getId(context).thenCompose(id -> Futures.toVoid(storeHelper.addNewEntry(DELETING_SCOPES_TABLE, scope, id, UUID_TO_BYTES_FUNCTION, context.getRequestId())));
     }
 
     /**
@@ -423,7 +426,7 @@ public class PravegaTablesScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
+    public CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(DELETING_SCOPES_TABLE, scopeName, x -> x, context.getRequestId()).thenApply(v -> true),

@@ -293,7 +293,6 @@ public class ScopeTest {
     }
 
     @Test
-    @Ignore
     public void testDeleteScopeRecursive() throws Exception {
         final String scope = "testDeleteScope";
         final String testFalseScope = "falseScope";

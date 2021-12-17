@@ -39,7 +39,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
@@ -133,11 +132,9 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInSealedState(String scope, OperationContext context, Executor executor) {
-        long requestId = getOperationContext(context).getRequestId();
-        return Futures.completeOn(storeHelper.expectingDataNotFound(
-                storeHelper.getEntry(DELETING_SCOPES_TABLE, scope, x -> x, requestId).thenApply(v -> true),
-                false), executor);
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope, context)).isScopeSealed(scope, context), executor);
     }
 
     @Override

@@ -84,7 +84,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                 log.debug(requestId, "Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
-                return kvtMetadataStore.checkScopeInSealedState(scope, context, executor).thenCompose(isScopeSealed -> {
+                return kvtMetadataStore.isScopeSealed(scope, context, executor).thenCompose(isScopeSealed -> {
                     if (isScopeSealed) {
                         log.warn(requestId, "Scope {} is in sealed state: ", scope);
                         throw new IllegalStateException("Scope in sealed state: " + scope);

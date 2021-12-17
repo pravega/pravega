@@ -110,7 +110,7 @@ public interface Scope {
 
     CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context);
 
-    CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context);
+    CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context);
 
     CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context);
 

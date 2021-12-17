@@ -138,7 +138,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeSealed(String scope, OperationContext context, Executor executor) {
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext context, Executor executor) {
         String scopePath = ZKPaths.makePath(SCOPE_DELETE_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
@@ -217,7 +217,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    public CompletableFuture<Void> addEntryToDeletingScopesTable(String scope, OperationContext context, ScheduledExecutorService executor) {
+    public CompletableFuture<Void> sealScope(String scope, OperationContext context, ScheduledExecutorService executor) {
         throw new UnsupportedOperationException();
     }
 

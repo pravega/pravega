@@ -274,7 +274,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         OperationContext context = getOperationContext(ctx);
 
         Scope scope = getScope(scopeName, context);
-        return Futures.completeOn(scope.checkScopeInSealedState(scopeName, context).thenCompose(isScopeSealed -> {
+        return Futures.completeOn(scope.isScopeSealed(scopeName, context).thenCompose(isScopeSealed -> {
             if (isScopeSealed) {
                 return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().
                         setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build());

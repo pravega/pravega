@@ -93,7 +93,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
                 log.warn("UUID {} of scope doesn't match with requested scope's UUID {} ", id, scopeId);
                 return CompletableFuture.completedFuture(null);
             }
-            return streamMetadataStore.checkScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
+            return streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
                 if (scopeSealed) {
                     return deleteScopeContent(scope, context, requestId);
                 } else {

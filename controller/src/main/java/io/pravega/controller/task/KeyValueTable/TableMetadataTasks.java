@@ -128,7 +128,7 @@ public class TableMetadataTasks implements AutoCloseable {
                         if (!exists) {
                             return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
                         }
-                        return kvtMetadataStore.checkScopeInSealedState(scope, context, executor).thenCompose(isScopeSealed -> {
+                        return kvtMetadataStore.isScopeSealed(scope, context, executor).thenCompose(isScopeSealed -> {
                             if (isScopeSealed) {
                                 return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
                             }

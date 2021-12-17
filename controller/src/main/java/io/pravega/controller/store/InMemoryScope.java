@@ -202,7 +202,7 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeInSealedState(String scopeName, OperationContext context) {
+    public CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context) {
         return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for In Memory Scope"));
     }
 
