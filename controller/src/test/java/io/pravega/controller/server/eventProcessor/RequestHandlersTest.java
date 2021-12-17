@@ -61,13 +61,13 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -94,7 +94,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -108,6 +107,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -173,7 +173,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        kvtStore = mock(KVTableMetadataStore.class);
+        kvtStore = spy(getKvtStore());
         kvtTasks = mock(TableMetadataTasks.class);
         long createTimestamp = System.currentTimeMillis();
 
@@ -184,6 +184,8 @@ public abstract class RequestHandlersTest {
     }
 
     abstract StreamMetadataStore getStore();
+
+    abstract KVTableMetadataStore getKvtStore();
 
     @After
     public void tearDown() throws Exception {
@@ -783,22 +785,38 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void testDeleteScopeRecursive() throws ExecutionException, InterruptedException {
-        final String scopeName = "deleteScope";
-        final String testScopeName = "testScope";
+    public void testDeleteScopeRecursive() {
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
+        OperationContext ctx = new OperationContext() {
+            @Override
+            public long getOperationStartTime() {
+                return 0;
+            }
 
-        OperationContext context = streamStore.createScopeContext(scopeName, 123L);
-        // Create a scope
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS,
-                streamStore.createScope(scopeName, context, executor).join().getStatus());
-        // Verify that the scope is created
-        assertTrue(streamStore.checkScopeExists(scopeName, context, executor).join());
-        assertFalse(streamStore.checkScopeExists(testScopeName, context, executor).join());
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+        };
+        UUID scopeId = streamStoreSpied.getScopeId(scope, ctx, executor).join();
+        doAnswer(x -> {
+            CompletableFuture<UUID> cf = new CompletableFuture<>();
+            cf.complete(scopeId);
+            return cf;
+        }).when(streamStoreSpied).getScopeId(eq(scope), eq(ctx), eq(executor));
 
-        UUID scopeId = streamStore.getScopeId(scopeName, context, executor).get();
+        doAnswer(invocation -> {
+            CompletableFuture<Boolean> cf = new CompletableFuture<>();
+            cf.complete(true);
+            return cf;
+        }).when(streamStoreSpied).isScopeSealed(eq(scope), any(), any());
 
-        // Add entry to Deleting_Scopes_Table
-        streamStore.sealScope(scopeName, context, executor).join();
+        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
+        DeleteScopeEvent event = new DeleteScopeEvent(scope, System.currentTimeMillis(), scopeId);
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        future.join();
     }
 
     @Test

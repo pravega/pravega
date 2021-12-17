@@ -62,6 +62,7 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -927,6 +928,12 @@ public abstract class StreamMetadataTasksTest {
         truncateStreamTask.execute(event).join();
 
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
+        doReturn(CompletableFuture.completedFuture(true)).when(streamStorePartialMock).isScopeSealed(
+                anyString(), any(), any());
+        CompletableFuture<CreateStreamResponse> streamResponse = streamStorePartialMock
+                .createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor);
+        CreateStreamResponse.CreateStatus s = streamResponse.get().getStatus();
+        assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, streamResponse.get().getStatus());
     }
 
     @Test(timeout = 30000)
