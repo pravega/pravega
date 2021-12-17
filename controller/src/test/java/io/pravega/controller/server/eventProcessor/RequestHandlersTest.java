@@ -787,7 +787,7 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void testDeleteScopeRecursive() {
+    public void testDeleteScopeRecursiveWithoutStream() {
         StreamMetadataStore streamStoreSpied = spy(getStore());
         KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
         OperationContext ctx = new OperationContext() {
