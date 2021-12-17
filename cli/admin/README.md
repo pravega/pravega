@@ -115,6 +115,7 @@ All available commands:
 	data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
 	data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
 	password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
+	readerGroup parse-rg-stream <scope> <reader-group-name> <segmentstore-endpoint> <file-name>: Parse ReaderGroup Stream into a file
 	segmentstore get-segment-attribute <qualified-segment-name> <attribute-id> <segmentstore-endpoint>: Gets an attribute for a Segment.
 	segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
 	segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
