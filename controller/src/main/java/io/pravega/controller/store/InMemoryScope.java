@@ -87,13 +87,6 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
-        this.sortedStreamsInScope.clear();
-        this.sortedStreamsInScope = null;
-        this.streamsPositionMap.clear();
-        this.streamsPositionMap = null;
-
-        this.kvTablesMap.clear();
-        this.readerGroupsMap.clear();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -208,7 +201,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
-        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for ZK scope"));
+        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for In Memory Scope"));
     }
 
     @Synchronized

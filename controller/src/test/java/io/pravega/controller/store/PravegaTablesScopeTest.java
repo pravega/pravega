@@ -95,5 +95,7 @@ public class PravegaTablesScopeTest extends ThreadPooledTestSuite {
         verify(tablesScope, times(1)).getReaderGroupsInScopeTableName(context);
         verify(tablesScope, times(1)).getKVTablesInScopeTableName(context);
         verify(tablesScope, times(1)).getAllStreamTagsInScopeTableNames(context);
+        tablesScope.addEntryToDeletingTable(scope, context);
+        verify(tablesScope, times(5)).getId(context);
     }
 }
