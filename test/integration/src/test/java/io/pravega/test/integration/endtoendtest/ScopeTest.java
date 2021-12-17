@@ -317,9 +317,11 @@ public class ScopeTest {
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
 
+        // Create scope
         controllerWrapper.getControllerService().createScope(scope, 0L).get();
         assertTrue(controller.checkScopeExists(scope).get());
 
+        // Create streams
         assertTrue(controller.createStream(scope, streamName1, config).get());
         assertTrue(controller.createStream(scope, streamName2, config).get());
         assertTrue(controller.createStream(scope, streamName3, config).get());
@@ -334,10 +336,12 @@ public class ScopeTest {
         // 1. Call deleteScopeRecursive() without creating a scope
         assertTrue(streamManager.deleteScopeRecursive(testFalseScope));
 
+        // Create KVT under the scope
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         assertTrue(keyValueTableManager.createKeyValueTable(scope, kvtName1, kvtConfig));
         assertTrue(keyValueTableManager.createKeyValueTable(scope, kvtName2, kvtConfig));
 
+        // Create RG under the same scope
         assertTrue(readerGroupManager.createReaderGroup(groupName1, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName1)).build()));
         assertTrue(readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()

@@ -62,6 +62,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -758,9 +759,9 @@ public abstract class RequestHandlersTest {
     @Test
     public void testDeleteAssociatedStream() {
         String stream = "deleteAssociated";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
         String markStream = NameUtils.getMarkStreamForStream(stream);
-        createStreamInStore(markStream);
+        createStreamInStore(markStream, scope);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
         DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
@@ -787,7 +788,7 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void testDeleteScopeRecursiveWithoutStream() {
+    public void testDeleteScopeRecursive() {
         StreamMetadataStore streamStoreSpied = spy(getStore());
         KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
         OperationContext ctx = new OperationContext() {
@@ -810,7 +811,7 @@ public abstract class RequestHandlersTest {
 
         doAnswer(invocation -> {
             CompletableFuture<Boolean> cf = new CompletableFuture<>();
-            cf.complete(true);
+            cf.complete(false);
             return cf;
         }).when(streamStoreSpied).isScopeSealed(eq(scope), any(), any());
 
@@ -822,9 +823,62 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
+    public void scopeDeleteTest() {
+        String testScope = "testScope";
+        String testStream = "testStream";
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
+        StreamMetadataTasks streamMetadataTasks1 = mock(StreamMetadataTasks.class);
+        streamStoreSpied.createScope(testScope, null, executor).join();
+        OperationContext ctx = new OperationContext() {
+            @Override
+            public long getOperationStartTime() {
+                return 0;
+            }
+
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+        };
+        UUID scopeId = streamStoreSpied.getScopeId(testScope, ctx, executor).join();
+        doAnswer(x -> {
+            CompletableFuture<UUID> cf = new CompletableFuture<>();
+            cf.complete(scopeId);
+            return cf;
+        }).when(streamStoreSpied).getScopeId(eq(testScope), eq(ctx), eq(executor));
+
+        doAnswer(invocation -> {
+            CompletableFuture<Boolean> cf = new CompletableFuture<>();
+            cf.complete(true);
+            return cf;
+        }).when(streamStoreSpied).isScopeSealed(eq(testScope), any(), any());
+
+        createStreamInStore(testStream, testScope);
+
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.UpdateStreamStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.UpdateStreamStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).sealStream(testScope, testStream, 123L);
+
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.DeleteStreamStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteStreamStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).deleteStream(testScope, testStream, 123L);
+
+        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
+        DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        future.join();
+    }
+
+    @Test
     public void testDeleteBucketReferences() {
         String stream = "deleteReferences";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
         String scopedStreamName = NameUtils.getScopedStreamName(scope, stream);
         int watermarkingBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.WatermarkingService);
         int retentionBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.RetentionService);
@@ -866,7 +920,7 @@ public abstract class RequestHandlersTest {
     @Test
     public void testDeleteStreamReplay() {
         String stream = "delete";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
         DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
@@ -884,7 +938,7 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(firstDeleteEvent).join();
 
         // recreate stream with same name in the store
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
 
         long newCreationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
 
@@ -905,12 +959,12 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(secondDeleteEvent).join();
     }
 
-    private void createStreamInStore(String stream) {
+    private void createStreamInStore(String stream, String scopeName) {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
 
-        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
-        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.createStream(scopeName, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scopeName, stream, State.ACTIVE, null, executor).join();
     }
 
     @Test

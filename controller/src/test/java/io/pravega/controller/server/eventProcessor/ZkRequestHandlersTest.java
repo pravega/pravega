@@ -40,7 +40,12 @@ public class ZkRequestHandlersTest extends RequestHandlersTest {
     }
 
     @Override
-    public void testDeleteScopeRecursiveWithoutStream() {
+    public void testDeleteScopeRecursive() {
+        // no op
+    }
+
+    @Override
+    public void scopeDeleteTest() {
         // no op
     }
 

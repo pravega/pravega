@@ -97,6 +97,7 @@ import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -159,6 +160,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public abstract class StreamMetadataTasksTest {
 
@@ -725,6 +728,14 @@ public abstract class StreamMetadataTasksTest {
         DeleteReaderGroupEvent badDeleteEvent = new DeleteReaderGroupEvent(SCOPE, "rg3", 1L, UUID.randomUUID());
         requestEventWriter.writeEvent(badDeleteEvent);
         AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+    }
+
+    @Test
+    public void deleteScopeRecursiveTest() throws InterruptedException {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(SCOPE, 2L, UUID.randomUUID());
+        requestEventWriter.writeEvent(deleteScopeEvent);
     }
 
     private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
