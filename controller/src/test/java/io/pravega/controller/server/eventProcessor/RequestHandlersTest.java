@@ -20,8 +20,10 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -867,6 +869,14 @@ public abstract class RequestHandlersTest {
             future.complete(Controller.DeleteStreamStatus.Status.SUCCESS);
             return future;
         }).when(streamMetadataTasks1).deleteStream(testScope, testStream, 123L);
+
+        ReaderGroupConfig config1 = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(testScope, testStream))
+                .build();
+        streamMetadataTasks.createReaderGroup(testScope, "rgTest", config1, System.currentTimeMillis(), 123L);
+
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
+        kvtTasks.createKeyValueTable(scope, "testKVT", kvtConfig, System.currentTimeMillis(), 123L);
 
         DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);

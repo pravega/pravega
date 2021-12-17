@@ -3007,6 +3007,15 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // no event should be posted for any other failure
         assertTrue(requestEventWriter.eventQueue.isEmpty());
+
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent("testScope", 123L, UUID.randomUUID());
+        assertEquals("testScope", deleteScopeEvent.getKey());
+        AssertExtensions.assertFutureThrows("throw write conflict", streamMetadataTasks.addIndexAndSubmitTask(deleteScopeEvent,
+                        () -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), deleteScopeEvent);
     }
     
     @Test(timeout = 30000)
