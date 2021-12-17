@@ -32,6 +32,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
@@ -73,6 +74,7 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -1069,11 +1071,40 @@ public abstract class RequestHandlersTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
-    
+
+    @Test(timeout = 10000)
+    public void testCommitFailureOnNoSuchSegment() {
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        String noSuchSegment = "noSuchSegment";
+        streamStore.createScope(noSuchSegment, null, executor).join();
+        streamMetadataTasks.createStream(noSuchSegment, noSuchSegment, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), 0L).join();
+
+        UUID txn = streamTransactionMetadataTasks.createTxn(noSuchSegment, noSuchSegment, 30000, 0L, 1024 * 1024L).join().getKey().getId();
+        streamStore.sealTransaction(noSuchSegment, noSuchSegment, txn, true, Optional.empty(), "", Long.MIN_VALUE,
+                null, executor).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new WireCommandFailedException(WireCommandType.NO_SUCH_SEGMENT, WireCommandFailedException.Reason.SegmentDoesNotExist)))
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
+                        anyString(), anyLong());
+
+        streamStore.startCommitTransactions(noSuchSegment, noSuchSegment, 100, null, executor).join();
+        streamStore.setState(noSuchSegment, noSuchSegment, State.COMMITTING_TXN, null, executor).join();
+
+        assertEquals(State.COMMITTING_TXN, streamStore.getState(noSuchSegment, noSuchSegment, true, null, executor).join());
+
+        CommitEvent event = new CommitEvent(noSuchSegment, noSuchSegment, 0);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+
+        verify(segmentHelper, atLeastOnce()).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
+                anyString(), anyLong());
+    }
+
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, 
-                streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
@@ -1085,7 +1116,7 @@ public abstract class RequestHandlersTest {
         
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         streamStore.startCommitTransactions(fairness, fairness, 100, null, executor).join();
@@ -1096,10 +1127,9 @@ public abstract class RequestHandlersTest {
         assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
-        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+        verify(segmentHelper, atLeastOnce()).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 3. set waiting processor to "random name"
@@ -1107,7 +1137,7 @@ public abstract class RequestHandlersTest {
         
         // 4. reset segment helper to return success
         doAnswer(x -> CompletableFuture.completedFuture(0L))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
