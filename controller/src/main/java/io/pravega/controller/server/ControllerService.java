@@ -1046,7 +1046,7 @@ public class ControllerService {
         if (status.equals(DeleteScopeStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteScope(latency);
         } else if (status.equals(DeleteScopeStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().deleteScopeFailed(scope);
+            StreamMetrics.getInstance().deleteScopeRecursiveFailed(scope);
         }
     }
 
