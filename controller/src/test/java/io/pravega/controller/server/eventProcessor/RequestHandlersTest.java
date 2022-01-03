@@ -890,7 +890,7 @@ public abstract class RequestHandlersTest {
 
         // Create KVT
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
-        kvtTasks.createKeyValueTable(scope, "kvtTest", kvtConfig, System.currentTimeMillis(), 123L);
+        kvtTasks.createKeyValueTable(scope, "testKVT", kvtConfig, System.currentTimeMillis(), 123L);
 
         DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
