@@ -870,13 +870,27 @@ public abstract class RequestHandlersTest {
             return future;
         }).when(streamMetadataTasks1).deleteStream(testScope, testStream, 123L);
 
+        // Create Reader Group
         ReaderGroupConfig config1 = ReaderGroupConfig.builder()
                 .stream(NameUtils.getScopedStreamName(testScope, testStream))
                 .build();
-        streamMetadataTasks.createReaderGroup(testScope, "rgTest", config1, System.currentTimeMillis(), 123L);
+        streamMetadataTasks.createReaderGroup(testScope, testStream, config1, System.currentTimeMillis(), 123L);
 
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.ReaderGroupConfigResponse.Status> future = new CompletableFuture<>();
+            future.complete(Controller.ReaderGroupConfigResponse.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).getReaderGroupConfig(testScope, testStream, 123L);
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.DeleteReaderGroupStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteReaderGroupStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).deleteReaderGroup(testScope, testStream, testStream, 123L);
+
+        // Create KVT
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
-        kvtTasks.createKeyValueTable(scope, "testKVT", kvtConfig, System.currentTimeMillis(), 123L);
+        kvtTasks.createKeyValueTable(scope, "kvtTest", kvtConfig, System.currentTimeMillis(), 123L);
 
         DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
