@@ -749,7 +749,8 @@ public class StreamMetadataTasks extends TaskBase {
                             }
                             return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(scopeId -> {
                                 DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId, scopeId);
-                                return eventHelper.addIndexAndSubmitTask(deleteEvent, () -> streamMetadataStore.sealScope(scope, context, executor))
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                                () -> streamMetadataStore.sealScope(scope, context, executor))
                                         .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
                                         .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
                             });

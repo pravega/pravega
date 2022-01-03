@@ -732,6 +732,11 @@ public abstract class StreamMetadataTasksTest {
     public void deleteScopeRecursiveTest() {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         StreamMetadataStore storeSpy = spy(getStore());
+        final String testDeleteScope = "testDelete";
+        // Call deleteScopeRecursive() without creating a scope
+        Controller.DeleteScopeStatus.Status status = streamMetadataTasks.deleteScopeRecursive(testDeleteScope, 123L).join();
+        assertEquals(status, Controller.DeleteScopeStatus.Status.SUCCESS);
+        streamStorePartialMock.createScope(testDeleteScope, null, executor).join();
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(SCOPE, 2L, UUID.randomUUID());
         requestEventWriter.writeEvent(deleteScopeEvent);
@@ -739,8 +744,13 @@ public abstract class StreamMetadataTasksTest {
             CompletableFuture<Boolean> future = new CompletableFuture<>();
             future.complete(true);
             return future;
-        }).when(spy(storeSpy)).isScopeSealed(SCOPE, null, executor);
-        consumer.deleteScopeRecursive(SCOPE, 123L);
+        }).when(spy(storeSpy)).isScopeSealed(testDeleteScope, null, executor);
+        doAnswer(x -> {
+            CompletableFuture<UUID> future = new CompletableFuture<>();
+            future.complete(UUID.randomUUID());
+            return future;
+        }).when(spy(storeSpy)).getScopeId(testDeleteScope, null, executor);
+        consumer.deleteScopeRecursive(SCOPE, 123L).join();
     }
 
     private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
@@ -2618,7 +2628,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
         // delete after seal
-        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, 
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream,
                 0L);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 

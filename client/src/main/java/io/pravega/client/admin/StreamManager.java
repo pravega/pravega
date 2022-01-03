@@ -193,9 +193,8 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * Deletes scope by listing and deleting all streams/RGs/KVTs in scope.
-     * This method is atomic and new streams/RGs/KVTs can not be added/updated if this
-     * method is called. Deleting scope is idempotent and failure to
-     * delete scope is retry-able.
+     * New streams/RGs/KVTs can not be added to the scope if this
+     * method is called.
      *
      * @param scopeName  The name of the scope to delete.
      * @return True if scope is deleted, false otherwise.
