@@ -300,7 +300,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<Void> sealScope(final String scopeName, OperationContext ctx, ScheduledExecutorService executor) {
         return CompletableFuture.completedFuture(null);
-    }q
+    }
 
     // endregion
 
