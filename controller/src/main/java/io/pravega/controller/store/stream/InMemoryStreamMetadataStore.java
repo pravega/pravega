@@ -299,18 +299,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Void> sealScope(final String scopeName, OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        if (!deletingScopes.containsKey(scopeName)) {
-            InMemoryScope scope = (InMemoryScope) getScope(scopeName, context);
-            return scope.createScope(context)
-                    .thenApply(x -> {
-                        deletingScopes.put(scopeName, scope);
-                        orderedScopes.put(scopeName, position.incrementAndGet());
-                        return x;
-                    });
-        }
         return CompletableFuture.completedFuture(null);
-    }
+    }q
 
     // endregion
 
