@@ -81,6 +81,8 @@ import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -92,6 +94,7 @@ import org.junit.Test;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -827,13 +830,14 @@ public abstract class RequestHandlersTest {
 
     @Test
     public void scopeDeleteTest() {
-        String testScope = "testScope";
-        String testStream = "testStream";
-        String testRG = "_RGTestRG";
+        final String testScope = "testScope";
+        final String testStream = "testStream";
+        final String testRG = "_RGTestRG";
+        final String testKVT = "testKVT";
         StreamMetadataStore streamStoreSpied = spy(getStore());
         KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
         StreamMetadataTasks streamMetadataTasks1 = mock(StreamMetadataTasks.class);
-        TableMetadataTasks kvtTaks = mock(TableMetadataTasks.class);
+        TableMetadataTasks kvtTasksMocked = mock(TableMetadataTasks.class);
         streamStoreSpied.createScope(testScope, null, executor).join();
         OperationContext ctx = new OperationContext() {
             @Override
@@ -907,12 +911,28 @@ public abstract class RequestHandlersTest {
             CompletableFuture<Controller.CreateKeyValueTableStatus.Status> fut = new CompletableFuture<>();
             fut.complete(Controller.CreateKeyValueTableStatus.Status.SUCCESS);
             return fut;
-        }).when(kvtTaks).createKeyValueTable(anyString(), anyString(), any(), anyLong(), anyLong());
-        Controller.CreateKeyValueTableStatus.Status status = kvtTaks.createKeyValueTable(testScope,
-                "testKVT", kvtConfig, System.currentTimeMillis(), 123L).join();
+        }).when(kvtTasksMocked).createKeyValueTable(anyString(), anyString(), any(), anyLong(), anyLong());
+        List<String> tableList = new ArrayList<>();
+        tableList.add(testKVT);
+        Pair<List<String>, String> listOfKVTables = new ImmutablePair<>(tableList, "");
+
+        doAnswer(invocationOnMock -> CompletableFuture.completedFuture(listOfKVTables))
+                .doAnswer(invocationOnMock ->
+                        CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(),
+                                invocationOnMock.getArgument(0))))
+                .when(kvtStoreSpied).listKeyValueTables(anyString(), any(), anyInt(), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.DeleteKVTableStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteKVTableStatus.Status.SUCCESS);
+            return future;
+        }).when(kvtTasksMocked).deleteKeyValueTable(anyString(), anyString(), anyLong());
+
+        Controller.CreateKeyValueTableStatus.Status status = kvtTasksMocked.createKeyValueTable(testScope,
+                testKVT, kvtConfig, System.currentTimeMillis(), 123L).join();
         assertEquals(status, Controller.CreateKeyValueTableStatus.Status.SUCCESS);
 
-        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
+        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasksMocked, executor);
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
