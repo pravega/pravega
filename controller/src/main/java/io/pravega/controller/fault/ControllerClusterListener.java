@@ -23,7 +23,11 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.health.ClusterListenerHealthContributor;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -45,13 +49,15 @@ import java.util.stream.Collectors;
  *
  */
 @Slf4j
-public class ControllerClusterListener extends AbstractIdleService {
+public class ControllerClusterListener extends AbstractIdleService implements HealthConnector {
 
     private final String objectId;
     private final Host host;
     private final Cluster cluster;
     private final ScheduledExecutorService executor;
     private final List<FailoverSweeper> sweepers;
+    @Getter
+    private final HealthContributor contributor;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final ScheduledExecutorService executor, final List<FailoverSweeper> sweepers) {
@@ -65,6 +71,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.cluster = cluster;
         this.executor = executor;
         this.sweepers = Lists.newArrayList(sweepers);
+        this.contributor = new ClusterListenerHealthContributor("ClusterListener", this);
     }
 
     /**
@@ -183,6 +190,7 @@ public class ControllerClusterListener extends AbstractIdleService {
             cluster.deregisterHost(host);
             log.info("Controller cluster listener shutDown complete");
         } finally {
+            contributor.close();
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
         }
     }

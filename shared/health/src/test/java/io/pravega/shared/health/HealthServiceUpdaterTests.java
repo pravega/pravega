@@ -51,7 +51,7 @@ public class HealthServiceUpdaterTests {
 
         TestHealthContributors.awaitHealthContributor(service, service.getName());
         Health health = service.getEndpoint().getHealth();
-        Assert.assertEquals(Status.UP, health.getStatus());
+        Assert.assertEquals(Status.RUNNING, health.getStatus());
         contributor.close();
 
         Assert.assertEquals("Closed contributor should no longer be listed as a child.",
@@ -63,6 +63,6 @@ public class HealthServiceUpdaterTests {
         TestHealthContributors.awaitHealthContributor(service, contributor.getName());
 
         health = service.getEndpoint().getHealth();
-        Assert.assertEquals(Status.DOWN, health.getStatus());
+        Assert.assertEquals(Status.TERMINATED, health.getStatus());
     }
 }

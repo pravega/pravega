@@ -32,9 +32,9 @@ public class GRPCServerHealthContributor extends AbstractHealthContributor {
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (grpcServer.isRunning()) {
-            status = Status.UP;
+            status = Status.RUNNING;
         }
         return status;
     }

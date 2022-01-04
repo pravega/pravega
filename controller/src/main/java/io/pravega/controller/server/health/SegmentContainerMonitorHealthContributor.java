@@ -33,11 +33,11 @@ public class SegmentContainerMonitorHealthContributor extends AbstractHealthCont
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (segmentContainerMonitor.isRunning()) {
-            status = Status.NEW;
+            status = Status.STARTING;
             if (segmentContainerMonitor.isZKConnected()) {
-                status = Status.UP;
+                status = Status.RUNNING;
             }
         }
         return status;

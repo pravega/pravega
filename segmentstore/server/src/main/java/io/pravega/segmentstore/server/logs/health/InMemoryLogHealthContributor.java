@@ -13,33 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.health;
+package io.pravega.segmentstore.server.logs.health;
 
-import com.google.common.base.Preconditions;
-import io.pravega.controller.server.bucket.BucketManager;
+import com.google.common.collect.ImmutableMap;
+import io.pravega.segmentstore.server.logs.InMemoryLog;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
-import lombok.extern.slf4j.Slf4j;
+import lombok.NonNull;
 
-@Slf4j
-public class WatermarkingServiceHealthContributor extends AbstractHealthContributor {
-    private final BucketManager watermarkingService;
+public class InMemoryLogHealthContributor extends AbstractHealthContributor {
 
-    public WatermarkingServiceHealthContributor(String name, BucketManager watermarkingService) {
+    private final InMemoryLog log;
+
+    public InMemoryLogHealthContributor(@NonNull String name, InMemoryLog log) {
         super(name);
-        this.watermarkingService = Preconditions.checkNotNull(watermarkingService, "watermarkingService");
+        this.log = log;
     }
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
-        if (watermarkingService.isRunning()) {
-            status = Status.NEW;
-            if (watermarkingService.isHealthy()) {
-                status = Status.UP;
-            }
-        }
-        return status;
+        builder.details(ImmutableMap.of("Size", log.size()));
+        return Status.RUNNING;
     }
 }

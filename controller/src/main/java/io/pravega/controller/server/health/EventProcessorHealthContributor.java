@@ -31,13 +31,14 @@ public class EventProcessorHealthContributor extends AbstractHealthContributor {
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         if (controllerEventProcessors.isRunning()) {
-            status = Status.NEW;
+            status = Status.STARTING;
             if (controllerEventProcessors.isReady()) {
-                status = Status.UP;
+                status = Status.RUNNING;
             }
         }
+
         return status;
     }
 }

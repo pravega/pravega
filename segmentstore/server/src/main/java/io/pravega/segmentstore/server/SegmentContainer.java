@@ -21,6 +21,8 @@ import io.pravega.segmentstore.contracts.SegmentApi;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.shared.health.HealthConnector;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +31,7 @@ import javax.annotation.Nullable;
 /**
  * Defines a Container for StreamSegments.
  */
-public interface SegmentContainer extends SegmentApi, Container {
+public interface SegmentContainer extends SegmentApi, Container, HealthConnector {
     /**
      * Gets a collection of SegmentProperties for all active Segments (Active Segment = a segment that is currently allocated
      * in the internal Container's Metadata (usually a segment with recent activity)).

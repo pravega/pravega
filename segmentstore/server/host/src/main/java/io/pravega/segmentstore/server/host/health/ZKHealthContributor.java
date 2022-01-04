@@ -37,17 +37,15 @@ public class ZKHealthContributor extends AbstractHealthContributor {
 
     @Override
     public Status doHealthCheck(Health.HealthBuilder builder) {
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         boolean running = this.zk.getState() == CuratorFrameworkState.STARTED;
         if (running) {
-            status = Status.NEW;
+            status = Status.STARTING;
         }
-
         boolean ready = this.zk.getZookeeperClient().isConnected();
         if (ready) {
-            status = Status.UP;
+            status = Status.RUNNING;
         }
-
         builder.details(ImmutableMap.of("zk-connection-url", this.zk.getZookeeperClient().getCurrentConnectionString()));
 
         return status;

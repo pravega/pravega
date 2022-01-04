@@ -25,7 +25,7 @@ public enum Status {
     /**
      * Describes a {@link Status} that is considered in a healthy and operational state.
      */
-    UP(3),
+    RUNNING(3),
 
     /**
      * Describes a {@link Status} that is considered to be in the process of starting, but not yet 'RUNNING'.
@@ -44,14 +44,19 @@ public enum Status {
     UNKNOWN(0),
 
     /**
+     * Describes a {@link Status} that is in the process of shutting down.
+     */
+    STOPPING(-1),
+
+    /**
      * Describes a {@link Status} that is in a down and non-operational state.
      */
-    DOWN(-1),
+    TERMINATED(-2),
 
     /**
      * Describes a {@link Status} that is unhealthy and has unexpectedly failed.
      */
-    FAILED(-2);
+    FAILED(-3);
 
     @Getter
     private final int code;
@@ -61,7 +66,7 @@ public enum Status {
     }
 
     /**
-     * A {@link Status} represents an *alive* component if it is neither {@link Status#DOWN} nor {@link Status#UNKNOWN}.
+     * A {@link Status} represents an *alive* component if it is neither {@link Status#TERMINATED} nor {@link Status#UNKNOWN}.
      * @return Whether this {@link Status} represents an 'alive' state.
      */
     public boolean isAlive() {
@@ -69,11 +74,11 @@ public enum Status {
     }
 
     /**
-     * A {@link Status} can be considered 'ready' if it is {@link Status#UP}.
+     * A {@link Status} can be considered 'ready' if it is {@link Status#RUNNING}.
      * @return Whether this {@link Status} represents a 'ready' state.
      */
     public boolean isReady() {
-        return this.code >= UP.getCode();
+        return this.code >= RUNNING.getCode();
     }
 
     public static Status min(Status one, Status two) {

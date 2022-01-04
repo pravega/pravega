@@ -113,7 +113,7 @@ public abstract class AbstractHealthContributor implements HealthContributor {
             }
         }
 
-        Status status = Status.DOWN;
+        Status status = Status.TERMINATED;
         // Perform own health check logic.
         try {
             status = doHealthCheck(builder);

@@ -115,11 +115,11 @@ public class HealthTests {
 
         URI serviceStatusURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
-        assertStatus(serviceStatusURI, HealthStatus.UP);
+        assertStatus(serviceStatusURI, HealthStatus.RUNNING);
         URI contributorStatusURI = UriBuilder.fromUri(getURI("/v1/health/status/" + StaticHealthyContributor.NAME))
                 .scheme(getURLScheme()).build();
         // Assert the registered contributor has been initialized.
-        assertStatus(contributorStatusURI, HealthStatus.UP);
+        assertStatus(contributorStatusURI, HealthStatus.RUNNING);
 
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         HealthResult healthResult = response.readEntity(HealthResult.class);
@@ -139,7 +139,7 @@ public class HealthTests {
         // Wait for contributor initialization.
         URI statusURI = UriBuilder.fromUri(getURI(String.format("/v1/health/status/%s", contributor.getName())))
                 .scheme(getURLScheme()).build();
-        assertStatus(statusURI, HealthStatus.UP);
+        assertStatus(statusURI, HealthStatus.RUNNING);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", contributor.getName())))
                 .scheme(getURLScheme()).build();
@@ -160,7 +160,7 @@ public class HealthTests {
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
-       assertStatus(streamResourceURI, HealthStatus.UP);
+       assertStatus(streamResourceURI, HealthStatus.RUNNING);
 
         // Start with a HealthyIndicator.
         StaticHealthyContributor healthyIndicator = new StaticHealthyContributor();
@@ -168,7 +168,7 @@ public class HealthTests {
 
        streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
-        assertStatus(streamResourceURI, HealthStatus.UP);
+        assertStatus(streamResourceURI, HealthStatus.RUNNING);
 
         // Adding an unhealthy indicator should change the Status.
         StaticFailingContributor failingIndicator = new StaticFailingContributor();
@@ -176,13 +176,13 @@ public class HealthTests {
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
-        assertStatus(streamResourceURI, HealthStatus.DOWN);
+        assertStatus(streamResourceURI, HealthStatus.TERMINATED);
 
         // Make sure that even though we have a majority of healthy reports, we still are considered failing.
         healthServiceManager.register(new StaticHealthyContributor("sample-healthy-indicator-two"));
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
-        assertStatus(streamResourceURI, HealthStatus.DOWN);
+        assertStatus(streamResourceURI, HealthStatus.TERMINATED);
     }
 
     @Test
@@ -242,7 +242,7 @@ public class HealthTests {
 
         URI statusURI = UriBuilder.fromUri(getURI("/v1/health/status/" + StaticHealthyContributor.NAME))
                 .scheme(getURLScheme()).build();
-        assertStatus(statusURI, HealthStatus.UP);
+        assertStatus(statusURI, HealthStatus.RUNNING);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/details/%s", healthyIndicator.getName())))
                 .scheme(getURLScheme()).build();
@@ -256,7 +256,7 @@ public class HealthTests {
         String unknown = "unknown-contributor";
         // Wait for the health updater to have updated at least one time.
         URI statusURI = UriBuilder.fromUri(getURI("/v1/health/status")).scheme(getURLScheme()).build();
-        assertStatus(statusURI, HealthStatus.UP);
+        assertStatus(statusURI, HealthStatus.RUNNING);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", unknown)))
                 .scheme(getURLScheme()).build();
@@ -330,7 +330,7 @@ public class HealthTests {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.UP;
+            Status status = Status.RUNNING;
             Map<String, Object> details = new HashMap<>();
             details.put(DETAILS_KEY, DETAILS_VAL);
             builder.status(status).details(details);
@@ -350,7 +350,7 @@ public class HealthTests {
 
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.DOWN;
+            Status status = Status.TERMINATED;
             Map<String, Object> details = new HashMap<>();
             details.put(DETAILS_KEY, DETAILS_VAL);
             builder.status(status).details(details);

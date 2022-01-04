@@ -43,18 +43,12 @@ import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.rest.RESTServer;
-import io.pravega.controller.server.health.ClusterListenerHealthContributor;
-import io.pravega.controller.server.health.EventProcessorHealthContributor;
-import io.pravega.controller.server.health.GRPCServerHealthContributor;
-import io.pravega.controller.server.health.RetentionServiceHealthContributor;
-import io.pravega.controller.server.health.SegmentContainerMonitorHealthContributor;
-import io.pravega.controller.server.health.WatermarkingServiceHealthContributor;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -129,6 +123,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
     private LocalController localController;
     private ControllerEventProcessors controllerEventProcessors;
+
     /**
      * ControllerReadyLatch is released once localController, streamTransactionMetadataTasks and controllerService
      * variables are initialized in the startUp method.
@@ -237,8 +232,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         serviceConfig.getHostMonitorConfig().getHostMonitorMinRebalanceInterval());
                 monitor.startAsync();
                 log.info("Started Segment Container Monitor service.");
-                SegmentContainerMonitorHealthContributor segmentContainerMonitorHC = new SegmentContainerMonitorHealthContributor("segmentContainerMonitor", monitor );
-                healthServiceManager.register(segmentContainerMonitorHC);
             }
 
             // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
@@ -280,9 +273,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             retentionService.startAsync();
             retentionService.awaitRunning();
+            retentionService.connect(healthServiceManager.getRoot());
             log.info("Started background periodic service for Retention.");
-            RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
-            healthServiceManager.register(retentionServiceHC);
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
@@ -292,9 +284,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             watermarkingService.startAsync();
             watermarkingService.awaitRunning();
+            watermarkingService.connect(healthServiceManager.getRoot());
             log.info("Started background periodic service for Watermarking.");
-            WatermarkingServiceHealthContributor watermarkingServiceHC = new WatermarkingServiceHealthContributor("watermarkingService", watermarkingService);
-            healthServiceManager.register(watermarkingServiceHC);
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -338,8 +329,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks,
                         streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
-                EventProcessorHealthContributor eventProcessorHC = new EventProcessorHealthContributor("eventProcessor", controllerEventProcessors);
-                healthServiceManager.register(eventProcessorHC);
+                controllerEventProcessors.connect(healthServiceManager.getRoot());
             }
 
             // Setup and start controller cluster listener after all sweepers have been initialized.
@@ -355,21 +345,19 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
                 controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor, failoverSweepers);
                 controllerClusterListener.startAsync();
-                ClusterListenerHealthContributor clusterListenerHC = new ClusterListenerHealthContributor("clusterListener", controllerClusterListener);
-                healthServiceManager.register(clusterListenerHC);
+                controllerClusterListener.connect(healthServiceManager.getRoot());
             }
-
-            // Start the Health Service.
-            healthServiceManager.start();
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
                 grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
                 grpcServer.awaitRunning();
-                GRPCServerHealthContributor grpcServerHC = new GRPCServerHealthContributor("GRPCServer", grpcServer);
-                healthServiceManager.register(grpcServerHC);
+                grpcServer.connect(healthServiceManager.getRoot());
             }
+
+            // Start the Health Service.
+            healthServiceManager.start();
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {

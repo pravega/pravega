@@ -27,11 +27,15 @@ import io.netty.handler.ssl.SslContext;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.health.GRPCServerHealthContributor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.shared.health.HealthConnector;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
+
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +46,7 @@ import javax.net.ssl.SSLException;
  * gRPC based RPC Server for the Controller.
  */
 @Slf4j
-public class GRPCServer extends AbstractIdleService {
+public class GRPCServer extends AbstractIdleService implements HealthConnector {
 
     private final String objectId;
     private final Server server;
@@ -50,6 +54,8 @@ public class GRPCServer extends AbstractIdleService {
 
     @Getter
     private final AuthHandlerManager authHandlerManager;
+    @Getter
+    private final HealthContributor contributor;
 
     /**
      * Create gRPC server on the specified port.
@@ -82,6 +88,7 @@ public class GRPCServer extends AbstractIdleService {
             SslContext ctx = getSSLContext(serverConfig);
             ((NettyServerBuilder) builder).sslContext(ctx);
         }
+        this.contributor = new GRPCServerHealthContributor("GRPCServer", this);
         this.server = builder.build();
     }
 
@@ -119,6 +126,7 @@ public class GRPCServer extends AbstractIdleService {
             this.server.awaitTermination();
             log.info("gRPC server terminated");
         } finally {
+            this.contributor.close();
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }

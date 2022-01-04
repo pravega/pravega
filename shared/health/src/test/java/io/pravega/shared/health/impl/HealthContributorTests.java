@@ -38,7 +38,7 @@ public class HealthContributorTests {
         HealthyContributor contributor = new HealthyContributor();
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.RUNNING, health.getStatus());
     }
 
     /**
@@ -50,7 +50,7 @@ public class HealthContributorTests {
         @Cleanup
         ThrowingContributor contributor = new ThrowingContributor();
         Health health = contributor.getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
+        Assert.assertEquals("HealthContributor should have a 'DOWN' Status.", Status.TERMINATED, health.getStatus());
         Assert.assertTrue("HealthContributor should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
     }
 
@@ -69,7 +69,7 @@ public class HealthContributorTests {
         contributor.register(first, second);
 
         Health health = contributor.getHealthSnapshot();
-        Assert.assertEquals("Expected 'contributor' to report an unhealthy status.", Status.DOWN, health.getStatus());
+        Assert.assertEquals("Expected 'contributor' to report an unhealthy status.", Status.TERMINATED, health.getStatus());
         Assert.assertEquals("Expected to see two children registered to 'contributor'.", 2, health.getChildren().size());
     }
 
@@ -84,7 +84,7 @@ public class HealthContributorTests {
         contributor.close();
 
         AssertExtensions.assertThrows("Expected an exception requesting the health of a closed contributor.",
-                () -> contributor.getHealthSnapshot(),
+                contributor::getHealthSnapshot,
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows("Expected an exception adding a child to a closed contributor.",
                 () -> contributor.register(new HealthyContributor("")),
@@ -101,7 +101,7 @@ public class HealthContributorTests {
                 0,
                root.getHealthSnapshot().getChildren().size());
         Assert.assertEquals("Expecting default Status (UP) from empty HealthContributor.",
-                Status.UP,
+                Status.RUNNING,
                 root.getHealthSnapshot().getStatus());
 
     }
@@ -115,13 +115,13 @@ public class HealthContributorTests {
         @Cleanup
         HealthContributor root = new HealthyContributor();
         root.register(new HealthyContributor("first"));
-        Assert.assertEquals("Expecting healthy status.", Status.UP, root.getHealthSnapshot().getStatus());
+        Assert.assertEquals("Expecting healthy status.", Status.RUNNING, root.getHealthSnapshot().getStatus());
         // Add a failing contributor to the root, which uses the 'UNANIMOUS' aggregation rule.
         HealthContributor failing = new FailingContributor();
         root.register(failing);
-        Assert.assertEquals("Expecting failing status.", Status.DOWN, root.getHealthSnapshot().getStatus());
+        Assert.assertEquals("Expecting failing status.", Status.TERMINATED, root.getHealthSnapshot().getStatus());
         // Remove the failing contributor and now expect it is healthy again.
         failing.close();
-        Assert.assertEquals("Expecting healthy status.", Status.UP, root.getHealthSnapshot().getStatus());
+        Assert.assertEquals("Expecting healthy status.", Status.RUNNING, root.getHealthSnapshot().getStatus());
     }
 }

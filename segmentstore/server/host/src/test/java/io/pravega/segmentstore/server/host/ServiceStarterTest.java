@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.server.host;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
-import io.pravega.segmentstore.server.host.health.SegmentContainerRegistryHealthContributor;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -83,23 +82,13 @@ public class ServiceStarterTest {
         Health.HealthBuilder builder = Health.builder().name(zkHealthContributor.getName());
         Status zkStatus = zkHealthContributor.doHealthCheck(builder);
         Assert.assertTrue(zkClient.getZookeeperClient().isConnected());
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, zkStatus);
+        Assert.assertEquals("HealthContributor should report an 'RUNNING' Status.", Status.RUNNING, zkStatus);
         zkClient.close();
         zkStatus = zkHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, zkStatus);
+        Assert.assertEquals("HealthContributor should report a 'TERMINATED' Status.", Status.TERMINATED, zkStatus);
     }
 
-    /**
-     * Check health of SegmentContainerRegistry
-     */
-    @Test
-    public void testSegmentContainerRegistryHealth() {
-        @Cleanup
-        SegmentContainerRegistryHealthContributor segmentContainerRegistryHealthContributor = new SegmentContainerRegistryHealthContributor(serviceStarter.getServiceBuilder().getSegmentContainerRegistry());
-        Health.HealthBuilder builder = Health.builder().name(segmentContainerRegistryHealthContributor.getName());
-        Status status = segmentContainerRegistryHealthContributor.doHealthCheck(builder);
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, status);
-    }
+
 
     /**
      * Check the health status of ServiceStarter
@@ -108,7 +97,7 @@ public class ServiceStarterTest {
     @Test
     public void testHealth() {
         Health health = serviceStarter.getHealthServiceManager().getHealthSnapshot();
-        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
+        Assert.assertEquals("HealthContributor should report a 'RUNNING' Status.", Status.RUNNING, health.getStatus());
     }
 
     /**

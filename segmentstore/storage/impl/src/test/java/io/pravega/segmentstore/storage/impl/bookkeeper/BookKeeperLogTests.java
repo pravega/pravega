@@ -32,6 +32,8 @@ import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteFailureException;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.AbstractMap;
@@ -831,6 +833,33 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         wrapper.deleteDurableLogMetadata();
         Assert.assertNull(wrapper.fetchMetadata());
     }
+
+    @Test
+    public void testHealthCheck() throws DurableDataLogException {
+        @Cleanup
+        val log = createDurableDataLog();
+        log.initialize(TIMEOUT);
+
+        byte[] writeOne = getWriteData();
+        byte[] writeTwo = getWriteData();
+
+        // Add a single write.
+        log.append(new CompositeByteArraySegment(writeOne), TIMEOUT).thenAccept(address -> {
+            Health health = log.getContributor().getHealthSnapshot();
+
+            Assert.assertEquals(health.getStatus(), Status.RUNNING);
+            Assert.assertEquals(1, health.getDetails().get("Writes"));
+            Assert.assertEquals((long) writeOne.length, health.getDetails().get("TotalLength"));
+
+        }).thenCompose(v -> log.append(new CompositeByteArraySegment(writeTwo), TIMEOUT
+        )).thenAccept(v -> {
+            Health health = log.getContributor().getHealthSnapshot();
+            Assert.assertEquals(health.getStatus(), Status.RUNNING);
+            Assert.assertEquals(1, health.getDetails().get("Writes"));
+            Assert.assertEquals((long) writeTwo.length, health.getDetails().get("TotalLength"));
+        }).join();
+    }
+
 
     @Override
     protected int getThreadPoolSize() {

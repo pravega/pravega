@@ -38,6 +38,7 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
+import io.pravega.segmentstore.server.writer.health.WriterHealthContributor;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
@@ -52,6 +53,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.health.HealthContributor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -72,6 +76,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final WriterFactory.CreateProcessors createProcessors;
     private final SequentialProcessor ackProcessor;
     private final SegmentStoreMetrics.StorageWriter metrics;
+    @Getter
+    private final HealthContributor contributor;
 
     //endregion
 
@@ -102,6 +108,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.ackCalculator = new AckCalculator(this.state);
         this.ackProcessor = new SequentialProcessor(this.executor);
         this.metrics = new SegmentStoreMetrics.StorageWriter(dataSource.getId());
+        this.contributor = new WriterHealthContributor(String.format("StorageWriter-%d", dataSource.getId()), this);
     }
 
     //endregion
@@ -182,6 +189,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.processors.clear();
         this.ackProcessor.close();
         this.metrics.close();
+        this.contributor.close();
     }
 
     //endregion

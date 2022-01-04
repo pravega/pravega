@@ -16,6 +16,8 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.util.concurrent.Service;
+import io.pravega.shared.health.HealthConnector;
+
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -23,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines a component that pulls data from an OperationLog and writes it to a Storage. This is a background service that
  * does not expose any APIs, except for those controlling its lifecycle.
  */
-public interface Writer extends Service, AutoCloseable {
+public interface Writer extends Service, AutoCloseable, HealthConnector {
     @Override
     void close();
 

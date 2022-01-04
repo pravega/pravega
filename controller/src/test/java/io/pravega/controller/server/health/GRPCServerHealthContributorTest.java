@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
- * Unit tests for GRPCServiceHealthContibutor
+ * Unit tests for GRPCServiceHealthContributor
  */
 public class GRPCServerHealthContributorTest {
     private GRPCServer grpcServer;
@@ -57,10 +57,10 @@ public class GRPCServerHealthContributorTest {
         grpcServer.startAsync();
         grpcServer.awaitRunning();
         Status status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.UP, status);
+        Assert.assertEquals(Status.RUNNING, status);
         grpcServer.stopAsync();
         grpcServer.awaitTerminated();
         status = contributor.doHealthCheck(builder);
-        Assert.assertEquals(Status.DOWN, status);
+        Assert.assertEquals(Status.TERMINATED, status);
     }
 }
