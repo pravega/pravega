@@ -31,38 +31,38 @@ public interface Service {
      *
      *  @param wait true indicates that it is a blocking call.
      */
-    public void start(final boolean wait);
+    void start(final boolean wait);
 
     /**
      * Stop a service.
      */
-    public void stop();
+    void stop();
 
     /**
      * Clean the service.
      */
-    public void clean();
+    void clean();
 
     /**
      * Return the ID of the service.
      *
      * @return ID of the service.
      */
-    public String getID();
+    String getID();
 
     /**
      * Check if the service is up and running.
      *
      *  @return true if the service is running.
      */
-    public boolean isRunning();
+    boolean isRunning();
 
     /**
      * Get the list of Host:port URIs where the service is running.
      *
      *  @return List of {@link URI}s where the service is running.
      */
-    public List<URI> getServiceDetails();
+    List<URI> getServiceDetails();
 
     /**
      * Scale service to the new instance count.
@@ -75,5 +75,5 @@ public interface Service {
      * @return A future representing the status of scale service operation.
      *
      */
-    public CompletableFuture<Void> scaleService(final int instanceCount);
+    CompletableFuture<Void> scaleService(final int instanceCount);
 }
