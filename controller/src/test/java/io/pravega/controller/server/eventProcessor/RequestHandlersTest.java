@@ -20,6 +20,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -828,9 +829,11 @@ public abstract class RequestHandlersTest {
     public void scopeDeleteTest() {
         String testScope = "testScope";
         String testStream = "testStream";
+        String testRG = "_RGTestRG";
         StreamMetadataStore streamStoreSpied = spy(getStore());
         KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
         StreamMetadataTasks streamMetadataTasks1 = mock(StreamMetadataTasks.class);
+        TableMetadataTasks kvtTaks = mock(TableMetadataTasks.class);
         streamStoreSpied.createScope(testScope, null, executor).join();
         OperationContext ctx = new OperationContext() {
             @Override
@@ -857,45 +860,61 @@ public abstract class RequestHandlersTest {
         }).when(streamStoreSpied).isScopeSealed(eq(testScope), any(), any());
 
         createStreamInStore(testStream, testScope);
+        createStreamInStore(testRG, testScope);
+        assertTrue(streamStore.checkStreamExists(testScope, testStream, ctx, executor).join());
 
         doAnswer(invocation -> {
             CompletableFuture<Controller.UpdateStreamStatus.Status> future = new CompletableFuture<>();
             future.complete(Controller.UpdateStreamStatus.Status.SUCCESS);
             return future;
-        }).when(streamMetadataTasks1).sealStream(testScope, testStream, 123L);
+        }).when(streamMetadataTasks1).sealStream(anyString(), anyString(), anyLong());
 
         doAnswer(invocation -> {
             CompletableFuture<Controller.DeleteStreamStatus.Status> future = new CompletableFuture<>();
             future.complete(Controller.DeleteStreamStatus.Status.SUCCESS);
             return future;
-        }).when(streamMetadataTasks1).deleteStream(testScope, testStream, 123L);
+        }).when(streamMetadataTasks1).deleteStream(anyString(), anyString(), anyLong());
 
         // Create Reader Group
-        ReaderGroupConfig config1 = ReaderGroupConfig.builder()
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .stream(NameUtils.getScopedStreamName(testScope, testStream))
                 .build();
-        streamMetadataTasks.createReaderGroup(testScope, testStream, config1, System.currentTimeMillis(), 123L);
+        final ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 123L);
 
-        doAnswer(invocation -> {
-            CompletableFuture<Controller.ReaderGroupConfigResponse.Status> future = new CompletableFuture<>();
-            future.complete(Controller.ReaderGroupConfigResponse.Status.SUCCESS);
-            return future;
-        }).when(streamMetadataTasks1).getReaderGroupConfig(testScope, testStream, 123L);
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(testScope, testRG, config);
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.CreateReaderGroupResponse.Status> createRG = new CompletableFuture<>();
+            createRG.complete(Controller.CreateReaderGroupResponse.Status.SUCCESS);
+            return createRG;
+        }).when(streamMetadataTasks1).createReaderGroup(anyString(), any(), any(), anyLong(), anyLong());
+
+        doAnswer(invocation -> CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                .setStatus(Controller.ReaderGroupConfigResponse.Status.SUCCESS)
+                .setConfig(expectedConfig)
+                .build()))
+                .when(streamMetadataTasks1).getReaderGroupConfig(eq(testScope), anyString(), anyLong());
 
         doAnswer(invocationOnMock -> {
             CompletableFuture<Controller.DeleteReaderGroupStatus.Status> future = new CompletableFuture<>();
             future.complete(Controller.DeleteReaderGroupStatus.Status.SUCCESS);
             return future;
-        }).when(streamMetadataTasks1).deleteReaderGroup(testScope, testStream, testStream, 123L);
+        }).when(streamMetadataTasks1).deleteReaderGroup(anyString(), anyString(), anyString(), anyLong());
 
         // Create KVT
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
-        kvtTasks.createKeyValueTable(scope, "testKVT", kvtConfig, System.currentTimeMillis(), 123L);
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.CreateKeyValueTableStatus.Status> fut = new CompletableFuture<>();
+            fut.complete(Controller.CreateKeyValueTableStatus.Status.SUCCESS);
+            return fut;
+        }).when(kvtTaks).createKeyValueTable(anyString(), anyString(), any(), anyLong(), anyLong());
+        Controller.CreateKeyValueTableStatus.Status status = kvtTaks.createKeyValueTable(testScope,
+                "testKVT", kvtConfig, System.currentTimeMillis(), 123L).join();
+        assertEquals(status, Controller.CreateKeyValueTableStatus.Status.SUCCESS);
 
         DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
-                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
     }
 
