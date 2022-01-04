@@ -34,7 +34,7 @@ where /mnt/tier2 is replaced with your nfs share and FILESYSTEM is a keyword.
 
 ### Java
 
-Install the latest Java 8 from [java.oracle.com](http://java.oracle.com). Packages are available
+Install the latest Java 11 from [java.oracle.com](http://java.oracle.com). Packages are available
 for all major operating systems.
 
 ### Zookeeper
