@@ -32,7 +32,7 @@ public interface StreamCut extends Serializable {
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
      * of the stream or the current TAIL of the stream.
      */
-    public static final StreamCut UNBOUNDED = new StreamCut() {
+    StreamCut UNBOUNDED = new StreamCut() {
         private static final long serialVersionUID = 1L;
 
         @Override
