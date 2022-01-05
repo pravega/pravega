@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.collect.ImmutableList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.io.ByteBufferOutputStream;
@@ -643,6 +644,20 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         cmd.process(rp);
         verify(rp, times(1)).createTransientSegment(cmd);
         testCommand(cmd);
+    }
+
+    @Test
+    public void testMergeSegmentsBatch() throws IOException {
+        List<String> txnSegmentIds = ImmutableList.of("txn1seg0", "txn2seg0");
+        String streamSegmentId = "seg0";
+        testCommand(new WireCommands.MergeSegmentsBatch(l, streamSegmentId, txnSegmentIds, ""));
+    }
+
+    @Test
+    public void testSegmentsBatchMerged() throws IOException {
+        List<String> txnSegmentIds = ImmutableList.of("txn1seg0", "txn2seg0");
+        String streamSegmentId = "seg0";
+        testCommand(new WireCommands.SegmentsBatchMerged(l, streamSegmentId, txnSegmentIds, ImmutableList.of(10L, 11L)));
     }
 
     @Test
