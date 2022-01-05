@@ -1,3 +1,5 @@
+# Manual Installation
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Manual Installation
 
 This page describes the prerequisites and installation steps to deploy Pravega in a multi-node production environment.
 
@@ -94,7 +95,7 @@ bin/bookkeeper bookie
 Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/4.11.1/security/tls/).
 
 ---
-# Installing Pravega
+## Installing Pravega
 
 For non-production systems, the containers can be used that are provided by the [Docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
@@ -170,8 +171,8 @@ bin/pravega-segmentstore
 ```
 ## Running a Pravega Cluster with Security enabled
 
-Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster.md).
+Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster).
 
-For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations.md#pravega-controller))
-and [Segment Store](../security/pravega-security-configurations.md#pravega-segment-store),
-see [this]((../security/pravega-security-configurations.md) document.
+For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations#pravega-controller)
+and [Segment Store](../security/pravega-security-configurations#pravega-segment-store),
+see [this](../security/pravega-security-configurations) document.

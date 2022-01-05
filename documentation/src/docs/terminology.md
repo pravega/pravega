@@ -1,3 +1,5 @@
+# Terminology
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Terminology
 
 The glossary of terms related to Pravega is given below:
 

@@ -1,3 +1,5 @@
+# Pravega Concepts
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Concepts
 
    * [Introduction](#introduction)
    * [Streams](#streams)
@@ -217,7 +218,7 @@ This results in the following ordering guarantees:
 - If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa).
 
 
-## Reader Group Checkpoints
+### Reader Group Checkpoints
 
 Pravega provides the ability for an application to initiate a **Checkpoint** on a
 Reader Group. The idea with a Checkpoint is to create a consistent "point in

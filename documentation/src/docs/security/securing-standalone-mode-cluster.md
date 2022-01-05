@@ -1,3 +1,5 @@
+# Setting Up Security for a Standalone Mode Server
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Setting Up Security for a Standalone Mode Server
 
 Security in Pravega is off by default. You may start Pravega Standalone mode server with security enabled by modifying the security configuration before launching it.
 

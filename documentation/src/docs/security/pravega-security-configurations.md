@@ -1,3 +1,5 @@
+# Pravega Security Configurations
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Security Configurations
 
 This document describes the security configuration parameters of Pravega, in both **distributed** and **standalone** modes.
 

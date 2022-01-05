@@ -1,3 +1,5 @@
+# Pravega Client Libraries
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Client Libraries
 
 ## Supported clients
 Pravega supports the following client libraries:

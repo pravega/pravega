@@ -1,3 +1,5 @@
+# Transactions
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Working with Pravega: Transactions
 
 This article explores how to write a set of Events to a Stream atomically using
 Pravega Transactions.
@@ -72,8 +73,7 @@ type the WRITE\_EVENT command if you don't want to).
 
 But we really want to talk about Pravega Transactions, so lets dive into that.
 
-Pravega Transactions
-====================
+## Pravega Transactions
 
 The idea with a Pravega Transaction is that it allows an application to prepare
 a set of Events that can be written "all at once" to a Stream.  This allows an

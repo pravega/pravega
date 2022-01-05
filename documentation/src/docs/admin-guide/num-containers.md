@@ -1,3 +1,5 @@
+# Setting the Number of Segment Containers
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
-# Setting the Number of Segment Containers
 
 [Segment Containers](http://pravega.io/docs/latest/segment-containers/) are the unit of IO parallelism in a Pravega 
 Cluster. Therefore, we need to set this parameter carefully in a production environment. The relevant parameters

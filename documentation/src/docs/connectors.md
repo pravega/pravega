@@ -1,3 +1,5 @@
+# Pravega Connectors
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Connectors
 
 Connectors allow integrating Pravega with different data sources and sinks.
 

@@ -1,3 +1,5 @@
+# Running Pravega in Local Machine
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,14 +15,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Running Pravega in Local Machine
 
 As an alternative to running Pravega on a cluster of machines, you may run Pravega on a local/single machine. Running Pravega locally on a single host allows you to get started with Pravega quickly. Running Pravega locally is especially suitable for development and testing purposes.
 
 You may run Pravega on local machine using either of these two options:
 
 1. [Standalone mode](#standalone-mode) deployment: In this option, Pravega server runs in a single process and in-memory.
-2. [Long Term Storage mode](#long-term-storage) deployment: In this option, Pravega server runs as a single instance on localhost or a virtual machine with streams persisted on Tier 2
+2. [Long Term Storage mode](#with-long-term-storage) deployment: In this option, Pravega server runs as a single instance on localhost or a virtual machine with streams persisted on Tier 2
 3. Distributed mode [Docker Compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
 
 These options are explained in below subsections.

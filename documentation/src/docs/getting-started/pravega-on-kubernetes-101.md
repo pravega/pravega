@@ -1,3 +1,5 @@
+# Deploying on Kubernetes
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Deploying Pravega on Kubernetes 101
+import versions from '@site/versions';
 
 We show you how to deploy your "first Pravega cluster in Kubernetes". We provide a step-by-step guide 
 to deploy Pravega in both Google Kubernetes Engine (GKE) and Amazon Elastic Kubernetes Service (EKS). 
@@ -25,7 +27,7 @@ First, we need to create the Kubernetes cluster to deploy Pravega. We assume as 
 you have an account with at least one of the cloud providers mentioned above. If you already have an account 
 for Google Cloud and/or AWS, then it is time to create a Kubernetes cluster for Pravega.
 
-###GKE
+### GKE
 Creating a Kubernetes cluster in GKE is straightforward. The defaults in general are enough for running a 
 demo Pravega cluster, but we suggest just a couple of setting changes to deploy Pravega:
 
@@ -47,11 +49,11 @@ Pravega and Bookkeeper Operators also [require elevated privileges](https://gith
 in order to watch for custom resources. For this reason, in GKE you need as a pre-requisite to grant those 
 permissions first by executing:
 
-```
+```bash
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 ```
 
-###EKS
+### EKS
 
 In the case of AWS, we are going to use the EKS CLI, which automates and simplifies different aspects of the 
 cluster creation and configuration (e.g., VPC, subnets, etc.). You will need to [install and configure the 
@@ -60,7 +62,7 @@ the cluster creation.
 
 Once the EKS CLI is installed, we just require one command to create an EKS cluster:
  
-```
+```bash
 eksctl create cluster \
 --name pravega-eks \
 --region us-west-2 \
@@ -82,36 +84,36 @@ Also, take into account that the region for the EKS cluster should match the con
 
 Now, we are ready to prepare our Kubernetes cluster for the installation of Pravega.
 
-###Install Helm
+### Install Helm
 
 To simplify the deployment of Pravega, we use [Helm charts](https://helm.sh/). You will need to [install a 
 Helm 3](https://helm.sh/docs/intro/install/) client to proceed with the installation instructions in this blog post.
 
 Once you install the Helm client, you just need to get the public charts we provide to deploy a Pravega cluster:
 
-```
+```bash
 helm repo add pravega https://charts.pravega.io
 helm repo update
 ```
 
-###Webhook conversion and Cert-Manager
+### Webhook conversion and Cert-Manager
 
 The most recent versions of Pravega Operator resort to the new 
 [Webhook Conversion feature](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion), 
 which is beta since 1.15. For this reason, Cert-Manager or some other certificate management solution must be 
 deployed for managing webhook service certificates. To install Cert-Manager, just execute this command:
-```
-kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.2/cert-manager.yaml 
-```
+<pre><code {...{ "className": "language-bash" }}>
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v{versions['cert-manager']}/cert-manager.yaml
+</code></pre>
 
-##Deploying Pravega
+## Deploying Pravega
 
 Next, we show you step by step how to deploy Pravega, which involves the deployment of Apache Zookeeper, 
 Bookkeeper (journal), and Pravega (as well as their respective Operators). Also, given that Pravega moves 
 "cold" data to what we call long-term storage (a.k.a Tier 2), we need to instantiate a storage backend 
 for such purpose.
 
-###Apache Zookeeper
+### Apache Zookeeper
 
 [Apache Zookeeper](https://zookeeper.apache.org/) is a distributed system that provides reliable coordination 
 services, such as consensus and group management. Pravega uses Zookeeper to store specific pieces of metadata as 
@@ -121,16 +123,16 @@ As part of the Pravega project, we have developed a [Zookeeper Operator](https:/
 to manage the deployment of Zookeeper clusters in Kubernetes. Thus, deploying the Zookeeper Operator is the first step 
 to deploy Zookeeper:
 
-```
-helm install zookeeper-operator pravega/zookeeper-operator --version=0.2.8
-```
+<pre><code {...{ "className": "language-bash" }}>
+helm install zookeeper-operator pravega/zookeeper-operator --version={versions['zookeeper-operator-chart']}
+</code></pre>
 
 With the Zookeeper Operator up and running, the next step is to deploy Zookeeper. We can do so with the helm chart we 
 published for Zookeeper: 
 
-```
-helm install zookeeper pravega/zookeeper --version=0.2.8
-```
+<pre><code {...{ "className": "language-bash" }}>
+helm install zookeeper pravega/zookeeper --version={versions['zookeeper-chart']}
+</code></pre>
 
 This chart instantiates a Zookeeper cluster made of 3 instances and their respective Persistent Volume Claims (PVC) 
 of 20GB of storage each, which is enough for a demo Pravega cluster.
@@ -138,7 +140,7 @@ of 20GB of storage each, which is enough for a demo Pravega cluster.
 Once the previous command has been executed, you can see both Zookeeper Operator and Zookeeper running in the 
 cluster:
 
-```console
+```bash
 $ kubectl get pods
 NAME                                  READY   STATUS    RESTARTS   AGE
 zookeeper-0                           1/1     Running   0          3m46s
@@ -147,7 +149,7 @@ zookeeper-2                           1/1     Running   0          2m25s
 zookeeper-operator-6b9759bbcb-9j25s   1/1     Running   0          4m
 ```
 
-###Apache Bookkeeper
+### Apache Bookkeeper
 [Apache Bookkeeper](https://bookkeeper.apache.org/) is a distributed and reliable storage system that provides 
 a distributed log abstraction. Bookkeeper excels on achieving low latency, append-only writes. This 
 is the reason why Pravega uses Bookkeeper for journaling: Pravega writes data to Bookkeeper, which provides low latency, 
@@ -157,20 +159,21 @@ and that data is truncated once it is flushed to tiered long-term storage.
 As in the case of Zookeeper, we have also developed a [Bookkeeper Operator](https://github.com/pravega/bookkeeper-operator) 
 to manage the lifecycle of Bookkeeper clusters deployed in Kubernetes. Thus, the next step is to deploy the Bookkeeper Operator:
 
-```
-helm install bookkeeper-operator pravega/bookkeeper-operator --version=0.1.2
-```
+<pre><code {...{ "className": "language-bash" }}>
+{`kubectl apply -f https://github.com/pravega/bookkeeper-operator/raw/master/deploy/certificate.yaml
+helm install bookkeeper-operator pravega/bookkeeper-operator --version=${versions['bookkeeper-operator-chart']}`}
+</code></pre>
 
 Once running, we can proceed to deploy Bookkeeper. In this case, we will use the Helm chart publicly available to quickly 
 spin up a Bookkeeper cluster:
 
-```
-helm install bookkeeper pravega/bookkeeper --version=0.7.1
-```
+<pre><code {...{ "className": "language-bash" }}>
+helm install bookkeeper pravega/bookkeeper --version={versions['bookkeeper-chart']}
+</code></pre>
 
 As a result, you can see below both Zookeeper and Bookkeeper up and running:
 
-```console
+```bash
 $ kubectl get pods
 NAME                                   READY   STATUS    RESTARTS   AGE
 bookkeeper-operator-85568f8949-d652z   1/1     Running   0          4m10s
@@ -183,7 +186,7 @@ zookeeper-2                            1/1     Running   0          7m38s
 zookeeper-operator-6b9759bbcb-9j25s    1/1     Running   0          9m13s
 ```
 
-###Long-Term Storage
+### Long-Term Storage
 We mentioned before that Pravega automatically [moves data to Long-Term Storage](http://pravega.io/docs/latest/segment-store-service/#synchronization-with-tier-2-storage-writer) 
 (or Tier 2). This feature is very interesting, because it positions Pravega in a "sweet spot" in the latency vs 
 throughput trade-off: Pravega achieves low latency writes by using Bookkeeper for appends. At the same time, 
@@ -193,8 +196,8 @@ As our goal is to keep things as simple as possible, we deploy a simple storage 
 With such a provisioner, we have a pod that acts as an NFS Server for Pravega. To deploy it, you need to execute 
 the next command:
 
-```
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+```bash
+helm repo add stable https://charts.helm.sh/stable
 helm install stable/nfs-server-provisioner --generate-name
 ```
 
@@ -218,7 +221,7 @@ spec:
 
 And create the PVC for long-term storage as follows:
 
-```
+```bash
 kubectl apply -f tier2_pvc.yaml 
 ```
 
@@ -228,26 +231,25 @@ to use actual storage services like FileStore in GKE and EFS in AWS. There are i
 production long-term storage options](https://github.com/pravega/pravega-operator/blob/master/doc/longtermstorage.md)
 in the documentation of Pravega Operator.
 
-###Pravega
+### Pravega
 We are almost there! The last step is to deploy Pravega Operator and Pravega, pretty much as what we have 
 already done for Zookeeper and Bookkeeper. As usual, we first need to deploy the Pravega Operator 
 (and its required certificate) as follows:
 
-```
-git clone https://github.com/pravega/pravega-operator
-kubectl create -f pravega-operator/deploy/certificate.yaml
-helm install pravega-operator pravega/pravega-operator --version=0.5.1
-```
+<pre><code {...{ "className": "language-bash" }}>
+{`kubectl apply -f https://github.com/pravega/pravega-operator/raw/master/deploy/certificate.yaml
+helm install pravega-operator pravega/pravega-operator --version=${versions['pravega-operator-chart']}`}
+</code></pre>
 
 Once deployed, we can deploy Pravega with the default Helm chart publicly available as follows:
 
-```
-helm install pravega pravega/pravega --version=0.8.0
-```
+<pre><code {...{ "className": "language-bash" }}>
+helm install pravega pravega/pravega --version={versions['pravega-chart']}
+</code></pre>
 
 That's it! Once this command gets executed, you will have your first Pravega cluster up and running:
 
-```console
+```bash
 $ kubectl get pods
 NAME                                         READY   STATUS    RESTARTS  AGE
 bookkeeper-operator-85568f8949-d652z         1/1     Running   0         11m
@@ -264,7 +266,7 @@ zookeeper-2                                  1/1     Running   0         14m
 zookeeper-operator-6b9759bbcb-9j25s          1/1     Running   0         16m
 ```
 
-##Executing a Sample Application
+## Executing a Sample Application
 
 Finally, we would like to help you to exercise the Pravega cluster you just deployed. Let’s deploy a pod in 
 our Kubernetes cluster to run samples and applications, like the one we propose in the manifest below 
@@ -284,28 +286,27 @@ spec:
 
 You can directly use this manifest and create your Ubuntu 18.04 pod as follows:
 
-```
+```bash
 kubectl create -f test-pod.yaml 
 ```
 
 Once the pod is up and running, we suggest you to login into the pod and build the [Pravega samples](https://github.com/pravega/pravega-samples) 
 to interact with the Pravega cluster by executing the following commands:
 
-```
-kubectl exec -it test-pod -- /bin/bash 
-apt-get update 
-apt-get -y install git-core openjdk-8-jdk 
-git clone -b r0.8 https://github.com/pravega/pravega-samples 
-cd pravega-samples 
-./gradlew installDist 
-```
+<pre><code {...{ "className": "language-bash" }}>
+{`kubectl exec -it test-pod -- /bin/bash
+apt-get update
+apt-get -y install git-core openjdk-8-jdk
+git clone -b ${versions['pravega-samples-branch']} https://github.com/pravega/pravega-samples
+cd pravega-samples
+./gradlew installDist`}
+</code></pre>
 
 With this, we can go to the location where the Pravega samples executable files have been generated and execute one of them, 
 making sure that we point to the Pravega Controller service:
 
-```
-
-cd pravega-client-examples/build/install/pravega-client-examples/ 
+```bash
+cd pravega-client-examples/build/install/pravega-client-examples/
 bin/consoleWriter -u tcp://pravega-pravega-controller:9090
 ```
 
@@ -315,7 +316,7 @@ on another terminal the `consoleReader`, so you will see how events are both wri
 time (for more info, see the [Pravega samples documentation](https://github.com/pravega/pravega-samples/tree/master/pravega-client-examples#consolerw)). 
 There are many other interesting samples for Pravega in the repository, so please be curious and try them out.
 
-##What is next?
+## What is next?
 This guide (also available in this [blog post](https://blog.pravega.io/2020/06/20/deploying-pravega-in-kubernetes/))
 provides a high-level overview on how to deploy Pravega on Kubernetes. But there is much more to learn! We 
 suggest you to continue exploring Pravega with the following documents:

@@ -1,3 +1,5 @@
+# Pravega Segment Store Service
+
 <!--
 Copyright Pravega Authors.
 
@@ -13,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Segment Store Service
 
  - [Introduction](#introduction)
  - [Terminology](#terminology)
@@ -44,7 +45,7 @@ limitations under the License.
     - [Synchronization with Tier 2](#synchronization-with-tier-2-storage-writer)
     - [Container Startup](#container-startup-normalrecovery)
 
-# Introduction
+## Introduction
 The Pravega Segment Store Service is a subsystem that lies at the heart of the entire Pravega deployment. It is the main access point for managing **Stream Segments**, providing the ability to _create_, _delete_ and _modify/access_ their contents. The Pravega client communicates with the Pravega Stream Controller to figure out which Stream Segments need to be used (for a Stream), and both the Stream Controller and the client deal with the Segment Store Service to operate on them.
 
 The basic idea behind the Segment Store Service is that it buffers the incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Stream Segment into a fewer (but larger) ones.
@@ -57,7 +58,7 @@ The Pravega Segment Store Service can provide the following guarantees:
 - the order is guaranteed within the context of a single Writer, but appends from multiple concurrent Writers will be added in the order in which they were received (appends are atomic without interleaving their contents).
 - Writing to and reading from a Stream Segment concurrently with relatively low latency between writing and reading.
 
-# Terminology
+## Terminology
 The following terminologies are used throughout the document:
 
 - **Stream Segment** or **Segment**: A contiguous sequence of bytes, similar to a file of unbounded size. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
@@ -69,7 +70,7 @@ The following terminologies are used throughout the document:
 
 **Note:** At the Pravega level, a Transaction applies to an entire Stream. In this document, a Transaction applies to a single Segment.
 
-# Architecture
+## Architecture
 The **Segment Store** is made up of the following components:
 
 - **Pravega Node**: A host running a Pravega Process.
@@ -84,7 +85,7 @@ The Segment Store handles writes by first writing them to a log (_Durable Data L
 
 More details about each component described above can be found in the [Components](#components) section.
 
-## System Diagram
+### System Diagram
 
 ![System Diagram](img/Segment-store-components.png)
 
@@ -92,10 +93,10 @@ In the above diagram, the major components of the Segment Store are shown. But f
 
 More detailed diagrams can be found under the [Data Flow](#data-flow) section.
 
-# Components
+## Components
 
 
-## Segment Containers
+### Segment Containers
 Segment Containers are a logical grouping of Segments and are responsible for all operations on those Segments within their span. A Segment Container is made of multiple sub-components:
 
 - **Segment Container Metadata**: A collection of Segment-specific metadata that describes the current state of each Segment (how much data in Tier 2, how much in Tier 1, whether it is sealed, etc.), as well as other miscellaneous info about each Container.
@@ -104,10 +105,10 @@ Segment Containers are a logical grouping of Segments and are responsible for al
 - **Cache**: Used to store data for appends that exist in Tier 1 only (not yet in Tier 2), as well as blocks of data that support reads.
 - **Storage Writer**: Processes the durable log operations and applies them to Tier 2 Storage (in the order in which they were received). This component is also the one that coalesces multiple operations together, for better back-end throughput.
 
-### Segment Container Metadata
+#### Segment Container Metadata
 The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: "Container-wide metadata" and "per-Segment metadata". Each serves a different purpose and is described below.
 
-#### Container Metadata
+##### Container Metadata
 
 Each **Segment Container** needs to keep some general-purpose metadata that affects all operations inside the container:
 
@@ -118,7 +119,7 @@ Each **Segment Container** needs to keep some general-purpose metadata that affe
 - **Tier 1 Metadata**: Various pieces of information that can be used to accurately truncate the Tier 1 Storage Log once all operations prior to that point have been durably stored to Tier 2.
 - **Checkpoints**: Container metadata is periodically Checkpointed by having its entire snapshot (including Active Segments) serialized to Tier 1. A Checkpoint serves as a Truncation Point for Tier 1, as it contains all the updates that have been made to the Container via all the processed operations before it, so we no longer need those operations in order to reconstruct the metadata. If we truncate Tier 1 on a Checkpoint, then we can use information from Tier 2 and this Checkpoint to reconstruct by using the previously available metadata, without relying on any operation prior to it in Tier 1.
 
-#### Segment Metadata
+##### Segment Metadata
 Each Segment Container needs to keep per-segment metadata, which it uses to keep track of the state of each segment as it processes operations for it. The metadata can be volatile (it can be fully rebuilt upon recovery) and contains the following properties for each segment that is currently in use:
 
 - `Name`: The name of the Stream Segment.
@@ -220,10 +221,10 @@ Just like the _Durable Log_, there is one Storage Writer per Segment Container.
 
 The Storage Writer can process any Storage operation (_Append, Seal, Merge_), and as Pravega being the sole actor it modifies such data in Tier 2 and applies them without any constraints. It has several mechanisms to detect and recover from possible data loss or external actors modifying data concurrently.
 
-# Integration with Controller
+## Integration with Controller
 Methods for mapping Segment Containers to hosts and rules used for moving from one to another are beyond the scope of this document. Here, we just describe how the Segment Store Service interacts with the _Controller_ and how it manages the lifecycle of Segment Containers based on external events.
 
-## Segment Container Manager
+### Segment Container Manager
 Each instance of a Segment Store Service needs a _Segment Container Manager_. The role of this component is to manage the lifecycle of the Segment Containers that are assigned to that node (service). It performs the following duties:
 
 - Connects to the Controller Service-Side Client (i.e., a client that deals only with Segment Container events, and not with the management of Streams and listens to all changes that pertain to Containers that pertain to its own instance.
@@ -231,7 +232,7 @@ Each instance of a Segment Store Service needs a _Segment Container Manager_. Th
 - When it receives a notification that it needs to stop a Segment Container for a particular Container Id, it initiates the process of shutting it down. It does not notify the requesting client of success until the operation completes without error.
 - If the Segment Container shuts down unexpectedly (whether during Start or during its normal operation), it will not attempt to restart it locally; instead it will notify the Controller.
 
-# Storage Abstractions
+## Storage Abstractions
 The Segment Store was not designed with particular implementations for Tier 1 or Tier 2. Instead, all these components have been abstracted out in simple, well-defined interfaces, which can be implemented against any standard file system (Tier 2) or append-only log system (Tier 1).
 
 Possible candidates for Tier 1 Storage:
@@ -257,11 +258,11 @@ A note about **Tier 2 Truncation**:
 - If a Tier 2 implementation does not natively support truncation from the beginning of a file with offset preservation (i.e., a Segment of length 100 is truncated at offset 50, then offsets 0..49 are deleted, but offsets 50-99 are available and are not shifted down), then the **Segment Store** provides a wrapper on top of a generic Tier 2 implementation that can do that.
 - The `RollingStorage` Tier 2 wrapper splits a Segment into multiple _Segment Chunks_ and exposes them as a single Segment to the upper layers. _Segment Chunks_ that have been truncated out, are deleted automatically. This is not a very precise application (since it relies heavily on a rollover policy dictating granularity), but it is a practical solution for those cases when the real Tier 2 implementation does not provide the features that we need.  
 
-# Data Flow
+## Data Flow
 
 Here are a few examples of how data flows inside the Pravega Segment Store Service.
 
-## Appends
+### Appends
 ![Segment Store Appends](img/segment-store-append.png)
 
 The diagram above depicts these steps (note the step numbers may not match, but the order is the same):
@@ -285,7 +286,7 @@ The diagram above depicts these steps (note the step numbers may not match, but 
 
 This process applies for every single operation that the **Segment Store** supports. All _modify_ operations go through the Operation Processor and have a similar path.
 
-## Reads
+### Reads
 
 ![Segment Store Reads](img/segment-store-reads.png)
 
@@ -298,7 +299,7 @@ The diagram above depicts these steps (note the step numbers may not match, but 
     - During this process, it also gets an existing Segment ID or assigns a new one (by using the **Segment Mapper** component).
 3. **Segment Container** delegates the request to its _Read Index_, which processes the read as described in the [Read Index](#read-index) section, by issuing Reads from **Storage** (for data that is not in the **Cache**), and querying/updating the **Cache** as needed.
 
-## Synchronization with Tier 2 (Storage Writer)
+### Synchronization with Tier 2 (Storage Writer)
 
 ![Segment Store Sync Tier 2](img/segment-store-synctier2.png)
 
@@ -312,7 +313,7 @@ The diagram above depicts these steps (note the step numbers may not match, but 
 5. After every successful modification (_write/seal/concat/truncate_) to **Storage**, the **Container Metadata** is updated to reflect the changes.
 6. The _Durable Log_ is truncated (if eligible).
 
-## Container Startup (Normal/Recovery)
+### Container Startup (Normal/Recovery)
 ![Segment Store Container Startup](img/segment-store-recovery.png)
 
 The diagram above depicts these steps (note the step numbers may not match, but the order is the same):
