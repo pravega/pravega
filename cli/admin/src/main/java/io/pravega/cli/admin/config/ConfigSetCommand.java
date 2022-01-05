@@ -53,7 +53,8 @@ public class ConfigSetCommand extends AdminCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(ConfigCommand.COMPONENT, "set",
-                "Sets one or more config values for use during this session.",
+                "Sets one or more config values for use during this session. Environment variables can also be provided. " +
+                        "For example, if the variable is ENV_VARIABLE, it can be provided as name=$ENV_VARIABLE.",
                 new ArgDescriptor("name=value list", "Space-separated name=value pairs."));
     }
 }
