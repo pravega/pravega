@@ -57,6 +57,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -733,13 +734,18 @@ class ContainerKeyIndex implements AutoCloseable {
      * Helps keep track of Segment-specific state.
      */
     @ThreadSafe
-    private class SegmentTracker implements AutoCloseable {
+    @VisibleForTesting
+    class SegmentTracker implements AutoCloseable {
         @GuardedBy("this")
         private final HashSet<Long> recoveredSegments = new HashSet<>();
         @GuardedBy("this")
         private final HashMap<Long, RecoveryTask> recoveryTasks = new HashMap<>();
         @GuardedBy("this")
         private final HashMap<Long, AsyncSemaphore> throttlers = new HashMap<>();
+
+        // Differentiate the throttling credits between system-critical and other Segments.
+        private final Predicate<DirectSegmentAccess> isSystemCriticalSegment = d -> d.getInfo().getType().isCritical()
+                && d.getInfo().getType().isSystem();
 
         @Override
         public void close() {
@@ -842,17 +848,21 @@ class ContainerKeyIndex implements AutoCloseable {
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
         <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
+            // Give a different amount of credits depending on whether the Segment is system-critical or not.
+            long totalCredits = isSystemCriticalSegment.test(segment) ? config.getSystemCriticalMaxUnindexedLength() : config.getMaxUnindexedLength();
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
                 if (throttler == null) {
                     val si = segment.getInfo();
                     long initialDelta = Math.max(0, si.getLength() - IndexReader.getLastIndexedOffset(si));
-                    throttler = new AsyncSemaphore(config.getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
+                    throttler = new AsyncSemaphore(totalCredits, initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
-
+            if (isSystemCriticalSegment.test(segment) && throttler.getUsedCredits() + updateSize > totalCredits) {
+                log.warn("{}: System-critical TableSegment {} is blocked due to reaching max unindexed size.", traceObjectId, segment.getSegmentId());
+            }
             return throttler.run(toExecute, updateSize, false); // No need to force anything at this time.
         }
 

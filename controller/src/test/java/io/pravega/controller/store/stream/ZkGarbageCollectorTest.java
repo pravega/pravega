@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -34,16 +33,12 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 
 public class ZkGarbageCollectorTest extends ThreadPooledTestSuite {
 
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkServer;
     private CuratorFramework cli;
 

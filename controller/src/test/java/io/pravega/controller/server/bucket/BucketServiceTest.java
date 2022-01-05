@@ -38,21 +38,17 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     BucketManager retentionService;
