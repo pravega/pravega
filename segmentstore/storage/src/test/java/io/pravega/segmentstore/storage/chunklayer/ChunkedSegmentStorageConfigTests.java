@@ -15,7 +15,10 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.test.common.AssertExtensions;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -51,6 +54,9 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MAX_SAFE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "18");
         props.setProperty(ChunkedSegmentStorageConfig.ENABLE_SAFE_SIZE_CHECK.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.SAFE_SIZE_CHECK_FREQUENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "19");
+        props.setProperty(ChunkedSegmentStorageConfig.RELOCATE_ON_TRUNCATE_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "20");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "21");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -77,6 +83,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxSafeStorageSize(), 18);
         Assert.assertFalse(config.isSafeStorageSizeCheckEnabled());
         Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), 19);
+        Assert.assertFalse(config.isRelocateOnTruncateEnabled());
+        Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), 20);
+        Assert.assertEquals(config.getMinPercentForTruncateRelocation(), 21);
     }
 
     @Test
@@ -112,10 +121,91 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxSafeStorageSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSafeStorageSize());
         Assert.assertEquals(config.isSafeStorageSizeCheckEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSafeStorageSizeCheckEnabled());
         Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getSafeStorageSizeCheckFrequencyInSeconds());
+        Assert.assertEquals(config.isRelocateOnTruncateEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isRelocateOnTruncateEnabled());
+        Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeForTruncateRelocationInbytes());
+        Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
     }
 
     @Test
     public void testDefaultBuildValues() {
         testDefaultValues(ChunkedSegmentStorageConfig.builder().build());
+    }
+
+    @Test
+    public void testInvalidValues() {
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_SAFE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+
+        testGetNonNegativeValue(ChunkedSegmentStorageConfig.MAX_INDEXED_SEGMENTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_INDEXED_CHUNKS_PER_SEGMENTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_INDEXED_CHUNKS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_DELAY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_QUEUE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_SLEEP.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_ATTEMPTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.JOURNAL_SNAPSHOT_UPDATE_FREQUENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_PER_SNAPSHOT_UPDATE_COUNT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_JOURNAL_READ_ATTEMPTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_BUFFER.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.READ_INDEX_BLOCK_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_METADATA_ENTRIES_IN_CACHE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_SAFE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.SAFE_SIZE_CHECK_FREQUENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.SELF_CHECK_LATE_WARNING_THRESHOLD.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+    }
+
+    /**
+     * Test for non negative value
+     * Valid values : 0, 1
+     * Invalid values : -1
+     * @param name  Tha name of the property
+     */
+    private void testGetNonNegativeValue(String name) {
+        testValueThrowsException(name, "-1");
+        testNonFailingValue(name, "0");
+        testNonFailingValue(name, "1");
+    }
+
+    /**
+     * Test for positive value
+     * Valid value : 1
+     * Invalid values : 0, -1
+     * @param name The name of the property
+     */
+    private void testGetPositiveValue(String name) {
+        testValueThrowsException(name, "0");
+        testValueThrowsException(name, "-1");
+        testNonFailingValue(name, "1");
+    }
+
+    /**
+     * Testing for which particular value does the test throw exception
+     * @param name The name of the property
+     * @param value The value associated with the property
+     */
+    private void testValueThrowsException(String name, String value) {
+        Properties props = new Properties();
+        props.setProperty(name, value);
+
+        TypedProperties typedProperties = new TypedProperties(props, "storage");
+        AssertExtensions.assertThrows(
+                " read should throw exception.",
+                () -> new ChunkedSegmentStorageConfig(typedProperties),
+                ex -> ex instanceof ConfigurationException);
+    }
+
+    /**
+     * Testing if the value of the property passes the test for particular values without any failure
+     * @param name The name of the property
+     * @param value The value associated with the property
+     */
+    private void testNonFailingValue(String name, String value) {
+        Properties props = new Properties();
+        props.setProperty(name, value);
+
+        TypedProperties typedProperties = new TypedProperties(props, "storage");
+        val config = new ChunkedSegmentStorageConfig(typedProperties);
     }
 }

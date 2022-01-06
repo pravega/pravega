@@ -154,10 +154,12 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
     public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_BYTES = PREFIX + "segmentstore.storage.slts.truncate_relocation_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_COUNT = PREFIX + "segmentstore.storage.slts.truncate_relocation_count";  // Counter
     public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count"; // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";         // Counter
@@ -176,6 +178,7 @@ public final class MetricsNames {
     public static final String SLTS_GC_SEGMENT_FAILED = PREFIX + "segmentstore.storage.slts.GC.segment_failed_count";       // Counter
 
     public static final String SLTS_STORAGE_USED_BYTES = PREFIX + "segmentstore.storage.used_bytes";
+    public static final String SLTS_STORAGE_USED_PERCENTAGE = PREFIX + "segmentstore.storage.used_percentage";
 
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
@@ -275,12 +278,13 @@ public final class MetricsNames {
     public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
 
     // Scope request counts
-    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
-    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram
-    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";              // Counter and Per-scope Counter
-    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                           // Counter
-    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";        // Histogram
-    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";              // Counter and Per-scope Counter
+    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                                              // Counter
+    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";                           // Histogram
+    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";                                 // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                                              // Counter
+    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";                           // Histogram
+    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";                                 // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE_RECURSIVE_FAILED = PREFIX + "controller.scope.recursive_delete_failed";              // Counter and Per-scope Counter
 
     // Stream request counts
     public static final String CREATE_STREAM = PREFIX + "controller.stream.created";                         // Counter

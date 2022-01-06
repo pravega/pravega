@@ -126,6 +126,11 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
         throw new IllegalStateException("Unexpected operation");
     }

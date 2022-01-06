@@ -29,6 +29,7 @@ import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_SCOPE_RECURSIVE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
@@ -274,6 +275,17 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void deleteScopeFailed(String scope) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_SCOPE_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE_FAILED, 1, streamTags(scope, ""));
+    }
+
+    /**
+     * This method increments the counter of failed Stream deletions in the system as well as the failed deletion
+     * attempts for this specific Stream.
+     *
+     * @param scope         Scope.
+     */
+    public void deleteScopeRecursiveFailed(String scope) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_SCOPE_RECURSIVE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE_RECURSIVE_FAILED, 1, streamTags(scope, ""));
     }
 
     /**

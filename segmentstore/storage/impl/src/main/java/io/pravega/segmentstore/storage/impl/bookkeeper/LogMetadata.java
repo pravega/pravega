@@ -38,7 +38,7 @@ import lombok.val;
  * Metadata for a Ledger-based log.
  */
 @NotThreadSafe
-class LogMetadata implements ReadOnlyLogMetadata {
+class LogMetadata implements ReadOnlyBookkeeperLogMetadata {
     //region Members
 
     static final VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> SERIALIZER = new Serializer();

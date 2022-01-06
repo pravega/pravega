@@ -69,6 +69,11 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
     public static final Property<Integer> SAFE_SIZE_CHECK_FREQUENCY = Property.named("safe.size.check.frequency.seconds", 60);
+
+    public static final Property<Boolean> RELOCATE_ON_TRUNCATE_ENABLED = Property.named("truncate.relocate.enable", true);
+    public static final Property<Long> MIN_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.min", 64 * 1024 * 1024L);
+    public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
+
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
@@ -101,6 +106,9 @@ public class ChunkedSegmentStorageConfig {
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
+            .relocateOnTruncateEnabled(true)
+            .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
+            .minPercentForTruncateRelocation(80)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -175,6 +183,24 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean inlineDefragEnabled;
+
+    /**
+     * Whether the relocation on truncate functionality is enabled or disabled.
+     */
+    @Getter
+    final private boolean relocateOnTruncateEnabled;
+
+    /**
+     * Minimum size of chunk required for it to be eligible for relocation.
+     */
+    @Getter
+    final private long minSizeForTruncateRelocationInbytes;
+
+    /**
+     * Minimum percentage of wasted space required for it to be eligible for relocation.
+     */
+    @Getter
+    final private int minPercentForTruncateRelocation;
 
     @Getter
     final private int lateWarningThresholdInMillis;
@@ -287,32 +313,35 @@ public class ChunkedSegmentStorageConfig {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
         this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
-        this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
+        this.maxBufferSizeForChunkDataTransfer = properties.getPositiveInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
         this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
-        this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
-        this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
-        this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
-        this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
+        this.maxSizeLimitForConcat = properties.getPositiveLong(MAX_SIZE_LIMIT_FOR_CONCAT);
+        this.maxIndexedSegments = properties.getNonNegativeInt(MAX_INDEXED_SEGMENTS);
+        this.maxIndexedChunksPerSegment = properties.getPositiveInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
+        this.maxIndexedChunks = properties.getPositiveInt(MAX_INDEXED_CHUNKS);
         this.storageMetadataRollingPolicy = new SegmentRollingPolicy(properties.getLong(DEFAULT_ROLLOVER_SIZE));
-        this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
-        this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
-        this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
-        this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
-        this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
-        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.lateWarningThresholdInMillis = properties.getPositiveInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.garbageCollectionDelay = Duration.ofSeconds(properties.getPositiveInt(GARBAGE_COLLECTION_DELAY));
+        this.garbageCollectionMaxConcurrency = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
+        this.garbageCollectionMaxQueueSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
+        this.garbageCollectionSleep = Duration.ofMillis(properties.getPositiveInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
         this.garbageCollectionTransactionBatchSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE);
-        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
-        this.maxJournalUpdatesPerSnapshot =  properties.getInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
-        this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
-        this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);
+        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getPositiveInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
+        this.maxJournalUpdatesPerSnapshot =  properties.getPositiveInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
+        this.maxJournalReadAttempts = properties.getPositiveInt(MAX_JOURNAL_READ_ATTEMPTS);
+        this.maxJournalWriteAttempts = properties.getPositiveInt(MAX_JOURNAL_WRITE_ATTEMPTS);
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
-        this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
-        this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
-        this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
+        this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
+        this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
+        this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);
         this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
         this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
+        this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
+        this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
+        this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
     }
 
     /**

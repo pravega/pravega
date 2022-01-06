@@ -26,6 +26,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -39,6 +40,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -104,6 +106,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -120,6 +124,7 @@ import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
@@ -225,6 +230,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         boolean isTokenValid = false;
         try {
             tokenVerifier.verifyToken(segment, delegationToken, READ);
+            isTokenValid = true;
+        } catch (TokenException e) {
+            handleException(requestId, segment, operation, e);
+        }
+        return isTokenValid;
+    }
+
+    protected boolean verifyTokenForUpdate(String segment, long requestId, String delegationToken, String operation) {
+        boolean isTokenValid = false;
+        try {
+            tokenVerifier.verifyToken(segment, delegationToken, READ_UPDATE);
             isTokenValid = true;
         } catch (TokenException e) {
             handleException(requestId, segment, operation, e);
@@ -517,6 +533,51 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
                         }
                     });
+    }
+
+    @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        final String operation = "mergeSegmentsBatch";
+        List<String> sources = mergeSegments.getSourceSegmentIds();
+        if (!verifyTokenForUpdate(mergeSegments.getTargetSegmentId(), mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
+            return;
+        }
+        for (String s : sources) {
+            if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
+                return;
+            }
+        }
+        log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
+        Futures.allOfWithResults(sources.stream().map(source ->
+                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, TIMEOUT), (r, e) -> {
+                    if (e != null) {
+                        Throwable unwrap = Exceptions.unwrap(e);
+                        if (unwrap instanceof StreamSegmentMergedException) {
+                           log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                           return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                        }
+                        if (unwrap instanceof StreamSegmentNotExistsException) {
+                            StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
+                            if (ex.getStreamSegmentName().equals(source)) {
+                                log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                                return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                            }
+                        }
+                        throw new CompletionException(e);
+                    } else {
+                        recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
+                        return CompletableFuture.completedFuture(r.getTargetSegmentLength());
+                    }
+                })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
+                    connection.send(new WireCommands.SegmentsBatchMerged(mergeSegments.getRequestId(),
+                           mergeSegments.getTargetSegmentId(),
+                           sources,
+                           mergeResults));
+               })
+               .exceptionally(e -> {
+                   log.debug("error");
+                   return handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e);
+               });
     }
 
     @Override

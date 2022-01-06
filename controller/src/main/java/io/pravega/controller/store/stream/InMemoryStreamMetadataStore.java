@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -63,6 +64,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final HashMap<String, InMemoryScope> scopes = new HashMap<>();
+    @GuardedBy("$lock")
+    private final HashMap<String, InMemoryScope> deletingScopes = new HashMap<>();
     private final AtomicInteger position = new AtomicInteger();
     @GuardedBy("$lock")
     private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
@@ -89,6 +92,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         return scopes.containsKey(scopeName);
     }
 
+    @Synchronized
+    public boolean scopeInDeletingTable(String scopeName) {
+        return deletingScopes.containsKey(scopeName);
+    }
+
     @Override
     @Synchronized
     Stream newStream(String scopeName, String name) {
@@ -110,6 +118,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext context, Executor executor) {
+        log.debug("InMemory checking if scope exists");
+        return CompletableFuture.completedFuture(deletingScopes.containsKey(scope));
     }
 
     @Override
@@ -280,6 +295,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                              final String rgName,
                                                              OperationContext context, Executor executor) {
         return Futures.completeOn(((InMemoryScope) getScope(scopeName, context)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> sealScope(final String scopeName, OperationContext ctx, ScheduledExecutorService executor) {
+        return CompletableFuture.completedFuture(null);
     }
 
     // endregion
