@@ -19,7 +19,6 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
 import lombok.Getter;
 
