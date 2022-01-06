@@ -56,6 +56,13 @@ public class ConfigUtils {
     }
 
     public static String getIfEnv(String value) {
-        return value.startsWith("$") ? System.getenv(value.substring(1)) : value;
+        if (value.startsWith("$")) {
+            String envValue = System.getenv(value.substring(1));
+            if (envValue == null) {
+                throw new IllegalArgumentException(String.format("%s is not a valid environment variable.", value));
+            }
+            return envValue;
+        }
+        return value;
     }
 }
