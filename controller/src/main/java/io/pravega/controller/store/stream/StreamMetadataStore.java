@@ -1024,14 +1024,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param streamName       Stream
      * @param txnId            Transaction identifier.
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
-     * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param context          operation context
      * @param executor         callers executor
      * @return Transaction data along with version information.
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
                                                                   final UUID txnId,
-                                                                  final long lease, final long maxExecutionTime,
+                                                                  final long lease,
                                                                   final OperationContext context,
                                                                   final Executor executor);
 

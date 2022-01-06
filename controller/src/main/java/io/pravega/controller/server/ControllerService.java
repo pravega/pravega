@@ -633,7 +633,7 @@ public class ControllerService {
      * 
      * @param scope scope 
      * @param stream stream name
-     * @param lease lease for transaction.
+     * @param lease lease for transaction in ms.
      * @param requestId request id
      * @return Transaction state future
      */

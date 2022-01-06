@@ -453,7 +453,7 @@ interface Stream {
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                   final long lease,
-                                                                  final long maxExecutionTime, OperationContext context);
+                                                                  OperationContext context);
 
 
     /**

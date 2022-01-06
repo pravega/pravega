@@ -61,6 +61,7 @@ public class PeriodicTxnGC {
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getOpenTxns(stream.getScope(),
                 stream.getStreamName(), context, executor).thenCompose(openTxnsData -> {
                              if (openTxnsData.isEmpty()) {
+                                 // There are no open transactions on this Stream, so return
                                  return CompletableFuture.completedFuture(null);
                              }
                              return streamTxnMetadataTasks.transactionGC(stream.getScope(), stream.getStreamName(), openTxnsData, context);
@@ -71,7 +72,7 @@ public class PeriodicTxnGC {
                          }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                           .exceptionally(e -> {
                               log.warn(requestId, "Unable to perform transaction garbage collection for stream {}. " +
-                                      "Ignoring, transaction garbage collection will be re-attempted again in the next cycle.", stream, e);
+                                      "Ignoring, garbage collection will be re-attempted again in the next cycle.", stream, e);
                               return null;
                           }).thenRun(() -> requestTracker.untrackRequest(requestDescriptor));
     }

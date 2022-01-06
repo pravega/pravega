@@ -1499,23 +1499,23 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                          final long lease,
-                                                                         final long maxExecutionTime,
                                                                          OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
-        final long current = System.currentTimeMillis();
-        final long leaseTimestamp = current + lease;
-        final long maxExecTimestamp = current + maxExecutionTime;
+        final long currentTimestamp = System.currentTimeMillis();
+        final long leaseTimestamp =  Long.MAX_VALUE == lease ? Long.MAX_VALUE : currentTimestamp + lease;
+        // deprecated, maintained for backward compatibility
+        final long maxExecTimestamp = leaseTimestamp;
         // extract epoch from txnid
         final int epoch = RecordHelper.getTransactionEpoch(txnId);
         ActiveTxnRecord record = ActiveTxnRecord.builder().txnStatus(TxnStatus.OPEN).leaseExpiryTime(leaseTimestamp)
-                                                .txCreationTimestamp(current).maxExecutionExpiryTime(maxExecTimestamp)
+                                                .txCreationTimestamp(currentTimestamp).maxExecutionExpiryTime(maxExecTimestamp)
                                                 .writerId(Optional.empty())
                                                 .commitTime(Optional.empty())
                                                 .commitOrder(Optional.empty())
                                                 .build();
         return verifyNotSealed(context).thenCompose(v -> createNewTransaction(epoch, txnId, record, context)
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of())));
+                        TxnStatus.OPEN, currentTimestamp, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of())));
     }
 
     @Override

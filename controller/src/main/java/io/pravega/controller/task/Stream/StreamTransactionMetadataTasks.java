@@ -364,7 +364,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         Preconditions.checkNotNull(ctx, "Operation context is null");
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
-        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, maxTransactionExecutionTimeBound.get());
 
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
@@ -383,7 +382,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                     // Step 3. Create txn node in the store.
                     CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
-                            ctx, maxExecutionPeriod, txnId, addIndex, ctx.getRequestId());
+                            ctx, txnId, addIndex, ctx.getRequestId());
 
                     // Step 4. Notify segment stores about new txn.
                     CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
@@ -397,9 +396,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             log.trace(ctx.getRequestId(), "Txn={}, notified segments stores", txnId));
 
                     // Step 5. Start tracking txn in timeout service
-                    return notify.whenCompleteAsync((result, ex) -> {
-                        addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture, ctx.getRequestId());
-                    }, executor).thenApplyAsync(v -> {
+                    return notify.thenApplyAsync(v -> {
                         List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
                             long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
                             int epoch = NameUtils.getEpoch(generalizedSegmentId);
@@ -429,10 +426,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease,
-                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         OperationContext ctx, UUID txnId,
                                                                          CompletableFuture<Void> addIndex, long requestId) {
         return addIndex.thenComposeAsync(ignore ->
-                                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
+                                streamMetadataStore.createTransaction(scope, stream, txnId, lease,
                                         ctx, executor), executor).whenComplete((v, e) -> {
                             if (e != null) {
                                 log.debug(requestId, "Txn={}, failed creating txn in store", txnId);
@@ -460,11 +457,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         if (lease < Config.MIN_LEASE_VALUE) {
             return Futures.failedFuture(new IllegalArgumentException("lease should be greater than minimum lease"));
         }
-        // If lease value is too large return error
-        if (lease > timeoutService.getMaxLeaseValue()) {
-            return Futures.failedFuture(new IllegalArgumentException("lease value too large, max value is "
-                    + timeoutService.getMaxLeaseValue()));
-        }
+
         return CompletableFuture.completedFuture(null);
     }
 
@@ -646,6 +639,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         Optional<Version> versionOpt = Optional.ofNullable(version);
 
         // Step 1. Add txn to current host's index, if it is not already present
+        //TODO: Remove reference to timeout service here...
         CompletableFuture<Void> addIndex = host.equals(hostId) && !timeoutService.containsTxn(scope, stream, txnId) ?
                 // PS: txn version in index does not matter, because if update is successful,
                 // then txn would no longer be open.
@@ -690,8 +684,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return CompletableFuture.completedFuture(status);
             }
         }, executor).thenComposeAsync(status -> {
-            // Step 4. Remove txn from timeoutService, and from the index.
-            timeoutService.removeTxn(scope, stream, txnId);
             log.debug(requestId, "Txn={}, removed from timeout service", txnId);
             return streamMetadataStore.removeTxnFromIndex(host, resource, true).whenComplete((v, e) -> {
                 if (e != null) {
@@ -715,9 +707,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         Preconditions.checkNotNull(contextOpt);
         Preconditions.checkNotNull(openTransactionData);
-        List<CompletableFuture<Void>> txnFuturesList = openTransactionData.entrySet().stream().map(txnEntry -> {
+        List<CompletableFuture<Void>> txnFuturesList = openTransactionData.entrySet().stream()
+                .filter(txn -> txn.getValue().getLeaseExpiryTime() != Long.MAX_VALUE).map(txnEntry -> {
             final long currentTime = System.currentTimeMillis();
-            if (txnEntry.getValue().getMaxExecutionExpiryTime() < currentTime) {
+            if (txnEntry.getValue().getLeaseExpiryTime() < currentTime) {
                 // the transaction is past its expiry, so abort it.
                 return abortTxn(scope, stream, txnEntry.getKey(), null, contextOpt)
                         .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));

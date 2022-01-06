@@ -297,8 +297,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 log.info("Starting background periodic service for transactions GC.");
                 transactionGCService.startAsync();
                 transactionGCService.awaitRunning();
-                //RetentionServiceHealthContributor retentionServiceHC = new RetentionServiceHealthContributor("retentionService", retentionService);
-                //healthServiceManager.register(retentionServiceHC);
+                //TxnGCServiceHealthContributor txnGCServiceHC = new TxnGCServiceHealthContributor("retentionService", retentionService);
+                //healthServiceManager.register(txnGCServiceHC);
             }
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
@@ -464,6 +464,10 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             }
 
             close(watermarkingWork);
+
+            if (transactionGCService != null) {
+                transactionGCService.stopAsync();
+            }
 
             if (streamMetadataTasks != null) {
                 streamMetadataTasks.close();

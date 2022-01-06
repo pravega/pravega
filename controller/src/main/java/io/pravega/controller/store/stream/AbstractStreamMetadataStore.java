@@ -792,12 +792,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                          final String streamName,
                                                                          final UUID txnId,
                                                                          final long lease,
-                                                                         final long maxExecutionTime,
                                                                          final OperationContext ctx,
                                                                          final Executor executor) {
         OperationContext context = getOperationContext(ctx);
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createTransaction(txnId, lease, maxExecutionTime, context), executor);
+        return Futures.completeOn(stream.createTransaction(txnId, lease, context), executor);
     }
 
     @Override
