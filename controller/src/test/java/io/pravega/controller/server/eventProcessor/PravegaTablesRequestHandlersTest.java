@@ -18,6 +18,8 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.Version;
@@ -35,6 +37,14 @@ public class PravegaTablesRequestHandlersTest extends RequestHandlersTest {
             segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         }
         return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
+    }
+
+    @Override
+    KVTableMetadataStore getKvtStore() {
+        if (segmentHelper == null) {
+            segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        }
+        return KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 
     @Override

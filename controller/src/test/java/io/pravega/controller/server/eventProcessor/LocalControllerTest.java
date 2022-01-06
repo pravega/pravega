@@ -41,7 +41,6 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -57,7 +56,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -809,6 +807,33 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.deleteKeyValueTable("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() {
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteScopeRecursive("testScope").join());
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteScopeRecursive("testScope").join());
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteScopeRecursive("testScope").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteScopeRecursive("testScope").join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 

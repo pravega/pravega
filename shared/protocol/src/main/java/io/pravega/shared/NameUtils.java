@@ -18,12 +18,13 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import lombok.AccessLevel;
+import lombok.Getter;
+
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 /**
  * Utility methods for StreamSegment Names.
