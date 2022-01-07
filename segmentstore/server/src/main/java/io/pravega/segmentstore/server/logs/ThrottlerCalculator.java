@@ -82,11 +82,8 @@ class ThrottlerCalculator {
     @VisibleForTesting
     static final int OPERATION_LOG_TARGET_SIZE = (int) (OPERATION_LOG_MAX_SIZE * 0.95);
 
-    /**
-     * Maximum delay (millis) we are willing to introduce in order to perform batching.
-     */
     @VisibleForTesting
-    final ThrottlerSettings throttlerSettings;
+    final int maxDelayMillis;
 
     @Singular
     private final List<Throttler> throttlers;
@@ -126,9 +123,9 @@ class ThrottlerCalculator {
         ThrottlerName throttlerName = null;
         for (Throttler t : this.throttlers) {
             int delay = t.getDelayMillis();
-            if (delay >= throttlerSettings.getMaxDelayMillis()) {
+            if (delay >= this.maxDelayMillis) {
                 // This throttler introduced the maximum delay. No need to search more.
-                maxDelay = throttlerSettings.getMaxDelayMillis();
+                maxDelay = this.maxDelayMillis;
                 maximum = true;
                 throttlerName = t.getName();
                 break;
@@ -168,7 +165,7 @@ class ThrottlerCalculator {
         /**
          * Gets a log-friendly name for this Throttle instance.
          *
-         * @return
+         * @return Throttler name.
          */
         abstract ThrottlerName getName();
     }
@@ -240,7 +237,7 @@ class ThrottlerCalculator {
             // fill ratios we don't want to wait too long.
             double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
 
-            // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
+            // Finally, we use the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
             int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
             return Math.min(delayMillis, this.maxBatchingDelayMillis);
         }
@@ -269,7 +266,6 @@ class ThrottlerCalculator {
         private final int baseDelay;
         private final int minThrottleThreshold;
         private final Supplier<QueueStats> getQueueStats;
-        private final int maxDelayMillis;
 
         DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats, int maxDelayMillis) {
             // Calculate the latency threshold as a fraction of the WriteSettings' Max Write Timeout.
@@ -280,7 +276,6 @@ class ThrottlerCalculator {
             this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
             this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier, maxDelayMillis);
             this.getQueueStats = getQueueStats;
-            this.maxDelayMillis = maxDelayMillis;
         }
 
         @Override

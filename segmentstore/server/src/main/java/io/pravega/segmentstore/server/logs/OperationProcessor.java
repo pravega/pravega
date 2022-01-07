@@ -91,11 +91,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     /**
      * Creates a new instance of the OperationProcessor class.
      *
-     * @param metadata         The ContainerMetadata for the Container to process operations for.
-     * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
-     * @param durableDataLog   The DataFrameLog to write DataFrames to.
-     * @param checkpointPolicy The Checkpoint Policy for Metadata.
-     * @param executor         An Executor to use for async operations.
+     * @param metadata          The ContainerMetadata for the Container to process operations for.
+     * @param stateUpdater      A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param durableDataLog    The DataFrameLog to write DataFrames to.
+     * @param checkpointPolicy  The Checkpoint Policy for Metadata.
+     * @param throttlerSettings Configuration parameters for ThrottlerCalculator.
+     * @param executor          An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog,
@@ -114,7 +115,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.cacheUtilizationProvider = stateUpdater.getCacheUtilizationProvider();
         val throttlerCalculator = ThrottlerCalculator
                 .builder()
-                .throttlerSettings(throttlerSettings)
+                .maxDelayMillis(throttlerSettings.getMaxDelayMillis())
                 .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(),
                         this.cacheUtilizationProvider.getCacheMaxUtilization(), throttlerSettings.getMaxDelayMillis())
                 .batchingThrottler(durableDataLog::getQueueStatistics, throttlerSettings.getMaxBatchingDelayMillis())

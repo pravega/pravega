@@ -64,7 +64,7 @@ public class DurableLogConfig {
      * The amount of time to wait between consecutive start attempts in case of retryable startup failure (i.e., offline).
      */
     @Getter
-    private Duration startRetryDelay;
+    private final Duration startRetryDelay;
 
     /**
      * Maximum delay (millis) we are willing to introduce in order to perform batching.
@@ -126,7 +126,9 @@ public class DurableLogConfig {
         this.operationLogTargetSize = properties.getInt(OPERATION_LOG_TARGET_SIZE);
         checkPositiveIntegerPropertyValue(OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize);
         if (this.operationLogTargetSize < this.operationLogMaxSize) {
-            throw new ConfigurationException(String.format("Property '%s' must be a smaller than '%s'.", OPERATION_LOG_TARGET_SIZE, OPERATION_LOG_MAX_SIZE));
+            throw new ConfigurationException(String.format("Property '%s' ('%d') must be a smaller than Property '%s' ('%d').",
+                    OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize,
+                    OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize));
         }
     }
 

@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import lombok.Data;
 
 /**
- * Stores configurable settings for {@link ThrottlerCalculator}.
+ * Stores configurable throttling settings to be used in {@link ThrottlerCalculator}.
  */
 @Data
 class ThrottlerSettings {
