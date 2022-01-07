@@ -32,6 +32,10 @@ public class DurableLogConfig {
     public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threshold.count", 300, "checkpointCommitCountThreshold");
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
+    public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS);
+    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_DELAY_MILLIS);
+    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerCalculator.OPERATION_LOG_MAX_SIZE);
+    public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -62,6 +66,31 @@ public class DurableLogConfig {
     @Getter
     private Duration startRetryDelay;
 
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to perform batching.
+     */
+    @Getter
+    private final int maxBatchingDelayMillis;
+
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
+     */
+    @Getter
+    private final int maxDelayMillis;
+
+    /**
+     * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
+     */
+    @Getter
+    private final int operationLogMaxSize;
+
+    /**
+     * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
+     */
+    @Getter
+    private final int operationLogTargetSize;
+
+
     //endregion
 
     //region Constructor
@@ -86,6 +115,19 @@ public class DurableLogConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", START_RETRY_DELAY_MILLIS));
         }
         this.startRetryDelay = Duration.ofMillis(startRetryDelayMillis);
+
+        // Throttler configuration.
+        this.maxBatchingDelayMillis = properties.getInt(MAX_BATCHING_DELAY_MILLIS);
+        checkPositiveIntegerPropertyValue(MAX_BATCHING_DELAY_MILLIS, this.maxBatchingDelayMillis);
+        this.maxDelayMillis = properties.getInt(MAX_DELAY_MILLIS);
+        checkPositiveIntegerPropertyValue(MAX_DELAY_MILLIS, this.maxDelayMillis);
+        this.operationLogMaxSize = properties.getInt(OPERATION_LOG_MAX_SIZE);
+        checkPositiveIntegerPropertyValue(OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize);
+        this.operationLogTargetSize = properties.getInt(OPERATION_LOG_TARGET_SIZE);
+        checkPositiveIntegerPropertyValue(OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize);
+        if (this.operationLogTargetSize < this.operationLogMaxSize) {
+            throw new ConfigurationException(String.format("Property '%s' must be a smaller than '%s'.", OPERATION_LOG_TARGET_SIZE, OPERATION_LOG_MAX_SIZE));
+        }
     }
 
     /**
@@ -98,4 +140,10 @@ public class DurableLogConfig {
     }
 
     //endregion
+
+    private void checkPositiveIntegerPropertyValue(Property<Integer> property, int value) {
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
+        }
+    }
 }

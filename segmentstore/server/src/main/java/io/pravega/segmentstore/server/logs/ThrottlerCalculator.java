@@ -81,6 +81,13 @@ class ThrottlerCalculator {
      */
     @VisibleForTesting
     static final int OPERATION_LOG_TARGET_SIZE = (int) (OPERATION_LOG_MAX_SIZE * 0.95);
+
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to perform batching.
+     */
+    @VisibleForTesting
+    final ThrottlerSettings throttlerSettings;
+
     @Singular
     private final List<Throttler> throttlers;
 
@@ -119,9 +126,9 @@ class ThrottlerCalculator {
         ThrottlerName throttlerName = null;
         for (Throttler t : this.throttlers) {
             int delay = t.getDelayMillis();
-            if (delay >= MAX_DELAY_MILLIS) {
+            if (delay >= throttlerSettings.getMaxDelayMillis()) {
                 // This throttler introduced the maximum delay. No need to search more.
-                maxDelay = MAX_DELAY_MILLIS;
+                maxDelay = throttlerSettings.getMaxDelayMillis();
                 maximum = true;
                 throttlerName = t.getName();
                 break;
@@ -136,8 +143,8 @@ class ThrottlerCalculator {
         return new DelayResult(throttlerName, maxDelay, maximum);
     }
 
-    private static <T, V extends Number> int calculateBaseDelay(T fullThrottleThreshold, Function<T, V> calculator) {
-        return (int) Math.ceil(MAX_DELAY_MILLIS / calculator.apply(fullThrottleThreshold).doubleValue());
+    private static <T, V extends Number> int calculateBaseDelay(T fullThrottleThreshold, Function<T, V> calculator, int maxDelayMillis) {
+        return (int) Math.ceil(maxDelayMillis / calculator.apply(fullThrottleThreshold).doubleValue());
     }
 
     //endregion
@@ -176,15 +183,15 @@ class ThrottlerCalculator {
         @NonNull
         private final Supplier<Double> getCacheUtilization;
 
-        CacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
+        CacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization, int maxDelayMillis) {
             this.targetCacheUtilization = targetCacheUtilization + CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
             this.getCacheUtilization = getCacheUtilization;
             if (this.targetCacheUtilization >= maxCacheUtilization) {
                 // Since this is externally provided, we need to be able to handle invalid values. If we get too small of
                 // a utilization, then we will apply maximum throttle as soon as we reach the min utilization threshold.
-                this.baseDelay = MAX_DELAY_MILLIS;
+                this.baseDelay = maxDelayMillis;
             } else {
-                this.baseDelay = calculateBaseDelay(maxCacheUtilization, this::getDelayMultiplier);
+                this.baseDelay = calculateBaseDelay(maxCacheUtilization, this::getDelayMultiplier, maxDelayMillis);
             }
         }
 
@@ -217,6 +224,7 @@ class ThrottlerCalculator {
     private static class BatchingThrottler extends Throttler {
         @NonNull
         private final Supplier<QueueStats> getQueueStats;
+        private final int maxBatchingDelayMillis;
 
         @Override
         boolean isThrottlingRequired() {
@@ -234,7 +242,7 @@ class ThrottlerCalculator {
 
             // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
             int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-            return Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS);
+            return Math.min(delayMillis, this.maxBatchingDelayMillis);
         }
 
         @Override
@@ -261,16 +269,18 @@ class ThrottlerCalculator {
         private final int baseDelay;
         private final int minThrottleThreshold;
         private final Supplier<QueueStats> getQueueStats;
+        private final int maxDelayMillis;
 
-        DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats) {
+        DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats, int maxDelayMillis) {
             // Calculate the latency threshold as a fraction of the WriteSettings' Max Write Timeout.
             this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
 
             // Calculate max and min throttling thresholds (see Javadoc above for explanation).
             int maxThrottleThreshold = writeSettings.getMaxOutstandingBytes() / writeSettings.getMaxWriteLength();
             this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
-            this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier);
+            this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier, maxDelayMillis);
             this.getQueueStats = getQueueStats;
+            this.maxDelayMillis = maxDelayMillis;
         }
 
         @Override
@@ -309,25 +319,28 @@ class ThrottlerCalculator {
      */
     @RequiredArgsConstructor
     private static class OperationLogThrottler extends Throttler {
-        private static final double SIZE_SPAN = OPERATION_LOG_MAX_SIZE - OPERATION_LOG_TARGET_SIZE;
         @NonNull
         private final Supplier<Integer> getOperationLogSize;
+        private final int maxDelayMillis;
+        private final int operationLogMaxSize;
+        private final int operationLogTargetSize;
 
         @Override
         boolean isThrottlingRequired() {
-            return this.getOperationLogSize.get() > OPERATION_LOG_TARGET_SIZE;
+            return this.getOperationLogSize.get() > this.operationLogTargetSize;
         }
 
         @Override
         int getDelayMillis() {
             // We only throttle if we exceed the target log size. We increase the throttling amount in a linear fashion.
             int size = this.getOperationLogSize.get();
-            if (size <= OPERATION_LOG_TARGET_SIZE) {
+            if (size <= this.operationLogTargetSize) {
                 return 0;
-            } else if (size >= OPERATION_LOG_MAX_SIZE) {
-                return MAX_DELAY_MILLIS;
+            } else if (size >= this.operationLogMaxSize) {
+                return this.maxDelayMillis;
             } else {
-                return (int) (MAX_DELAY_MILLIS * (this.getOperationLogSize.get() - OPERATION_LOG_TARGET_SIZE) / SIZE_SPAN);
+                final double sizeSpan = this.operationLogMaxSize - this.operationLogTargetSize;
+                return (int) (this.maxDelayMillis * (this.getOperationLogSize.get() - this.operationLogTargetSize) / sizeSpan);
             }
         }
 
@@ -354,8 +367,9 @@ class ThrottlerCalculator {
          * @param maxCacheUtilization    Maximum allowed cache utilization, at or above which full throttling will apply.
          * @return This builder.
          */
-        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
-            return throttler(new CacheThrottler(getCacheUtilization, targetCacheUtilization, maxCacheUtilization));
+        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization,
+                                                  double maxCacheUtilization, int maxDelayMillis) {
+            return throttler(new CacheThrottler(getCacheUtilization, targetCacheUtilization, maxCacheUtilization, maxDelayMillis));
         }
 
         /**
@@ -365,16 +379,18 @@ class ThrottlerCalculator {
          *                      statistics about the DurableDataLog write queue.
          * @return This builder.
          */
-        ThrottlerCalculatorBuilder batchingThrottler(Supplier<QueueStats> getQueueStats) {
-            return throttler(new BatchingThrottler(getQueueStats));
+        ThrottlerCalculatorBuilder batchingThrottler(Supplier<QueueStats> getQueueStats, int maxBatchingDelayMillis) {
+            return throttler(new BatchingThrottler(getQueueStats, maxBatchingDelayMillis));
         }
 
-        ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats) {
-            return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats));
+        ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats,
+                                                           int maxDelayMillis) {
+            return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats, maxDelayMillis));
         }
 
-        ThrottlerCalculatorBuilder operationLogThrottler(Supplier<Integer> getDurableLogSize) {
-            return throttler(new OperationLogThrottler(getDurableLogSize));
+        ThrottlerCalculatorBuilder operationLogThrottler(Supplier<Integer> getDurableLogSize, int maxDelayMillis,
+                                                         int operationLogMaxSize, int operationLogTargetSize) {
+            return throttler(new OperationLogThrottler(getDurableLogSize, maxDelayMillis, operationLogMaxSize, operationLogTargetSize));
         }
     }
 
