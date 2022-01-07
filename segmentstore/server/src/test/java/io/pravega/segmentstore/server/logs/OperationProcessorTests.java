@@ -892,7 +892,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final Runnable onNotifyThrottleSourceChanged;
 
         ManualThrottler(Runnable onNotifyThrottleSourceChanged, ScheduledExecutorService executor) {
-            super(CONTAINER_ID, ThrottlerCalculator.builder().throttler(new NoOpCalculator()).build(), () -> false, executor,
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS).throttler(new NoOpCalculator()).build(), () -> false, executor,
                     new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
             this.onNotifyThrottleSourceChanged = onNotifyThrottleSourceChanged;
         }

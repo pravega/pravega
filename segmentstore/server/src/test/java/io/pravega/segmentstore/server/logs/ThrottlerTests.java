@@ -393,7 +393,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
-        return ThrottlerCalculator.builder().throttler(calculatorThrottler).build();
+        return ThrottlerCalculator.builder().maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS).throttler(calculatorThrottler).build();
     }
 
     private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {

@@ -40,14 +40,20 @@ public class ThrottlerCalculatorTests {
         val tAdj = t + ThrottlerCalculator.CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
         val maxU = 0.98;
         val cacheUtilization = new AtomicReference<Double>(0.0);
-        val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t, maxU, ThrottlerCalculator.MAX_DELAY_MILLIS).build();
+        val tc = ThrottlerCalculator.builder()
+                .maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .cacheThrottler(cacheUtilization::get, t, maxU, ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .build();
         testThrottling(tc, cacheUtilization,
                 new Double[]{-1.0, 0.0, 0.5, tAdj},
                 new Double[]{tAdj + 0.01, tAdj + 0.05, tAdj + 0.06, maxU},
                 new Double[]{maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
 
         // Now verify behavior when the max threshold is less than the min threshold.
-        val tc2 = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t, t - 0.01, ThrottlerCalculator.MAX_DELAY_MILLIS).build();
+        val tc2 = ThrottlerCalculator.builder()
+                .maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .cacheThrottler(cacheUtilization::get, t, t - 0.01, ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .build();
         testThrottling(tc2, cacheUtilization,
                 new Double[]{-1.0, 0.0, 0.5, tAdj},
                 new Double[0],
@@ -62,7 +68,10 @@ public class ThrottlerCalculatorTests {
         val increment = 0.1;
         val queueSize = 100;
         val queueStats = new AtomicReference<QueueStats>(null);
-        val tc = ThrottlerCalculator.builder().batchingThrottler(queueStats::get, ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS).build();
+        val tc = ThrottlerCalculator.builder()
+                .maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .batchingThrottler(queueStats::get, ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS)
+                .build();
 
         // Test variance based on Fill Ratio (uncapped).
         // Set the initial lastValue to the max, so we verify that we won't exceed this value.
@@ -110,7 +119,10 @@ public class ThrottlerCalculatorTests {
         val writeSettings = new WriteSettings(maxWriteSize, Duration.ofMillis(1234), maxOutstandingBytes);
         val thresholdMillis = (int) (writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerCalculator.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
         val queueStats = new AtomicReference<QueueStats>(null);
-        val tc = ThrottlerCalculator.builder().durableDataLogThrottler(writeSettings, queueStats::get, ThrottlerCalculator.MAX_DELAY_MILLIS).build();
+        val tc = ThrottlerCalculator.builder()
+                .maxDelayMillis(ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .durableDataLogThrottler(writeSettings, queueStats::get, ThrottlerCalculator.MAX_DELAY_MILLIS)
+                .build();
         val noThrottling = new QueueStats[]{
                 createStats(1, halfRatio, thresholdMillis - 1),
                 createStats(minThrottleThreshold + 1, 1.0, thresholdMillis),
@@ -134,8 +146,10 @@ public class ThrottlerCalculatorTests {
         val targetSize = ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE;
         val maxSize = ThrottlerCalculator.OPERATION_LOG_MAX_SIZE;
         val logSize = new AtomicReference<>(0);
-        val tc = ThrottlerCalculator.builder().operationLogThrottler(logSize::get, maxDelayMillis,
-                maxSize, targetSize).build();
+        val tc = ThrottlerCalculator.builder()
+                .maxDelayMillis(maxDelayMillis)
+                .operationLogThrottler(logSize::get, maxDelayMillis, maxSize, targetSize)
+                .build();
         testThrottling(tc, logSize,
                 new Integer[]{-1, 0, targetSize / 2, targetSize},
                 new Integer[]{targetSize + 10, (maxSize + targetSize) / 2, maxSize},

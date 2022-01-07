@@ -34,8 +34,8 @@ public class DurableLogConfig {
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
     public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS);
     public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_DELAY_MILLIS);
-    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerCalculator.OPERATION_LOG_MAX_SIZE);
     public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE);
+    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerCalculator.OPERATION_LOG_MAX_SIZE);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -125,7 +125,7 @@ public class DurableLogConfig {
         checkPositiveIntegerPropertyValue(OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize);
         this.operationLogTargetSize = properties.getInt(OPERATION_LOG_TARGET_SIZE);
         checkPositiveIntegerPropertyValue(OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize);
-        if (this.operationLogTargetSize < this.operationLogMaxSize) {
+        if (this.operationLogTargetSize >= this.operationLogMaxSize) {
             throw new ConfigurationException(String.format("Property '%s' ('%d') must be a smaller than Property '%s' ('%d').",
                     OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize,
                     OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize));
