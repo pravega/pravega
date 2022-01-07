@@ -61,6 +61,8 @@ public interface ReplyProcessor {
     void segmentCreated(WireCommands.SegmentCreated segmentCreated);
 
     void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged);
+    
+    void segmentsBatchMerged(WireCommands.SegmentsBatchMerged segmentsMerged);
 
     void segmentSealed(WireCommands.SegmentSealed segmentSealed);
 

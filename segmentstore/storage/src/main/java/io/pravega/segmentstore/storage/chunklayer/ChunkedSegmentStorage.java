@@ -835,7 +835,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @return A CompletableFuture that, when completed, will contain the result of the operation.
      * If the operation failed, it will contain the cause of the failure.
      * */
-    private <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... segmentNames) {
+    <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... segmentNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (segmentNames.length == 1 && this.systemJournal.isStorageSystemSegment(segmentNames[0])) {
             // To maintain consistency of snapshot, all operations on any of the storage system segments are linearized
@@ -924,7 +924,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @return A CompletableFuture that, when completed, will contain the result of the operation.
      * If the operation failed, it will contain the cause of the failure.
      * */
-    private <R> CompletableFuture<R> executeParallel(Callable<CompletableFuture<R>> operation, String... segmentNames) {
+    <R> CompletableFuture<R> executeParallel(Callable<CompletableFuture<R>> operation, String... segmentNames) {
         return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
