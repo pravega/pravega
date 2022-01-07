@@ -33,7 +33,7 @@ public class DurableLogConfig {
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
     public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS);
-    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_DELAY_MILLIS);
+    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.delay.millis", ThrottlerCalculator.MAX_DELAY_MILLIS);
     public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE);
     public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerCalculator.OPERATION_LOG_MAX_SIZE);
     private static final String COMPONENT_CODE = "durablelog";

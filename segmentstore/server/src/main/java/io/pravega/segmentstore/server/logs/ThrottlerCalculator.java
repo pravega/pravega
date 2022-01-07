@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteSettings;
@@ -116,6 +117,7 @@ class ThrottlerCalculator {
      * throttlers.
      */
     DelayResult getThrottlingDelay() {
+        Preconditions.checkState(this.maxDelayMillis > 0, "Max delay cannot be =< 0");
         // These delays are not additive. There's no benefit to adding a batching delay on top of a throttling delay, since
         // a throttling delay will have increased batching as a side effect.
         int maxDelay = 0;
