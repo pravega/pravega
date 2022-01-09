@@ -28,14 +28,15 @@ import lombok.Getter;
  */
 public class DurableLogConfig {
     //region Config Names
+
     public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpoint.commit.count.min", 300, "checkpointMinCommitCount");
     public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threshold.count", 300, "checkpointCommitCountThreshold");
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
-    public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerCalculator.MAX_BATCHING_DELAY_MILLIS);
-    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.delay.millis", ThrottlerCalculator.MAX_DELAY_MILLIS);
-    public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE);
-    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerCalculator.OPERATION_LOG_MAX_SIZE);
+    public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", ThrottlerConfig.MAX_BATCHING_DELAY_MILLIS);
+    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.delay.millis", ThrottlerConfig.MAX_DELAY_MILLIS);
+    public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", ThrottlerConfig.OPERATION_LOG_TARGET_SIZE);
+    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", ThrottlerConfig.OPERATION_LOG_MAX_SIZE);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -90,7 +91,6 @@ public class DurableLogConfig {
     @Getter
     private final int operationLogTargetSize;
 
-
     //endregion
 
     //region Constructor
@@ -117,14 +117,10 @@ public class DurableLogConfig {
         this.startRetryDelay = Duration.ofMillis(startRetryDelayMillis);
 
         // Throttler configuration.
-        this.maxBatchingDelayMillis = properties.getInt(MAX_BATCHING_DELAY_MILLIS);
-        checkPositiveIntegerPropertyValue(MAX_BATCHING_DELAY_MILLIS, this.maxBatchingDelayMillis);
-        this.maxDelayMillis = properties.getInt(MAX_DELAY_MILLIS);
-        checkPositiveIntegerPropertyValue(MAX_DELAY_MILLIS, this.maxDelayMillis);
-        this.operationLogMaxSize = properties.getInt(OPERATION_LOG_MAX_SIZE);
-        checkPositiveIntegerPropertyValue(OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize);
-        this.operationLogTargetSize = properties.getInt(OPERATION_LOG_TARGET_SIZE);
-        checkPositiveIntegerPropertyValue(OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize);
+        this.maxBatchingDelayMillis = properties.getPositiveInt(MAX_BATCHING_DELAY_MILLIS);
+        this.maxDelayMillis = properties.getPositiveInt(MAX_DELAY_MILLIS);
+        this.operationLogMaxSize = properties.getPositiveInt(OPERATION_LOG_MAX_SIZE);
+        this.operationLogTargetSize = properties.getPositiveInt(OPERATION_LOG_TARGET_SIZE);
         if (this.operationLogTargetSize >= this.operationLogMaxSize) {
             throw new ConfigurationException(String.format("Property '%s' ('%d') must be a smaller than Property '%s' ('%d').",
                     OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize,
@@ -142,10 +138,4 @@ public class DurableLogConfig {
     }
 
     //endregion
-
-    private void checkPositiveIntegerPropertyValue(Property<Integer> property, int value) {
-        if (value <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
-        }
-    }
 }

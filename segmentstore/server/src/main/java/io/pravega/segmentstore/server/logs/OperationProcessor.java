@@ -95,12 +95,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * @param stateUpdater      A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param durableDataLog    The DataFrameLog to write DataFrames to.
      * @param checkpointPolicy  The Checkpoint Policy for Metadata.
-     * @param throttlerSettings Configuration parameters for ThrottlerCalculator.
+     * @param throttlerConfig Configuration parameters for ThrottlerCalculator.
      * @param executor          An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog,
-                       MetadataCheckpointPolicy checkpointPolicy, ThrottlerSettings throttlerSettings, ScheduledExecutorService executor) {
+                       MetadataCheckpointPolicy checkpointPolicy, ThrottlerConfig throttlerConfig, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.metadata = metadata;
@@ -115,13 +115,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.cacheUtilizationProvider = stateUpdater.getCacheUtilizationProvider();
         val throttlerCalculator = ThrottlerCalculator
                 .builder()
-                .maxDelayMillis(throttlerSettings.getMaxDelayMillis())
+                .maxDelayMillis(throttlerConfig.getMaxDelayMillis())
                 .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(),
-                        this.cacheUtilizationProvider.getCacheMaxUtilization(), throttlerSettings.getMaxDelayMillis())
-                .batchingThrottler(durableDataLog::getQueueStatistics, throttlerSettings.getMaxBatchingDelayMillis())
-                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics, throttlerSettings.getMaxDelayMillis())
-                .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerSettings.getMaxDelayMillis(),
-                        throttlerSettings.getOperationLogMaxSize(), throttlerSettings.getOperationLogTargetSize())
+                        this.cacheUtilizationProvider.getCacheMaxUtilization(), throttlerConfig.getMaxDelayMillis())
+                .batchingThrottler(durableDataLog::getQueueStatistics, throttlerConfig.getMaxBatchingDelayMillis())
+                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics, throttlerConfig.getMaxDelayMillis())
+                .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerConfig.getMaxDelayMillis(),
+                        throttlerConfig.getOperationLogMaxSize(), throttlerConfig.getOperationLogTargetSize())
                 .build();
         this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);

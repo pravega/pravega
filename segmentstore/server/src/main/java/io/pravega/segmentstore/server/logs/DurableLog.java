@@ -106,8 +106,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
-        ThrottlerSettings throttlerSettings = new ThrottlerSettings(config);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, throttlerSettings, executor);
+        ThrottlerConfig throttlerConfig = new ThrottlerConfig(config);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, throttlerConfig, executor);
         Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.closed = new AtomicBoolean();
         this.delayedStart = new CompletableFuture<>();
