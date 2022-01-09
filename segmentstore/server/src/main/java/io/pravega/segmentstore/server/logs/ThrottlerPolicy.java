@@ -24,7 +24,7 @@ import lombok.Data;
  * Stores configurable throttling settings to be used in {@link ThrottlerCalculator}.
  */
 @Data
-class ThrottlerConfig {
+class ThrottlerPolicy {
     //region Members
 
     /**
@@ -78,7 +78,7 @@ class ThrottlerConfig {
 
     //endregion
 
-    public ThrottlerConfig(DurableLogConfig config) {
+    public ThrottlerPolicy(DurableLogConfig config) {
         Preconditions.checkNotNull(config, "config");
         this.maxBatchingDelayMillis = config.getMaxBatchingDelayMillis();
         this.maxDelayMillis = config.getMaxDelayMillis();

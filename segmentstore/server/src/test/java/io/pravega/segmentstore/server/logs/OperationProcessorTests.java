@@ -835,9 +835,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return new MetadataCheckpointPolicy(dlConfig, Runnables.doNothing(), executorService());
     }
 
-    private ThrottlerConfig getDefaultThrottlerSettings() {
+    private ThrottlerPolicy getDefaultThrottlerSettings() {
         DurableLogConfig dlConfig = DurableLogConfig.builder().build();
-        return new ThrottlerConfig(dlConfig);
+        return new ThrottlerPolicy(dlConfig);
     }
 
     private class TestContext implements AutoCloseable {
@@ -879,9 +879,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         ThrottledOperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater,
                                     DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy,
-                                    ThrottlerConfig throttlerConfig, ScheduledExecutorService executor,
+                                    ThrottlerPolicy throttlerPolicy, ScheduledExecutorService executor,
                                     ManualThrottler throttler) {
-            super(metadata, stateUpdater, durableDataLog, checkpointPolicy, throttlerConfig, executor);
+            super(metadata, stateUpdater, durableDataLog, checkpointPolicy, throttlerPolicy, executor);
             this.throttler = throttler;
         }
     }
@@ -892,7 +892,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final Runnable onNotifyThrottleSourceChanged;
 
         ManualThrottler(Runnable onNotifyThrottleSourceChanged, ScheduledExecutorService executor) {
-            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(ThrottlerConfig.MAX_DELAY_MILLIS).throttler(new NoOpCalculator()).build(), () -> false, executor,
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(ThrottlerPolicy.MAX_DELAY_MILLIS).throttler(new NoOpCalculator()).build(), () -> false, executor,
                     new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
             this.onNotifyThrottleSourceChanged = onNotifyThrottleSourceChanged;
         }

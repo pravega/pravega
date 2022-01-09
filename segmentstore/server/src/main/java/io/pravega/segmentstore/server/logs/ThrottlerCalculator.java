@@ -139,7 +139,7 @@ class ThrottlerCalculator {
         private final Supplier<Double> getCacheUtilization;
 
         CacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization, int maxDelayMillis) {
-            this.targetCacheUtilization = targetCacheUtilization + ThrottlerConfig.CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
+            this.targetCacheUtilization = targetCacheUtilization + ThrottlerPolicy.CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
             this.getCacheUtilization = getCacheUtilization;
             if (this.targetCacheUtilization >= maxCacheUtilization) {
                 // Since this is externally provided, we need to be able to handle invalid values. If we get too small of
@@ -214,7 +214,7 @@ class ThrottlerCalculator {
      * In order to perform efficient comparisons, the {@link WriteSettings} information (reported in bytes) needs to be
      * converted into the same unit as what's reported by {@link QueueStats} (number of items in the queue and average fill ratio):
      * - The max throttling threshold is obtained by dividing the {@link WriteSettings#getMaxOutstandingBytes()} by {@link WriteSettings#getMaxWriteLength()}.
-     * - The min throttling threshold is a fraction of the max threshold ({@link ThrottlerConfig#DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION}).
+     * - The min throttling threshold is a fraction of the max threshold ({@link ThrottlerPolicy#DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION}).
      * - The adjusted queue size is obtained by multiplying {@link QueueStats#getSize()} by {@link QueueStats#getAverageItemFillRatio()}.
      *
      * This allows us to compare adjusted queue size directly with min-max throttling thresholds.
@@ -227,11 +227,11 @@ class ThrottlerCalculator {
 
         DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats, int maxDelayMillis) {
             // Calculate the latency threshold as a fraction of the WriteSettings' Max Write Timeout.
-            this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerConfig.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+            this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerPolicy.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
 
             // Calculate max and min throttling thresholds (see Javadoc above for explanation).
             int maxThrottleThreshold = writeSettings.getMaxOutstandingBytes() / writeSettings.getMaxWriteLength();
-            this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * ThrottlerConfig.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+            this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * ThrottlerPolicy.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
             this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier, maxDelayMillis);
             this.getQueueStats = getQueueStats;
         }
