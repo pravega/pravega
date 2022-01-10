@@ -39,6 +39,7 @@ import lombok.val;
 
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.eventProcessorTag;
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.throttlerTag;
 
 /**
@@ -525,6 +526,15 @@ public final class SegmentStoreMetrics {
     public static void outstandingEventProcessorBytes(String processorName, int containerId, long outstandingBytes) {
         DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES, outstandingBytes,
                 eventProcessorTag(containerId, processorName));
+    }
+
+    //endregion
+
+    //region ContainerKeyIndex
+
+    public static void tableSegmentUsedCredits(String segmentName, long credits) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.TABLE_SEGMENT_USED_CREDITS, credits,
+                segmentTags(segmentName));
     }
 
     //endregion
