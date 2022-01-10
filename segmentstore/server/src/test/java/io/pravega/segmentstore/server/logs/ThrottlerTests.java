@@ -56,7 +56,7 @@ import org.junit.runner.RunWith;
 @RunWith(SerializedClassRunner.class)
 public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
-    private static final int MAX_THROTTLE_MILLIS = ThrottlerPolicy.MAX_DELAY_MILLIS;
+    private static final int MAX_THROTTLE_MILLIS = DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue();
     private static final int NON_MAX_THROTTLE_MILLIS = MAX_THROTTLE_MILLIS - 1;
     private static final int TIMEOUT_MILLIS = 10000;
     private static final int SHORT_TIMEOUT_MILLIS = 50;
@@ -355,7 +355,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     @Test
     public void testTemporaryDisabled() throws Exception {
         testTemporaryDisabled(10000); // Non-max delay.
-        testTemporaryDisabled(ThrottlerPolicy.MAX_DELAY_MILLIS); // Max delay (different code path).
+        testTemporaryDisabled(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()); // Max delay (different code path).
     }
 
     private void testTemporaryDisabled(int delayMillis) throws Exception {
@@ -394,7 +394,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
-        return ThrottlerCalculator.builder().maxDelayMillis(ThrottlerPolicy.MAX_DELAY_MILLIS).throttler(calculatorThrottler).build();
+        return ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(calculatorThrottler).build();
     }
 
     private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
@@ -406,10 +406,10 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // Check that default values are respected for ThrottlerConfig.
         DurableLogConfig durableLogConfig = DurableLogConfig.builder().build();
         ThrottlerPolicy throttlerPolicy = new ThrottlerPolicy(durableLogConfig);
-        Assert.assertEquals(ThrottlerPolicy.MAX_BATCHING_DELAY_MILLIS, throttlerPolicy.getMaxBatchingDelayMillis());
-        Assert.assertEquals(ThrottlerPolicy.MAX_DELAY_MILLIS, throttlerPolicy.getMaxDelayMillis());
-        Assert.assertEquals(ThrottlerPolicy.OPERATION_LOG_MAX_SIZE, throttlerPolicy.getOperationLogMaxSize());
-        Assert.assertEquals(ThrottlerPolicy.OPERATION_LOG_TARGET_SIZE, throttlerPolicy.getOperationLogTargetSize());
+        Assert.assertEquals((int) DurableLogConfig.MAX_BATCHING_DELAY_MILLIS.getDefaultValue(), throttlerPolicy.getMaxBatchingDelayMillis());
+        Assert.assertEquals((int) DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue(), throttlerPolicy.getMaxDelayMillis());
+        Assert.assertEquals((int) DurableLogConfig.OPERATION_LOG_MAX_SIZE.getDefaultValue(), throttlerPolicy.getOperationLogMaxSize());
+        Assert.assertEquals((int) DurableLogConfig.OPERATION_LOG_TARGET_SIZE.getDefaultValue(), throttlerPolicy.getOperationLogTargetSize());
 
         // Set non-default values and verify that ThrottlerConfig stores these correctly.
         durableLogConfig = DurableLogConfig.builder()

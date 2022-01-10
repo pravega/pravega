@@ -28,16 +28,6 @@ class ThrottlerPolicy {
     //region Members
 
     /**
-     * Maximum delay (millis) we are willing to introduce in order to perform batching.
-     */
-    @VisibleForTesting
-    static final int MAX_BATCHING_DELAY_MILLIS = 50;
-    /**
-     * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
-     */
-    @VisibleForTesting
-    static final int MAX_DELAY_MILLIS = 25000;
-    /**
      * Adjustment to the target utilization ratio at or above which throttling will begin to apply. This value helps
      * separate the goals of the {@link ThrottlerCalculator.CacheThrottler} (slow operations if we exceed the target) and
      * the CacheManager (keep the Cache Utilization at or below target, so that we may not need to slow operations if
@@ -60,20 +50,22 @@ class ThrottlerPolicy {
      */
     @VisibleForTesting
     static final double DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION = 0.1;
+
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to perform batching.
+     */
+    private final int maxBatchingDelayMillis;
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
+     */
+    private final int maxDelayMillis;
     /**
      * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
      */
-    @VisibleForTesting
-    static final int OPERATION_LOG_MAX_SIZE = 1_000_000;
+    private final int operationLogMaxSize;
     /**
      * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
      */
-    @VisibleForTesting
-    static final int OPERATION_LOG_TARGET_SIZE = (int) (OPERATION_LOG_MAX_SIZE * 0.95);
-
-    private final int maxBatchingDelayMillis;
-    private final int maxDelayMillis;
-    private final int operationLogMaxSize;
     private final int operationLogTargetSize;
 
     //endregion
