@@ -304,7 +304,7 @@ public abstract class ControllerEventProcessorTest {
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                null, null, null, null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, null, executor);
 
         // set some processor name so that the processing gets postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();
