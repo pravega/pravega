@@ -152,7 +152,7 @@ public class ThrottlerCalculatorTests {
                 .build();
         testThrottling(tc, logSize,
                 new Integer[]{-1, 0, targetSize / 2, targetSize},
-                new Integer[]{targetSize + 10, (maxSize + targetSize) / 2, maxSize},
+                new Integer[]{targetSize + 10, (maxSize + targetSize) >>> 1, maxSize},
                 new Integer[]{maxSize, maxSize + 10, maxSize * 2, Integer.MAX_VALUE});
     }
 
