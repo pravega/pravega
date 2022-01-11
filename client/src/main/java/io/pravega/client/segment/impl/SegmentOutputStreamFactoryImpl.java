@@ -46,7 +46,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                                                                 DelegationTokenProvider tokenProvider) {
         return new SegmentOutputStreamImpl(NameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
                                            config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(), nopSegmentSealedCallback,
-                                           getRetryFromConfig(config), tokenProvider);
+                                           getRetryFromConfig(config), config.getConnectionTimeoutMillis(), tokenProvider);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                                                             EventWriterConfig config, DelegationTokenProvider tokenProvider) {
         SegmentOutputStreamImpl result =
                 new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(), segmentSealedCallback,
-                                            getRetryFromConfig(config), tokenProvider);
+                                            getRetryFromConfig(config), config.getConnectionTimeoutMillis(), tokenProvider);
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
@@ -67,7 +67,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
                                                             DelegationTokenProvider tokenProvider) {
         return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(),
-                                           Callbacks::doNothing, getRetryFromConfig(config), tokenProvider);
+                                           Callbacks::doNothing, getRetryFromConfig(config), config.getConnectionTimeoutMillis(), tokenProvider);
     }
 
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {

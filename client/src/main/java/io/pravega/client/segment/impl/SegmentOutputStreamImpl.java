@@ -83,8 +83,6 @@ import lombok.extern.slf4j.Slf4j;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
-    private static final Duration CONNECTION_TIMEOUT = Duration.ofSeconds(60);
-    
     @Getter
     private final String segmentName;
     @VisibleForTesting
@@ -97,6 +95,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
+    private final int connectionTimeoutMillis;
     private final Object writeOrderLock = new Object();
     private final DelegationTokenProvider tokenProvider;
     @VisibleForTesting
@@ -189,7 +188,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return Returns a future that will complete when setup is finished or fail if it cannot be.
          */
         private CompletableFuture<Void> newConnection(ClientConnection newConnection) {
-            CompletableFuture<Void> result = Futures.futureWithTimeout(CONNECTION_TIMEOUT, "Establishing connection to server", connectionPool.getInternalExecutor());
+            CompletableFuture<Void> result = Futures.futureWithTimeout(Duration.ofMillis(connectionTimeoutMillis),
+                                                                       "Establishing connection to server",
+                                                                       connectionPool.getInternalExecutor());
             synchronized (lock) {
                 connectionSetupCompleted = result;
                 connection = newConnection;
