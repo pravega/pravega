@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -47,6 +47,7 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
+
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
@@ -169,10 +170,10 @@ public class InProcPravegaCluster implements AutoCloseable {
             //Check TLS related parameters
             Preconditions.checkState(!enableTls ||
                             (!Strings.isNullOrEmpty(this.keyFile)
-                            && !Strings.isNullOrEmpty(this.certFile)
-                            && !Strings.isNullOrEmpty(this.jksKeyFile)
-                            && !Strings.isNullOrEmpty(this.jksTrustFile)
-                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
+                                    && !Strings.isNullOrEmpty(this.certFile)
+                                    && !Strings.isNullOrEmpty(this.jksKeyFile)
+                                    && !Strings.isNullOrEmpty(this.jksTrustFile)
+                                    && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = !this.isInMemStorage;
@@ -188,7 +189,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Synchronized
     public void setControllerPorts(int[] controllerPorts) {
-        this.controllerPorts = Arrays.copyOf( controllerPorts, controllerPorts.length);
+        this.controllerPorts = Arrays.copyOf(controllerPorts, controllerPorts.length);
     }
 
     @Synchronized
@@ -199,6 +200,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /**
      * Kicks off the cluster creation. right now it can be done only once in lifetime of a process.
+     *
      * @throws Exception Exception thrown by ZK/HDFS etc.
      */
     @Synchronized
@@ -255,7 +257,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
-        for ( String path : pathsTobeCleaned ) {
+        for (String path : pathsTobeCleaned) {
             try {
                 zclient.delete().guaranteed().deletingChildrenIfNeeded()
                         .forPath(path);
@@ -292,8 +294,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
-                .include(System.getProperties())
-                .include(PROPERTY_FILE_DEFAULT_PATH)
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
@@ -331,17 +331,20 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
-                                                                                + controllerPorts[0])
-                                         .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
-                                         .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
-                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
-                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
+                                + controllerPorts[0])
+                        .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                        .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
+                        .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
+                        .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                        .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
                         .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
                         .with(MetricsConfig.ENABLE_PROMETHEUS, enablePrometheus)
-                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval))
+                .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, PROPERTY_FILE_DEFAULT_PATH))
+                .include(System.getProperties());
+
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
