@@ -246,9 +246,9 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertTrue(ack1.isCompletedExceptionally());
         ack1.exceptionally(e -> {
             assertEquals(RetriesExhaustedException.class, e.getClass());
-            assertEquals(TimeoutException.class, e.getCause().getClass());
+            assertEquals(TimeoutException.class, Exceptions.unwrap(e.getCause()).getClass());
             return null;
-        });
+        }).join();
     }
     
     @Test(timeout = 10000)
