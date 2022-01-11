@@ -24,6 +24,7 @@ import lombok.Getter;
 public class SingleNodeConfig {
     //region config names
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
+    public final static String PROPERTY_FILE_DEFAULT_PATH = "./config/standalone-config.properties";
 
     public final static Property<Integer> ZK_PORT = Property.named("zk.port", 4000, "zkPort");
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentStore.port", 6000, "segmentstorePort");

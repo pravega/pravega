@@ -66,6 +66,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import static io.pravega.local.SingleNodeConfig.PROPERTY_FILE_DEFAULT_PATH;
+
 @Slf4j
 @Builder
 @ToString
@@ -291,6 +293,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
+                .include(PROPERTY_FILE_DEFAULT_PATH)
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
