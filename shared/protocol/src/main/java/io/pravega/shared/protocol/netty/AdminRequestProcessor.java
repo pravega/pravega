@@ -21,4 +21,6 @@ package io.pravega.shared.protocol.netty;
 public interface AdminRequestProcessor extends RequestProcessor {
 
     void flushToStorage(WireCommands.FlushToStorage flushToStorage);
+
+    void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks);
 }

@@ -836,6 +836,58 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class ListStorageChunks implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.LIST_STORAGE_CHUNKS;
+        final String segment;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).listStorageChunks(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new ListStorageChunks(segment, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class StorageChunksListed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_CHUNKS_LISTED;
+        final String segment;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.storageChunksListed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            String segment = in.readUTF();
+            long requestId = in.readLong();
+            return new StorageFlushed(requestId);
+        }
+    }
+
+    @Data
     public static final class ReadSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;

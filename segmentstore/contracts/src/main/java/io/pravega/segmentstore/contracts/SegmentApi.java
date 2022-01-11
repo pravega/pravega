@@ -19,6 +19,7 @@ import io.pravega.common.util.BufferView;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -239,4 +240,6 @@ public interface SegmentApi {
      * failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
+
+    CompletableFuture<List<SegmentProperties>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout);
 }

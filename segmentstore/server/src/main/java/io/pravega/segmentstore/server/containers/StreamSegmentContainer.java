@@ -88,6 +88,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -721,6 +723,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> flushToStorage(Duration timeout) {
         LogFlusher flusher = new LogFlusher(this.metadata.getContainerId(), this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout);
+    }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<List<SegmentProperties>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
+        Iterator<SegmentProperties> segments = storage.listSegments();
+        return null;
     }
 
     //endregion

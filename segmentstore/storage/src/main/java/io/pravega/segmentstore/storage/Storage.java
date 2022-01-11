@@ -195,7 +195,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
      * @throws IOException if exception occurred while listing segments.
      */
-    Iterator<SegmentProperties> listSegments() throws IOException;
+    Iterator<SegmentProperties> listSegments(String streamSegmentName, int bufferSize, Duration timeout) throws IOException;
 
     @Override
     void close();

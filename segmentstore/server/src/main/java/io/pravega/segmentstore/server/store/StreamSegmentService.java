@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
@@ -92,6 +93,14 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
                 containerId,
                 container -> container.flushToStorage(timeout),
                 "flushToStorage");
+    }
+
+    @Override
+    public CompletableFuture<List<SegmentProperties>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
+        return invoke(
+                streamSegmentName,
+                container -> container.listStorageChunks(streamSegmentName, bufferSize, timeout),
+                "", streamSegmentName, bufferSize);
     }
 
     @Override

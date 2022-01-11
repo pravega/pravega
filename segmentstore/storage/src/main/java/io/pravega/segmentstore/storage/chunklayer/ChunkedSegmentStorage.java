@@ -601,8 +601,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments() {
-        throw new UnsupportedOperationException("listSegments is not yet supported");
+    public Iterator<SegmentProperties> listSegments(String streamSegmentName, int bufferSize, Duration timeout) {
+        UtilsWrapper wrapper = new UtilsWrapper(this, bufferSize, timeout);
+        wrapper.getExtendedChunkInfoList(streamSegmentName, true).;
     }
 
     @Override

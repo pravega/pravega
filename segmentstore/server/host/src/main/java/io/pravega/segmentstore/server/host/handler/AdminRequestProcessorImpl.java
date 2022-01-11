@@ -120,5 +120,18 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
                 .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, operation, ex));
     }
 
+    @Override
+    public void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks) {
+        final String operation = "ListStorageChunks";
+        final String segment = listStorageChunks.getSegment();
+
+        if (!verifyToken(segment, listStorageChunks.getRequestId(), listStorageChunks.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, listStorageChunks);
+        getSegmentStore().listStorageChunks(segment, 128, TIMEOUT);
+    }
+
     //endregion
 }
