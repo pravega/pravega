@@ -345,7 +345,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, PROPERTY_FILE_DEFAULT_PATH))
                 .include(System.getProperties());
 
-
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
     }
