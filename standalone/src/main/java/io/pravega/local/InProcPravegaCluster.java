@@ -67,7 +67,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
-import static io.pravega.local.SingleNodeConfig.PROPERTY_FILE_DEFAULT_PATH;
 
 @Slf4j
 @Builder
@@ -342,7 +341,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
                         .with(MetricsConfig.ENABLE_PROMETHEUS, enablePrometheus)
                         .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
-        
+
         String configFile = System.getProperty(SingleNodeConfig.PROPERTY_FILE);
         if (configFile != null) {
             configBuilder.include(configFile);
