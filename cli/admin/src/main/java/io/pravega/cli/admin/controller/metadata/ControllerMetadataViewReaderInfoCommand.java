@@ -17,12 +17,7 @@
 package io.pravega.cli.admin.controller.metadata;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.impl.PositionImpl;
-import lombok.Cleanup;
-import org.apache.curator.framework.CuratorFramework;
-
-import java.nio.ByteBuffer;
+import io.pravega.cli.admin.utils.ZKHelper;
 
 public class ControllerMetadataViewReaderInfoCommand extends ControllerMetadataCommand {
 
@@ -43,15 +38,8 @@ public class ControllerMetadataViewReaderInfoCommand extends ControllerMetadataC
         final String readerGroupName = getArg(1);
         final String readerId = getArg(2);
 
-        @Cleanup
-        CuratorFramework zkClient = createZKClient();
-        byte[] data = zkClient.getData().forPath(getReaderPath(hostId, readerGroupName, readerId));
-        if (data != null && data.length > 0) {
-            PositionImpl position = (PositionImpl) Position.fromBytes(ByteBuffer.wrap(data)).asImpl();
-            output(position.toString());
-        } else {
-            output("get-reader", "No metadata found");
-        }
+        ZKHelper zkHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
+        output("get-reader", zkHelper.getMetaDataForReader(getReaderPath(hostId, readerGroupName, readerId)));
 
     }
 

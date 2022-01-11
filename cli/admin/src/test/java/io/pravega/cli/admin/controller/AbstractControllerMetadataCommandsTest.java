@@ -18,8 +18,12 @@ package io.pravega.cli.admin.controller;
 import com.google.gson.JsonSyntaxException;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.cli.admin.utils.ZKHelper;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
@@ -36,6 +40,7 @@ import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -305,6 +310,21 @@ public abstract class AbstractControllerMetadataCommandsTest {
 
         // Delete the temporary directory.
         tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
+    public void testControllerMetadataViewReaderInfoCommand() throws Exception {
+        final String process = UUID.randomUUID().toString();
+        final String readerGroup = UUID.randomUUID().toString();
+        final String reader = UUID.randomUUID().toString();
+        ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
+        CheckpointStore checkpointStore = zkHelper.getCheckPointStore();
+        checkpointStore.addReaderGroup(process, readerGroup);
+        checkpointStore.addReader(process, readerGroup, reader);
+        Position position = new PositionImpl(Collections.emptyMap());
+        checkpointStore.setPosition(process, readerGroup, reader, position);
+        String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
+        Assert.assertTrue(commandResult.contains("get-reader"));
     }
 
     @After

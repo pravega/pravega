@@ -17,12 +17,17 @@
 package io.pravega.cli.admin.utils;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
+import io.pravega.controller.store.checkpoint.CheckpointStore;
+import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -113,6 +118,21 @@ public class ZKHelper implements AutoCloseable {
     }
 
     /**
+     * Get the metadata information of reader for a given path.
+     * @param readerPath path of reader
+     * @return detailed metadata information of reader
+     */
+    public String getMetaDataForReader(String readerPath) {
+        byte[] data = getData(readerPath);
+        if (data != null && data.length > 0) {
+            PositionImpl position = (PositionImpl) Position.fromBytes(ByteBuffer.wrap(data)).asImpl();
+            return position.toString();
+        } else {
+            return  "No metadata found";
+        }
+    }
+
+    /**
      * Create a new instance of the ZKHelper class.
      * @param zkURL The address of this helper instance connect to.
      * @param clusterName The name of the Zookeeper cluster.
@@ -153,6 +173,20 @@ public class ZKHelper implements AutoCloseable {
             System.err.println("An error occurred executing getData against Zookeeper: " + e.getMessage());
         }
         return ret;
+    }
+
+    /**
+     * Get the checkPointStore.
+     * @return checkPointStore
+     */
+    public CheckpointStore getCheckPointStore() {
+        CheckpointStore checkpointStore = null;
+        try {
+            checkpointStore = CheckpointStoreFactory.createZKStore(zkClient);
+        } catch (Exception e) {
+            System.err.println("An error occurred executing getCheckPointStore against Zookeeper: " + e.getMessage());
+        }
+        return checkpointStore;
     }
 
     /**
