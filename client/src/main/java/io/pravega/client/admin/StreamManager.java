@@ -22,6 +22,7 @@ import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+
 import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
@@ -36,7 +37,7 @@ public interface StreamManager extends AutoCloseable {
      * @param controller The Controller URI.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(URI controller) {
+    static StreamManager create(URI controller) {
         return create(ClientConfig.builder().controllerURI(controller).build());
     }
 
@@ -46,7 +47,7 @@ public interface StreamManager extends AutoCloseable {
      * @param clientConfig Configuration for the client connection to Pravega.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(ClientConfig clientConfig) {
+    static StreamManager create(ClientConfig clientConfig) {
         return new StreamManagerImpl(clientConfig);
     }
 
@@ -183,9 +184,23 @@ public interface StreamManager extends AutoCloseable {
      * @param scopeName  The name of the scope to delete.
      * @param forceDelete To list and delete streams, key-value tables and reader groups in scope before attempting to delete scope.
      * @return True if scope is deleted, false otherwise. 
-     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.  
+     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
+     *
+     * @deprecated As of Pravega release 0.11.0, replaced by {@link #deleteScopeRecursive(String)}.
      */
+    @Deprecated
     boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException;
+
+    /**
+     * Deletes scope by listing and deleting all streams/RGs/KVTs in scope.
+     * New streams/RGs/KVTs can not be added to the scope if this
+     * method is called.
+     *
+     * @param scopeName  The name of the scope to delete.
+     * @return True if scope is deleted, false otherwise.
+     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
+     */
+    boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException;
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.

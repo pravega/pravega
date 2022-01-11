@@ -99,6 +99,11 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext context, Executor executor) {
+        return Futures.completeOn(CompletableFuture.completedFuture(this.streamStore.scopeInDeletingTable(scope)), executor);
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt, OperationContext context, Executor executor) {
         return Futures.completeOn(checkScopeExists(scopeName, context, executor).thenCompose(exists -> {

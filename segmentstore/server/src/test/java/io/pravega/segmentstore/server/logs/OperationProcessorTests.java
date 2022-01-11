@@ -130,7 +130,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -178,7 +178,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -262,7 +262,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -318,7 +318,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -366,7 +366,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -421,7 +421,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -486,7 +486,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -528,7 +528,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         val throttler = new ManualThrottler(() -> interrupted.set(true), executorService());
         @Cleanup
         val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService(), throttler);
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
         operationProcessor.startAsync().awaitRunning();
 
         // Block processing of operations.
@@ -583,7 +583,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Generate some test data.
@@ -645,7 +645,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Generate some test data.
@@ -835,6 +835,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return new MetadataCheckpointPolicy(dlConfig, Runnables.doNothing(), executorService());
     }
 
+    private ThrottlerPolicy getDefaultThrottlerSettings() {
+        DurableLogConfig dlConfig = DurableLogConfig.builder().build();
+        return new ThrottlerPolicy(dlConfig);
+    }
+
     private class TestContext implements AutoCloseable {
         final CacheManager cacheManager;
         final Storage storage;
@@ -874,8 +879,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         ThrottledOperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater,
                                     DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy,
-                                    ScheduledExecutorService executor, ManualThrottler throttler) {
-            super(metadata, stateUpdater, durableDataLog, checkpointPolicy, executor);
+                                    ThrottlerPolicy throttlerPolicy, ScheduledExecutorService executor,
+                                    ManualThrottler throttler) {
+            super(metadata, stateUpdater, durableDataLog, checkpointPolicy, throttlerPolicy, executor);
             this.throttler = throttler;
         }
     }
@@ -886,7 +892,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final Runnable onNotifyThrottleSourceChanged;
 
         ManualThrottler(Runnable onNotifyThrottleSourceChanged, ScheduledExecutorService executor) {
-            super(CONTAINER_ID, ThrottlerCalculator.builder().throttler(new NoOpCalculator()).build(), () -> false, executor,
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(new NoOpCalculator()).build(), () -> false, executor,
                     new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
             this.onNotifyThrottleSourceChanged = onNotifyThrottleSourceChanged;
         }
