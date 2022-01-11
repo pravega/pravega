@@ -341,9 +341,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
                         .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
                         .with(MetricsConfig.ENABLE_PROMETHEUS, enablePrometheus)
-                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval))
-                .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, PROPERTY_FILE_DEFAULT_PATH))
-                .include(System.getProperties());
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
+        
+        String configFile = System.getProperty(SingleNodeConfig.PROPERTY_FILE);
+        if (configFile != null) {
+            configBuilder.include(configFile);
+        }
+        configBuilder.include(System.getProperties());
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
