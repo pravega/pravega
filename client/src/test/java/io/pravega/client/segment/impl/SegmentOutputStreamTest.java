@@ -37,6 +37,8 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
@@ -52,6 +54,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import lombok.Cleanup;
@@ -168,8 +171,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -177,7 +180,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         reset(connection);
@@ -192,8 +195,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor(); 
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -202,9 +205,93 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+    }
+    
+    @Test(timeout = 10000)
+    public void testConnectAndSetupAppendTimeoutRepeadtedly() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor(); 
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        doAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                SetupAppend request = invocation.getArgument(0, SetupAppend.class);
+                ErrorMessage reply = Mockito.mock(ErrorMessage.class);
+                Mockito.when(reply.getThrowableException()).thenReturn(new TimeoutException("Mock timeout"));
+                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.UNSPECIFIED);
+                Mockito.when(reply.getSegment()).thenReturn(request.getSegment());
+                cf.getProcessor(uri).errorMessage(reply);
+                return null;
+            }
+        }).when(connection).send(any(SetupAppend.class));
+        cf.provideConnection(uri, connection);
+        @SuppressWarnings("resource")
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+        byte[] eventData = "test data".getBytes();
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack1));
+        verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        assertTrue(ack1.isCompletedExceptionally());
+        ack1.exceptionally(e -> {
+            assertEquals(RetriesExhaustedException.class, e.getClass());
+            assertEquals(TimeoutException.class, e.getCause().getClass());
+            return null;
+        });
+    }
+    
+    @Test(timeout = 10000)
+    public void testConnectAndSetupAppendTimeoutOnce() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor(); 
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                SetupAppend request = invocation.getArgument(0, SetupAppend.class);
+                ErrorMessage reply = Mockito.mock(ErrorMessage.class);
+                Mockito.when(reply.getThrowableException()).thenReturn(new TimeoutException("Mock timeout"));
+                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.UNSPECIFIED);
+                Mockito.when(reply.getSegment()).thenReturn(request.getSegment());
+                cf.getProcessor(uri).errorMessage(reply);
+                return null;
+            }
+        }).doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                SetupAppend request = invocation.getArgument(0, SetupAppend.class);
+                cf.getProcessor(uri).appendSetup(new AppendSetup(request.getRequestId(), request.getSegment(), request.getWriterId(), 0));
+                return null;
+            }
+        }).when(connection).send(any(SetupAppend.class));
+        cf.provideConnection(uri, connection);
+        @SuppressWarnings("resource")
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+        byte[] eventData = "test data".getBytes();
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack1));
+        verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        verify(connection).send(any(Append.class));
     }
 
     @Test(timeout = 10000)
@@ -217,8 +304,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+//        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+//        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -238,10 +327,12 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 4);
+        RetryWithBackoff retryConfig = Retry.withoutBackoff(4);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+//        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+//        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -283,8 +374,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 1);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+//        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+//        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -336,8 +429,11 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 1);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+//        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+//        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inl
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        
         cf.setExecutor(executor);
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
@@ -515,8 +611,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -524,7 +620,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         InOrder order = Mockito.inOrder(connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
@@ -557,8 +653,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -566,7 +662,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         InOrder order = Mockito.inOrder(connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
@@ -601,9 +697,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
         MockConnectionFactoryImpl mockConnectionFactory = spy(new MockConnectionFactoryImpl());
-
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         mockConnectionFactory.setExecutor(executor);
 
         MockController controller = new MockController(segmentStoreUri.getEndpoint(),
@@ -613,7 +708,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
-                mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
+                mockConnectionFactory, writerId, segmentSealedCallback, Retry.withoutBackoff(2),
                 DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
@@ -637,8 +732,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         MockConnectionFactoryImpl mockConnectionFactory = spy(new MockConnectionFactoryImpl());
 
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         mockConnectionFactory.setExecutor(executor);
 
         MockController controller = new MockController(segmentStoreUri.getEndpoint(),
@@ -648,7 +743,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
-                mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
+                mockConnectionFactory, writerId, segmentSealedCallback, Retry.withoutBackoff(2),
                 DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
@@ -671,8 +766,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -680,7 +775,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         InOrder order = Mockito.inOrder(connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
@@ -1019,13 +1114,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testFailDuringFlush() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -1033,7 +1128,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         InOrder order = Mockito.inOrder(connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid,
-                segmentSealedCallback, RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                segmentSealedCallback, Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -1072,8 +1167,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -1081,7 +1176,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -1143,8 +1238,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
@@ -1158,7 +1253,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         };
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, exceptionCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));

@@ -17,6 +17,7 @@ package io.pravega.client.segment.impl;
 
 import static com.google.common.base.Preconditions.checkState;
 
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayDeque;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -81,6 +83,8 @@ import lombok.extern.slf4j.Slf4j;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
+    private static final Duration CONNECTION_TIMEOUT = Duration.ofSeconds(60);
+    
     @Getter
     private final String segmentName;
     @VisibleForTesting
@@ -109,6 +113,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @ToString(of = {"closed", "exception", "eventNumber"})
     private final class State {
+
         private final Object lock = new Object();
         @GuardedBy("lock")
         private boolean closed = false;
@@ -184,7 +189,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return Returns a future that will complete when setup is finished or fail if it cannot be.
          */
         private CompletableFuture<Void> newConnection(ClientConnection newConnection) {
-            CompletableFuture<Void> result = new CompletableFuture<Void>();
+            CompletableFuture<Void> result = Futures.futureWithTimeout(CONNECTION_TIMEOUT, "Establishing connection to server", connectionPool.getInternalExecutor());
             synchronized (lock) {
                 connectionSetupCompleted = result;
                 connection = newConnection;
@@ -201,7 +206,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             CompletableFuture<Void> oldConnectionSetupCompleted = null;
             boolean failSetupConnection = false;
             synchronized (lock) {
-                if (connection != null ) {
+                if (connection != null) {
                     if (connectionSetupCompleted.isDone()) {
                         failSetupConnection = true;
                     } else {
@@ -645,8 +650,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                               state.failConnection(e1);
                               throw Exceptions.sneakyThrow(e1);
                           }
+                          //add timeout and call fail and throw.
+                          //a late timeout if fine it will just cause a spurious connection close.
+                          //a late success may be a problem because it causes retransmits of the wrong messages.
+                          //In theory the server should guard against this, but that's not ideal to depend on for client correctness.
+                          //instead the local future and connection can be used.
+                          // If the timeout occurs failing the future and 
                           return connectionSetupFuture.exceptionally(t1 -> {
                               Throwable exception = Exceptions.unwrap(t1);
+                              if (exception instanceof TimeoutException) {
+                                  log.info("Writer writer {} on segemnt {} timed out contacting the server", writerId, segmentName);
+                                  connection.close();
+                              }
                               if (exception instanceof InvalidTokenException) {
                                   log.info("Ending reconnect attempts on writer {} to {} because token verification failed due to invalid token",
                                           writerId, segmentName);

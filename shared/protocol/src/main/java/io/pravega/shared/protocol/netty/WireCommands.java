@@ -1813,7 +1813,7 @@ public final class WireCommands {
             return new ErrorMessage(in.readLong(), in.readUTF(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
         }
 
-        public RuntimeException getThrowableException() {
+        public Exception getThrowableException() {
             switch (errorCode) {
                 case ILLEGAL_ARGUMENT_EXCEPTION:
                     return new IllegalArgumentException(message);
