@@ -324,7 +324,19 @@ public abstract class AbstractControllerMetadataCommandsTest {
         Position position = new PositionImpl(Collections.emptyMap());
         checkpointStore.setPosition(process, readerGroup, reader, position);
         String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
-        Assert.assertTrue(commandResult.contains("get-reader"));
+        Assert.assertTrue(commandResult.contains("reader-metadata"));
+    }
+
+    @Test
+    public void testControllerMetadataViewReaderInfoCommandWithException() throws Exception {
+        final String process = UUID.randomUUID().toString();
+        final String readerGroup = UUID.randomUUID().toString();
+        final String reader = UUID.randomUUID().toString();
+        ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
+        CheckpointStore checkpointStore = zkHelper.getCheckPointStore();
+        checkpointStore.addReaderGroup(process, readerGroup);
+        String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
+        Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata."));
     }
 
     @After

@@ -120,10 +120,11 @@ public class ZKHelper implements AutoCloseable {
     /**
      * Get the metadata information of reader for a given path.
      * @param readerPath path of reader
+     * @throws Exception if unable to get the znode for readerpath.
      * @return detailed metadata information of reader
      */
-    public String getMetaDataForReader(String readerPath) {
-        byte[] data = getData(readerPath);
+    public String getMetaDataForReader(String readerPath) throws Exception {
+        byte[] data = zkClient.getData().forPath(readerPath);
         if (data != null && data.length > 0) {
             PositionImpl position = (PositionImpl) Position.fromBytes(ByteBuffer.wrap(data)).asImpl();
             return position.toString();
