@@ -23,11 +23,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
@@ -44,6 +40,7 @@ import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.glassfish.jersey.message.internal.Utils;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.InputStream;
@@ -601,9 +598,14 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments(String streamSegmentName, int bufferSize, Duration timeout) {
+    public Iterator<SegmentProperties> listSegments() {
+        throw new UnsupportedOperationException("listSegments is not yet supported");
+    }
+
+    @Override
+    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
         UtilsWrapper wrapper = new UtilsWrapper(this, bufferSize, timeout);
-        wrapper.getExtendedChunkInfoList(streamSegmentName, true).;
+        return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 
     @Override

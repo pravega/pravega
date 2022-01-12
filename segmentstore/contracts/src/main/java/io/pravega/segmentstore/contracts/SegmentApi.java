@@ -241,5 +241,13 @@ public interface SegmentApi {
      */
     CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
 
-    CompletableFuture<List<SegmentProperties>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout);
+    /**
+     * Lists all the storage chunks for the given StreamSegment.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param bufferSize        The size of the buffer maintained when transferring data from storage.
+     * @param timeout           Timeout for the operation.
+     * @return
+     */
+    CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout);
 }

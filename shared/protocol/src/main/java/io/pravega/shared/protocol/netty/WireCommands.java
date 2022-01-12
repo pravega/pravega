@@ -866,8 +866,8 @@ public final class WireCommands {
     @Data
     public static final class StorageChunksListed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.STORAGE_CHUNKS_LISTED;
-        final String segment;
         final long requestId;
+        final List<ChunkInfo> chunks;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -876,14 +876,47 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeUTF(segment);
             out.writeLong(requestId);
+            out.writeInt(chunks.size());
+            for (ChunkInfo chunk : chunks) {
+                chunk.writeFields(out);
+            }
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            String segment = in.readUTF();
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new StorageFlushed(requestId);
+            int numberOfChunks = in.readInt();
+            List<ChunkInfo> chunks = new ArrayList<>(numberOfChunks);
+            for (int i = 0; i < numberOfChunks; i++) {
+                chunks.add(ChunkInfo.readFrom(in, in.available()));
+            }
+            return new StorageChunksListed(requestId, chunks);
+        }
+    }
+
+    @Data
+    public static final class ChunkInfo {
+        final long lengthInMetadata;
+        final long lengthInStorage;
+        final long startOffset;
+        final String chunkName;
+        final boolean existsInStorage;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(lengthInMetadata);
+            out.writeLong(lengthInStorage);
+            out.writeLong(startOffset);
+            out.writeUTF(chunkName);
+            out.writeBoolean(existsInStorage);
+        }
+
+        public static ChunkInfo readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long lengthInMetadata = in.readLong();
+            long lengthInStorage = in.readLong();
+            long startOffset = in.readLong();
+            String chunkName = in.readUTF();
+            boolean existsInStorage = in.readBoolean();
+            return new ChunkInfo(lengthInMetadata, lengthInStorage, startOffset, chunkName, existsInStorage);
         }
     }
 

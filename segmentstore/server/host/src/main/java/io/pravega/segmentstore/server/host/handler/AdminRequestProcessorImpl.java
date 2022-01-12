@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.common.LoggerHelpers;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -26,6 +27,9 @@ import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Request processor for admin commands issues from Admin CLI.
@@ -129,9 +133,24 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
             return;
         }
 
+        List<WireCommands.ChunkInfo> result = new ArrayList<>();
         long trace = LoggerHelpers.traceEnter(log, operation, listStorageChunks);
-        getSegmentStore().listStorageChunks(segment, 128, TIMEOUT);
+        getSegmentStore().listStorageChunks(segment, 128, TIMEOUT)
+                .thenAccept(chunks -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    for (ExtendedChunkInfo chunk : chunks) {
+                        result.add(convertToChunkInfo(chunk));
+                    }
+                    getConnection().send(new WireCommands.StorageChunksListed(listStorageChunks.getRequestId(), result));
+                })
+                .exceptionally(ex -> handleException(listStorageChunks.getRequestId(), segment, operation, ex));
     }
 
     //endregion
+
+    private WireCommands.ChunkInfo convertToChunkInfo(ExtendedChunkInfo extendedChunkInfo) {
+        return new WireCommands.ChunkInfo(extendedChunkInfo.getLengthInMetadata(),
+                extendedChunkInfo.getLengthInStorage(), extendedChunkInfo.getStartOffset(),
+                extendedChunkInfo.getChunkName(), extendedChunkInfo.isExistsInStorage());
+    }
 }

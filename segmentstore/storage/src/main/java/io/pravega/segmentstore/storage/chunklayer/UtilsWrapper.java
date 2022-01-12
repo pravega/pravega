@@ -17,11 +17,11 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -254,36 +254,36 @@ public class UtilsWrapper {
                 chunkedSegmentStorage.getExecutor()), streamSegmentName);
     }
 
-    /**
-     * Extended information about the chunk.
-     */
-    @Builder
-    @Data
-    static class ExtendedChunkInfo {
-        /**
-         * Length of the chunk in metadata.
-         */
-        private volatile long lengthInMetadata;
-
-        /**
-         * Length of the chunk in storage.
-         */
-        private volatile long lengthInStorage;
-
-        /**
-         * startOffset of chunk in segment.
-         */
-        private volatile long startOffset;
-
-        /**
-         * Name of the chunk.
-         */
-        @NonNull
-        private final String chunkName;
-
-        /**
-         * Whether chunk exists in storage.
-         */
-        private volatile boolean existsInStorage;
-    }
+//    /**
+//     * Extended information about the chunk.
+//     */
+//    @Builder
+//    @Data
+//    public static class ExtendedChunkInfo {
+//        /**
+//         * Length of the chunk in metadata.
+//         */
+//        private volatile long lengthInMetadata;
+//
+//        /**
+//         * Length of the chunk in storage.
+//         */
+//        private volatile long lengthInStorage;
+//
+//        /**
+//         * startOffset of chunk in segment.
+//         */
+//        private volatile long startOffset;
+//
+//        /**
+//         * Name of the chunk.
+//         */
+//        @NonNull
+//        private final String chunkName;
+//
+//        /**
+//         * Whether chunk exists in storage.
+//         */
+//        private volatile boolean existsInStorage;
+//    }
 }
