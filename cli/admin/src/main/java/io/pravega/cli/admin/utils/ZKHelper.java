@@ -181,13 +181,7 @@ public class ZKHelper implements AutoCloseable {
      * @return checkPointStore
      */
     public CheckpointStore getCheckPointStore() {
-        CheckpointStore checkpointStore = null;
-        try {
-            checkpointStore = CheckpointStoreFactory.createZKStore(zkClient);
-        } catch (Exception e) {
-            System.err.println("An error occurred executing getCheckPointStore against Zookeeper: " + e.getMessage());
-        }
-        return checkpointStore;
+        return CheckpointStoreFactory.createZKStore(zkClient);
     }
 
     /**

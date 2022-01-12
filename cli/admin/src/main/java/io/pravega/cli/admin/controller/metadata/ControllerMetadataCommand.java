@@ -193,12 +193,12 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
     /**
      * Method to get path of reader in a particular controller instance.
      *
-     * @param process Host id of controller instance
+     * @param hostId Host id of controller instance
      * @param readerGroup name of the readerGroup
      * @param readerId Id of reader
      * @return Full path of reader
      */
-    protected String getReaderPath(String process, String readerGroup, String readerId) {
-        return String.format("/%s/%s/%s/%s", ROOT, process, readerGroup, readerId);
+    protected String getReaderPath(String hostId, String readerGroup, String readerId) {
+        return String.format("/%s/%s/%s/%s", ROOT, hostId, readerGroup, readerId);
     }
 }
