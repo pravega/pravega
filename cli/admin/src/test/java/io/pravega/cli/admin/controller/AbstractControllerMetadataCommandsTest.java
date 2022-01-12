@@ -336,7 +336,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         CheckpointStore checkpointStore = zkHelper.getCheckPointStore();
         checkpointStore.addReaderGroup(process, readerGroup);
         String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
-        Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata."));
+        Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata"));
     }
 
     @After
