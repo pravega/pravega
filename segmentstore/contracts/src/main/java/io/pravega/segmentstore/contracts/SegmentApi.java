@@ -245,9 +245,9 @@ public interface SegmentApi {
      * Lists all the storage chunks for the given StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment.
-     * @param bufferSize        The size of the buffer maintained when transferring data from storage.
      * @param timeout           Timeout for the operation.
-     * @return
+     * @return A CompletableFuture that, when completed normally will give the list of chunks for the given segment as
+     * {@link ExtendedChunkInfo} objects. If the operation failed, the future will fail with the causing exception.
      */
-    CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout);
+    CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
 }

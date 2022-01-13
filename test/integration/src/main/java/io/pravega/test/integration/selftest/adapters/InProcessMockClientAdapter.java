@@ -28,17 +28,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -279,6 +269,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
             throw new UnsupportedOperationException("flushToStorage");
+        }
+
+        @Override
+        public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+            throw new UnsupportedOperationException("getExtendedChunkInfo");
         }
 
         @Override

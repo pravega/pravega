@@ -17,7 +17,6 @@ package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -208,7 +207,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @param bufferSize        The size of the buffer maintained when transferring data from storage.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that when completed, will provide the list of chunks where in each chunk is
-     * is wrapped into an {@link io.pravega.segmentstore.storage.chunklayer.UtilsWrapper.ExtendedChunkInfo} object.
+     * is wrapped into an {@link ExtendedChunkInfo} object.
      */
     CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout);
 

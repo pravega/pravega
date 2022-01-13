@@ -16,9 +16,16 @@
 package io.pravega.segmentstore.server.store;
 
 import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.*;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
-import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
@@ -90,11 +97,11 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.listStorageChunks(streamSegmentName, bufferSize, timeout),
-                "", streamSegmentName, bufferSize);
+                container -> container.getExtendedChunkInfo(streamSegmentName, timeout),
+                "", streamSegmentName);
     }
 
     @Override

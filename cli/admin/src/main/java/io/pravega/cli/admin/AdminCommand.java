@@ -57,6 +57,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
+import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.ListTableSegmentKeysCommand;
@@ -392,6 +393,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
                         .put(ParseReaderGroupStreamCommand::descriptor, ParseReaderGroupStreamCommand::new)
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
+                        .put(ListChunksCommand::descriptor, ListChunksCommand::new)
                         .build());
 
         /**

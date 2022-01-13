@@ -27,7 +27,20 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
-import io.pravega.segmentstore.contracts.*;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
@@ -69,7 +82,6 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
-import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -715,8 +727,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @SneakyThrows
     @Override
-    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
-        return storage.listStorageChunks(streamSegmentName, bufferSize, timeout);
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+        return storage.listStorageChunks(streamSegmentName, 1048576, timeout);
     }
 
     //endregion

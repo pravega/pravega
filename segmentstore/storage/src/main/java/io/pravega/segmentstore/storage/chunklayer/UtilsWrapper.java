@@ -253,37 +253,4 @@ public class UtilsWrapper {
                             .thenApplyAsync(vv -> infoList, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor()), streamSegmentName);
     }
-
-//    /**
-//     * Extended information about the chunk.
-//     */
-//    @Builder
-//    @Data
-//    public static class ExtendedChunkInfo {
-//        /**
-//         * Length of the chunk in metadata.
-//         */
-//        private volatile long lengthInMetadata;
-//
-//        /**
-//         * Length of the chunk in storage.
-//         */
-//        private volatile long lengthInStorage;
-//
-//        /**
-//         * startOffset of chunk in segment.
-//         */
-//        private volatile long startOffset;
-//
-//        /**
-//         * Name of the chunk.
-//         */
-//        @NonNull
-//        private final String chunkName;
-//
-//        /**
-//         * Whether chunk exists in storage.
-//         */
-//        private volatile boolean existsInStorage;
-//    }
 }

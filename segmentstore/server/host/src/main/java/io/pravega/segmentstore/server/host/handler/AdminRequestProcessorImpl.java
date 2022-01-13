@@ -135,7 +135,7 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
 
         List<WireCommands.ChunkInfo> result = new ArrayList<>();
         long trace = LoggerHelpers.traceEnter(log, operation, listStorageChunks);
-        getSegmentStore().listStorageChunks(segment, 128, TIMEOUT)
+        getSegmentStore().getExtendedChunkInfo(segment, TIMEOUT)
                 .thenAccept(chunks -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
                     for (ExtendedChunkInfo chunk : chunks) {
