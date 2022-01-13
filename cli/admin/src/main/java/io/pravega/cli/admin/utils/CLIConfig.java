@@ -33,7 +33,7 @@ public final class CLIConfig {
         SEGMENTSTORE, ZOOKEEPER
     }
 
-    public static final String PROTOCOL_PATTERN = "://";
+    private static final String PROTOCOL_PATTERN = "://";
 
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
