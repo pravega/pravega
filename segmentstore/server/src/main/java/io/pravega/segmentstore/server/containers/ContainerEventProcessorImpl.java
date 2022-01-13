@@ -199,7 +199,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 // No handler needed when we use the EventProcessor as a durable queue.
                 Function<List<BufferView>, CompletableFuture<Void>> noHandler = l -> CompletableFuture.completedFuture(null);
                 // Do not limit the amount of outstanding bytes when there is no consumer configured.
-                EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE);
+                EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE, 1024 * 1024);
                 // Put the future for this EventProcessor that will be completed upon initialization. All other callers
                 // will get the same result as they will be waiting for the same future object.
                 processorFuture = new CompletableFuture<>();
@@ -267,6 +267,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private final AtomicBoolean closed;
         private final AtomicBoolean failedIteration;
         private final AtomicLong segmentStartOffset;
+        private final AtomicLong nonTruncatedDataLength;
 
         //region Constructor
 
@@ -289,6 +290,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             this.failedIteration = new AtomicBoolean(false);
             // Set with actual value when upon initialization.
             this.segmentStartOffset = new AtomicLong(segment.getInfo().getStartOffset());
+            this.nonTruncatedDataLength = new AtomicLong(0);
         }
 
         //endregion
@@ -489,14 +491,30 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
-            long truncationOffset = this.segmentStartOffset.get() + readResult.getTruncationLength();
+            Preconditions.checkState(this.nonTruncatedDataLength.get() >= 0);
+            // Keep track of the new data that has been processed.
+            this.nonTruncatedDataLength.addAndGet(readResult.getTruncationLength());
+            // Only do the actual truncation if the internal Segment has accumulated the configured amount of data.
+            // Note that a restart will induce re-processing of the non-truncated tasks, but this is fine as this class
+            // ensured at-lest-one processing guarantees.
+            CompletableFuture<Void> tryTruncate = this.nonTruncatedDataLength.get() >= this.config.getSegmentTruncationSizeInBytes() ?
+                    doTruncateInternalSegment() : Futures.toVoid(CompletableFuture.completedFuture(null));
+            return tryTruncate.thenAccept(v -> {
+                                // Report latency metrics upon complete processing iteration (irrespective of if truncation happened or not).
+                                this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis());
+                            });
+        }
+
+        private CompletableFuture<Void> doTruncateInternalSegment() {
+            final long truncationOffset = this.segmentStartOffset.get() + this.nonTruncatedDataLength.get();
+            Preconditions.checkState(truncationOffset <= this.segment.getInfo().getLength());
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
-                               .thenAccept(v -> {
-                                   // Update the startSegmentOffset after truncation.
-                                   this.segmentStartOffset.addAndGet(readResult.getTruncationLength());
-                                   // Report latency metrics upon complete processing iteration.
-                                   this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis());
-                               });
+                    .thenAccept(v -> {
+                        // Update the startSegmentOffset after truncation.
+                        this.segmentStartOffset.addAndGet(this.nonTruncatedDataLength.get());
+                        // Reset the non-truncated data length.
+                        this.nonTruncatedDataLength.set(0);
+                    });
         }
 
         /**

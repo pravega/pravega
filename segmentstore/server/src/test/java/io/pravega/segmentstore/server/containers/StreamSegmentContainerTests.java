@@ -195,6 +195,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final SegmentType BASIC_TYPE = SegmentType.STREAM_SEGMENT;
     private static final int EVENT_PROCESSOR_EVENTS_AT_ONCE = 10;
     private static final int EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES = 4 * 1024 * 1024;
+    private static final int EVENT_PROCESSOR_TRUNCATE_SIZE_BYTES = 1024 * 1024;
     private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
             BASIC_TYPE,
             SegmentType.builder(BASIC_TYPE).build(),
@@ -2549,8 +2550,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ((ContainerEventProcessorImpl.EventProcessorImpl) processor).awaitTerminated();
 
         // Now, re-create the Event Processor with a handler to consume the events.
-        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
-                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE,
+                EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES, EVENT_PROCESSOR_TRUNCATE_SIZE_BYTES);
         List<Integer> processorResults = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             l.forEach(b -> {
