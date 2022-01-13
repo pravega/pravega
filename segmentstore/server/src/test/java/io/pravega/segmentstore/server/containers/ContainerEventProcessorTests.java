@@ -54,6 +54,8 @@ import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
@@ -148,7 +150,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // Write all the events as fast as possible.
         for (int i = 0; i < allEventsToProcess; i++) {
             BufferView event = new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(i).array());
-            Assert.assertTrue(processor.add(event, TIMEOUT_FUTURE).join() > 0);
+            processor.add(event, TIMEOUT_FUTURE).join();
         }
 
         // Perform basic validation on this processor.
@@ -579,6 +581,40 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         Assert.assertTrue(readEvents.size() > numEvents);
     }
 
+    /**
+     * Verifies that we truncate the Segment the expected number of times based on the config.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = TIMEOUT_SUITE_MILLIS)
+    public void testTruncationSizeRespected() throws Exception {
+        MockSegmentSupplier mockSegmentSupplier = new MockSegmentSupplier();
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier.mockSegmentSupplier(),
+                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        int allEventsToProcess = 10;
+        int maxItemsPerBatch = 10;
+        int maxOutstandingBytes = 4 * 1024 * 1024;
+        int truncationDataSize = 20;
+        List<Integer> processorResults1 = new ArrayList<>();
+        Function<List<BufferView>, CompletableFuture<Void>> handler1 = getNumberSequenceHandler(processorResults1, maxItemsPerBatch);
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsPerBatch,
+                maxOutstandingBytes, truncationDataSize);
+        @Cleanup
+        ContainerEventProcessorImpl.EventProcessorImpl processor1 = (ContainerEventProcessorImpl.EventProcessorImpl) eventProcessorService.forConsumer("testSegment1", handler1, config)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        for (int i = 0; i < allEventsToProcess; i++) {
+            BufferView event = new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(i).array());
+            processor1.add(event, TIMEOUT_FUTURE).join();
+            // After adding one event, wait for it to be processed.
+            AssertExtensions.assertEventuallyEquals(true, () -> processor1.getOutstandingBytes() == 0, 10000);
+        }
+        // Wait for all items to be processed.
+        validateProcessorResults(processor1, processorResults1, allEventsToProcess);
+        // Each Integer event write is 13 bytes in size after being serialized.
+        verify(mockSegmentSupplier.segmentMock, times((13 * allEventsToProcess) / truncationDataSize - 1)).truncate(anyLong(), any());
+    }
+
     private void executeEventOrderingTest(int numEvents, List<Integer> readEvents, Consumer<DirectSegmentAccess> segmentFailure) throws Exception {
         DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
         Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
@@ -656,5 +692,13 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
 
     private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
         return s -> CompletableFuture.completedFuture(new SegmentMock(this.executorService()));
+    }
+
+    class MockSegmentSupplier {
+        SegmentMock segmentMock = spy(new SegmentMock(executorService()));
+
+        private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
+            return s -> CompletableFuture.completedFuture(this.segmentMock);
+        }
     }
 }
