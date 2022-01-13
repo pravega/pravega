@@ -81,7 +81,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     @Override
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
         Preconditions.checkNotNull(queueName, "queueName");
-        val config = new ContainerEventProcessor.EventProcessorConfig(maxItemsAtOnce, Long.MAX_VALUE);
+        val config = new ContainerEventProcessor.EventProcessorConfig(maxItemsAtOnce, Long.MAX_VALUE, 1024 * 1024);
         val f = ignoreProcessing ?
                 eventProcessor.forDurableQueue(queueName) :
                 eventProcessor.forConsumer(queueName, this::processEvents, config);
