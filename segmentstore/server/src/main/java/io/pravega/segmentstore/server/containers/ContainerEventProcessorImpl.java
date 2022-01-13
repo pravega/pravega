@@ -514,7 +514,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private boolean shouldTruncate() {
-            return this.processedUpToOffset.get() - this.lastTruncationOffset.get() >= this.config.getSegmentTruncationSizeInBytes();
+            return this.processedUpToOffset.get() - this.lastTruncationOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
         }
 
         private CompletableFuture<Void> doTruncateInternalSegment() {
