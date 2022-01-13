@@ -33,7 +33,6 @@ import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import lombok.AccessLevel;
@@ -198,8 +197,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 Runnable onClose = () -> eventProcessorMap.remove(name);
                 // No handler needed when we use the EventProcessor as a durable queue.
                 Function<List<BufferView>, CompletableFuture<Void>> noHandler = l -> CompletableFuture.completedFuture(null);
-                // Do not limit the amount of outstanding bytes when there is no consumer configured.
-                EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE, 1024 * 1024);
+                // Do not limit the amount of outstanding bytes when there is no consumer configured. Also, never truncate.
+                EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE, Long.MAX_VALUE);
                 // Put the future for this EventProcessor that will be completed upon initialization. All other callers
                 // will get the same result as they will be waiting for the same future object.
                 processorFuture = new CompletableFuture<>();
@@ -266,8 +265,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private final SegmentStoreMetrics.EventProcessor metrics;
         private final AtomicBoolean closed;
         private final AtomicBoolean failedIteration;
-        private final AtomicLong segmentStartOffset;
-        private final AtomicLong nonTruncatedDataLength;
+        private final AtomicLong processedUpToOffset;
+        private final AtomicLong lastTruncationOffset;
 
         //region Constructor
 
@@ -289,8 +288,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             this.closed = new AtomicBoolean(false);
             this.failedIteration = new AtomicBoolean(false);
             // Set with actual value when upon initialization.
-            this.segmentStartOffset = new AtomicLong(segment.getInfo().getStartOffset());
-            this.nonTruncatedDataLength = new AtomicLong(0);
+            this.processedUpToOffset = new AtomicLong(segment.getInfo().getStartOffset());
+            this.lastTruncationOffset = new AtomicLong(0);
         }
 
         //endregion
@@ -315,13 +314,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         /**
          * Gets the number of outstanding bytes in the {@link ContainerEventProcessor.EventProcessor}'s internal Segment.
+         * Specifically, outstanding bytes are the ones stored but not yet processed.
          * 
          * @return Outstanding bytes in the {@link ContainerEventProcessor.EventProcessor}'s internal Segment.
          */
         @VisibleForTesting
         long getOutstandingBytes() {
-            SegmentMetadata segmentMetadata = this.segment.getInfo();
-            return segmentMetadata.getLength() - segmentMetadata.getStartOffset();
+            return this.segment.getInfo().getLength() - this.processedUpToOffset.get();
         }
 
         //endregion
@@ -417,8 +416,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                         } else {
                             this.failedIteration.set(false);
                         }
-                        log.debug("{}: Finished iteration for EventProcessor (Name = {}, Start offset = {}, Failed iteration = {}).",
-                                this.traceObjectId, this.name, this.segmentStartOffset.get(), this.failedIteration.get());
+                        log.debug("{}: Finished iteration for EventProcessor (Name = {}, Start offset = {}, " +
+                                "Processed offset = {}, Failed iteration = {}).", this.traceObjectId, this.name,
+                                this.segment.getInfo().getStartOffset(), this.processedUpToOffset.get(), this.failedIteration.get());
                         return null;
                     });
         }
@@ -429,8 +429,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          */
         private void reconcileStartOffset() {
             long newStartOffset = segment.getInfo().getStartOffset();
-            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.segmentStartOffset.get(), newStartOffset);
-            this.segmentStartOffset.set(newStartOffset);
+            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
+            this.processedUpToOffset.set(newStartOffset);
         }
 
         /**
@@ -446,7 +446,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                         long outStandingBytes = getOutstandingBytes();
                                         SegmentStoreMetrics.outstandingEventProcessorBytes(this.name, containerId, outStandingBytes);
                                         int readLength = (int) Math.min(outStandingBytes, 2 * ProcessorEventData.MAX_EVENT_SIZE);
-                                        return this.segment.read(this.segmentStartOffset.get(), readLength, this.containerOperationTimeout);
+                                        return this.segment.read(this.processedUpToOffset.get(), readLength, this.containerOperationTimeout);
                                     }, this.executor)
                                     .thenCompose(rr -> AsyncReadResultProcessor.processAll(rr, this.executor, this.containerOperationTimeout))
                                     .thenApply(this::deserializeEvents);
@@ -472,8 +472,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 deserializationException = new NoDataAvailableException();
             } catch (Exception ex) {
                 // Some unexpected serialization error occurred here; rethrow if this prevents reading further events.
-                log.error("{}: Error deserializing events (SegmentId = {}, Initial offset = {}, Read length = {}, Truncation length = {}).",
-                        this.traceObjectId, this.segment.getSegmentId(), this.segmentStartOffset.get(), dataLength, truncationLength, ex);
+                log.error("{}: Error deserializing events (SegmentId = {}, Initial offset = {}, Processed offset = {}, " +
+                        "Read length = {}, Truncation length = {}).", this.traceObjectId, this.segment.getSegmentId(),
+                        this.segment.getInfo().getStartOffset(), this.processedUpToOffset.get(), dataLength, truncationLength, ex);
                 deserializationException = ex;
             }
 
@@ -486,34 +487,43 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             return new EventsReadAndTruncationLength(events, truncationLength);
         }
 
+        /**
+         * Executes the actual user-provided function over a list of read events.
+         *
+         * @param readResult Read events from internal Segment.
+         * @return CompletableFuture that, when completed successfully, indicates that the provided handlers has been
+         *         executed on the events read from the internal Segment.
+         */
         private CompletableFuture<EventsReadAndTruncationLength> applyProcessorHandler(EventsReadAndTruncationLength readResult) {
             return this.handler.apply(readResult.getProcessorEventsData()).thenApply(v -> readResult);
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
-            Preconditions.checkState(this.nonTruncatedDataLength.get() >= 0);
-            // Keep track of the new data that has been processed.
-            this.nonTruncatedDataLength.addAndGet(readResult.getTruncationLength());
+            Preconditions.checkState(this.lastTruncationOffset.get() >= 0);
+            Preconditions.checkState(this.lastTruncationOffset.get() <= this.processedUpToOffset.get());
+            // Update the processedUpToOffset to the current offset that has been processed.
+            this.processedUpToOffset.addAndGet(readResult.getTruncationLength());
             // Only do the actual truncation if the internal Segment has accumulated the configured amount of data.
             // Note that a restart will induce re-processing of the non-truncated tasks, but this is fine as this class
             // ensured at-lest-one processing guarantees.
-            CompletableFuture<Void> tryTruncate = this.nonTruncatedDataLength.get() >= this.config.getSegmentTruncationSizeInBytes() ?
-                    doTruncateInternalSegment() : Futures.toVoid(CompletableFuture.completedFuture(null));
+            CompletableFuture<Void> tryTruncate = shouldTruncate() ? doTruncateInternalSegment() : CompletableFuture.completedFuture(null);
             return tryTruncate.thenAccept(v -> {
                                 // Report latency metrics upon complete processing iteration (irrespective of if truncation happened or not).
                                 this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis());
                             });
         }
 
+        private boolean shouldTruncate() {
+            return this.processedUpToOffset.get() - this.lastTruncationOffset.get() >= this.config.getSegmentTruncationSizeInBytes();
+        }
+
         private CompletableFuture<Void> doTruncateInternalSegment() {
-            final long truncationOffset = this.segmentStartOffset.get() + this.nonTruncatedDataLength.get();
+            final long truncationOffset = this.processedUpToOffset.get();
             Preconditions.checkState(truncationOffset <= this.segment.getInfo().getLength());
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
                     .thenAccept(v -> {
-                        // Update the startSegmentOffset after truncation.
-                        this.segmentStartOffset.addAndGet(this.nonTruncatedDataLength.get());
-                        // Reset the non-truncated data length.
-                        this.nonTruncatedDataLength.set(0);
+                        // Reset the truncation offset to the new one.
+                        this.lastTruncationOffset.set(truncationOffset);
                     });
         }
 

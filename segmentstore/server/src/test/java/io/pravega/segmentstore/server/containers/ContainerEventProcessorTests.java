@@ -64,7 +64,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     private static final Duration CONTAINER_OPERATION_TIMEOUT = Duration.ofMillis(1000);
 
     @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT_SUITE_MILLIS * 100, TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout(TIMEOUT_SUITE_MILLIS, TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -87,7 +87,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public static void testBasicContainerEventProcessor(ContainerEventProcessor containerEventProcessor) throws Exception {
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ReusableLatch latch = new ReusableLatch();
         final AtomicReference<String> userEvent = new AtomicReference<>("event1");
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
@@ -136,7 +136,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
         int allEventsToProcess = 1000;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         List<Integer> processedItems = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler = getNumberSequenceHandler(processedItems, maxItemsPerBatch);
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsPerBatch,
@@ -172,7 +172,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public static void testFaultyHandler(ContainerEventProcessor eventProcessorService) throws Exception {
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         AtomicLong retries = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             retries.addAndGet(1);
@@ -210,7 +210,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         int allEventsToProcess = 100;
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         List<Integer> processorResults1 = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler1 = getNumberSequenceHandler(processorResults1, maxItemsPerBatch);
         List<Integer> processorResults2 = new ArrayList<>();
@@ -266,7 +266,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public static void testEventProcessorWithSerializationError(ContainerEventProcessor containerEventProcessor) throws Exception {
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         AtomicLong readEvents = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             readEvents.addAndGet(l.size());
@@ -308,7 +308,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public static void testEventRejectionOnMaxOutstanding(ContainerEventProcessor eventProcessorService) throws Exception {
         int maxItemsProcessed = 1000;
         int maxOutstandingBytes = 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
         AtomicLong processorResults = new AtomicLong(0);
@@ -361,7 +361,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
         Function<List<BufferView>, CompletableFuture<Void>> doNothing = l -> null;
@@ -388,7 +388,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
         ReusableLatch latch = new ReusableLatch();
@@ -422,7 +422,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
 
@@ -473,7 +473,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
 
@@ -508,7 +508,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes, truncationDataSize);
         AtomicLong processorResults = new AtomicLong(0);
@@ -565,7 +565,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * This test shows that we avoid events to be re-processed in the case of a failure related to Segment truncation.
+     * This test shows that we could have events re-processed in the case that failures are related to Segment truncation.
      *
      * @throws Exception
      */
@@ -576,8 +576,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         Consumer<DirectSegmentAccess> failOnTruncation = faultySegment -> when(faultySegment.truncate(anyLong(),
                 any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
         executeEventOrderingTest(numEvents, readEvents, failOnTruncation);
-        // If a single truncation operation fails, tasks do not get re-processed, as we keep track of the data to truncate.
-        Assert.assertEquals(readEvents.size(), numEvents);
+        Assert.assertTrue(readEvents.size() > numEvents);
     }
 
     private void executeEventOrderingTest(int numEvents, List<Integer> readEvents, Consumer<DirectSegmentAccess> segmentFailure) throws Exception {
@@ -588,7 +587,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 100;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        int truncationDataSize = 0;
+        int truncationDataSize = 500;
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             l.forEach(d -> readEvents.add(new ByteArraySegment(d.getCopy()).getInt(0)));
             return CompletableFuture.completedFuture(null);
