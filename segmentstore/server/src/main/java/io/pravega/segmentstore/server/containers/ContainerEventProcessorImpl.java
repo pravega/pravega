@@ -429,8 +429,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          */
         private void reconcileStartOffset() {
             long newStartOffset = segment.getInfo().getStartOffset();
-            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.getAndSet(newStartOffset), newStartOffset);
-            log.info("{}: Reconciling last truncation offset from {} to {}.", this.traceObjectId, this.lastTruncationOffset.getAndSet(newStartOffset), newStartOffset);
+            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
+            this.processedUpToOffset.set(newStartOffset);
+            log.info("{}: Reconciling last truncation offset from {} to {}.", this.traceObjectId, this.lastTruncationOffset.get(), newStartOffset);
+            this.lastTruncationOffset.set(newStartOffset);
         }
 
         /**
