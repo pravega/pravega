@@ -20,6 +20,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableSet;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -56,7 +57,9 @@ public class FileSystemWrapper {
             PosixFilePermission.GROUP_READ,
             PosixFilePermission.OTHERS_READ);
 
+@Getter
     private final Cache<String, FileChannel> readCache;
+@Getter
     private final Cache<String, FileChannel> writeCache;
 
     public FileSystemWrapper() {
@@ -89,6 +92,7 @@ public class FileSystemWrapper {
      * @return Path of created file.
      * @throws IOException Exception thrown by file system call.
      */
+
     Path createFile(FileAttribute<Set<PosixFilePermission>> fileAttributes, Path path) throws IOException {
         readCache.invalidate(path.toString());
         writeCache.invalidate(path.toString());
@@ -130,7 +134,7 @@ public class FileSystemWrapper {
     /**
      * Checks whether given file is writable by calling {@link Files#isWritable(Path)}.
      * @param path File path.
-     * @return rue if file is writable, false otherwise.
+     * @return true if file is writable, false otherwise.
      */
     boolean isWritable(Path path) {
         return Files.isWritable(path);
@@ -163,7 +167,7 @@ public class FileSystemWrapper {
                 readCache.put(fullPath, channel);
             }
         }
-        if (openOption.equals(StandardOpenOption.WRITE)) {
+        if (openOption.equals(StandardOpenOption.WRITE)|| openOption.equals((StandardOpenOption.CREATE) ) || openOption.equals(StandardOpenOption.CREATE_NEW)) {
             channel = writeCache.getIfPresent(fullPath);
             if (null == channel) {
                 channel = FileChannel.open(path, openOption);
