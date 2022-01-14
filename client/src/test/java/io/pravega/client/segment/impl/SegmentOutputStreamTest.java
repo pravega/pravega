@@ -360,8 +360,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        // ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        // implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         @Cleanup
         InlineExecutor executor = new InlineExecutor();
         cf.setExecutor(executor);
@@ -708,7 +706,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>> any(), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
@@ -1121,21 +1119,18 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertBlocks(() -> {
             // the below write will be blocked since the connection setup is not complete.
             output.write(PendingEvent.withoutHeader(null, data, acked2));
-        },
-                                      () -> {
-                                          // simulate a race between segmentIsSealed response and
-                                          // appendSetup.
-                                          cf.getProcessor(uri)
-                                              .segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(),
-                                                      SEGMENT,
-                                                      "Segment is sealed",
-                                                      1));
-                                          // invoke the segment is sealed to ensure
-                                          cf.getProcessor(uri)
-                                              .appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
-                                          // ensure the reconnect is invoked inline.
-                                          output.reconnect();
-                                      });
+        }, () -> {
+            // simulate a race between segmentIsSealed response and appendSetup.
+            cf.getProcessor(uri)
+                .segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(),
+                        SEGMENT,
+                        "Segment is sealed",
+                        1));
+            // invoke the segment is sealed to ensure
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            // ensure the reconnect is invoked inline.
+            output.reconnect();
+        });
         CompletableFuture<Void> acked3 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked3));
         inOrder.verify(connection).send(append);
@@ -1486,7 +1481,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 }
                 return null;
             }
-        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>> any(), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
 
         doAnswer(new Answer<Void>() {
             @Override
@@ -1494,8 +1489,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
                 return null;
             }
-        }).doNothing() // disable the sending a new appendSetup the next time SetupAppend is invoked
-                       // by the segment writer is invoked.
+        }).doNothing() // disable the sending a new appendSetup the next time SetupAppend is invoked by the segment writer is invoked.
             .when(connection)
             .send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
 
@@ -1639,8 +1633,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, data, ack));
         order.verify(connection)
             .send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
-        assertEquals(false, ack.isDone()); // writer is not complete until a response from Segment
-                                           // Store is received.
+        assertEquals(false, ack.isDone()); // writer is not complete until a response from SegmentStore is received.
 
         // Simulate a No Such Segment while waiting on flush.
         AssertExtensions.assertBlocks(() -> {
@@ -1711,8 +1704,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, data, ack));
         order.verify(connection)
             .send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
-        assertFalse(ack.isDone()); // writer is not complete until a response from Segment Store is
-                                   // received.
+        assertFalse(ack.isDone()); // writer is not complete until a response from SegmentStore is received.
 
         // Validate that flush() is blocking until there is a response from Segment Store.
         AssertExtensions.assertBlocks(() -> {
@@ -1762,8 +1754,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, data, ack1));
         order.verify(connection)
             .send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
-        assertFalse(ack1.isDone()); // writer is not complete until a response from Segment Store is
-                                    // received.
+        assertFalse(ack1.isDone()); // writer is not complete until a response from SegmentStore is received.
 
         // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
         cf.getProcessor(uri)
