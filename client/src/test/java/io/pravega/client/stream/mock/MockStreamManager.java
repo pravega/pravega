@@ -43,6 +43,10 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import lombok.Cleanup;
+import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,9 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.Getter;
-import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -119,7 +120,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                 RuntimeException::new);
     }
 
+    /**
+     * A new API is created hence this is going to be deprecated.
+     *
+     * @deprecated As of Pravega release 0.11, replaced by {@link #deleteScopeRecursive(String)}.
+     */
     @Override
+    @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) {
         if (forceDelete) {
             List<String> readerGroupList = new ArrayList<>();
@@ -147,6 +154,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         }
         return Futures.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
+    }
+
+    @Override
+    public boolean deleteScopeRecursive(String scopeName) {
+        return Boolean.TRUE.equals(Futures.getAndHandleExceptions(controller.deleteScopeRecursive(scope),
+                RuntimeException::new));
     }
 
     @Override

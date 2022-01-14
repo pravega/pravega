@@ -19,7 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -130,7 +130,7 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         referencedLedgerIds.clear();
         for (int logId = 0; logId < context.serviceConfig.getContainerCount(); logId++) {
             @Cleanup
-            DebugLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
+            DebugBookKeeperLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
             val m = log.fetchMetadata();
             if (m == null) {
                 continue;
@@ -146,7 +146,7 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         val maxLogId = context.serviceConfig.getContainerCount() * 10;
         for (int logId = context.serviceConfig.getContainerCount(); logId < maxLogId; logId++) {
             @Cleanup
-            DebugLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
+            DebugBookKeeperLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
             val m = log.fetchMetadata();
             if (m != null) {
                 throw new Exception(String.format("Discovered BookKeeperLog %d which is beyond the maximum log id (%d) as specified in the configuration.",

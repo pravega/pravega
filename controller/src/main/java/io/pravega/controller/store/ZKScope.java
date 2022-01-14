@@ -61,6 +61,7 @@ public class ZKScope implements Scope {
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH = "/store/" + KVTABLES_IN_SCOPE + "/%s";
     // This is a path like: /store/_kvtablesinscope/scope1/kvtable1
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
+    private static final String DELETE_SCOPE_TABLE_FORMAT = "/store/deletingTable";
 
     private final String scopePath;
     private final String counterPath;
@@ -91,6 +92,11 @@ public class ZKScope implements Scope {
         return store.deleteNode(scopePath)
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(counterPath), DATA_NOT_FOUND_PREDICATE, null))
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(streamsInScopePath), DATA_NOT_FOUND_PREDICATE, null));
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("DeleteScopeRecursive not implemented for ZK scope"));
     }
 
     /**
@@ -366,11 +372,25 @@ public class ZKScope implements Scope {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context) {
+        return getScopeInDeletingTable(scopeName).thenCompose(store::checkExists);
+    }
+
+    @Override
+    public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for ZK scope"));
+    }
+
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
         return getKVTableInScopeZNodePath(this.scopeName, kvt).thenCompose(path -> store.checkExists(path));
     }
 
     public static CompletableFuture<String> getKVTableInScopeZNodePath(String scopeName, String kvtName) {
         return CompletableFuture.completedFuture(String.format(KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT, scopeName, kvtName));
+    }
+
+    public static CompletableFuture<String> getScopeInDeletingTable(String scopeName) {
+        return CompletableFuture.completedFuture(String.format(DELETE_SCOPE_TABLE_FORMAT, scopeName));
     }
 }

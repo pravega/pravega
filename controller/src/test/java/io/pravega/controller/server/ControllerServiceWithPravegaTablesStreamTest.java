@@ -17,6 +17,8 @@ package io.pravega.controller.server;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,12 @@ public class ControllerServiceWithPravegaTablesStreamTest extends ControllerServ
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
+                GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
+    }
+
+    @Override
+    KVTableMetadataStore getKVTStore() {
+        return KVTableStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),
                 GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 }

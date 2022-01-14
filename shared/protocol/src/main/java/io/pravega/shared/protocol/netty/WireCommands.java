@@ -63,7 +63,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 14;
+    public static final int WIRE_VERSION = 15;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1481,6 +1481,84 @@ public final class WireCommands {
             String source = in.readUTF();
             long newTargetWriteOffset = in.available() > 0 ? in.readLong() : -1;
             return new SegmentsMerged(requestId, target, source, newTargetWriteOffset);
+        }
+    }
+
+    @Data
+    public static final class MergeSegmentsBatch implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
+        final long requestId;
+        final String targetSegmentId;
+        final List<String> sourceSegmentIds;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.mergeSegmentsBatch(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(targetSegmentId);
+            out.writeInt(sourceSegmentIds.size());
+            for (int i = 0; i < sourceSegmentIds.size(); i++) {
+                out.writeUTF(sourceSegmentIds.get(i));
+            }
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int sourceCount = in.readInt();
+            List<String> sources = new ArrayList<>(sourceCount);
+            for (int i = 0; i < sourceCount; i++) {
+                sources.add(in.readUTF());
+            }
+            String delegationToken = in.readUTF();
+            return new MergeSegmentsBatch(requestId, target, sources, delegationToken);
+        }
+    }
+
+    @Data
+    public static final class SegmentsBatchMerged implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENTS_BATCH_MERGED;
+        final long requestId;
+        final String target;
+        final List<String> sources;
+        /** newTargetWriteOffset may not be the exact offset on the Segment post merge but just some offset following the merge.**/
+        final List<Long> newTargetWriteOffset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentsBatchMerged(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeInt(sources.size());
+            for (int i = 0; i < sources.size(); i++) {
+                out.writeUTF(sources.get(i));
+                out.writeLong(newTargetWriteOffset.get(i));
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int count = in.readInt();
+            List<String> sources = new ArrayList<>(count);
+            List<Long> offsets = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                sources.add(in.readUTF());
+                offsets.add(in.readLong());
+            }
+
+            return new SegmentsBatchMerged(requestId, target, sources, offsets);
         }
     }
 
