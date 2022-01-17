@@ -38,6 +38,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -106,6 +107,14 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
+        this.kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, executorService);
+        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
+                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
+        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), this.kvtStore, executorService);
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
@@ -116,18 +125,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executorService),
                 executorService);
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        this.kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, executorService);
-        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
-                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
-        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
-        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
-                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
-                executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 
         Cluster mockCluster = mock(Cluster.class);

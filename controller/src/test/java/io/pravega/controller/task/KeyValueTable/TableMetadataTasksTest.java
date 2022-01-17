@@ -155,6 +155,7 @@ public abstract class TableMetadataTasksTest {
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
+        assertFalse(kvtStore.isScopeSealed("testScope", null, executor).join());
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

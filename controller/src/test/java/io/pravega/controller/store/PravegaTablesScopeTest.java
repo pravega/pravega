@@ -82,4 +82,20 @@ public class PravegaTablesScopeTest extends ThreadPooledTestSuite {
         // Verify if the version number is as expected.
         assertEquals(2L, keySnapshot.get(0).getVersion().getSegmentVersion());
     }
+
+    @Test
+    public void testDeleteScopeRecursive() {
+        GrpcAuthHelper authHelper = mock(GrpcAuthHelper.class);
+        when(authHelper.retrieveMasterToken()).thenReturn("");
+        SegmentHelper segmentHelper = mock(SegmentHelper.class);
+        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
+        PravegaTablesScope tablesScope = spy(new PravegaTablesScope(scope, storeHelper));
+        tablesScope.deleteScopeRecursive(context);
+        verify(tablesScope, times(1)).getStreamsInScopeTableName(true, context);
+        verify(tablesScope, times(1)).getReaderGroupsInScopeTableName(context);
+        verify(tablesScope, times(1)).getKVTablesInScopeTableName(context);
+        verify(tablesScope, times(1)).getAllStreamTagsInScopeTableNames(context);
+        tablesScope.sealScope(scope, context);
+        verify(tablesScope, times(5)).getId(context);
+    }
 }

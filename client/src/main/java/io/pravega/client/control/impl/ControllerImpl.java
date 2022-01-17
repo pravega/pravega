@@ -160,6 +160,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_TRANSAC
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_KEY_VALUE_TABLE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE_RECURSIVE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE;
@@ -544,6 +545,42 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "deleteScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE_RECURSIVE, scopeName, requestId);
+
+        final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(requestId, DELETE_SCOPE_RECURSIVE, scopeName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, DELETE_SCOPE_RECURSIVE, scopeName)
+                    .deleteScopeRecursive(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete scope recursively: {}", scopeName);
+                    throw new ControllerFailureException("Failed to delete scope recursive: " + scopeName);
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scopeName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Recursive Scope deleted successfully: {}", scopeName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope recursively " + scopeName
+                            + " " + x.getStatus());
+            }
+        }, this.executor).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteScopeRecursive {} failed: ", scopeName, e);
+            }
+            LoggerHelpers.traceLeave(log, DELETE_SCOPE_RECURSIVE, traceId, scopeName, requestId);
+        });
     }
 
     @Override
@@ -2068,6 +2105,11 @@ public class ControllerImpl implements Controller {
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .deleteScope(scopeInfo, callback);
+        }
+
+        public void deleteScopeRecursive(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteScopeRecursive(scopeInfo, callback);
         }
 
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {

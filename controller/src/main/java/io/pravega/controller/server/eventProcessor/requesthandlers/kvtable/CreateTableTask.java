@@ -77,43 +77,49 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                             .build();
 
         final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);
-        return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
+        return RetryHelper.withRetriesAsync(() ->
+                getKeyValueTable(scope, kvt)
                 .thenCompose(table -> table.getId(context)).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
                 log.debug(requestId, "Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
-
-                return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, context, executor)
-                        .thenComposeAsync(response -> {
-                            // only if its a new kvtable or an already existing non-active kvtable then we will create
-                            // segments and change the state of the kvtable to active.
-                            if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
-                                    response.getStatus().equals(CreateKVTableResponse.CreateStatus.EXISTS_CREATING)) {
-                                final int startingSegmentNumber = response.getStartingSegmentNumber();
-                                final int minNumSegments = response.getConfiguration().getPartitionCount();
-                                final int keyLength = response.getConfiguration().getPrimaryKeyLength() + response.getConfiguration().getSecondaryKeyLength();
-                                List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
-                                        .boxed()
-                                        .map(x -> NameUtils.computeSegmentId(x, 0))
-                                        .collect(Collectors.toList());
-                                kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, keyLength, requestId, config.getRolloverSizeBytes())
-                                        .thenCompose(y -> {
-                                            kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
-                                                    .thenCompose(state -> {
-                                                        if (state.getObject().equals(KVTableState.CREATING)) {
-                                                            kvtMetadataStore.updateVersionedState(scope, kvt, KVTableState.ACTIVE,
-                                                                    state, context, executor);
-                                                        }
-                                                        return CompletableFuture.completedFuture(null);
-                                                    });
-                                            return CompletableFuture.completedFuture(null);
-                                        });
-                            }
-                            return CompletableFuture.completedFuture(null);
-                        }, executor);
+                return kvtMetadataStore.isScopeSealed(scope, context, executor).thenCompose(isScopeSealed -> {
+                    if (isScopeSealed) {
+                        log.warn(requestId, "Scope {} is in sealed state: ", scope);
+                        throw new IllegalStateException("Scope in sealed state: " + scope);
+                    }
+                    return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, context, executor)
+                            .thenComposeAsync(response -> {
+                                // only if its a new kvtable or an already existing non-active kvtable then we will create
+                                // segments and change the state of the kvtable to active.
+                                if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
+                                        response.getStatus().equals(CreateKVTableResponse.CreateStatus.EXISTS_CREATING)) {
+                                    final int startingSegmentNumber = response.getStartingSegmentNumber();
+                                    final int minNumSegments = response.getConfiguration().getPartitionCount();
+                                    final int keyLength = response.getConfiguration().getPrimaryKeyLength() + response.getConfiguration().getSecondaryKeyLength();
+                                    List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                            .boxed()
+                                            .map(x -> NameUtils.computeSegmentId(x, 0))
+                                            .collect(Collectors.toList());
+                                    kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, keyLength, requestId, config.getRolloverSizeBytes())
+                                            .thenCompose(y -> {
+                                                kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
+                                                        .thenCompose(state -> {
+                                                            if (state.getObject().equals(KVTableState.CREATING)) {
+                                                                kvtMetadataStore.updateVersionedState(scope, kvt, KVTableState.ACTIVE,
+                                                                        state, context, executor);
+                                                            }
+                                                            return CompletableFuture.completedFuture(null);
+                                                        });
+                                                return CompletableFuture.completedFuture(null);
+                                            });
+                                }
+                                return CompletableFuture.completedFuture(null);
+                            }, executor);
+                });
              }
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 
     private CompletableFuture<KeyValueTable> getKeyValueTable(String scope, String kvt) {

@@ -52,6 +52,7 @@ service ControllerService {
     rpc checkStreamExists(StreamInfo) returns (ExistsResponse);
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+    rpc deleteScopeRecursive(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);

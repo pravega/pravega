@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.Version;
@@ -28,7 +30,23 @@ public class ZkRequestHandlersTest extends RequestHandlersTest {
     }
 
     @Override
+    KVTableMetadataStore getKvtStore() {
+        return KVTableStoreFactory.createZKStore(zkClient, executor);
+    }
+
+    @Override
     int getVersionNumber(Version version) {
         return version.asIntVersion().getIntValue();
     }
+
+    @Override
+    public void testDeleteScopeRecursive() {
+        // no op
+    }
+
+    @Override
+    public void scopeDeleteTest() {
+        // no op
+    }
+
 }

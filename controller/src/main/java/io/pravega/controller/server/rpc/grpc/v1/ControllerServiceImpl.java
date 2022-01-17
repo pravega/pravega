@@ -30,26 +30,32 @@ import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.security.auth.AuthorizationResource;
-import io.pravega.shared.security.auth.AuthorizationResourceImpl;
-import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.server.security.auth.StreamAuthParams;
-import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
@@ -63,28 +69,27 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.Segmen
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
+import lombok.AllArgsConstructor;
+import lombok.NonNull;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,14 +103,51 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.AllArgsConstructor;
-import lombok.NonNull;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.slf4j.LoggerFactory;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.client.control.impl.ModelHelper.decode;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.*;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.ABORT_TRANSACTION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CHECK_SCALE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CHECK_SCOPE_EXISTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CHECK_STREAM_EXISTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CHECK_TRANSACTION_STATE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.COMMIT_TRANSACTION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_KEY_VALUE_TABLE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_READER_GROUP;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_TRANSACTION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_KEY_VALUE_TABLE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_READER_GROUP;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE_RECURSIVE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_EPOCH_SEGMENTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_KEY_VALUE_TABLE_CONFIGURATION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_OR_REFRESH_DELEGATION_TOKEN_FOR;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_READER_GROUP_CONFIG;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS_BETWEEN_STREAM_CUTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS_IMMEDIATELY_FOLLOWING;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_STREAM_CONFIGURATION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_URI;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.IS_SEGMENT_OPEN;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.IS_STREAMCUT_VALID;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_KEY_VALUE_TABLES;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SCOPES;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE_FOR_TAG;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SUBSCRIBERS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.NOTE_TIMESTAMP_FROM_WRITER;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.PING_TRANSACTION;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.REMOVE_WRITER;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.SCALE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.SEAL_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
 
 /**
  * gRPC Service API implementation for the Controller.
@@ -1167,6 +1209,17 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap(), 
                         requestTag.getRequestId()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void deleteScopeRecursive(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(ControllerService.nextRequestId(),
+                DELETE_SCOPE_RECURSIVE, request.getScope());
+        log.info(requestTag.getRequestId(), "deleteScopeRecursive called for scope {}.", request.getScope());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                        authorizationResource.ofScopes(), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.deleteScopeRecursive(request.getScope(), requestTag.getRequestId()),
                 responseObserver, requestTag);
     }
 
