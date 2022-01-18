@@ -33,6 +33,8 @@ public final class CLIConfig {
         SEGMENTSTORE, ZOOKEEPER
     }
 
+    private static final String PROTOCOL_PATTERN = "://";
+
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
     private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", true);
@@ -101,8 +103,8 @@ public final class CLIConfig {
 
     private CLIConfig(TypedProperties properties) throws ConfigurationException {
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
-        this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + properties.get(CONTROLLER_REST_URI);
-        this.controllerGrpcURI = (this.isTlsEnabled() ? "tls://" : "tcp://") + properties.get(CONTROLLER_GRPC_URI);
+        this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + cleanUri(properties.get(CONTROLLER_REST_URI));
+        this.controllerGrpcURI = (this.isTlsEnabled() ? "tls://" : "tcp://") + cleanUri(properties.get(CONTROLLER_GRPC_URI));
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
         this.userName = properties.get(USER_NAME);
         this.password = properties.get(PASSWORD);
@@ -118,5 +120,13 @@ public final class CLIConfig {
      */
     public static ConfigBuilder<CLIConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, CLIConfig::new);
+    }
+
+    private static String cleanUri(String uri) {
+        int pattern = uri.indexOf(PROTOCOL_PATTERN);
+        if (pattern != -1) {
+            return uri.substring(pattern + PROTOCOL_PATTERN.length());
+        }
+        return uri;
     }
 }
