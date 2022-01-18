@@ -189,7 +189,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     public void sweepOverTest() throws InterruptedException {
         String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
-        int loopLimit = 10;
+        int loopLimit = 50;
         int initialSegments = 1;
         List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
@@ -212,9 +212,9 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
         for (int i = 0; i < loopLimit; i++) {
-            controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L);
+            controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L).join();
         }
-        controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L);
+        controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L).join();
 
         controller.checkScaleStatus(stream1, 11).thenCompose(status -> {
             if (!status) {
@@ -273,20 +273,5 @@ public class ControllerFailoverTest extends AbstractSystemTest {
                 .scalingPolicy(scalingPolicy)
                 .build();
         controller.createStream(scope, stream, config).join();
-    }
-
-    private <T extends Serializable> void writeEvents(final String scope, final List<T> events, final String stream) {
-
-        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-             EventStreamWriter<T> writer = clientFactory.createEventWriter(stream,
-                     new JavaSerializer<T>(),
-                     EventWriterConfig.builder().build())) {
-            for (T event : events) {
-                String routingKey = String.valueOf(event);
-                log.info("Writing message: {} with routing-key: {} to stream {}", event, routingKey, stream);
-                writer.writeEvent(routingKey, event);
-            }
-        }
     }
 }
