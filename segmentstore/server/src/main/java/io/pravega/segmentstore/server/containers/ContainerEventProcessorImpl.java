@@ -429,7 +429,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          */
         private void reconcileStartOffset() {
             long newStartOffset = segment.getInfo().getStartOffset();
-            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
+            log.info("{}: Reconciling processed offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
             this.processedUpToOffset.set(newStartOffset);
             log.info("{}: Reconciling last truncation offset from {} to {}.", this.traceObjectId, this.lastTruncationOffset.get(), newStartOffset);
             this.lastTruncationOffset.set(newStartOffset);
@@ -501,18 +501,19 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
-            Preconditions.checkState(this.lastTruncationOffset.get() >= 0);
-            Preconditions.checkState(this.lastTruncationOffset.get() <= this.processedUpToOffset.get());
-            // Update the processedUpToOffset to the current offset that has been processed.
-            this.processedUpToOffset.addAndGet(readResult.getTruncationLength());
-            // Only do the actual truncation if the internal Segment has accumulated the configured amount of data.
-            // Note that a restart will induce re-processing of the non-truncated tasks, but this is fine as this class
-            // ensured at-lest-one processing guarantees.
-            CompletableFuture<Void> tryTruncate = shouldTruncate() ? doTruncateInternalSegment() : CompletableFuture.completedFuture(null);
-            return tryTruncate.thenAccept(v -> {
-                                // Report latency metrics upon complete processing iteration (irrespective of if truncation happened or not).
-                                this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis());
-                            });
+            return CompletableFuture.supplyAsync(() -> {
+                        Preconditions.checkState(this.lastTruncationOffset.get() >= 0);
+                        Preconditions.checkState(this.lastTruncationOffset.get() <= this.processedUpToOffset.get());
+                        // Update the processedUpToOffset to the current offset that has been processed.
+                        this.processedUpToOffset.addAndGet(readResult.getTruncationLength());
+                        return null;
+                    }, this.executor)
+                    // Only do the actual truncation if the internal Segment has accumulated the configured amount of data.
+                    // Note that a restart will induce re-processing of the non-truncated tasks, but this is fine as this class
+                    // ensured at-lest-one processing guarantees
+                    .thenCompose(v -> shouldTruncate() ? doTruncateInternalSegment() : CompletableFuture.completedFuture(null))
+                    // Report latency metrics upon complete processing iteration (irrespective of if truncation happened or not).
+                    .thenAccept(v -> this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis()));
         }
 
         private boolean shouldTruncate() {
@@ -522,6 +523,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private CompletableFuture<Void> doTruncateInternalSegment() {
             final long truncationOffset = this.processedUpToOffset.get();
             Preconditions.checkState(truncationOffset <= this.segment.getInfo().getLength());
+            log.debug("{}: Truncating ContainerEventProcessor segment {} at offset {}.", this.traceObjectId, this.segment.getSegmentId(), truncationOffset);
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
                     .thenAccept(v -> {
                         // Reset the truncation offset to the new one.
