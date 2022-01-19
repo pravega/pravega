@@ -28,7 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileSystemStorageConfig {
     //region Config Names
-
+    public static final Property<Integer> WRITE_CACHE_SIZE = Property.named("cache.write.size", 1024);
+    public static final Property<Integer> READ_CACHE_SIZE = Property.named("cache.read.size", 1024);
     public static final Property<String> ROOT = Property.named("root", "/fs/");
     public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enable", false);
     public static final String COMPONENT_CODE = "filesystem";
@@ -51,6 +52,12 @@ public class FileSystemStorageConfig {
     @Getter
     private final boolean replaceEnabled;
 
+    @Getter
+    private final int readCacheSize;
+
+    @Getter
+    private final int writeCacheSize;
+
     //endregion
 
     //region Constructor
@@ -63,6 +70,8 @@ public class FileSystemStorageConfig {
     private FileSystemStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.root = properties.get(ROOT);
         this.replaceEnabled = properties.getBoolean(REPLACE_ENABLED);
+        this.readCacheSize = properties.getPositiveInt(READ_CACHE_SIZE);
+        this.writeCacheSize = properties.getPositiveInt(WRITE_CACHE_SIZE);
     }
 
     /**
