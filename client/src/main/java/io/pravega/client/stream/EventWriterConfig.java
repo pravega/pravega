@@ -65,7 +65,7 @@ public class EventWriterConfig implements Serializable {
      * @param connectionTimeoutMillis The timeout in milliseconds
      * @return The timeout in milliseconds
      */
-    private final int connectionTimeoutMillis;
+    private final int connectTimeoutMillis;
 
     /**
      * Enable or disable connection pooling for writer. The default value is false.
