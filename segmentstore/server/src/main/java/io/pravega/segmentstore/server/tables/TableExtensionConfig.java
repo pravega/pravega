@@ -43,6 +43,7 @@ public class TableExtensionConfig {
     public static final Property<Integer> MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE = Property.named("preindex.batch.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 4);
     public static final Property<Integer> RECOVERY_TIMEOUT = Property.named("recovery.timeout.millis", 60000);
     public static final Property<Integer> MAX_UNINDEXED_LENGTH = Property.named("unindexed.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 4);
+    public static final Property<Integer> SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH = Property.named("systemcritical.unindexed.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 8);
     public static final Property<Integer> MAX_COMPACTION_SIZE = Property.named("compaction.bytes.max", EntrySerializer.MAX_SERIALIZATION_LENGTH * 4);
     public static final Property<Integer> COMPACTION_FREQUENCY = Property.named("compaction.frequency.millis", 30000);
     public static final Property<Integer> DEFAULT_MIN_UTILIZATION = Property.named("utilization.min", 75);
@@ -70,6 +71,13 @@ public class TableExtensionConfig {
      * to allow it to proceed.
      */
     private final int maxUnindexedLength;
+
+    /**
+     * Same as {@link #maxUnindexedLength}, but it applies specifically to system-critical Segments. This allows us to
+     * tune with more precision the amount of unindexed data for system-critical Segments, which are key to the
+     * operation of the system.
+     */
+    private final int systemCriticalMaxUnindexedLength;
 
     /**
      * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
@@ -111,6 +119,7 @@ public class TableExtensionConfig {
         this.maxTailCachePreIndexLength = properties.getPositiveLong(MAX_TAIL_CACHE_PREINDEX_LENGTH);
         this.maxTailCachePreIndexBatchLength = properties.getPositiveInt(MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE);
         this.maxUnindexedLength = properties.getPositiveInt(MAX_UNINDEXED_LENGTH);
+        this.systemCriticalMaxUnindexedLength = properties.getPositiveInt(SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH);
         this.maxCompactionSize = properties.getPositiveInt(MAX_COMPACTION_SIZE);
         this.compactionFrequency = properties.getDuration(COMPACTION_FREQUENCY, ChronoUnit.MILLIS);
         this.defaultMinUtilization = properties.getNonNegativeInt(DEFAULT_MIN_UTILIZATION);
