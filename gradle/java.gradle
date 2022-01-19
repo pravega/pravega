@@ -31,7 +31,6 @@ plugins.withId('java') {
                 "-Xlint:path",
                 "-Xlint:unchecked",
                 "-Werror",
-                "--release",
                 getDefaultJavaVersion()
         ])
     }
@@ -44,7 +43,6 @@ plugins.withId('java') {
                 "-Xlint:overrides",
                 "-Xlint:path",
                 "-Werror",
-                "--release",
                 getDefaultJavaVersion()])
     }
 
