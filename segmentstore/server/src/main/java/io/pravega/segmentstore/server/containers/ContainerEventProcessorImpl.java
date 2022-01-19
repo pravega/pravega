@@ -265,8 +265,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private final SegmentStoreMetrics.EventProcessor metrics;
         private final AtomicBoolean closed;
         private final AtomicBoolean failedIteration;
+        private final AtomicLong segmentStartOffset;
         private final AtomicLong processedUpToOffset;
-        private final AtomicLong lastTruncationOffset;
+        private final AtomicLong segmentLength;
 
         //region Constructor
 
@@ -288,8 +289,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             this.closed = new AtomicBoolean(false);
             this.failedIteration = new AtomicBoolean(false);
             // Set with actual value when upon initialization.
+            this.segmentStartOffset = new AtomicLong(segment.getInfo().getStartOffset());
             this.processedUpToOffset = new AtomicLong(segment.getInfo().getStartOffset());
-            this.lastTruncationOffset = new AtomicLong(segment.getInfo().getStartOffset());
+            this.segmentLength = new AtomicLong(segment.getInfo().getLength());
         }
 
         //endregion
@@ -300,7 +302,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @SneakyThrows(IOException.class)
         public CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) throws TooManyOutstandingBytesException {
             Preconditions.checkArgument(event.getLength() > 0);
-            Preconditions.checkArgument(event.getLength() + Integer.BYTES < ProcessorEventData.MAX_EVENT_SIZE);
             Exceptions.checkNotClosed(this.closed.get(), this);
             // If the EventProcessor reached the limit of outstanding bytes, throw accordingly.
             if (getOutstandingBytes() > this.config.getMaxProcessorOutstandingBytes()) {
@@ -308,8 +309,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             }
 
             ProcessorEventData processorEvent = ProcessorEventData.builder().data(event).build();
-            return this.segment.append(SERIALIZER.serialize(processorEvent), null, timeout)
-                          .thenApply(offset -> getOutstandingBytes());
+            ByteArraySegment serializedEvent = SERIALIZER.serialize(processorEvent);
+            Preconditions.checkArgument(serializedEvent.getLength() < ProcessorEventData.MAX_EVENT_SIZE);
+            return this.segment.append(serializedEvent, null, timeout)
+                          .thenApply(offset -> {
+                              this.segmentLength.set(offset + serializedEvent.getLength());
+                              return getOutstandingBytes();
+                          });
         }
 
         /**
@@ -320,7 +326,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          */
         @VisibleForTesting
         long getOutstandingBytes() {
-            return this.segment.getInfo().getLength() - this.processedUpToOffset.get();
+            Preconditions.checkState(this.segmentLength.get() >= this.processedUpToOffset.get());
+            return this.segmentLength.get() - this.processedUpToOffset.get();
         }
 
         //endregion
@@ -412,13 +419,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                         if (ex != null && !(Exceptions.unwrap(ex) instanceof NoDataAvailableException)) {
                             log.warn("{}: Processing iteration failed, retrying.", this.traceObjectId, ex);
                             this.failedIteration.set(true);
-                            reconcileStartOffset();
+                            reconcileOffsets();
                         } else {
                             this.failedIteration.set(false);
                         }
                         log.debug("{}: Finished iteration for EventProcessor (Name = {}, Start offset = {}, " +
                                 "Processed offset = {}, Failed iteration = {}).", this.traceObjectId, this.name,
-                                this.segment.getInfo().getStartOffset(), this.processedUpToOffset.get(), this.failedIteration.get());
+                                this.segmentStartOffset.get(), this.processedUpToOffset.get(), this.failedIteration.get());
                         return null;
                     });
         }
@@ -427,12 +434,15 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * In case of a non-expected exception, we reset the segmentStartOffset value to the real one available in the
          * Segment's metadata.
          */
-        private void reconcileStartOffset() {
-            long newStartOffset = segment.getInfo().getStartOffset();
+        private void reconcileOffsets() {
+            long newStartOffset = this.segment.getInfo().getStartOffset();
             log.info("{}: Reconciling processed offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
             this.processedUpToOffset.set(newStartOffset);
-            log.info("{}: Reconciling last truncation offset from {} to {}.", this.traceObjectId, this.lastTruncationOffset.get(), newStartOffset);
-            this.lastTruncationOffset.set(newStartOffset);
+            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.segmentStartOffset.get(), newStartOffset);
+            this.segmentStartOffset.set(newStartOffset);
+            long segmentLength = this.segment.getInfo().getLength();
+            log.info("{}: Reconciling segment length from {} to {}.", this.traceObjectId, this.segmentLength.get(), segmentLength);
+            this.segmentLength.set(segmentLength);
         }
 
         /**
@@ -476,7 +486,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 // Some unexpected serialization error occurred here; rethrow if this prevents reading further events.
                 log.error("{}: Error deserializing events (SegmentId = {}, Initial offset = {}, Processed offset = {}, " +
                         "Read length = {}, Truncation length = {}).", this.traceObjectId, this.segment.getSegmentId(),
-                        this.segment.getInfo().getStartOffset(), this.processedUpToOffset.get(), dataLength, truncationLength, ex);
+                        this.segmentStartOffset.get(), this.processedUpToOffset.get(), dataLength, truncationLength, ex);
                 deserializationException = ex;
             }
 
@@ -502,8 +512,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
             return CompletableFuture.supplyAsync(() -> {
-                        Preconditions.checkState(this.lastTruncationOffset.get() >= 0);
-                        Preconditions.checkState(this.lastTruncationOffset.get() <= this.processedUpToOffset.get());
+                        Preconditions.checkState(this.segmentStartOffset.get() >= 0);
+                        Preconditions.checkState(this.segmentStartOffset.get() <= this.processedUpToOffset.get());
                         // Update the processedUpToOffset to the current offset that has been processed.
                         this.processedUpToOffset.addAndGet(readResult.getTruncationLength());
                         return null;
@@ -517,17 +527,17 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private boolean shouldTruncate() {
-            return this.processedUpToOffset.get() - this.lastTruncationOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
+            return this.processedUpToOffset.get() - this.segmentStartOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
         }
 
         private CompletableFuture<Void> doTruncateInternalSegment() {
             final long truncationOffset = this.processedUpToOffset.get();
-            Preconditions.checkState(truncationOffset <= this.segment.getInfo().getLength());
-            log.debug("{}: Truncating ContainerEventProcessor segment {} at offset {}.", this.traceObjectId, this.segment.getSegmentId(), truncationOffset);
+            Preconditions.checkState(truncationOffset <= this.segmentLength.get());
+            log.info("{}: Truncating ContainerEventProcessor segment {} at offset {}.", this.traceObjectId, this.segment.getSegmentId(), truncationOffset);
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
                     .thenAccept(v -> {
-                        // Reset the truncation offset to the new one.
-                        this.lastTruncationOffset.set(truncationOffset);
+                        // Reset the start offset to the new one.
+                        this.segmentStartOffset.set(truncationOffset);
                     });
         }
 
