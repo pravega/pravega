@@ -47,6 +47,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -96,6 +97,16 @@ public class StreamManagerImplTest {
         this.streamManager.close();
         this.controller.close();
         this.connectionFactory.close();
+    }
+
+    @Test 
+    public void testConnectionPoolConfig() {
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        @Cleanup
+        StreamManagerImpl streamManager = new StreamManagerImpl(clientConfig);
+        ConnectionPoolImpl connectionPool = (ConnectionPoolImpl) streamManager.getConnectionPool();
+    
+        Assert.assertEquals(clientConfig, connectionPool.getClientConfig());
     }
 
     @Test
