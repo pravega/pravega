@@ -17,6 +17,7 @@ package io.pravega.cli.admin.controller;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CLIConfig;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -56,15 +57,18 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
             @Cleanup
             CuratorFramework zkClient = createZKClient();
             ScheduledExecutorService executor = getCommandArgs().getState().getExecutor();
+            @Cleanup
+            ConnectionPool pool = createConnectionPool();
 
             // The Pravega Controller service may store metadata either at Zookeeper or the Segment Store service
             // (tables). We need to instantiate the correct type of metadata store object based on the cluster at hand.
             StreamMetadataStore store;
+            @Cleanup
             SegmentHelper segmentHelper = null;
             if (getCLIControllerConfig().getMetadataBackend().equals(CLIConfig.MetadataBackends.ZOOKEEPER.name())) {
                 store = StreamStoreFactory.createZKStore(zkClient, executor);
             } else {
-                segmentHelper = instantiateSegmentHelper(zkClient);
+                segmentHelper = instantiateSegmentHelper(zkClient, pool);
                 GrpcAuthHelper authHelper;
                 authHelper = GrpcAuthHelper.getDisabledAuthHelper();
                 store = StreamStoreFactory.createPravegaTablesStore(segmentHelper, authHelper, zkClient, executor);

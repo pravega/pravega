@@ -43,6 +43,7 @@ import java.util.concurrent.Executor;
 public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore implements AutoCloseable {
     @VisibleForTesting
     static final String SCOPE_ROOT_PATH = "/store";
+    static final String SCOPE_DELETE_PATH = "_system/deletingScopes";
     static final String DELETED_KVTABLES_PATH = "/lastActiveKVTableSegment/%s";
 
     @VisibleForTesting
@@ -65,6 +66,12 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
+        return storeHelper.checkExists(scopePath);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext ctx, Executor executor) {
+        String scopePath = ZKPaths.makePath(SCOPE_DELETE_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
 

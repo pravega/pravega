@@ -39,6 +39,8 @@ import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
@@ -57,9 +59,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import org.apache.curator.shaded.com.google.common.base.Charsets;
-import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
@@ -181,7 +180,7 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed will indicate successful creation of table.
      */
     public CompletableFuture<Void> createTable(String tableName, long requestId, long rolloverSizeBytes) {
-        log.debug(requestId, "create table called for table: {}", tableName);
+        log.info(requestId, "create table called for table: {}", tableName);
 
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), requestId,
                 false, 0, rolloverSizeBytes),
@@ -226,7 +225,7 @@ public class PravegaTablesStoreHelper {
      */
     public <T> CompletableFuture<Version> addNewEntry(String tableName, String key, T val, Function<T, byte[]> toBytes,
                                                       long requestId) {
-        log.trace(requestId, "addNewEntry called for : {} key : {}", tableName, key);
+        log.info(requestId, "addNewEntry called for : {} key : {}", tableName, key);
         byte[] value = toBytes.apply(val);
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.notExists(key.getBytes(Charsets.UTF_8), value));

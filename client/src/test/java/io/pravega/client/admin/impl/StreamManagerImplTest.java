@@ -110,7 +110,7 @@ public class StreamManagerImplTest {
     }
     
     @Test
-    public void testCreateAndDeleteScope() {
+    public void testCreateAndDeleteScope() throws DeleteScopeFailedException {
         // Create and delete immediately
         Assert.assertTrue(streamManager.createScope(defaultScope));
         Assert.assertTrue(streamManager.deleteScope(defaultScope));
@@ -119,6 +119,9 @@ public class StreamManagerImplTest {
         Assert.assertTrue(streamManager.createScope(defaultScope));
         Assert.assertFalse(streamManager.createScope(defaultScope));
         Assert.assertTrue(streamManager.deleteScope(defaultScope));
+
+        Assert.assertTrue(streamManager.createScope(defaultScope));
+        Assert.assertTrue(streamManager.deleteScopeRecursive(defaultScope));
 
         // Try to create invalid scope name.
         AssertExtensions.assertThrows(Exception.class, () -> streamManager.createScope("_system"));

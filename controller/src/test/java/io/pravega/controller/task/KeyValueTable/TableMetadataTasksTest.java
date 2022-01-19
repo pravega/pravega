@@ -46,7 +46,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
@@ -54,9 +53,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -66,8 +63,6 @@ import static org.mockito.Mockito.spy;
 public abstract class TableMetadataTasksTest {
 
     protected static final String SCOPE = "taskscope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore streamStore;
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
@@ -160,6 +155,7 @@ public abstract class TableMetadataTasksTest {
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
+        assertFalse(kvtStore.isScopeSealed("testScope", null, executor).join());
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

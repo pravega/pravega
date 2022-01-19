@@ -128,28 +128,35 @@ public class TableMetadataTasks implements AutoCloseable {
                         if (!exists) {
                             return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
                         }
-                        //2. check state of the KVTable, if found
-                        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true,
-                                context, executor),
-                                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                        return kvtMetadataStore.isScopeSealed(scope, context, executor).thenCompose(isScopeSealed -> {
+                            if (isScopeSealed) {
+                                return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
+                            }
+                            //2. check state of the KVTable, if found
+                            return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true,
+                                                    context, executor),
+                                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                                     .thenCompose(state -> {
-                                       if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
-                                           //3. get a new UUID for the KVTable we will be creating.
-                                           UUID id = kvtMetadataStore.newScope(scope).newId();
+                                        if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
+                                            //3. get a new UUID for the KVTable we will be creating.
+                                            UUID id = kvtMetadataStore.newScope(scope).newId();
 
-                                           CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
-                                                   kvtConfig.getPrimaryKeyLength(), kvtConfig.getSecondaryKeyLength(),
-                                                   createTimestamp, requestId, id, kvtConfig.getRolloverSizeBytes());
-                                           //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
-                                           return eventHelper.addIndexAndSubmitTask(event,
-                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id,
-                                                           context, executor))
-                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig,
-                                                           createTimestamp, executor, context));
-                                       }
-                                       return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor, context);
-                                 });
-                            });
+                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
+                                                    kvtConfig.getPrimaryKeyLength(), kvtConfig.getSecondaryKeyLength(),
+                                                    createTimestamp, requestId, id, kvtConfig.getRolloverSizeBytes());
+                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
+                                            return eventHelper.addIndexAndSubmitTask(event,
+                                                            () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id,
+                                                                    context, executor))
+                                                    .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig,
+                                                            createTimestamp, executor, context));
+                                        }
+                                        log.info(requestId, "KeyValue table {}/{} already exists", scope, kvtName);
+                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor, context);
+                                    });
+                        });
+
+                        });
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
