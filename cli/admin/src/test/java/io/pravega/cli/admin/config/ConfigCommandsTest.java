@@ -39,4 +39,27 @@ public class ConfigCommandsTest {
         Assert.assertTrue(commandResult.contains("hello=world"));
     }
 
+    @Test
+    public void testEnvSetConfig() throws Exception {
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", "dummy");
+        @Cleanup
+        AdminCommandState adminCommandState = new AdminCommandState();
+        adminCommandState.getConfigBuilder().include(pravegaProperties);
+        TestUtils.executeCommand("config set cli.controller.rest.uri=$PWD", adminCommandState);
+        String commandResult = TestUtils.executeCommand("config list", adminCommandState);
+        Assert.assertTrue(commandResult.contains("cli.controller.rest.uri=" + System.getenv("PWD")));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testNonExistentEnvSetConfig() throws Exception {
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", "test");
+        @Cleanup
+        AdminCommandState adminCommandState = new AdminCommandState();
+        adminCommandState.getConfigBuilder().include(pravegaProperties);
+        TestUtils.executeCommand("config set hello=$world", adminCommandState);
+        TestUtils.executeCommand("config list", adminCommandState);
+    }
+
 }
