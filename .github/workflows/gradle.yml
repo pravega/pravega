@@ -71,9 +71,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -108,9 +107,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '8'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -141,9 +139,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -174,9 +171,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -212,9 +208,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -249,9 +244,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -300,9 +294,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
@@ -348,9 +341,8 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+          distribution: 'adopt'
+          java-version: '11'
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
