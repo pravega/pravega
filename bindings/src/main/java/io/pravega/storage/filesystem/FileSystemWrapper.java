@@ -57,18 +57,23 @@ public class FileSystemWrapper {
             PosixFilePermission.GROUP_READ,
             PosixFilePermission.OTHERS_READ);
 
-@Getter
+    @Getter
     private final Cache<String, FileChannel> readCache;
-@Getter
+    @Getter
     private final Cache<String, FileChannel> writeCache;
 
-    public FileSystemWrapper() {
+    /**
+     * Constructs new instance of FileSystemWrapper.
+     * @param readCacheSize Read cache size
+     * @param writeCacheSize Write cache size
+     */
+    public FileSystemWrapper(int readCacheSize, int writeCacheSize) {
         readCache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(FileSystemStorageConfig.READ_CACHE_SIZE.getDefaultValue())
                 .removalListener(this::removeChannel)
                 .build();
         writeCache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(FileSystemStorageConfig.WRITE_CACHE_SIZE.getDefaultValue())
                 .removalListener(this::removeChannel)
                 .build();
     }
@@ -167,7 +172,7 @@ public class FileSystemWrapper {
                 readCache.put(fullPath, channel);
             }
         }
-        if (openOption.equals(StandardOpenOption.WRITE)|| openOption.equals((StandardOpenOption.CREATE) ) || openOption.equals(StandardOpenOption.CREATE_NEW)) {
+        if (openOption.equals(StandardOpenOption.WRITE) || openOption.equals(StandardOpenOption.CREATE) || openOption.equals(StandardOpenOption.CREATE_NEW)) {
             channel = writeCache.getIfPresent(fullPath);
             if (null == channel) {
                 channel = FileChannel.open(path, openOption);

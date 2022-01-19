@@ -76,7 +76,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     public FileSystemChunkStorage(FileSystemStorageConfig config, Executor executor) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
-        this.fileSystem = new FileSystemWrapper();
+        this.fileSystem = new FileSystemWrapper(config.getReadCacheSize(), config.getWriteCacheSize());
     }
 
     /**
