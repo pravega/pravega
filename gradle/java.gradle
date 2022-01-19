@@ -30,8 +30,7 @@ plugins.withId('java') {
                 "-Xlint:overrides",
                 "-Xlint:path",
                 "-Xlint:unchecked",
-                "-Werror",
-                getDefaultJavaVersion()
+                "-Werror"
         ])
     }
 
@@ -42,8 +41,7 @@ plugins.withId('java') {
                 "-Xlint:finally",
                 "-Xlint:overrides",
                 "-Xlint:path",
-                "-Werror",
-                getDefaultJavaVersion()])
+                "-Werror")
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
