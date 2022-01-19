@@ -112,7 +112,7 @@ jobs:
       - uses: actions/setup-java@v2
         with:
           distribution: 'adopt'
-          java-version: '8'
+          java-version: '11'
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
