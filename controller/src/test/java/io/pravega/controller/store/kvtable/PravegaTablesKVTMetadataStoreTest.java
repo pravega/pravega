@@ -81,7 +81,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         return streamStore.createScope(scopeName, null, executor).get();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
         streamStore.createScope(scope, null, executor).get();
@@ -95,7 +95,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testPartiallyDeletedScope() throws Exception {
         final String scopeName = "partialScope";
 

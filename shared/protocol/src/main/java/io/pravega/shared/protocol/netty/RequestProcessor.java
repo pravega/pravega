@@ -54,6 +54,8 @@ public interface RequestProcessor {
     void createSegment(CreateSegment createSegment);
 
     void mergeSegments(MergeSegments mergeSegments);
+    
+    void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments);
 
     void sealSegment(SealSegment sealSegment);
 

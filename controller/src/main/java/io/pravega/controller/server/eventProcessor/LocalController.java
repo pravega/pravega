@@ -54,6 +54,9 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,8 +74,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 
 @Slf4j
 public class LocalController implements Controller {
@@ -175,6 +176,23 @@ public class LocalController implements Controller {
             default:
                 throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
                                                      + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        return this.controller.deleteScopeRecursive(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete scope recursive: " + scopeName);
+                case SCOPE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope recursive: " + scopeName
+                            + " " + x.getStatus());
             }
         });
     }

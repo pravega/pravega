@@ -37,6 +37,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -51,15 +52,12 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.Mockito.spy;
@@ -72,8 +70,7 @@ public abstract class ControllerServiceWithKVTableTest {
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected SegmentHelper segmentHelperMock;
 
@@ -93,6 +90,7 @@ public abstract class ControllerServiceWithKVTableTest {
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         streamStore = spy(getStore());
+        kvtStore = spy(getKVTStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -106,6 +104,8 @@ public abstract class ControllerServiceWithKVTableTest {
                 executor, "host", disabledAuthHelper, helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor,
                 "host", disabledAuthHelper);
+        kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
@@ -116,13 +116,10 @@ public abstract class ControllerServiceWithKVTableTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executor),
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-
-        kvtStore = spy(getKVTStore());
-        kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
 
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
