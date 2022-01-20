@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.chunklayer.StatsReporter;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Stream;
 
 /**
  * Storage Metadata store.
@@ -217,4 +218,20 @@ public interface ChunkMetadataStore extends AutoCloseable, StatsReporter {
      * Once marked fenced no modifications to data should be allowed.
      */
     void markFenced();
+
+    /**
+     * Retrieve all entries.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    CompletableFuture<Stream<StorageMetadata>> getAllEntries();
+
+    /**
+     * Retrieve all keys.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    CompletableFuture<Stream<String>> getAllKeys();
 }

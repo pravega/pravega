@@ -54,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
@@ -774,6 +775,23 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      */
     abstract protected CompletableFuture<Void> writeAll(Collection<TransactionData> dataList);
+
+
+    /**
+     * Retrieve all entries.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    abstract public CompletableFuture<Stream<StorageMetadata>> getAllEntries();
+
+    /**
+     * Retrieve all keys.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    abstract public CompletableFuture<Stream<String>> getAllKeys();
 
     /**
      * Updates existing metadata.

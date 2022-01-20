@@ -600,9 +600,29 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         return true;
     }
 
+    /**
+     * Lists all the segments stored on the storage device.
+     * This method looks only at the segment metadata committed to the underlying {@link ChunkMetadataStore}.
+     *
+     * @return A CompletableFuture that, when completed, will contain an {@link Iterator} that can be used to enumerate and retrieve properties of all the segments.
+     * If the operation failed, it will contain the cause of the failure.
+     */
     @Override
-    public Iterator<SegmentProperties> listSegments() {
-        throw new UnsupportedOperationException("listSegments is not yet supported");
+    public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
+        return metadataStore.getAllEntries()
+                .thenApplyAsync( storageMetadataStream ->
+                        storageMetadataStream
+                                .filter(metadata -> metadata instanceof SegmentMetadata && (((SegmentMetadata) metadata).isActive()))
+                                .map(metadata -> {
+                                    SegmentMetadata segmentMetadata = (SegmentMetadata) metadata;
+                                    return (SegmentProperties) StreamSegmentInformation.builder()
+                                                                    .name(segmentMetadata.getName())
+                                                                    .sealed(segmentMetadata.isSealed())
+                                                                    .length(segmentMetadata.getLength())
+                                                                    .startOffset(segmentMetadata.getStartOffset())
+                                                                    .lastModified(new ImmutableDate(segmentMetadata.getLastModified()))
+                                                                    .build();
+                                }).iterator(), executor);
     }
 
     @Override
