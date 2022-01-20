@@ -102,7 +102,7 @@ public class StreamManagerImplTest {
     @Test 
     public void testConnectionPoolConfig() {
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
-        @Cleanup
+        @Cleanup 
         StreamManagerImpl streamManager = new StreamManagerImpl(clientConfig);
         ConnectionPoolImpl connectionPool = (ConnectionPoolImpl) streamManager.getConnectionPool();
     
