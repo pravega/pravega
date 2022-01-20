@@ -171,8 +171,8 @@ public class FileSystemWrapperTests {
     @Test
     public void validateSetPermissions() throws IOException {
         // Arrange. Create FileSystemWrapper instance to test
-        String filename5 = "temp9";
-        Path filePath = tempDirPath.resolve(Path.of(filename5));
+        String filename4 = "temp8";
+        Path filePath = tempDirPath.resolve(Path.of(filename4));
         FileSystemWrapper fw = new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE);
 
         // Check that file doesn't exist
@@ -191,8 +191,8 @@ public class FileSystemWrapperTests {
     @Test
     public void checkGetFileSize() throws IOException {
         // Arrange. Create FileSystemWrapper instance to test
-        String filename6 = "temp9";
-        Path filePath = tempDirPath.resolve(Path.of(filename6));
+        String filename5 = "temp9";
+        Path filePath = tempDirPath.resolve(Path.of(filename5));
         FileSystemWrapper fw = new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE);
 
         // Check that file doesn't exist
@@ -232,8 +232,8 @@ public class FileSystemWrapperTests {
     @Test
     public void validateSetPermissionsAfter() throws IOException {
         // Arrange. Create FileSystemWrapper instance to test
-        String filename5 = "temp9";
-        Path filePath = tempDirPath.resolve(Path.of(filename5));
+        String filename6 = "temp10";
+        Path filePath = tempDirPath.resolve(Path.of(filename6));
         FileSystemWrapper fw = new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE);
 
         // Check that file doesn't exist
