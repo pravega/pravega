@@ -40,7 +40,7 @@ public class ControllerMetadataViewReaderInfoCommand extends ControllerMetadataC
 
         try {
             ZKHelper zkHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
-            output("reader-metadata", zkHelper.getMetaDataForReader(getReaderPath(hostId, readerGroupName, readerId)));
+            output("reader-metadata: \n %s", zkHelper.getMetaDataForReader(getReaderPath(hostId, readerGroupName, readerId)));
         } catch (Exception e) {
             output("Exception accessing to reader metadata : " + e.getMessage());
         }
