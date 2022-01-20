@@ -51,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Getter;
 import lombok.AccessLevel;
-import lombok.extern.slf4j.Slf4j;
 
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
