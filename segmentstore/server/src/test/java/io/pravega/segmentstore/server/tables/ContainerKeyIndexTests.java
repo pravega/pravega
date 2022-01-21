@@ -83,7 +83,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
     @Rule
-    public Timeout globalTimeout = new Timeout(200 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout(2 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -626,6 +626,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             entries1.add(entry);
         }
 
+        // Make sure to serialize versions, as Table Compactor does.
         val update1 = s.serializeUpdateWithExplicitVersion(entries1);
         Assert.assertEquals(offset.get(), update1.getLength());
         context.segment.append(update1, null, TIMEOUT).join();
