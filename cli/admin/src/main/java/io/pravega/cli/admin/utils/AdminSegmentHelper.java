@@ -42,10 +42,12 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
                     .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.StorageFlushed.class))
+                    .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.TableSegmentInfo.class))
                     .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
+                    .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
                     .build();
 
     public AdminSegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore,
@@ -74,6 +76,30 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                    handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
                    assert r instanceof WireCommands.StorageFlushed;
                    return (WireCommands.StorageFlushed) r;
+                });
+    }
+
+    /**
+     * This method sends a WireCommand to get table segment info for the given table segment name.
+     *
+     * @param qualifiedName   StreamSegmentName
+     * @param uri             The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return A CompletableFuture that will return the table segment info as a WireCommand
+     */
+    public CompletableFuture<WireCommands.TableSegmentInfo> getTableSegmentInfo(String qualifiedName, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.GET_TABLE_SEGMENT_INFO;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.GetTableSegmentInfo request = new WireCommands.GetTableSegmentInfo(requestId,
+                qualifiedName, delegationToken);
+
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, qualifiedName, WireCommands.GetTableSegmentInfo.class, type);
+                    assert r instanceof WireCommands.TableSegmentInfo;
+                    return (WireCommands.TableSegmentInfo) r;
                 });
     }
 

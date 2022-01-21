@@ -613,9 +613,18 @@ public class SegmentHelper implements AutoCloseable {
                                                                                    final HashTableIteratorItem.State state,
                                                                                    final String delegationToken,
                                                                                    final long clientRequestId) {
-        final Controller.NodeUri uri = getTableUri(tableName);
+        return readTableKeys(tableName, ModelHelper.encode(getTableUri(tableName)), suggestedKeyCount, state,
+                delegationToken, clientRequestId);
+    }
+
+    public CompletableFuture<HashTableIteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
+                                                                                   final PravegaNodeUri uri,
+                                                                                   final int suggestedKeyCount,
+                                                                                   final HashTableIteratorItem.State state,
+                                                                                   final String delegationToken,
+                                                                                   final long clientRequestId) {
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
