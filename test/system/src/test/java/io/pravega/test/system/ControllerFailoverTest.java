@@ -129,7 +129,6 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         createStream(controller1, scope, stream, ScalingPolicy.fixed(initialSegments));
         log.info("Stream {}/{} created successfully", scope, stream);
 
-        long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
