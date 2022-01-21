@@ -328,7 +328,6 @@ public abstract class AbstractControllerMetadataCommandsTest {
         checkpointStore.setPosition(process, readerGroup, reader, position);
         String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
         Assert.assertTrue(commandResult.contains("testScope/testStream"));
-        zkHelper.close();
     }
 
     @Test
@@ -341,7 +340,6 @@ public abstract class AbstractControllerMetadataCommandsTest {
         checkpointStore.addReaderGroup(process, readerGroup);
         String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
         Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata"));
-        zkHelper.close();
     }
 
     @After
