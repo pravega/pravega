@@ -69,20 +69,17 @@ public class StreamManagerImpl implements StreamManager {
     private final StreamCutHelper streamCutHelper;
 
     public StreamManagerImpl(ClientConfig clientConfig) {
-        this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build(), null, null);
+        this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build(), null ,new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig)));
     }
 
+    @VisibleForTesting
     public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
-        this(clientConfig, controllerConfig, null, null);
+        this(clientConfig, controllerConfig, null, new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig)));
     }
 
-    protected StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig, Controller controller,
+    private StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig, Controller controller,
             ConnectionPool connectionPool) {
-        if (connectionPool !=  null) {
-            this.connectionPool = connectionPool;
-        } else {
-            this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        }
+        this.connectionPool = connectionPool;
         this.executor = this.connectionPool.getInternalExecutor();
         if (controller != null) {
             this.controller = controller;

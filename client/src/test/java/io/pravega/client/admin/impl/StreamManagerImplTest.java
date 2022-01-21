@@ -46,6 +46,7 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -101,7 +102,7 @@ public class StreamManagerImplTest {
 
     @Test 
     public void testConnectionPoolConfig() {
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + TestUtils.getAvailableListenPort())).build();
         @Cleanup 
         StreamManagerImpl streamManager = new StreamManagerImpl(clientConfig);
         ConnectionPoolImpl connectionPool = (ConnectionPoolImpl) streamManager.getConnectionPool();
