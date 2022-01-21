@@ -48,7 +48,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -650,7 +656,8 @@ class ContainerKeyIndex implements AutoCloseable {
                 });
     }
 
-    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength, Map<UUID, Long> tailCachePreIndexVersionTracker) {
+    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength,
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker) {
         log.trace("{}: Tail-caching batch started for Table Segment {}. StartOffset={}, MaxLength={}.",
                 this.traceObjectId, segment.getSegmentId(), startOffset, maxLength);
         val timer = new Timer();
@@ -675,7 +682,8 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     @SneakyThrows(IOException.class)
-    private void collectLatestOffsetsWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result, Map<UUID, Long> tailCachePreIndexVersionTracker) {
+    private void collectLatestOffsetsWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result,
+                                                        Map<UUID, Long> tailCachePreIndexVersionTracker) {
         EntrySerializer serializer = new EntrySerializer();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
@@ -684,14 +692,13 @@ class ContainerKeyIndex implements AutoCloseable {
             while (nextOffset < maxOffset) {
                 val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
                 val hash = this.keyHasher.hash(e.getKey());
+                // Only add in the tail cache the new entries or the entries whose version is higher than the observed one.
                 if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
-                    System.err.println("PUT " + hash + ":" + e.getVersion());
                     tailCachePreIndexVersionTracker.put(hash, e.getVersion());
-                    // Only add in the tail cache the new entries or the entries whose version is higher than the observed one.
                     result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
-                } else {
-                    System.err.println("DISCARDING " + hash + ":" + e.getVersion());
                 }
+                // Irrespective of whether the entry is added to the tail updates, set the max processed offset.
+                result.setMaxOffset(nextOffset, e.getHeader().getTotalLength());
                 nextOffset += e.getHeader().getTotalLength();
             }
         } catch (BufferView.Reader.OutOfBoundsException ex) {
@@ -725,6 +732,10 @@ class ContainerKeyIndex implements AutoCloseable {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
             this.keyCount++;
+            setMaxOffset(offset, serializationLength);
+        }
+
+        void setMaxOffset(long offset, int serializationLength) {
             this.maxOffset = offset + serializationLength;
         }
     }
