@@ -38,6 +38,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
+
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -567,6 +569,73 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 "Blocked request was not cancelled when a the index was closed.",
                 cancelledRequest2,
                 ex -> ex instanceof ObjectClosedException);
+    }
+
+    @Test
+    public void testRecoveryOneBatchWithVersion() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {1, 2, 3, 4});
+    }
+
+    @Test
+    public void testRecoveryOneBatchAfterCompactionWithVersion() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {4, 3});
+    }
+
+    @Test
+    public void testRecoveryOneBatchAfterCompactionWithVersion2() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {3, 4, 2});
+    }
+
+    private void testRecoveryWithVersions(TableExtensionConfig config, int[] versions) throws Exception {
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TestContext(config);
+
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+
+        // 1. Generate initial set of keys and serialize them to the segment.
+        val entries1 = new ArrayList<TableEntry>(versions.length);
+        val offset = new AtomicLong();
+        val key = new ByteArraySegment("TEST_KEY".getBytes(StandardCharsets.UTF_8));
+        val expected = new HashMap<UUID, Long>();
+        val hash = HASHER.hash(key);
+        int highestVersion = -1;
+        for (int i : versions) {
+            val k = TableKey.versioned(key, i);
+            byte[] valueData = ("value" + i).getBytes(StandardCharsets.UTF_8);
+            val entry = TableEntry.versioned(k.getKey(), new ByteArraySegment(valueData), i);
+            val off = offset.getAndAdd(s.getUpdateLength(entry));
+            if (highestVersion < i) {
+                highestVersion = i;
+                expected.put(hash, off);
+            }
+
+            entries1.add(entry);
+        }
+
+        val update1 = s.serializeUpdate(entries1);
+        Assert.assertEquals(offset.get(), update1.getLength());
+        context.segment.append(update1, null, TIMEOUT).join();
+
+        // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
+        val results = context.index.getBucketOffsets(context.segment,
+                Collections.singleton(hash),
+                context.timer).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected, results);
+
     }
 
     /**
