@@ -17,8 +17,18 @@ package io.pravega.client.state;
 
 import io.pravega.client.stream.EventWriterConfig;
 import java.io.Serializable;
+
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import lombok.Builder;
 import lombok.Data;
+import java.nio.charset.Charset;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import lombok.SneakyThrows;
 
 /**
  * The configuration for a Consistent replicated state synchronizer.
@@ -27,7 +37,8 @@ import lombok.Data;
 @Builder
 public class SynchronizerConfig implements Serializable {
 
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 3L;
+    private static final SynchronizerConfigSerializer SERIALIZER = new SynchronizerConfigSerializer();
 
     /**
      * This writer config is used by the segment writers in the StateSyncrhonizer. The default values
@@ -41,8 +52,50 @@ public class SynchronizerConfig implements Serializable {
      */
     int readBufferSize;
     
-    public static class SynchronizerConfigBuilder {
+    public static class SynchronizerConfigBuilder implements ObjectBuilder<SynchronizerConfig> {
         private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).enableConnectionPooling(true).build();
         private int readBufferSize = 256 * 1024;
+    }
+
+    private static class SynchronizerConfigSerializer
+            extends VersionedSerializer.WithBuilder<SynchronizerConfig, SynchronizerConfigBuilder> {
+        @Override
+        protected SynchronizerConfigBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, SynchronizerConfigBuilder builder) throws IOException {
+            byte[] b = new byte[0];
+            builder.readBufferSize(revisionDataInput.readInt());
+            revisionDataInput.readFully(b);
+            builder.eventWriterConfig(builder.eventWriterConfig.fromBytes(ByteBuffer.wrap(b)));
+        }
+
+        private void write00(SynchronizerConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            Charset cs = Charset.forName("UTF-8");
+            revisionDataOutput.writeInt(object.getReadBufferSize());
+            revisionDataOutput.writeBytes(cs.decode(object.eventWriterConfig.toBytes()).toString());
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static SynchronizerConfig fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
     }
 }
