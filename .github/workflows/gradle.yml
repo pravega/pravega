@@ -303,7 +303,7 @@ jobs:
           -x segmentstore:storage:test
           -x segmentstore:server:host:test
           -x segmentstore:server:test
-          --parallel ${{env.GRADLE_OPTS}}
+          ${{env.GRADLE_OPTS}}
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
