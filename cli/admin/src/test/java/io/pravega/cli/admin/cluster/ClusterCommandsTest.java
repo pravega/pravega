@@ -17,9 +17,11 @@ package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
 
+@Slf4j
 public class ClusterCommandsTest extends AbstractAdminCommandTest {
 
     @Test
@@ -32,16 +34,22 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
     @Test
     public void testGetSegmentStoreByContainerCommand() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        log.info("COMPLETED createDummyHostContainerAssignment");
         String commandResult = TestUtils.executeCommand("cluster get-host-by-container 0", STATE.get());
+        log.info("COMPLETED TestUtils.executeCommand " + commandResult);
         Assert.assertTrue(commandResult.contains("owner_segment_store"));
+        log.info("COMPLETED ASSERTION");
         Assert.assertNotNull(GetSegmentStoreByContainerCommand.descriptor());
     }
 
     @Test
     public void testListContainersCommand() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        log.info("COMPLETED createDummyHostContainerAssignment 2");
         String commandResult = TestUtils.executeCommand("cluster list-containers", STATE.get());
+        log.info("COMPLETED TestUtils.executeCommand 2 " + commandResult);
         Assert.assertTrue(commandResult.contains("segment_store_container_map"));
+        log.info("COMPLETED ASSERTION 2");
         Assert.assertNotNull(ListContainersCommand.descriptor());
     }
 }
