@@ -36,6 +36,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
@@ -60,6 +61,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -194,6 +196,7 @@ public final class TestUtils {
                 .connectString(zkConnectString)
                 .retryPolicy(new RetryOneTime(5000)).build();
         curatorFramework.start();
+        Exceptions.handleInterrupted(() -> curatorFramework.blockUntilConnected(5, TimeUnit.SECONDS));
         ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
         Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
         dummyHostContainerAssignment.put(new Host(hostIp, hostPort, ""), new HashSet<>(Arrays.asList(0, 1, 2, 3)));
