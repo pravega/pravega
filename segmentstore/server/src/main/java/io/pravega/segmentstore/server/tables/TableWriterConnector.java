@@ -73,6 +73,13 @@ interface TableWriterConnector extends AutoCloseable {
     int getMaxCompactionSize();
 
     /**
+     * Determines whether compaction is enabled for this Table Segment.
+     *
+     * @return If table compaction is enabled.
+     */
+    boolean isCompactionEnabled();
+
+    /**
      * Gets a value representing the maximum number of bytes to attempt to index (flush) at once.
      * @return The maximum flush size.
      */

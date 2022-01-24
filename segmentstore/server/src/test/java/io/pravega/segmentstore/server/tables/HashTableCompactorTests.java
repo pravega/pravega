@@ -36,8 +36,8 @@ public class HashTableCompactorTests extends TableCompactorTestBase {
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
 
     @Override
-    protected TestContext createContext(int maxCompactionLength) {
-        return new HashTestContext(maxCompactionLength);
+    protected TestContext createContext(int maxCompactionLength, boolean isCompactionEnabled) {
+        return new HashTestContext(maxCompactionLength, isCompactionEnabled);
     }
 
     private class HashTestContext extends TestContext {
@@ -46,11 +46,11 @@ public class HashTableCompactorTests extends TableCompactorTestBase {
         @Getter
         final HashTableCompactor compactor;
 
-        HashTestContext(int maxCompactLength) {
+        HashTestContext(int maxCompactLength, boolean isCompactionEnabled) {
             super();
             this.indexWriter = new IndexWriter(KEY_HASHER, executorService());
-            this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER, maxCompactLength);
-            val config = new TableCompactor.Config(this.writerConnector.getMaxCompactionSize());
+            this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER, maxCompactLength, true);
+            val config = new TableCompactor.Config(this.writerConnector.getMaxCompactionSize(), isCompactionEnabled);
             this.compactor = new HashTableCompactor(this.segment, config, this.indexWriter, this.writerConnector.keyHasher, executorService());
         }
 
@@ -107,6 +107,7 @@ public class HashTableCompactorTests extends TableCompactorTestBase {
         private final EntrySerializer serializer;
         private final KeyHasher keyHasher;
         private final int maxCompactLength;
+        private final boolean isCompactionEnabled;
 
         @Override
         public SegmentMetadata getMetadata() {
@@ -126,6 +127,11 @@ public class HashTableCompactorTests extends TableCompactorTestBase {
         @Override
         public int getMaxCompactionSize() {
             return this.maxCompactLength;
+        }
+
+        @Override
+        public boolean isCompactionEnabled() {
+            return this.isCompactionEnabled;
         }
 
         @Override

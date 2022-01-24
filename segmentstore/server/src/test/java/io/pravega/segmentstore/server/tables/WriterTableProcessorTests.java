@@ -704,6 +704,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             @Override
+            public boolean isCompactionEnabled() {
+                return true;
+            }
+
+            @Override
             public void close() {
                 this.closed.set(true);
             }

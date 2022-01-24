@@ -129,7 +129,7 @@ abstract class TableCompactor {
     CompletableFuture<Boolean> isCompactionRequired() {
         final long startOffset = getCompactionStartOffset();
         final long lastIndexOffset = getLastIndexedOffset();
-        if (startOffset + this.config.getMaxCompactionSize() >= lastIndexOffset) {
+        if (!this.config.isCompactionEnabled() || startOffset + this.config.getMaxCompactionSize() >= lastIndexOffset) {
             // Either:
             // 1. Nothing was indexed
             // 2. Compaction has already reached the indexed limit.
@@ -486,6 +486,7 @@ abstract class TableCompactor {
     @Data
     static class Config {
         private final int maxCompactionSize;
+        private final boolean isCompactionEnabled;
     }
 
     //endregion

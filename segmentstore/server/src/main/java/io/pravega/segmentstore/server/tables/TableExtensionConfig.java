@@ -46,6 +46,7 @@ public class TableExtensionConfig {
     public static final Property<Integer> SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH = Property.named("systemcritical.unindexed.bytes.max", EntrySerializer.MAX_BATCH_SIZE * 8);
     public static final Property<Integer> MAX_COMPACTION_SIZE = Property.named("compaction.bytes.max", EntrySerializer.MAX_SERIALIZATION_LENGTH * 4);
     public static final Property<Integer> COMPACTION_FREQUENCY = Property.named("compaction.frequency.millis", 30000);
+    public static final Property<Boolean> IS_COMPACTION_ENABLED = Property.named("compaction.enabled", true);
     public static final Property<Integer> DEFAULT_MIN_UTILIZATION = Property.named("utilization.min", 75);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("rollover.size.bytes", (long) EntrySerializer.MAX_SERIALIZATION_LENGTH * 4 * 4);
     public static final Property<Integer> MAX_BATCH_SIZE = Property.named("batch.size.bytes", EntrySerializer.MAX_BATCH_SIZE);
@@ -93,6 +94,12 @@ public class TableExtensionConfig {
     private final Duration compactionFrequency;
 
     /**
+     * Determines whether to enable Table Compaction or not. Note that this will impact all Table Segments in the
+     * Container.
+     */
+    private boolean isCompactionEnabled;
+
+    /**
      * Default value to set for the {@link TableAttributes#MIN_UTILIZATION} for every new Table Segment.
      */
     private final long defaultMinUtilization;
@@ -122,6 +129,7 @@ public class TableExtensionConfig {
         this.systemCriticalMaxUnindexedLength = properties.getPositiveInt(SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH);
         this.maxCompactionSize = properties.getPositiveInt(MAX_COMPACTION_SIZE);
         this.compactionFrequency = properties.getDuration(COMPACTION_FREQUENCY, ChronoUnit.MILLIS);
+        this.isCompactionEnabled = properties.getBoolean(IS_COMPACTION_ENABLED);
         this.defaultMinUtilization = properties.getNonNegativeInt(DEFAULT_MIN_UTILIZATION);
         if (this.defaultMinUtilization > 100) {
             throw new ConfigurationException(String.format("Property '%s' must be a value within [0, 100].", DEFAULT_MIN_UTILIZATION));

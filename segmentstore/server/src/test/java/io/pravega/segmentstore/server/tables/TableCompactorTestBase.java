@@ -65,7 +65,7 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
         return 3;
     }
 
-    protected abstract TestContext createContext(int maxCompactionLength);
+    protected abstract TestContext createContext(int maxCompactionLength, boolean isCompactionEnabled);
 
     /**
      * Tests the {@link TableCompactor#isCompactionRequired} method.
@@ -74,7 +74,7 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
     public void testIsCompactionRequired() {
         final int compactionReadLength = 100; // This also determines whether to compact or not.
         @Cleanup
-        val c = createContext(compactionReadLength);
+        val c = createContext(compactionReadLength, true);
         c.segmentMetadata.setLength(compactionReadLength);
 
         // TruncationOffset < Compaction offset, and CompactionOffset >= LastIndexedOffset.
@@ -106,6 +106,10 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
         c.segmentMetadata.setLength(Math.max(c.segmentMetadata.getLength(), c.segmentMetadata.getStartOffset() + 151));
         c.setSegmentState(0, 151, 49, 100, 50);
         Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.getCompactor().isCompactionRequired().join());
+
+        @Cleanup
+        val disabledCompactor = createContext(compactionReadLength, false);
+        Assert.assertFalse("Unexpected result when compaction disabled.", disabledCompactor.getCompactor().isCompactionRequired().join());
     }
 
     /**
@@ -116,7 +120,7 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
         final long noOffset = -1;
         long compactionOffset = 100;
         @Cleanup
-        val c = createContext(UPDATE_ENTRY_LENGTH);
+        val c = createContext(UPDATE_ENTRY_LENGTH, true);
         c.segmentMetadata.setLength(250);
         c.setSegmentState(compactionOffset, 200, 1, 1, 100);
 
@@ -153,7 +157,7 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
     @Test
     public void testCompactionUpToDate() throws Exception {
         @Cleanup
-        val context = createContext(UPDATE_ENTRY_LENGTH);
+        val context = createContext(UPDATE_ENTRY_LENGTH, true);
 
         // Generate and index the data.
         populate(context);
@@ -204,7 +208,7 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
     @SneakyThrows
     private void testCompaction(int readLength) {
         @Cleanup
-        val context = createContext(readLength);
+        val context = createContext(readLength, true);
 
         // Generate and index the data.
         val keyData = populate(context);

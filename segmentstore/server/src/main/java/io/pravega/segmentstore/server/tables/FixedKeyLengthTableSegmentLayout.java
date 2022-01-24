@@ -97,7 +97,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         super(connector, config, executor);
         this.compactionService = new DelayedProcessor<>(this::compactIfNeeded, config.getCompactionFrequency(), executor,
                 String.format("TableCompactor[%s]", connector.getContainerId()));
-        this.tableCompactorConfig = new TableCompactor.Config(config.getMaxCompactionSize());
+        this.tableCompactorConfig = new TableCompactor.Config(config.getMaxCompactionSize(), config.isCompactionEnabled());
     }
 
     //endregion

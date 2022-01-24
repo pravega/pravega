@@ -342,6 +342,11 @@ class HashTableSegmentLayout extends TableSegmentLayout {
         }
 
         @Override
+        public boolean isCompactionEnabled() {
+            return HashTableSegmentLayout.this.config.isCompactionEnabled();
+        }
+
+        @Override
         public void close() {
             // Tell the KeyIndex that it's ok to clear any tail-end cache.
             HashTableSegmentLayout.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L, 0);

@@ -46,8 +46,8 @@ import org.junit.Test;
  */
 public class FixedKeyLengthTableCompactorTests extends TableCompactorTestBase {
     @Override
-    protected TestContext createContext(int maxCompactionLength) {
-        return new FixedKeyLengthTestContext(maxCompactionLength);
+    protected TestContext createContext(int maxCompactionLength, boolean isCompactionEnabled) {
+        return new FixedKeyLengthTestContext(maxCompactionLength, isCompactionEnabled);
     }
 
     /**
@@ -58,7 +58,7 @@ public class FixedKeyLengthTableCompactorTests extends TableCompactorTestBase {
     @Test
     public void testCompactionConcurrentUpdate() {
         @Cleanup
-        val context = createContext(KEY_COUNT * UPDATE_ENTRY_LENGTH);
+        val context = createContext(KEY_COUNT * UPDATE_ENTRY_LENGTH, true);
         val rnd = new Random(0);
 
         // Generate keys.
@@ -150,9 +150,9 @@ public class FixedKeyLengthTableCompactorTests extends TableCompactorTestBase {
         @Getter
         final FixedKeyLengthTableCompactor compactor;
 
-        FixedKeyLengthTestContext(int maxCompactLength) {
+        FixedKeyLengthTestContext(int maxCompactLength, boolean isCompactionEnabled) {
             super();
-            val config = new TableCompactor.Config(maxCompactLength);
+            val config = new TableCompactor.Config(maxCompactLength, isCompactionEnabled);
             this.compactor = new FixedKeyLengthTableCompactor(this.segment, config, executorService());
         }
 
