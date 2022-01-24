@@ -38,6 +38,7 @@ public class TableExtensionConfigTests {
         Assert.assertEquals(EntrySerializer.MAX_SERIALIZATION_LENGTH * 4, defaultConfig.getMaxCompactionSize());
         Assert.assertEquals(Duration.ofSeconds(30), defaultConfig.getCompactionFrequency());
         Assert.assertEquals(75, defaultConfig.getDefaultMinUtilization());
+        Assert.assertTrue(defaultConfig.isCompactionEnabled());
         Assert.assertEquals(EntrySerializer.MAX_SERIALIZATION_LENGTH * 4 * 4, defaultConfig.getDefaultRolloverSize());
         Assert.assertEquals(EntrySerializer.MAX_BATCH_SIZE, defaultConfig.getMaxBatchSize());
     }
@@ -58,6 +59,7 @@ public class TableExtensionConfigTests {
         b.with(TableExtensionConfig.DEFAULT_ROLLOVER_SIZE, 16L);
         b.with(TableExtensionConfig.MAX_BATCH_SIZE, 17);
         b.with(TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH, 18);
+        b.with(TableExtensionConfig.COMPACTION_ENABLED, false);
 
         val c = b.build();
         Assert.assertEquals(10, c.getDefaultMinUtilization());
@@ -70,5 +72,6 @@ public class TableExtensionConfigTests {
         Assert.assertEquals(16, c.getDefaultRolloverSize());
         Assert.assertEquals(17, c.getMaxBatchSize());
         Assert.assertEquals(18, c.getSystemCriticalMaxUnindexedLength());
+        Assert.assertFalse(c.isCompactionEnabled());
     }
 }
