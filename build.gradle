@@ -971,6 +971,7 @@ project('standalone') {
         runtime.exclude group: "com.sun.jersey", module: "jersey-server"
     }
 
+
     task startStandalone(type: JavaExec) {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
