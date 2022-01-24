@@ -17,11 +17,14 @@ package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class ClusterCommandsTest extends AbstractAdminCommandTest {
 
     @Test
