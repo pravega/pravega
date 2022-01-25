@@ -111,6 +111,7 @@ All available commands:
 	controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
 	controller-metadata tables-info : List all the controller metadata tables.
 	controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
+	controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
 	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
 	data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
 	data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
