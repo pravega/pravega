@@ -3282,7 +3282,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
         // Allow tests to run a custom callback after write() method is invoked in Storage.
         @Getter
-        private final AtomicReference<Consumer<SegmentHandle>> writeCallback = new AtomicReference<>(s-> {});
+        private final AtomicReference<Consumer<SegmentHandle>> writeCallback = new AtomicReference<>(s -> { });
 
 
         public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
