@@ -616,7 +616,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * This method triggers this operation asynchronously and does not wait for it to complete. Its completion status and
      * any errors will be logged.
      *
-     * NOTE: this does not peform a proper recovery nor does it update the durable index - it simply caches the values.
+     * NOTE: this does not perform a proper recovery nor does it update the durable index - it simply caches the values.
      * The {@link WriterTableProcessor} must be used to update the index.
      *
      * @param segment A {@link DirectSegmentAccess} representing the Segment for which to cache the tail index.
@@ -696,6 +696,9 @@ class ContainerKeyIndex implements AutoCloseable {
                 if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
                     tailCachePreIndexVersionTracker.put(hash, e.getVersion());
                     result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
+                } else {
+                    log.warn("{}: Not tail-caching key {} as it has a lower version {} than the existing cached entry ({}).", this.traceObjectId,
+                            hash, e.getVersion(), tailCachePreIndexVersionTracker.get(hash));
                 }
                 // Irrespective of whether the entry is added to the tail updates, set the max processed offset.
                 result.setMaxOffset(nextOffset, e.getHeader().getTotalLength());
