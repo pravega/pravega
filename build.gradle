@@ -918,6 +918,7 @@ project('cli:user') {
 
 
 project('standalone') {
+        
     apply plugin: 'application'
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
@@ -927,7 +928,7 @@ project('standalone') {
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
                                  "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
+                                 "JVM_DEBUG_ARGS"]
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
@@ -981,8 +982,14 @@ project('standalone') {
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
         }
-
-        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
+        
+        def jvmDebugArgs=System.getenv("JVM_DEBUG_ARGS")
+        if(jvmDebugArgs !=null&& jvmDebugArgs !=""){
+            jvmArgs "-Xdebug", jvmDebugArgs
+    	    
+    	 }
+        
+        
     }
 }
 
