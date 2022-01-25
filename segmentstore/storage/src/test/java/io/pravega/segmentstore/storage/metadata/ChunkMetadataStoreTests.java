@@ -28,6 +28,7 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -942,6 +943,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    @Ignore("Should be fixed or removed.")
     public void testEvictionFromBuffer() throws Exception {
         if (metadataStore instanceof InMemoryMetadataStore) {
             metadataStore.setMaxEntriesInCache(10);

@@ -13,32 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.cli.admin.utils;
+package io.pravega.cli.admin;
 
-import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.utils.CLIConfig;
 import lombok.Cleanup;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
 
-public class ConfigUtilsTest {
+public class AdminCommandStateTest {
 
     @Test
-    public void testConfigUtilsWithValidFile() throws IOException {
-        @Cleanup
-        AdminCommandState commandState = new AdminCommandState();
+    public void testAdminCommandStateCreationWithConfigFile() throws IOException {
         System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
-        System.setProperty("pravegaservice", "pravegaservice");
-        ConfigUtils.loadProperties(commandState);
-    }
-
-    @Test
-    public void testConfigUtilsWithInValidFile() throws IOException {
         @Cleanup
         AdminCommandState commandState = new AdminCommandState();
-        System.setProperty("pravega.configurationFile", "dummy");
-        System.setProperty("pravegaservice", "pravegaservice");
-        ConfigUtils.loadProperties(commandState);
+        CLIConfig config = commandState.getConfigBuilder().build().getConfig(CLIConfig::builder);
+        Assert.assertNotNull(config.getMetadataBackend());
     }
-
 }
