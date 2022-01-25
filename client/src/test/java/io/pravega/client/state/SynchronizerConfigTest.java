@@ -35,7 +35,7 @@ public class SynchronizerConfigTest {
                 .transactionTimeoutTime(100000)
                 .build();
         SynchronizerConfig synchConfig = SynchronizerConfig.builder()
-                .eventWriterConfig(econfig)
+                .eventWriterConfig(eventConfig)
                 .build();
 
         assertEquals(true, synchConfig.eventWriterConfig.isAutomaticallyNoteTime());
