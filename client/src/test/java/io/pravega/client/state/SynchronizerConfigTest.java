@@ -17,7 +17,6 @@ package io.pravega.client.state;
 
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import io.pravega.client.stream.EventWriterConfig;
 
