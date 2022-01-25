@@ -260,7 +260,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT_EVENT_PROCESSOR_ITERATION = Duration.ofMillis(100);
 
     @Rule
-    public Timeout globalTimeout = Timeout.millis(100 * TEST_TIMEOUT_MILLIS);
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
     @Override
     protected int getThreadPoolSize() {
