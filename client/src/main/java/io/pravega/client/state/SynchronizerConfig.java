@@ -25,7 +25,6 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import lombok.Builder;
 import lombok.Data;
-import java.nio.charset.Charset;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import lombok.SneakyThrows;
@@ -75,16 +74,13 @@ public class SynchronizerConfig implements Serializable {
         }
 
         private void read00(RevisionDataInput revisionDataInput, SynchronizerConfigBuilder builder) throws IOException {
-            byte[] b = new byte[0];
             builder.readBufferSize(revisionDataInput.readInt());
-            revisionDataInput.readFully(b);
-            builder.eventWriterConfig(builder.eventWriterConfig.fromBytes(ByteBuffer.wrap(b)));
+            builder.eventWriterConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray()));
         }
 
         private void write00(SynchronizerConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
-            Charset cs = Charset.forName("UTF-8");
             revisionDataOutput.writeInt(object.getReadBufferSize());
-            revisionDataOutput.writeBytes(cs.decode(object.eventWriterConfig.toBytes()).toString());
+            revisionDataOutput.writeArray(object.eventWriterConfig.toBytes().array());
         }
     }
 
