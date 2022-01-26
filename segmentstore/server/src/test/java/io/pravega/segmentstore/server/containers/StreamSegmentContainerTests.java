@@ -141,10 +141,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -2351,10 +2352,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         StreamSegmentContainer container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getDefaultExtensions(), executorService());
+                context.getCompactionTestExtensions(), executorService());
         container.startAsync().awaitRunning();
         Assert.assertNotNull(durableLog.get());
         val tableStore = container.getExtension(ContainerTableExtension.class);
+        // Data size and count to be written in this test.
+        long serializedEntryLength = 28;
+        long writtenEntries = 7;
 
         // 1. Create the Table Segment and get a DirectSegmentAccess to it to monitor its size.
         String tableSegmentName = getSegmentName(0) + "_Table";
@@ -2367,6 +2371,18 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final BiFunction<String, Integer, TableEntry> createTableEntry = (key, value) ->
                 TableEntry.unversioned(new ByteArraySegment(key.getBytes()),
                         new ByteArraySegment(String.format("Value_%s", value).getBytes()));
+
+        // 3. This callback will run when the StorageWriter writes data to Storage. At this point, StorageWriter would
+        // have completed its first iteration, so it is the time to add a new value for key1 while TableCompactor is working.
+        CompletableFuture<Void> callbackExecuted = new CompletableFuture<>();
+        context.storageFactory.getWriteCallback().set((segmentHandle, offset) -> {
+            if (segmentHandle.getSegmentName().equals("Segment_0_Table") && offset >= serializedEntryLength * 4 && !callbackExecuted.isDone()) {
+                Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 4)), TIMEOUT)).join();
+                callbackExecuted.complete(null);
+            }
+        });
+
+        // Do the actual puts.
         Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 1)), TIMEOUT)).join();
         Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 2)), TIMEOUT)).join();
         Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 3)), TIMEOUT)).join();
@@ -2374,21 +2390,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key2", 2)), TIMEOUT)).join();
         Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key2", 3)), TIMEOUT)).join();
 
-        // 3. This callback will run when the StorageWriter writes data to Storage. At this point, StorageWriter would
-        // have completed its first iteration, so it is the time to add a new value for key1 while TableCompactor is working.
-        CompletableFuture<Void> callbackExecuted = new CompletableFuture<>();
-        context.storageFactory.getWriteCallback().set(segmentHandle -> {
-            if (!segmentHandle.getSegmentName().contains("metadata") && !callbackExecuted.isDone()) {
-                Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 4)), TIMEOUT)).join();
-                callbackExecuted.complete(null);
-            }
-        });
+        // 4. Above, the test does 7 puts, each one 28 bytes in size (6 entries directly, 1 via callback). Now, we need
+        // to wait for the TableCompactor writing the entry (key1, 3) to the tail of the Segment.
         callbackExecuted.join();
-
-        // 4. Above, the test does 7 puts, each one 28 bytes in size. Now, we need to wait for the TableCompactor writing
-        // the entry (key1, 3) to the tail of the Segment.
-        long serializedEntryLength = 28;
-        long writtenEntries = 7;
         AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > serializedEntryLength * writtenEntries, 5000);
 
         // 5. The TableCompactor has moved the entry, so we immediately stop the container to prevent StorageWriter from
@@ -2399,7 +2403,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         val container2 = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getDefaultExtensions(), executorService());
+                context.getCompactionTestExtensions(), executorService());
         container2.startAsync().awaitRunning();
 
         // 7. Verify that (key1, 4) is the actual value after performing the tail-caching process, which now takes care
@@ -3089,10 +3093,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(TableExtensionConfig.builder()
+            return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
+        }
+
+        SegmentContainerFactory.CreateExtensions getCompactionTestExtensions() {
+            return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(TableExtensionConfig.builder()
                     .with(TableExtensionConfig.MAX_COMPACTION_SIZE, 28 * 4)
                     .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, 50)
-                    .build(), c, this.cacheManager, e);
+                    .build(), c, this.cacheManager, e));
         }
 
         private SegmentContainerFactory.CreateExtensions createExtensions(SegmentContainerFactory.CreateExtensions additional) {
@@ -3282,7 +3290,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
         // Allow tests to run a custom callback after write() method is invoked in Storage.
         @Getter
-        private final AtomicReference<Consumer<SegmentHandle>> writeCallback = new AtomicReference<>(s -> { });
+        private final AtomicReference<BiConsumer<SegmentHandle, Long>> writeCallback = new AtomicReference<>((s, o) -> { });
 
 
         public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
@@ -3301,7 +3309,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             @Override
             public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-                return super.write(handle, offset, data, length, timeout).thenRun(() -> writeCallback.get().accept(handle));
+                return super.write(handle, offset, data, length, timeout).thenRun(() -> writeCallback.get().accept(handle, offset));
             }
 
             @Override
