@@ -656,6 +656,16 @@ class ContainerKeyIndex implements AutoCloseable {
                 });
     }
 
+    /**
+     * Includes a batch of entries in the tail cache of the Table Segment. It also takes into account selecting the entries
+     * with higher version for the same key (which may not be always the ones with the highest offsets due to Table Compaction).
+     *
+     * @param segment Table Segment to pre-index.
+     * @param startOffset Start offset to pre-index the Segment in this batch.
+     * @param maxLength Max amount of data processed in this batch.
+     * @param tailCachePreIndexVersionTracker Helps to track versions of entries to select the highest ones.
+     * @return Max offset of processed entries.
+     */
     private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength,
                                                   Map<UUID, Long> tailCachePreIndexVersionTracker) {
         log.trace("{}: Tail-caching batch started for Table Segment {}. StartOffset={}, MaxLength={}.",
@@ -667,7 +677,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 .thenApplyAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     val updates = new TailUpdates();
-                    collectLatestOffsetsWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker);
+                    collectEntriesWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
@@ -681,9 +691,20 @@ class ContainerKeyIndex implements AutoCloseable {
                 }, this.executor);
     }
 
+    /**
+     * Processes the entries from the input {@link BufferView} and collects the ones that have the highest version. Note
+     * that this selection of versions is done thanks to the tailCachePreIndexVersionTracker map that is used across the
+     * whole tail-caching process.
+     *
+     * @param input Input data to read Table Entries from.
+     * @param startOffset Start offset from which the input data refers to in the Segment.
+     * @param maxLength Max amount of data to process in this batch.
+     * @param result Table Entries processed with max version.
+     * @param tailCachePreIndexVersionTracker Helps to track versions of entries to select the highest ones.
+     */
     @SneakyThrows(IOException.class)
-    private void collectLatestOffsetsWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result,
-                                                        Map<UUID, Long> tailCachePreIndexVersionTracker) {
+    private void collectEntriesWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result,
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker) {
         EntrySerializer serializer = new EntrySerializer();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
