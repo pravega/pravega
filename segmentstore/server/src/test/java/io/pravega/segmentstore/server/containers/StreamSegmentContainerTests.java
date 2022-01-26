@@ -2387,8 +2387,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 4. Above, the test does 7 puts, each one 28 bytes in size. Now, we need to wait for the TableCompactor writing
         // the entry (key1, 3) to the tail of the Segment.
-        int serializedEntryLength = 28;
-        int writtenEntries = 7;
+        long serializedEntryLength = 28;
+        long writtenEntries = 7;
         AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > serializedEntryLength * writtenEntries, 5000);
 
         // 5. The TableCompactor has moved the entry, so we immediately stop the container to prevent StorageWriter from
