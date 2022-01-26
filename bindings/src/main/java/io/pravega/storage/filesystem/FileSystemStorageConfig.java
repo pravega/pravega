@@ -28,8 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileSystemStorageConfig {
     //region Config Names
-    public static final Property<Integer> WRITE_CHANNEL_CACHE_SIZE = Property.named("filesystem.write.channel.cache.size", 1024);
-    public static final Property<Integer> READ_CHANNEL_CACHE_SIZE = Property.named("filesystem.read.channel.cache.size", 1024);
+    public static final Property<Integer> WRITE_CHANNEL_CACHE_SIZE = Property.named("write.channel.cache.size", 1024);
+    public static final Property<Integer> READ_CHANNEL_CACHE_SIZE = Property.named("read.channel.cache.size", 1024);
     public static final Property<String> ROOT = Property.named("root", "/fs/");
     public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enable", false);
     public static final String COMPONENT_CODE = "filesystem";
