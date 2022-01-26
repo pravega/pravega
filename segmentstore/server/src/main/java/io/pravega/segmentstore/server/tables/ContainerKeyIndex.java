@@ -693,7 +693,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
                 val hash = this.keyHasher.hash(e.getKey());
                 // Only add in the tail cache the new entries or the entries whose version is higher than the observed one.
-                if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
+                if (shouldTailCache(tailCachePreIndexVersionTracker, hash, e)) {
                     tailCachePreIndexVersionTracker.put(hash, e.getVersion());
                     result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
                 } else {
@@ -709,6 +709,11 @@ class ContainerKeyIndex implements AutoCloseable {
             // is the only way we know when to stop. When this happens, the TailUpdate will be positioned on an entry
             // boundary, which will be the first one to be read in the next iteration.
         }
+    }
+
+    private boolean shouldTailCache(Map<UUID, Long> tailCachePreIndexVersionTracker, UUID keyToCheck, AsyncTableEntryReader.DeserializedEntry entry) {
+        return !tailCachePreIndexVersionTracker.containsKey(keyToCheck)
+                || tailCachePreIndexVersionTracker.get(keyToCheck) < entry.getVersion();
     }
 
     @VisibleForTesting
