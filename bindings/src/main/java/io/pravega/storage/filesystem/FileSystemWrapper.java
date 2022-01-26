@@ -69,16 +69,16 @@ public class FileSystemWrapper {
      */
     public FileSystemWrapper(int readCacheSize, int writeCacheSize) {
         readCache = CacheBuilder.newBuilder()
-                .maximumSize(FileSystemStorageConfig.READ_CACHE_SIZE.getDefaultValue())
-                .removalListener(this::removeChannel)
+                .maximumSize(FileSystemStorageConfig.READ_CHANNEL_CACHE_SIZE.getDefaultValue())
+                .removalListener(this::handleRemovalNotification)
                 .build();
         writeCache = CacheBuilder.newBuilder()
-                .maximumSize(FileSystemStorageConfig.WRITE_CACHE_SIZE.getDefaultValue())
-                .removalListener(this::removeChannel)
+                .maximumSize(FileSystemStorageConfig.WRITE_CHANNEL_CACHE_SIZE.getDefaultValue())
+                .removalListener(this::handleRemovalNotification)
                 .build();
     }
 
-    void removeChannel(RemovalNotification<String, FileChannel> notification) {
+    void handleRemovalNotification(RemovalNotification<String, FileChannel> notification) {
         if (notification.getCause() != RemovalCause.REPLACED) {
             val channel = notification.getValue();
             try {
