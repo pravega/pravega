@@ -2469,7 +2469,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 4. Above, the test does 7 puts, each one 28 bytes in size (6 entries directly, 1 via callback). Now, we need
         // to wait for the TableCompactor writing the entry (key1, 3) to the tail of the Segment.
         callbackExecuted.join();
-        //postCallbackExecuted.join();
         AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > serializedEntryLength * writtenEntries, 5000);
 
         // 5. The TableCompactor has moved the entry, so we immediately stop the container to prevent StorageWriter from
@@ -2490,8 +2489,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val actual = tableStore2.get(tableSegmentName, Collections.singletonList(expected.getKey().getKey()), TIMEOUT)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                 .get(0);
-        Assert.assertEquals(actual.getKey().getKey(), expected.getKey().getKey());
-        Assert.assertEquals(actual.getValue(), expected.getValue());
+        Assert.assertEquals(expected.getKey().getKey(), actual.getKey().getKey());
+        Assert.assertEquals(expected.getValue(), actual.getValue());
     }
 
     /**
@@ -3367,7 +3366,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
         // Allow tests to run a custom callback after write() method is invoked in Storage.
         @Getter
-        private final AtomicReference<BiConsumer<SegmentHandle, Long>> postWriteCallback = new AtomicReference<>((s, o) -> { });
+        private final AtomicReference<BiConsumer<SegmentHandle, Long>> postWriteCallback = new AtomicReference<>(null);
 
 
         public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
@@ -3386,11 +3385,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             @Override
             public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-                return super.write(handle, offset, data, length, timeout)
-                        .thenCompose(v -> {
-                            postWriteCallback.get().accept(handle, offset);
-                            return null;
-                        });
+                return (postWriteCallback.get() == null) ? super.write(handle, offset, data, length, timeout) :
+                   super.write(handle, offset, data, length, timeout).thenCompose(v -> {
+                        postWriteCallback.get().accept(handle, offset);
+                        return null;
+                    });
             }
 
             @Override

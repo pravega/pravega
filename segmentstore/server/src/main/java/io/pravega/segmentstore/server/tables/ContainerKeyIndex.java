@@ -693,7 +693,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
                 val hash = this.keyHasher.hash(e.getKey());
                 // Only add in the tail cache the new entries or the entries whose version is higher than the observed one.
-                if (shouldTailCache(tailCachePreIndexVersionTracker, hash, e)) {
+                if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
                     tailCachePreIndexVersionTracker.put(hash, e.getVersion());
                     result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
                 } else {
@@ -709,11 +709,6 @@ class ContainerKeyIndex implements AutoCloseable {
             // is the only way we know when to stop. When this happens, the TailUpdate will be positioned on an entry
             // boundary, which will be the first one to be read in the next iteration.
         }
-    }
-
-    private boolean shouldTailCache(Map<UUID, Long> tailCachePreIndexVersionTracker, UUID keyToCheck, AsyncTableEntryReader.DeserializedEntry entry) {
-        return !tailCachePreIndexVersionTracker.containsKey(keyToCheck)
-                || tailCachePreIndexVersionTracker.get(keyToCheck) < entry.getVersion();
     }
 
     @VisibleForTesting
@@ -947,8 +942,14 @@ class ContainerKeyIndex implements AutoCloseable {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
                     setupRecoveryTask(task);
-                    assert lastIndexedOffset >= 0;
-                    triggerCacheTailIndex(segment, lastIndexedOffset, task);
+                    // Starting at last indexed offset may leave behind the last value of an indexed key that is succeeded
+                    // by an (older) compacted entry of the same key. In that case, there is a risk that the tail cache
+                    // just contains the old version of the key to serve gets. Starting from the last compaction offset
+                    // (or start of the Segment, whatever is max) can remove this risk at the cost of processing more data.
+                    SegmentProperties sp = segment.getInfo();
+                    long lastSafeIndexedOffset = Math.max(sp.getStartOffset(), IndexReader.getCompactionOffset(sp));
+                    assert lastSafeIndexedOffset >= 0;
+                    triggerCacheTailIndex(segment, lastSafeIndexedOffset, task);
                 }
 
                 // A recovery task is registered. Queue behind it.
