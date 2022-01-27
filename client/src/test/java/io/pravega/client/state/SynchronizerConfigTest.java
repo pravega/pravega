@@ -15,15 +15,18 @@
  */
 package io.pravega.client.state;
 
+import io.pravega.common.util.ByteArraySegment;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import io.pravega.client.stream.EventWriterConfig;
 
+import java.io.IOException;
+
 public class SynchronizerConfigTest {
 
     @Test
-    public void testValidValues() {
+    public void testValidValues() throws IOException {
         EventWriterConfig eventConfig = EventWriterConfig.builder()
                 .automaticallyNoteTime(true)
                 .backoffMultiple(2)
@@ -34,16 +37,23 @@ public class SynchronizerConfigTest {
                 .transactionTimeoutTime(100000)
                 .build();
         SynchronizerConfig synchConfig = SynchronizerConfig.builder()
+                .readBufferSize(1024)
                 .eventWriterConfig(eventConfig)
                 .build();
 
-        assertEquals(true, synchConfig.eventWriterConfig.isAutomaticallyNoteTime());
-        assertEquals(2, synchConfig.eventWriterConfig.getBackoffMultiple());
-        assertEquals(false, synchConfig.eventWriterConfig.isEnableConnectionPooling());
-        assertEquals(100, synchConfig.eventWriterConfig.getInitialBackoffMillis());
-        assertEquals(1000, synchConfig.eventWriterConfig.getMaxBackoffMillis());
-        assertEquals(3, synchConfig.eventWriterConfig.getRetryAttempts());
-        assertEquals(100000, synchConfig.eventWriterConfig.getTransactionTimeoutTime());
+        SynchronizerConfig.SynchronizerConfigSerializer serializer = new SynchronizerConfig.SynchronizerConfigSerializer();
+        ByteArraySegment buff = serializer.serialize(synchConfig);
+        SynchronizerConfig s = serializer.deserialize(buff);
+
+        assertEquals(true, synchConfig.getEventWriterConfig().isAutomaticallyNoteTime());
+        assertEquals(2, synchConfig.getEventWriterConfig().getBackoffMultiple());
+        assertEquals(false, synchConfig.getEventWriterConfig().isEnableConnectionPooling());
+        assertEquals(100, synchConfig.getEventWriterConfig().getInitialBackoffMillis());
+        assertEquals(1000, synchConfig.getEventWriterConfig().getMaxBackoffMillis());
+        assertEquals(3, synchConfig.getEventWriterConfig().getRetryAttempts());
+        assertEquals(100000, synchConfig.getEventWriterConfig().getTransactionTimeoutTime());
+        assertEquals(1024, s.getReadBufferSize());
+
     }
 
 }

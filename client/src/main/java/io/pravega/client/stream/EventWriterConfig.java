@@ -17,6 +17,7 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
+
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -193,5 +194,20 @@ public class EventWriterConfig implements Serializable {
     @SneakyThrows(IOException.class)
     public static EventWriterConfig fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
+    @SneakyThrows(IOException.class)
+    private Object writeReplace() {
+        return new EventWriterConfig.SerializedForm(SERIALIZER.serialize(this).getCopy());
+    }
+
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 2L;
+        private final byte[] value;
+        @SneakyThrows(IOException.class)
+        Object readResolve() {
+            return SERIALIZER.deserialize(new ByteArraySegment(value));
+        }
     }
 }

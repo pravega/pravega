@@ -56,7 +56,7 @@ public class SynchronizerConfig implements Serializable {
         private int readBufferSize = 256 * 1024;
     }
 
-    private static class SynchronizerConfigSerializer
+    static class SynchronizerConfigSerializer
             extends VersionedSerializer.WithBuilder<SynchronizerConfig, SynchronizerConfigBuilder> {
         @Override
         protected SynchronizerConfigBuilder newBuilder() {
@@ -80,7 +80,8 @@ public class SynchronizerConfig implements Serializable {
 
         private void write00(SynchronizerConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeInt(object.getReadBufferSize());
-            revisionDataOutput.writeArray(object.eventWriterConfig.toBytes().array());
+            ByteBuffer buff = object.eventWriterConfig.toBytes();
+            revisionDataOutput.writeArray(object.eventWriterConfig.toBytes().array(), 0, buff.remaining());
         }
     }
 
@@ -93,5 +94,20 @@ public class SynchronizerConfig implements Serializable {
     @SneakyThrows(IOException.class)
     public static SynchronizerConfig fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
+    @SneakyThrows(IOException.class)
+    private Object writeReplace() {
+        return new SynchronizerConfig.SerializedForm(SERIALIZER.serialize(this).getCopy());
+    }
+
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 3L;
+        private final byte[] value;
+        @SneakyThrows(IOException.class)
+        Object readResolve() {
+            return SERIALIZER.deserialize(new ByteArraySegment(value));
+        }
     }
 }
