@@ -2376,7 +2376,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // have completed its first iteration, so it is the time to add a new value for key1 while TableCompactor is working.
         CompletableFuture<Void> callbackExecuted = new CompletableFuture<>();
         context.storageFactory.getPostWriteCallback().set((segmentHandle, offset) -> {
-            if (segmentHandle.getSegmentName().equals("Segment_0_Table") && !callbackExecuted.isDone()) {
+            if (segmentHandle.getSegmentName().contains("Segment_0_Table$attributes.index") && !callbackExecuted.isDone()) {
                 Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 4)), TIMEOUT)).join();
                 callbackExecuted.complete(null);
             }
@@ -2415,82 +2415,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .get(0);
         Assert.assertEquals(actual.getKey().getKey(), expected.getKey().getKey());
         Assert.assertEquals(actual.getValue(), expected.getValue());
-    }
-
-    @Test
-    public void testTableSegmentReadAfterCompactedButNonIndexedEntryAndRecovery() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, DEFAULT_WRITER_CONFIG, null);
-        val durableLog = new AtomicReference<OperationLog>();
-        val durableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, durableLog::set);
-        @Cleanup
-        StreamSegmentContainer container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(), executorService());
-        container.startAsync().awaitRunning();
-        Assert.assertNotNull(durableLog.get());
-        val tableStore = container.getExtension(ContainerTableExtension.class);
-        // Data size and count to be written in this test.
-        long serializedEntryLength = 28;
-        long writtenEntries = 9;
-
-        // 1. Create the Table Segment and get a DirectSegmentAccess to it to monitor its size.
-        String tableSegmentName = getSegmentName(0) + "_Table";
-        val type = SegmentType.builder(getSegmentType(tableSegmentName)).tableSegment().build();
-        tableStore.createSegment(tableSegmentName, type, TIMEOUT).join();
-        DirectSegmentAccess directTableSegment = container.forSegment(tableSegmentName, TIMEOUT).join();
-
-        // 2. Add some entries to the table segments. Note tha we write multiple values to each key, so the TableCompactor
-        // can find entries to move to the tail.
-        final BiFunction<String, Integer, TableEntry> createTableEntry = (key, value) ->
-                TableEntry.unversioned(new ByteArraySegment(key.getBytes()),
-                        new ByteArraySegment(String.format("Value_%s", value).getBytes()));
-
-        // 3. This callback will run when the StorageWriter writes data to Storage. At this point, StorageWriter would
-        // have completed its first iteration, so it is the time to add a new value for key1 while TableCompactor is working.
-        CompletableFuture<Void> callbackExecuted = new CompletableFuture<>();
-        context.storageFactory.getPostWriteCallback().set((segmentHandle, offset) -> {
-            if (segmentHandle.getSegmentName().equals("Segment_0_Table") && !callbackExecuted.isDone()) {
-                Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 6)), TIMEOUT)).join();
-                callbackExecuted.complete(null);
-            }
-        });
-
-        // Do the actual puts.
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 1)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 2)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 3)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 4)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 5)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key2", 1)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key2", 2)), TIMEOUT)).join();
-        Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key2", 3)), TIMEOUT)).join();
-
-        // 4. Above, the test does 7 puts, each one 28 bytes in size (6 entries directly, 1 via callback). Now, we need
-        // to wait for the TableCompactor writing the entry (key1, 3) to the tail of the Segment.
-        callbackExecuted.join();
-        AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > serializedEntryLength * writtenEntries, 5000);
-
-        // 5. The TableCompactor has moved the entry, so we immediately stop the container to prevent StorageWriter from
-        // making more progress.
-        container.close();
-
-        // 6. Create a new container instance that will recover from existing data.
-        @Cleanup
-        val container2 = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(), executorService());
-        container2.startAsync().awaitRunning();
-
-        // 7. Verify that (key1, 4) is the actual value after performing the tail-caching process, which now takes care
-        // of entry versions.
-        val expected = createTableEntry.apply("key1", 6);
-        val tableStore2 = container2.getExtension(ContainerTableExtension.class);
-        val actual = tableStore2.get(tableSegmentName, Collections.singletonList(expected.getKey().getKey()), TIMEOUT)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                .get(0);
-        Assert.assertEquals(expected.getKey().getKey(), actual.getKey().getKey());
-        Assert.assertEquals(expected.getValue(), actual.getValue());
     }
 
     /**
