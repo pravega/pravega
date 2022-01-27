@@ -2349,16 +2349,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, DEFAULT_WRITER_CONFIG, null);
         val durableLog = new AtomicReference<OperationLog>();
         val durableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, durableLog::set);
+        // Data size and count to be written in this test.
+        int serializedEntryLength = 28;
+        int writtenEntries = 7;
+
         @Cleanup
         StreamSegmentContainer container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(), executorService());
+                context.getCompactionTestExtensions(serializedEntryLength * writtenEntries, 50), executorService());
         container.startAsync().awaitRunning();
         Assert.assertNotNull(durableLog.get());
         val tableStore = container.getExtension(ContainerTableExtension.class);
-        // Data size and count to be written in this test.
-        long serializedEntryLength = 28;
-        long writtenEntries = 7;
 
         // 1. Create the Table Segment and get a DirectSegmentAccess to it to monitor its size.
         String tableSegmentName = getSegmentName(0) + "_Table";
@@ -2393,7 +2394,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 4. Above, the test does 7 puts, each one 28 bytes in size (6 entries directly, 1 via callback). Now, we need
         // to wait for the TableCompactor writing the entry (key1, 3) to the tail of the Segment.
         callbackExecuted.join();
-        AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > serializedEntryLength * writtenEntries, 5000);
+        AssertExtensions.assertEventuallyEquals(true, () -> directTableSegment.getInfo().getLength() > (long) serializedEntryLength * writtenEntries, 5000);
 
         // 5. The TableCompactor has moved the entry, so we immediately stop the container to prevent StorageWriter from
         // making more progress.
@@ -2403,7 +2404,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         val container2 = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(), executorService());
+                context.getCompactionTestExtensions(serializedEntryLength * writtenEntries, 50), executorService());
         container2.startAsync().awaitRunning();
 
         // 7. Verify that (key1, 4) is the actual value after performing the tail-caching process, which now takes care
@@ -3096,10 +3097,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
         }
 
-        SegmentContainerFactory.CreateExtensions getCompactionTestExtensions() {
+        SegmentContainerFactory.CreateExtensions getCompactionTestExtensions(int maxCompactionSize, int defaultMinUtilization) {
             return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(TableExtensionConfig.builder()
-                    .with(TableExtensionConfig.MAX_COMPACTION_SIZE, 28 * 4)
-                    .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, 50)
+                    .with(TableExtensionConfig.MAX_COMPACTION_SIZE, maxCompactionSize)
+                    .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, defaultMinUtilization)
                     .build(), c, this.cacheManager, e));
         }
 

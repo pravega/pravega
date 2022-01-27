@@ -731,7 +731,7 @@ class ContainerKeyIndex implements AutoCloseable {
                         result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
                     }
                 } else {
-                    log.warn("{}: Not tail-caching key {} as it has a lower version {} than the existing cached entry ({}).", this.traceObjectId,
+                    log.info("{}: Not tail-caching key {} as it has a lower version {} than the existing cached entry ({}).", this.traceObjectId,
                             hash, e.getVersion(), tailCachePreIndexVersionTracker.get(hash));
                 }
                 // Irrespective of whether the entry is added to the tail updates, set the max processed offset.
