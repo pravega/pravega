@@ -88,6 +88,7 @@ public class ByteStreamWriterTest {
         writer.flush();
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 3, writer.fetchTailOffset());
+
     }
 
     @Test(timeout = 5000)

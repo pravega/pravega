@@ -510,7 +510,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         verifyNoMoreInteractions(connection);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 100000)
     public void testFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -549,6 +549,17 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
+
+        CompletableFuture<Void> acked3 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, acked3));
+        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
+        assertEquals(false, acked3.isDone());
+        AssertExtensions.assertBlocks(() -> output.flushAsync(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 1, -1)));
+        assertEquals(false, acked3.isCompletedExceptionally());
+        assertEquals(true, acked3.isDone());
+        order.verify(connection).send(new WireCommands.KeepAlive());
+
         order.verifyNoMoreInteractions();
     }
 

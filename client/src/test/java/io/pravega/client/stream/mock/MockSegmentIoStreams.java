@@ -188,6 +188,12 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
+    public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
+        // Nothing to do.
+        return null;
+    }
+
+    @Override
     public boolean isSegmentReady() {
         return true;
     }

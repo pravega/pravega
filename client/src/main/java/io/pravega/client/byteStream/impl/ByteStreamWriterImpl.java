@@ -22,6 +22,8 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -40,13 +42,13 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     
     @Override
     public void write(ByteBuffer src) throws IOException {
-        out.write(PendingEvent.withoutHeader(null, src, null));
+        out.write(PendingEvent.withoutHeader(null, src, new CompletableFuture<>()));
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         ByteBuffer data = ByteBuffer.wrap(b, off, len);
-        out.write(PendingEvent.withoutHeader(null, data, null));
+        out.write(PendingEvent.withoutHeader(null, data, new CompletableFuture<>()));
     }
 
     @Override
@@ -58,6 +60,11 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public void flush() throws IOException {
         out.flush();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> flushAsync() throws IOException {
+        return out.flushAsync();
     }
 
     @Override

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -218,7 +219,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connectionSetupCompleted = null;
                 if (closed || throwable instanceof SegmentSealedException || throwable instanceof RetriesExhaustedException) {
                     waitingInflight.release();
-                } 
+                }
                 if (!closed) {
                     String message = throwable.getMessage() == null ? throwable.getClass().toString() : throwable.getMessage();
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
@@ -551,6 +552,67 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
+
+    /**
+     * @see SegmentOutputStream#flush()
+     */
+    public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
+        int numInflight = state.getNumInflight();
+        log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
+        if (numInflight != 0) {
+            try {
+                ClientConnection connection = Futures.getThrowingException(getConnection());
+                connection.send(new KeepAlive());
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
+                if (NameUtils.isTransactionSegment(segmentName)) {
+                    log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
+                            "committed/aborted. Details: {}", e.getMessage());
+                    failConnection(e);
+                } else {
+                    log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
+                }
+            } catch (Exception e) {
+                failConnection(e);
+                if (e instanceof RetriesExhaustedException) {
+                    log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
+                    //throw an exception to the external world that the flush failed due to RetriesExhaustedException
+                    throw Exceptions.sneakyThrow(e);
+                }
+            }
+            Exceptions.checkNotClosed(state.isClosed(), this);
+            /* SegmentSealedException is thrown if either of the below conditions are true
+                 - resendToSuccessorsCallback has been invoked.
+                 - the segment corresponds to an aborted Transaction.
+             */
+            if (state.needSuccessors.get() || (NameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
+                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
+            }
+
+        } else if (state.exception instanceof RetriesExhaustedException) {
+            // All attempts to connect with SSS have failed.
+            // The number of retry attempts is based on EventWriterConfig
+            log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
+            throw Exceptions.sneakyThrow(state.exception);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            List<PendingEvent> events = state.getAllInflightEvents();
+            for (PendingEvent toAck: events) {
+                if (toAck.getAckFuture() != null) {
+                    try {
+                        toAck.getAckFuture().get();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                }
+                toAck.getData().release();
+            }
+            return true;
+        }, connectionPool.getInternalExecutor());
+    }
+
     /**
      * @see SegmentOutputStream#flush()
      */
@@ -565,7 +627,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 if (NameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
-                                     "committed/aborted. Details: {}", e.getMessage());
+                            "committed/aborted. Details: {}", e.getMessage());
                     failConnection(e);
                 } else {
                     log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
