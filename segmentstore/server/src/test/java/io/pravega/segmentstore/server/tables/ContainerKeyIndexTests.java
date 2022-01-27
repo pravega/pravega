@@ -877,8 +877,11 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val context = new TestContext(maxUnindexedSize);
 
         // Begin with a non-empty Table Segment that also has a backlog of unindexed entries. This should simulate a
-        // recovery and verify that the throttling does account for this scenario.
+        // recovery and verify that the throttling does account for this scenario. Note that the tail-caching starts
+        // scanning the segment (i.e., consuming credits) from the max from start offset or compaction offset to prevent
+        // missing tail-caching last values for keys. This requires us to also update the compaction offset to initialIndexOffset.
         context.segment.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, (long) initialIndexOffset));
+        context.segment.updateAttributes(Collections.singletonMap(TableAttributes.COMPACTION_OFFSET, (long) initialIndexOffset));
         context.segment.append(new ByteArraySegment(new byte[initialIndexOffset]), null, TIMEOUT).join();
         val initialEntry = randomEntry(keySize, keySize, context);
         val initialEntryLength = s.getUpdateLength(initialEntry);
