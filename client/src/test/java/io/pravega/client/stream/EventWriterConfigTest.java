@@ -15,7 +15,10 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.common.util.ByteArraySegment;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -24,7 +27,7 @@ public class EventWriterConfigTest {
 
 
     @Test
-    public void testValidValues() {
+    public void testValidValues() throws IOException {
         EventWriterConfig config = EventWriterConfig.builder()
                 .automaticallyNoteTime(true)
                 .backoffMultiple(2)
@@ -34,13 +37,18 @@ public class EventWriterConfigTest {
                 .retryAttempts(3)
                 .transactionTimeoutTime(100000)
                 .build();
-        assertEquals(true, config.isAutomaticallyNoteTime());
-        assertEquals(2, config.getBackoffMultiple());
-        assertEquals(false, config.isEnableConnectionPooling());
-        assertEquals(100, config.getInitialBackoffMillis());
-        assertEquals(1000, config.getMaxBackoffMillis());
-        assertEquals(3, config.getRetryAttempts());
-        assertEquals(100000, config.getTransactionTimeoutTime());
+
+        EventWriterConfig.EventWriterConfigSerializer serializer = new EventWriterConfig.EventWriterConfigSerializer();
+        ByteArraySegment buff = serializer.serialize(config);
+        EventWriterConfig result = serializer.deserialize(buff);
+
+        assertEquals(true, result.isAutomaticallyNoteTime());
+        assertEquals(2, result.getBackoffMultiple());
+        assertEquals(false, result.isEnableConnectionPooling());
+        assertEquals(100, result.getInitialBackoffMillis());
+        assertEquals(1000, result.getMaxBackoffMillis());
+        assertEquals(3, result.getRetryAttempts());
+        assertEquals(100000, result.getTransactionTimeoutTime());
     }
 
     @Test

@@ -145,7 +145,7 @@ public class EventWriterConfig implements Serializable {
         }
     }
 
-    private static class EventWriterConfigSerializer
+    static class EventWriterConfigSerializer
             extends VersionedSerializer.WithBuilder<EventWriterConfig, EventWriterConfigBuilder> {
         @Override
         protected EventWriterConfigBuilder newBuilder() {
