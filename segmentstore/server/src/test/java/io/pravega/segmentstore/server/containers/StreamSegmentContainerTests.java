@@ -88,6 +88,7 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.reading.TestReadResultHandler;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
+import io.pravega.segmentstore.server.tables.EntrySerializerTests;
 import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.tables.WriterTableProcessor;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
@@ -116,6 +117,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2356,7 +2358,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         StreamSegmentContainer container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(serializedEntryLength * writtenEntries, 50), executorService());
+                context.getDefaultExtensions(), executorService());
         container.startAsync().awaitRunning();
         Assert.assertNotNull(durableLog.get());
         val tableStore = container.getExtension(ContainerTableExtension.class);
@@ -2375,10 +2377,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 3. This callback will run when the StorageWriter writes data to Storage. At this point, StorageWriter would
         // have completed its first iteration, so it is the time to add a new value for key1 while TableCompactor is working.
+        val compactedEntry = List.of(TableEntry.versioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)),
+                new ByteArraySegment("3".getBytes(StandardCharsets.UTF_8)), serializedEntryLength * 2L));
+        // Simulate that Table Compactor moves [k1, 3] to the tail of the Segment as a result of compacting the first 4 entries.
+        val compactedEntryUpdate = EntrySerializerTests.generateUpdateWithExplicitVersion(compactedEntry);
         CompletableFuture<Void> callbackExecuted = new CompletableFuture<>();
         context.storageFactory.getPostWriteCallback().set((segmentHandle, offset) -> {
             if (segmentHandle.getSegmentName().contains("Segment_0_Table$attributes.index") && !callbackExecuted.isDone()) {
+                // New PUT with the newest value.
                 Futures.toVoid(tableStore.put(tableSegmentName, Collections.singletonList(createTableEntry.apply("key1", 4)), TIMEOUT)).join();
+                // Simulates a compacted entry append performed by Table Compactor.
+                directTableSegment.append(compactedEntryUpdate, null, TIMEOUT).join();
                 callbackExecuted.complete(null);
             }
         });
@@ -2404,7 +2413,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         val container2 = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getCompactionTestExtensions(serializedEntryLength * writtenEntries, 50), executorService());
+                context.getDefaultExtensions(), executorService());
         container2.startAsync().awaitRunning();
 
         // 7. Verify that (key1, 4) is the actual value after performing the tail-caching process, which now takes care
@@ -3095,13 +3104,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
             return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
-        }
-
-        SegmentContainerFactory.CreateExtensions getCompactionTestExtensions(int maxCompactionSize, int defaultMinUtilization) {
-            return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(TableExtensionConfig.builder()
-                    .with(TableExtensionConfig.MAX_COMPACTION_SIZE, maxCompactionSize)
-                    .with(TableExtensionConfig.DEFAULT_MIN_UTILIZATION, defaultMinUtilization)
-                    .build(), c, this.cacheManager, e));
         }
 
         private SegmentContainerFactory.CreateExtensions createExtensions(SegmentContainerFactory.CreateExtensions additional) {
