@@ -43,16 +43,16 @@ public class SynchronizerConfigTest {
 
         SynchronizerConfig.SynchronizerConfigSerializer serializer = new SynchronizerConfig.SynchronizerConfigSerializer();
         ByteArraySegment buff = serializer.serialize(synchConfig);
-        SynchronizerConfig s = serializer.deserialize(buff);
+        SynchronizerConfig result = serializer.deserialize(buff);
 
-        assertEquals(true, synchConfig.getEventWriterConfig().isAutomaticallyNoteTime());
-        assertEquals(2, synchConfig.getEventWriterConfig().getBackoffMultiple());
-        assertEquals(false, synchConfig.getEventWriterConfig().isEnableConnectionPooling());
-        assertEquals(100, synchConfig.getEventWriterConfig().getInitialBackoffMillis());
-        assertEquals(1000, synchConfig.getEventWriterConfig().getMaxBackoffMillis());
-        assertEquals(3, synchConfig.getEventWriterConfig().getRetryAttempts());
-        assertEquals(100000, synchConfig.getEventWriterConfig().getTransactionTimeoutTime());
-        assertEquals(1024, s.getReadBufferSize());
+        assertEquals(true, result.getEventWriterConfig().isAutomaticallyNoteTime());
+        assertEquals(2, result.getEventWriterConfig().getBackoffMultiple());
+        assertEquals(false, result.getEventWriterConfig().isEnableConnectionPooling());
+        assertEquals(100, result.getEventWriterConfig().getInitialBackoffMillis());
+        assertEquals(1000, result.getEventWriterConfig().getMaxBackoffMillis());
+        assertEquals(3, result.getEventWriterConfig().getRetryAttempts());
+        assertEquals(100000, result.getEventWriterConfig().getTransactionTimeoutTime());
+        assertEquals(1024, result.getReadBufferSize());
 
     }
 
