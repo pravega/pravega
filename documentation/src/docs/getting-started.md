@@ -45,7 +45,7 @@ This launches all the components of Pravega on your local machine.
 **Note:** This is for testing/demo purposes only, **do not** use this mode of deployment
 in Production!
 
-In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overwritten using the below command before starting Pravega in standalone mode.
+In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overridden using the below command before starting Pravega in standalone mode.
 
 ```
 $ export JDWP_PORT=8888
