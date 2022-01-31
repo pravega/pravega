@@ -76,6 +76,7 @@ Checkout the source code.
 $ git clone https://github.com/pravega/pravega.git
 $ cd pravega
 ```
+
 Build the Pravega standalone mode distribution.
 
 ```console
@@ -107,6 +108,11 @@ $ pravega-<version>/bin/pravega-standalone
 </p>
 </details>  
 
+**Note:** In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overwritten using the below command before starting Pravega in standalone mode.
+
+```
+$ export JDWP_PORT=8888
+```
 
 # 4. Bootstrapping the Project
 

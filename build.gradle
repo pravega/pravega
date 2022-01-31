@@ -918,7 +918,6 @@ project('cli:user') {
 
 
 project('standalone') {
-        
     apply plugin: 'application'
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
@@ -927,8 +926,13 @@ project('standalone') {
                                  "-Dsinglenode.configurationFile=PRAVEGA_APP_HOME/conf/standalone-config.properties",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
-                                 "-Xdebug",
-                                 "JVM_DEBUG_ARGS"]
+                                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:+JDWP_DEFAULT_PORT"]
+
+    tasks.withType(CreateStartScripts) {
+        def tplName = 'unixApplicationStartupScript.txt'
+        unixStartScriptGenerator.template = resources.text.fromFile(tplName)
+    }
+
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
@@ -982,14 +986,14 @@ project('standalone') {
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
         }
-        
-        def jvmDebugArgs=System.getenv("JVM_DEBUG_ARGS")
-        if(jvmDebugArgs !=null&& jvmDebugArgs !=""){
-            jvmArgs "-Xdebug", jvmDebugArgs
-    	    
-    	 }
-        
-        
+
+        def JDWP_DEFAULT_PORT = 8050
+        def jvmDebugPort = System.getenv("JDWP_PORT")
+        if(jvmDebugPort != null && jvmDebugPort != ""){
+            JDWP_DEFAULT_PORT = jvmDebugPort
+        }
+        jvmArgs "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:" + JDWP_DEFAULT_PORT
+
     }
 }
 
