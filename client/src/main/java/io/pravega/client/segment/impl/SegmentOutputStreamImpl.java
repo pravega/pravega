@@ -556,6 +556,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     /**
      * @see SegmentOutputStream#flush()
      */
+    @Override
     public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
         int numInflight = state.getNumInflight();
         log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
@@ -596,19 +597,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            List<PendingEvent> events = state.getAllInflightEvents();
-            for (PendingEvent toAck: events) {
-                if (toAck.getAckFuture() != null) {
-                    try {
-                        toAck.getAckFuture().get();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    }
-                }
-                toAck.getData().release();
-            }
+            responseProcessor.ackUpTo(state.inflight.getLast().getKey());
             return true;
         }, connectionPool.getInternalExecutor());
     }

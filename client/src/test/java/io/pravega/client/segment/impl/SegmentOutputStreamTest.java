@@ -552,10 +552,9 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         CompletableFuture<Void> acked3 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked3));
-        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
-        assertEquals(false, acked3.isDone());
-        AssertExtensions.assertBlocks(() -> output.flushAsync(),
-                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 1, -1)));
+        order.verify(connection).send(new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
+        CompletableFuture<Boolean> asyncCall = output.flushAsync();
+        assertEquals(asyncCall.join().booleanValue(), true);
         assertEquals(false, acked3.isCompletedExceptionally());
         assertEquals(true, acked3.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
