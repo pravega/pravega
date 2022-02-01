@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import io.pravega.client.stream.EventWriterConfig;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class SynchronizerConfigTest {
 
@@ -43,16 +44,28 @@ public class SynchronizerConfigTest {
 
         SynchronizerConfig.SynchronizerConfigSerializer serializer = new SynchronizerConfig.SynchronizerConfigSerializer();
         ByteArraySegment buff = serializer.serialize(synchConfig);
-        SynchronizerConfig result = serializer.deserialize(buff);
+        SynchronizerConfig result1 = serializer.deserialize(buff);
 
-        assertEquals(true, result.getEventWriterConfig().isAutomaticallyNoteTime());
-        assertEquals(2, result.getEventWriterConfig().getBackoffMultiple());
-        assertEquals(false, result.getEventWriterConfig().isEnableConnectionPooling());
-        assertEquals(100, result.getEventWriterConfig().getInitialBackoffMillis());
-        assertEquals(1000, result.getEventWriterConfig().getMaxBackoffMillis());
-        assertEquals(3, result.getEventWriterConfig().getRetryAttempts());
-        assertEquals(100000, result.getEventWriterConfig().getTransactionTimeoutTime());
-        assertEquals(1024, result.getReadBufferSize());
+        ByteBuffer buffer = synchConfig.toBytes();
+        SynchronizerConfig result2 = SynchronizerConfig.fromBytes(buffer);
+
+        assertEquals(true, result1.getEventWriterConfig().isAutomaticallyNoteTime());
+        assertEquals(2, result1.getEventWriterConfig().getBackoffMultiple());
+        assertEquals(false, result1.getEventWriterConfig().isEnableConnectionPooling());
+        assertEquals(100, result1.getEventWriterConfig().getInitialBackoffMillis());
+        assertEquals(1000, result1.getEventWriterConfig().getMaxBackoffMillis());
+        assertEquals(3, result1.getEventWriterConfig().getRetryAttempts());
+        assertEquals(100000, result1.getEventWriterConfig().getTransactionTimeoutTime());
+        assertEquals(1024, result1.getReadBufferSize());
+
+        assertEquals(true, result2.getEventWriterConfig().isAutomaticallyNoteTime());
+        assertEquals(2, result2.getEventWriterConfig().getBackoffMultiple());
+        assertEquals(false, result2.getEventWriterConfig().isEnableConnectionPooling());
+        assertEquals(100, result2.getEventWriterConfig().getInitialBackoffMillis());
+        assertEquals(1000, result2.getEventWriterConfig().getMaxBackoffMillis());
+        assertEquals(3, result2.getEventWriterConfig().getRetryAttempts());
+        assertEquals(100000, result2.getEventWriterConfig().getTransactionTimeoutTime());
+        assertEquals(1024, result2.getReadBufferSize());
 
     }
 

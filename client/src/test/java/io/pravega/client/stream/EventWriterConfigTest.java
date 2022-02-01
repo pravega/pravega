@@ -15,10 +15,12 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.common.util.ByteArraySegment;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -40,15 +42,26 @@ public class EventWriterConfigTest {
 
         EventWriterConfig.EventWriterConfigSerializer serializer = new EventWriterConfig.EventWriterConfigSerializer();
         ByteArraySegment buff = serializer.serialize(config);
-        EventWriterConfig result = serializer.deserialize(buff);
+        EventWriterConfig result1 = serializer.deserialize(buff);
 
-        assertEquals(true, result.isAutomaticallyNoteTime());
-        assertEquals(2, result.getBackoffMultiple());
-        assertEquals(false, result.isEnableConnectionPooling());
-        assertEquals(100, result.getInitialBackoffMillis());
-        assertEquals(1000, result.getMaxBackoffMillis());
-        assertEquals(3, result.getRetryAttempts());
-        assertEquals(100000, result.getTransactionTimeoutTime());
+        ByteBuffer buffer = config.toBytes();
+        EventWriterConfig result2 = EventWriterConfig.fromBytes(buffer);
+
+        assertEquals(true, result1.isAutomaticallyNoteTime());
+        assertEquals(2, result1.getBackoffMultiple());
+        assertEquals(false, result1.isEnableConnectionPooling());
+        assertEquals(100, result1.getInitialBackoffMillis());
+        assertEquals(1000, result1.getMaxBackoffMillis());
+        assertEquals(3, result1.getRetryAttempts());
+        assertEquals(100000, result1.getTransactionTimeoutTime());
+
+        assertEquals(true, result2.isAutomaticallyNoteTime());
+        assertEquals(2, result2.getBackoffMultiple());
+        assertEquals(false, result2.isEnableConnectionPooling());
+        assertEquals(100, result2.getInitialBackoffMillis());
+        assertEquals(1000, result2.getMaxBackoffMillis());
+        assertEquals(3, result2.getRetryAttempts());
+        assertEquals(100000, result2.getTransactionTimeoutTime());
     }
 
     @Test
