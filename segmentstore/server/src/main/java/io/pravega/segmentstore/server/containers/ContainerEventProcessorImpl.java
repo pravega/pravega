@@ -313,7 +313,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             Preconditions.checkArgument(serializedEvent.getLength() < ProcessorEventData.MAX_EVENT_SIZE);
             return this.segment.append(serializedEvent, null, timeout)
                           .thenApply(offset -> {
-                              this.segmentLength.set(offset + serializedEvent.getLength());
+                              this.segmentLength.addAndGet(serializedEvent.getLength());
+                              log.info("{}: Segment length after append ({}): {}", this.traceObjectId, serializedEvent.getLength(), this.segmentLength.get());
                               return getOutstandingBytes();
                           });
         }
@@ -327,6 +328,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @VisibleForTesting
         long getOutstandingBytes() {
             Preconditions.checkState(this.segmentLength.get() >= this.processedUpToOffset.get());
+            log.info("{}: Outstanding bytes {}", this.traceObjectId, (this.segmentLength.get() - this.processedUpToOffset.get()));
             return this.segmentLength.get() - this.processedUpToOffset.get();
         }
 
@@ -368,7 +370,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @Override
         public CompletableFuture<Void> doRun() {
             // An EventProcessor iteration is made of the following stages:
-            // 1. Async read of data available in the internal Segment (up to 2 * ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE
+            // 1. Async read of data available in the internal Segment (up to 2 * ProcessorEventSerializer.MAX_EVENT_SIZE
             // bytes). Also, report the current outstanding bytes in the internal Segment.
             // 2. Deserialize the read data up to exhaust it or get getMaxItemsAtOnce() events.
             // 3. The collected results are passed to the handler function in EventProcessor for execution.
@@ -447,7 +449,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         /**
          * Attempts to read data from the internal Segment. The size of the read length would be the minimum between the
-         * outstanding bytes and 2 * ProcessorEventData.MAX_TOTAL_EVENT_SIZE bytes.
+         * outstanding bytes and 2 * ProcessorEventData.MAX_EVENT_SIZE bytes.
          *
          * @return A {@link CompletableFuture} that, when completed, will contain a {@link EventsReadAndTruncationLength}
          * object with events read and the next truncation length for the internal Segment.
@@ -458,6 +460,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                         long outStandingBytes = getOutstandingBytes();
                                         SegmentStoreMetrics.outstandingEventProcessorBytes(this.name, containerId, outStandingBytes);
                                         int readLength = (int) Math.min(outStandingBytes, 2 * ProcessorEventData.MAX_EVENT_SIZE);
+                                        log.info("{}: SegmentId {}, reading from {} up to {} bytes.", this.traceObjectId, this.segment.getSegmentId(),
+                                            this.processedUpToOffset.get(), readLength);
                                         return this.segment.read(this.processedUpToOffset.get(), readLength, this.containerOperationTimeout);
                                     }, this.executor)
                                     .thenCompose(rr -> AsyncReadResultProcessor.processAll(rr, this.executor, this.containerOperationTimeout))
@@ -527,7 +531,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private boolean shouldTruncate() {
-            return this.processedUpToOffset.get() - this.segmentStartOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
+            boolean shouldTruncate = this.processedUpToOffset.get() - this.segmentStartOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
+            log.info("{}: SegmentId {}, processedUpToOffset {}, segmentStartOffset {}. Should truncate? {}", this.traceObjectId, this.segment.getSegmentId(),
+                    this.processedUpToOffset.get(), this.segmentStartOffset.get(), shouldTruncate);
+            return shouldTruncate;
         }
 
         private CompletableFuture<Void> doTruncateInternalSegment() {
@@ -537,6 +544,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
                     .thenAccept(v -> {
                         // Reset the start offset to the new one.
+                        log.info("{}: Successfully truncated ContainerEventProcessor segment {} at offset {}.", this.traceObjectId, this.segment.getSegmentId(), truncationOffset);
                         this.segmentStartOffset.set(truncationOffset);
                     });
         }
