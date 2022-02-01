@@ -324,6 +324,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack2));
             // Verify that a flush on the SegmentOutputStream does throw a RetriesExhaustedException.
             AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flush);
+            AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flushAsync);
         } finally {
             // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
             AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
@@ -1282,11 +1283,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertBlocks(() -> {
             // A flush() should throw a SegmentSealedException.
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> {
             // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
             cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), TXN_SEGMENT, "SomeException", -1L));
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)

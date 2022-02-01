@@ -90,7 +90,7 @@ public class ByteStreamWriterTest {
         assertEquals(value.length * 3, writer.fetchTailOffset());
 
         headoffset = 10;
-        writer.write(value);
+        writer.write(value, 0, value.length);
         writer.truncateDataBefore(headoffset);
         writer.flushAsync();
         assertEquals(headoffset, writer.fetchHeadOffset());
