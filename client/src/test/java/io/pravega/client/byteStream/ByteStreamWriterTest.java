@@ -89,6 +89,12 @@ public class ByteStreamWriterTest {
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 3, writer.fetchTailOffset());
 
+        headoffset = 10;
+        writer.write(value);
+        writer.truncateDataBefore(headoffset);
+        writer.flushAsync();
+        assertEquals(headoffset, writer.fetchHeadOffset());
+        assertEquals(value.length * 4, writer.fetchTailOffset());
     }
 
     @Test(timeout = 5000)

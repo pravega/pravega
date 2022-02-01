@@ -952,6 +952,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)
@@ -978,11 +979,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertEquals(false, ack.isDone());
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     /**
@@ -1024,9 +1027,11 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> latch.release());
 
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)
