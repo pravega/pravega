@@ -31,7 +31,7 @@ In standalone mode, the Pravega server is accessible from clients through the `l
 
 Security is off by default in Pravega. Please see [this](../security/securing-standalone-mode-cluster.md) document to find how to enable security in standalone mode.
 
-**Note:** In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overridden using the below command before starting Pravega in standalone mode.
+**Note:** In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega (8050) can be overridden using the below command before starting Pravega in standalone mode.
 
 ```
 $ export JDWP_PORT=8888
