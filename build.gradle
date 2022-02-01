@@ -989,7 +989,7 @@ project('standalone') {
 
         def JDWP_DEFAULT_PORT = 8050
         def jvmDebugPort = System.getenv("JDWP_PORT")
-        if(jvmDebugPort != null && jvmDebugPort != ""){
+        if (jvmDebugPort != null && jvmDebugPort != "") {
             JDWP_DEFAULT_PORT = jvmDebugPort
         }
         jvmArgs "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:" + JDWP_DEFAULT_PORT
