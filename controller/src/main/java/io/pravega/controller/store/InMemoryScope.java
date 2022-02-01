@@ -22,7 +22,9 @@ import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.controller.store.stream.InMemoryReaderGroup;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.Synchronized;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -35,7 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-import io.pravega.controller.store.stream.StoreException;
 
 /**
  * InMemory implementation of Scope.
@@ -81,6 +82,11 @@ public class InMemoryScope implements Scope {
 
         this.kvTablesMap.clear();
         this.readerGroupsMap.clear();
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteScopeRecursive(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -143,7 +149,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
-        return Futures.failedFuture(new UnsupportedOperationException("Not implmemented"));
+        return Futures.failedFuture(new UnsupportedOperationException("Not implemented"));
     }
 
     @Synchronized
@@ -186,6 +192,16 @@ public class InMemoryScope implements Scope {
             return CompletableFuture.completedFuture(this.readerGroupsMap.get(rgName).getId());
         }
         return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "reader group not found in scope."));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isScopeSealed(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("CheckScopeInSealedState not implemented for In Memory Scope"));
+    }
+
+    @Override
+    public CompletableFuture<UUID> getScopeId(String scopeName, OperationContext context) {
+        return Futures.failedFuture(new NotImplementedException("GetScopeId not implemented for In Memory Scope"));
     }
 
     @Synchronized

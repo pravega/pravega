@@ -56,6 +56,15 @@ public interface KVTableMetadataStore extends AutoCloseable {
     CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor);
 
     /**
+     * Api to check if a scope exists in the deleting scope table or not.
+     * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
+     * @return true if scope exists, false otherwise
+     */
+    CompletableFuture<Boolean> isScopeSealed(final String scopeName, OperationContext context, Executor executor);
+
+    /**
      * Checks if kv table exists or not. 
      * @param scope Scope.
      * @param kvt key value table name

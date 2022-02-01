@@ -17,10 +17,10 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
@@ -33,6 +33,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.SegmentRecord;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -41,34 +42,38 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -80,13 +85,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-
 import java.util.stream.Collectors;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.LoggerFactory;
 
 /**
  * Stream controller RPC server implementation.
@@ -826,6 +825,24 @@ public class ControllerService {
     }
 
     /**
+     * Controller Service API to delete scope recursively.
+     *
+     * @param scope Name of scope to be deleted.
+     * @param requestId request id
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScopeRecursive(final String scope, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
+
+        return streamMetadataTasks.deleteScopeRecursive(scope, requestId)
+                .thenApplyAsync(status -> {
+                    reportDeleteScopeRecursiveMetrics(scope, status, timer.getElapsed());
+                    return DeleteScopeStatus.newBuilder().setStatus(status).build();
+                }, executor);
+    }
+
+    /**
      * List existing streams in scopes.
      *
      * @param scope Name of the scope.
@@ -921,7 +938,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+    public static void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
         if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
         } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
@@ -973,7 +990,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, 
+    public static void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status,
                                                 Duration latency) {
         if (status.equals(DeleteReaderGroupStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
@@ -1000,7 +1017,7 @@ public class ControllerService {
         }
     }
 
-    private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+    public static void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().sealStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
@@ -1008,7 +1025,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
+    public static void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
         if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteStream(scope, streamName, latency);
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
@@ -1023,6 +1040,14 @@ public class ControllerService {
             StreamMetrics.getInstance().deleteScopeFailed(scope);
         }
         return status;
+    }
+
+    private void reportDeleteScopeRecursiveMetrics(String scope, DeleteScopeStatus.Status status, Duration latency) {
+        if (status.equals(DeleteScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(latency);
+        } else if (status.equals(DeleteScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeRecursiveFailed(scope);
+        }
     }
 
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, 
@@ -1072,6 +1097,5 @@ public class ControllerService {
                     return response.build();
                 });
     }
-
     // End metrics reporting region
 }

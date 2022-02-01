@@ -41,6 +41,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -80,7 +81,13 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
+        doReturn(CompletableFuture.completedFuture(0L)).when(helper).mergeTxnSegments(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
+        
+        doAnswer(x -> {
+            List<Long> list = ((List<UUID>) x.getArgument(4)).stream().map(z -> 0L).collect(Collectors.toList());
+            return CompletableFuture.completedFuture(list);
+        }).when(helper).mergeTxnSegments(
                 anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
@@ -122,8 +129,8 @@ public class SegmentHelperMock {
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).mergeTxnSegments(
+                anyString(), anyString(), anyLong(), anyLong(), any(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());

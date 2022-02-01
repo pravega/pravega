@@ -15,11 +15,18 @@
  */
 package io.pravega.cli.admin.controller;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.cli.admin.utils.ZKHelper;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
@@ -72,6 +79,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(1));
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega-cluster");
 
         if (enableAuth) {
             clientConfigBuilder = clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
@@ -305,6 +313,34 @@ public abstract class AbstractControllerMetadataCommandsTest {
 
         // Delete the temporary directory.
         tempDirPath.toFile().deleteOnExit();
+    }
+
+    @Test
+    public void testControllerMetadataViewReaderInfoCommand() throws Exception {
+        final String process = UUID.randomUUID().toString();
+        final String readerGroup = UUID.randomUUID().toString();
+        final String reader = UUID.randomUUID().toString();
+        ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
+        CheckpointStore checkpointStore = zkHelper.getCheckPointStore();
+        checkpointStore.addReaderGroup(process, readerGroup);
+        checkpointStore.addReader(process, readerGroup, reader);
+        Position position = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("testScope/testStream/0"), 0, 0.5), 9999999L,
+                new SegmentWithRange(Segment.fromScopedName("testScope/testStream/1"), 0.5, 1.0), -1L));
+        checkpointStore.setPosition(process, readerGroup, reader, position);
+        String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
+        Assert.assertTrue(commandResult.contains("testScope/testStream"));
+    }
+
+    @Test
+    public void testControllerMetadataViewReaderInfoCommandWithException() throws Exception {
+        final String process = UUID.randomUUID().toString();
+        final String readerGroup = UUID.randomUUID().toString();
+        final String reader = UUID.randomUUID().toString();
+        ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
+        CheckpointStore checkpointStore = zkHelper.getCheckPointStore();
+        checkpointStore.addReaderGroup(process, readerGroup);
+        String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
+        Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata"));
     }
 
     @After

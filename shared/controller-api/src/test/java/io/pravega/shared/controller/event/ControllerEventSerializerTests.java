@@ -145,6 +145,11 @@ public class ControllerEventSerializerTests {
     }
 
     @Test
+    public void testDeleteScopeEvent() {
+        testClass(() -> new DeleteScopeEvent(SCOPE, 117L, UUID.randomUUID()));
+    }
+
+    @Test
     public void testScaleOpEvent() {
         testClass(() -> new ScaleOpEvent(SCOPE, STREAM, Arrays.asList(1L, 2L, 3L),
                 new ArrayList<>(Collections.singletonMap(10.0, 20.0).entrySet()),

@@ -42,6 +42,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryComman
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
@@ -51,6 +52,7 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
+import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
 import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
@@ -68,6 +70,9 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.client.StoreClientFactory;
@@ -77,6 +82,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+
 import java.io.PrintStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -385,7 +391,9 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataTablesInfoCommand::descriptor, ControllerMetadataTablesInfoCommand::new)
                         .put(ControllerMetadataListKeysCommand::descriptor, ControllerMetadataListKeysCommand::new)
                         .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
+                        .put(ParseReaderGroupStreamCommand::descriptor, ParseReaderGroupStreamCommand::new)
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
+                        .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .build());
 
         /**
@@ -481,10 +489,15 @@ public abstract class AdminCommand {
         return new ObjectMapper().writeValueAsString(object);
     }
 
+    protected Controller instantiateController(ConnectionPool pool) {
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(getClientConfig())
+                                    .build(), pool.getInternalExecutor());
+    }
+
     @VisibleForTesting
-    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient, ConnectionPool pool) {
         HostControllerStore hostStore = createHostControllerStore(zkClient);
-        ConnectionPool pool = createConnectionPool();
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
@@ -504,7 +517,7 @@ public abstract class AdminCommand {
         return HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
     }
 
-    private ConnectionPool createConnectionPool() {
+    private ClientConfig getClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
                 .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()));
 
@@ -518,7 +531,11 @@ public abstract class AdminCommand {
         }
 
         ClientConfig clientConfig = clientConfigBuilder.build();
+        return clientConfig;
+    }
 
+    protected ConnectionPool createConnectionPool() {
+        ClientConfig clientConfig = getClientConfig();
         return new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
     }
 
