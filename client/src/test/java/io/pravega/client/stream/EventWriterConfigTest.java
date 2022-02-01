@@ -15,7 +15,6 @@
  */
 package io.pravega.client.stream;
 
-import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.common.util.ByteArraySegment;
 import org.junit.Test;
 
