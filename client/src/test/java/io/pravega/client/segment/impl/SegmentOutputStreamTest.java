@@ -510,7 +510,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         verifyNoMoreInteractions(connection);
     }
 
-    @Test(timeout = 100000)
+    @Test(timeout = 10000)
     public void testFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);

@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -567,7 +566,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 if (NameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
-                            "committed/aborted. Details: {}", e.getMessage());
+                                     "committed/aborted. Details: {}", e.getMessage());
                     failConnection(e);
                 } else {
                     log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
