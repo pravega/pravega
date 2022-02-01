@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -606,8 +607,13 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     /**
-     * Reads the tail section (beyond {@link TableAttributes#INDEX_OFFSET}) of the given segment and caches the latest
-     * values recorded there in the tail index.
+     * Reads the tail section of the given segment (from either start offset or {@link TableAttributes#COMPACTION_OFFSET},
+     * whatever is highest) and only caches the latest values beyond last indexed offset (i.e., {@link TableAttributes#INDEX_OFFSET})
+     * in the tail index. Note that the reason for starting the scan before last index offset is to cover a case in which
+     * there could be just a compacted entry for k1 beyond last index offset, while a newer value for it has been already
+     * indexed. If at this point a recovery is executed and the tail-caching accepts the compacted entry, there is a window
+     * of time (until the {@link IndexWriter} processes that compacted entry and evicts it from tail-cache) until when it
+     * could be serving a stale (compacted) version of k1 (see https://github.com/pravega/pravega/issues/6539).
      *
      * The operation will not execute if any of the following is true:
      * - The tail section has a length of 0.
@@ -616,14 +622,17 @@ class ContainerKeyIndex implements AutoCloseable {
      * This method triggers this operation asynchronously and does not wait for it to complete. Its completion status and
      * any errors will be logged.
      *
-     * NOTE: this does not peform a proper recovery nor does it update the durable index - it simply caches the values.
+     * NOTE: this does not perform a proper recovery nor does it update the durable index - it simply caches the values.
      * The {@link WriterTableProcessor} must be used to update the index.
      *
      * @param segment A {@link DirectSegmentAccess} representing the Segment for which to cache the tail index.
+     * @param tailCachingStartOffset Offset from where the tail-caching process will start scanning. Note that there
+     *                               can be a part of the segment (from either start or last compaction offset, whatever is
+     *                               max) that is just scanned, but no entries are added to tail cache.
      */
-    private void triggerCacheTailIndex(DirectSegmentAccess segment, long lastIndexedOffset, SegmentTracker.RecoveryTask task) {
-        long tailIndexLength = task.triggerIndexOffset - lastIndexedOffset;
-        if (lastIndexedOffset >= task.triggerIndexOffset) {
+    private void triggerCacheTailIndex(DirectSegmentAccess segment, long tailCachingStartOffset, SegmentTracker.RecoveryTask task) {
+        long tailIndexLength = task.triggerIndexOffset - tailCachingStartOffset;
+        if (tailCachingStartOffset >= task.triggerIndexOffset) {
             // Fully caught up. Nothing else to do.
             log.debug("{}: Table Segment {} fully indexed.", this.traceObjectId, segment.getSegmentId());
             return;
@@ -635,27 +644,41 @@ class ContainerKeyIndex implements AutoCloseable {
 
         // Read the tail section of the segment and process its updates. All of this should already be in the cache so
         // we are not going to do any Storage reads.
-        log.info("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
-                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, task.triggerIndexOffset);
-        val preIndexOffset = new AtomicLong(lastIndexedOffset);
+        final long lastIndexedOffset = IndexReader.getLastIndexedOffset(segment.getInfo());
+        log.info("{}: Tail-caching started for Table Segment {}. TailCachingStartOffset={}, LastIndexedOffset={}, SegmentLength={}.",
+                this.traceObjectId, segment.getSegmentId(), tailCachingStartOffset, lastIndexedOffset, task.triggerIndexOffset);
+        val preIndexOffset = new AtomicLong(tailCachingStartOffset);
 
         // Begin a loop which will end when either we've reached the target offset (defined in the RecoveryTask) or when
         // the recovery task itself has been cancelled (i.e., segment evicted, shutting down, etc.).
+        Map<UUID, Long> tailCachePreIndexVersionTracker = new ConcurrentHashMap<>();
         Futures.loop(
                 () -> !task.task.isDone() && preIndexOffset.get() < task.triggerIndexOffset,
                 () -> {
                     int maxLength = (int) Math.min(this.config.getMaxTailCachePreIndexBatchLength(), task.triggerIndexOffset - preIndexOffset.get());
-                    return preIndexBatch(segment, preIndexOffset.get(), maxLength)
+                    return preIndexBatch(segment, preIndexOffset.get(), maxLength, tailCachePreIndexVersionTracker, lastIndexedOffset)
                             .thenAccept(preIndexOffset::set);
                 },
                 this.executor)
                 .exceptionally(ex -> {
-                    log.warn("{}: Tail-caching failed for Table Segment {}; LastIndexedOffset={}, CurrentOffset={}, SegmentLength={}.", this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, preIndexOffset, task.triggerIndexOffset, Exceptions.unwrap(ex));
+                    log.warn("{}: Tail-caching failed for Table Segment {}; TailCachingStartOffset={}, LastIndexedOffset={}, CurrentOffset={}, SegmentLength={}.",
+                            this.traceObjectId, segment.getSegmentId(), tailCachingStartOffset, lastIndexedOffset, preIndexOffset, task.triggerIndexOffset, Exceptions.unwrap(ex));
                     return null;
                 });
     }
 
-    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength) {
+    /**
+     * Includes a batch of entries in the tail cache of the Table Segment. It also takes into account selecting the entries
+     * with higher version for the same key (which may not be always the ones with the highest offsets due to Table Compaction).
+     *
+     * @param segment Table Segment to pre-index.
+     * @param startOffset Start offset to pre-index the Segment in this batch.
+     * @param maxLength Max amount of data processed in this batch.
+     * @param tailCachePreIndexVersionTracker Helps to track versions of entries to select the highest ones.
+     * @return Max offset of processed entries.
+     */
+    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength,
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker, long lastIndexedOffset) {
         log.trace("{}: Tail-caching batch started for Table Segment {}. StartOffset={}, MaxLength={}.",
                 this.traceObjectId, segment.getSegmentId(), startOffset, maxLength);
         val timer = new Timer();
@@ -665,7 +688,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 .thenApplyAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     val updates = new TailUpdates();
-                    collectLatestOffsets(inputData, startOffset, maxLength, updates);
+                    collectEntriesWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker, lastIndexedOffset);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
@@ -679,8 +702,20 @@ class ContainerKeyIndex implements AutoCloseable {
                 }, this.executor);
     }
 
+    /**
+     * Processes the entries from the input {@link BufferView} and collects the ones that have the highest version. Note
+     * that this selection of versions is done thanks to the tailCachePreIndexVersionTracker map that is used across the
+     * whole tail-caching process.
+     *
+     * @param input Input data to read Table Entries from.
+     * @param startOffset Start offset from which the input data refers to in the Segment.
+     * @param maxLength Max amount of data to process in this batch.
+     * @param result Table Entries processed with max version.
+     * @param tailCachePreIndexVersionTracker Helps to track versions of entries to select the highest ones.
+     */
     @SneakyThrows(IOException.class)
-    private void collectLatestOffsets(BufferView input, long startOffset, int maxLength, TailUpdates result) {
+    private void collectEntriesWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result,
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker, long lastIndexedOffset) {
         EntrySerializer serializer = new EntrySerializer();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
@@ -689,7 +724,19 @@ class ContainerKeyIndex implements AutoCloseable {
             while (nextOffset < maxOffset) {
                 val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
                 val hash = this.keyHasher.hash(e.getKey());
-                result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
+                // Consider for the tail cache the new entries or the entries whose version is higher than the observed one.
+                if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
+                    tailCachePreIndexVersionTracker.put(hash, e.getVersion());
+                    // Only add to tail cache the entries beyond the lastIndexedOffset (previous ones are index already).
+                    if (nextOffset >= lastIndexedOffset) {
+                        result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
+                    }
+                } else {
+                    log.info("{}: Not tail-caching key {} as it has a lower version {} than the existing cached entry ({}).", this.traceObjectId,
+                            hash, e.getVersion(), tailCachePreIndexVersionTracker.get(hash));
+                }
+                // Irrespective of whether the entry is added to the tail updates, set the max processed offset.
+                result.setMaxOffset(nextOffset, e.getHeader().getTotalLength());
                 nextOffset += e.getHeader().getTotalLength();
             }
         } catch (BufferView.Reader.OutOfBoundsException ex) {
@@ -723,6 +770,10 @@ class ContainerKeyIndex implements AutoCloseable {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
             this.keyCount++;
+            setMaxOffset(offset, serializationLength);
+        }
+
+        void setMaxOffset(long offset, int serializationLength) {
             this.maxOffset = offset + serializationLength;
         }
     }
@@ -927,8 +978,14 @@ class ContainerKeyIndex implements AutoCloseable {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
                     setupRecoveryTask(task);
-                    assert lastIndexedOffset >= 0;
-                    triggerCacheTailIndex(segment, lastIndexedOffset, task);
+                    // Starting at last indexed offset may leave behind the last value of an indexed key that is succeeded
+                    // by an (older) compacted entry of the same key. In that case, there is a risk that the tail cache
+                    // just contains the old version of the key to serve gets. Starting from the last compaction offset
+                    // (or start of the Segment, whatever is max) can remove this risk at the cost of processing more data.
+                    SegmentProperties sp = segment.getInfo();
+                    long lastSafeIndexedOffset = Math.max(sp.getStartOffset(), IndexReader.getCompactionOffset(sp));
+                    assert lastSafeIndexedOffset >= 0;
+                    triggerCacheTailIndex(segment, lastSafeIndexedOffset, task);
                 }
 
                 // A recovery task is registered. Queue behind it.
