@@ -47,7 +47,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
+
+import lombok.Getter;
+import lombok.AccessLevel;
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
@@ -58,10 +60,10 @@ import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-
 
     public StreamManagerImpl(ClientConfig clientConfig) {
         this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
@@ -69,17 +71,17 @@ public class StreamManagerImpl implements StreamManager {
 
     @VisibleForTesting
     public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
-        this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        this.executor = connectionPool.getInternalExecutor();
-        this.controller = new ControllerImpl(controllerConfig, executor);
-        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this(controllerConfig, new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig)));
+    }
+
+    private StreamManagerImpl(ControllerImplConfig controllerConfig, ConnectionPool connectionPool) {
+        this(new ControllerImpl(controllerConfig, connectionPool.getInternalExecutor()), connectionPool);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
-        this.controller = controller;
         this.connectionPool = connectionPool;
-        this.executor = connectionPool.getInternalExecutor();
+        this.controller = controller;
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
