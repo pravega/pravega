@@ -16,18 +16,23 @@
 package io.pravega.client.state;
 
 import io.pravega.common.util.ByteArraySegment;
+import lombok.Cleanup;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import io.pravega.client.stream.EventWriterConfig;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 
 public class SynchronizerConfigTest {
 
     @Test
-    public void testValidValues() throws IOException {
+    public void testValidValues() throws IOException, ClassNotFoundException {
         EventWriterConfig eventConfig = EventWriterConfig.builder()
                 .automaticallyNoteTime(true)
                 .backoffMultiple(2)
@@ -48,6 +53,15 @@ public class SynchronizerConfigTest {
 
         ByteBuffer buffer = synchConfig.toBytes();
         SynchronizerConfig result2 = SynchronizerConfig.fromBytes(buffer);
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        @Cleanup
+        ObjectOutputStream oout = new ObjectOutputStream(bout);
+        oout.writeObject(synchConfig);
+        byte[] byteArray = bout.toByteArray();
+        ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(byteArray));
+        Object revision = oin.readObject();
+        assertEquals(synchConfig, revision);
 
         assertEquals(true, result1.getEventWriterConfig().isAutomaticallyNoteTime());
         assertEquals(2, result1.getEventWriterConfig().getBackoffMultiple());

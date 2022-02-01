@@ -16,9 +16,14 @@
 package io.pravega.client.stream;
 
 import io.pravega.common.util.ByteArraySegment;
+import lombok.Cleanup;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -28,7 +33,7 @@ public class EventWriterConfigTest {
 
 
     @Test
-    public void testValidValues() throws IOException {
+    public void testValidValues() throws IOException, ClassNotFoundException {
         EventWriterConfig config = EventWriterConfig.builder()
                 .automaticallyNoteTime(true)
                 .backoffMultiple(2)
@@ -45,6 +50,15 @@ public class EventWriterConfigTest {
 
         ByteBuffer buffer = config.toBytes();
         EventWriterConfig result2 = EventWriterConfig.fromBytes(buffer);
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        @Cleanup
+        ObjectOutputStream oout = new ObjectOutputStream(bout);
+        oout.writeObject(config);
+        byte[] byteArray = bout.toByteArray();
+        ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(byteArray));
+        Object revision = oin.readObject();
+        assertEquals(config, revision);
 
         assertEquals(true, result1.isAutomaticallyNoteTime());
         assertEquals(2, result1.getBackoffMultiple());
