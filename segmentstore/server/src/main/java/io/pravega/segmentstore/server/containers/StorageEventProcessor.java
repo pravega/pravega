@@ -45,7 +45,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     private final static GarbageCollector.TaskInfo.Serializer SERIALIZER = new GarbageCollector.TaskInfo.Serializer();
     // For SLTS GC, truncating the ContainerEventProcessor internal Segment every 128KB is enough to prevent unnecessary
     // storage metadata activity that may occur if we truncate it too frequently.
-    private final static long CONTAINER_EVENT_PROCESSOR_TRUNCATE_DATA_SIZE = 128 * 1024;
+    private final static long CONTAINER_EVENT_PROCESSOR_TRUNCATE_DATA_SIZE = 16 * 1024;
 
     private final int containerID;
     private final ContainerEventProcessor eventProcessor;

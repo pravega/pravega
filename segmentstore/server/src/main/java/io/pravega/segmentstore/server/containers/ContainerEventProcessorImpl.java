@@ -429,7 +429,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                 "Processed offset = {}, Failed iteration = {}).", this.traceObjectId, this.name,
                                 this.segmentStartOffset.get(), this.processedUpToOffset.get(), this.failedIteration.get());
                         return null;
-                    });
+                    }, this.executor);
         }
 
         /**
