@@ -266,7 +266,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
                 .build();
-        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
 
         String streamName = "testDataRecoveryCommand";
@@ -365,7 +365,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
                 .build();
-        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
 
         String streamName = "testDataRecoveryCommand";
@@ -395,7 +395,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
         DurableDataLogRepairCommand command = Mockito.spy(new DurableDataLogRepairCommand(args));
 
-        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
         this.factory.initialize();
 
         // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
@@ -773,7 +773,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
                 .build();
-        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
 
         String streamName = "testDataRecoveryCommand";
@@ -805,7 +805,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Test the DurableLogWrapper options to get, overwrite and destroy logs.
         @Cleanup
-        val newFactory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().zkClient.get(), this.executorService());
+        val newFactory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
         newFactory.initialize();
         @Cleanup
         DebugBookKeeperLogWrapper debugLogWrapper0 = newFactory.createDebugLogWrapper(0);

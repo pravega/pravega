@@ -321,7 +321,7 @@ public final class TestUtils {
      */
     public static class BookKeeperRunner implements AutoCloseable {
         @Getter
-        public final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
+        private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
         @Getter
         private final int bkPort;
         private final BookKeeperServiceRunner bookKeeperServiceRunner;
