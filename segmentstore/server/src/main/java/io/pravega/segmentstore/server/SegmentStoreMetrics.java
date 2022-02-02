@@ -37,6 +37,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.eventProcessorTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
@@ -52,7 +53,7 @@ public final class SegmentStoreMetrics {
      * Global (not container-specific) end-to-end latency of an operation from when it enters the OperationProcessor
      * until it is completed.
      */
-    private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
+    private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(globalMetricName(MetricsNames.OPERATION_LATENCY));
 
     //region CacheManager
 
