@@ -220,7 +220,8 @@ public interface ChunkMetadataStore extends AutoCloseable, StatsReporter {
     void markFenced();
 
     /**
-     * Retrieve all entries.
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
      * If the operation failed, it will be completed with the appropriate exception.
@@ -228,7 +229,8 @@ public interface ChunkMetadataStore extends AutoCloseable, StatsReporter {
     CompletableFuture<Stream<StorageMetadata>> getAllEntries();
 
     /**
-     * Retrieve all keys.
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
      * If the operation failed, it will be completed with the appropriate exception.
