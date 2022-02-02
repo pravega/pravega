@@ -29,6 +29,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,7 +116,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     /**
      * This function instantiates a new Segment supplier by creating actual Segment against the {@link SegmentContainer}
      * passed as input based on the name passed to the function. Note that the Segment is only created if it does not
-     * exists. Otherwise, it is just loaded and returned.
+     * exist. Otherwise, it is just loaded and returned.
      *
      * @param container {@link SegmentContainer} to create Segments from.
      * @param timeout   Timeout for the Segment creation to complete.
@@ -385,6 +387,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                        .handle((r, ex) -> {
                            if (ex != null) {
                                log.warn("{}: Terminated due to unexpected exception.", this.traceObjectId, ex);
+                               throw new CompletionException(ex);
                            } else {
                                log.info("{}: Terminated.", this.traceObjectId);
                            }
