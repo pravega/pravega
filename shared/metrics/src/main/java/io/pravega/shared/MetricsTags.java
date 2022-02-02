@@ -179,6 +179,16 @@ public final class MetricsTags {
     }
 
     /**
+     * Returns the Segment tag directly using the Segment name passed as input.
+     *
+     * @param segmentName Name of the Segment to generate Segment tags for.
+     * @return Segment tags directly using input Segment name.
+     */
+    public static String[] segmentTagDirect(String segmentName) {
+        return new String[] {TAG_SEGMENT, String.valueOf(segmentName)};
+    }
+
+    /**
      * Create host tag based on the system property, env var or local host config.
      * @param hostnameKey the lookup key for hostname system property or env var.
      * @return host tag.
