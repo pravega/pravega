@@ -41,6 +41,7 @@ import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.eventProcessorTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
+import static io.pravega.shared.MetricsTags.segmentTagDirect;
 
 /**
  * General Metrics for the SegmentStore.
@@ -526,6 +527,22 @@ public final class SegmentStoreMetrics {
     public static void outstandingEventProcessorBytes(String processorName, int containerId, long outstandingBytes) {
         DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES, outstandingBytes,
                 eventProcessorTag(containerId, processorName));
+    }
+
+    //endregion
+
+    //region ContainerKeyIndex
+
+    /**
+     * Reports the number of credits used for a given Hash-Based Table Segment. Note that these Segments are exclusively
+     * used for internal metadata storage and may have a special name format. For this reason, we report the Segment name
+     * directly via the tag.
+     *
+     * @param segmentName Name of the Table Segment that reports the used credits.
+     * @param credits Used credits for the Table Segment.
+     */
+    public static void tableSegmentUsedCredits(String segmentName, long credits) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.TABLE_SEGMENT_USED_CREDITS, credits, segmentTagDirect(segmentName));
     }
 
     //endregion
