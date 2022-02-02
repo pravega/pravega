@@ -18,15 +18,8 @@ package io.pravega.cli.admin.dataRecovery;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CompositeByteArraySegment;
@@ -37,9 +30,6 @@ import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -51,30 +41,20 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -86,7 +66,6 @@ import org.mockito.Mockito;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -166,13 +145,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testDataRecoveryCommand";
 
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
@@ -212,7 +191,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
         log.info("Started a controller and segment store.");
         // Create the client with new controller.
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Try reading all events to verify that the recovery was successful.
             TestUtils.readAllEvents(SCOPE, streamName, clientRunner.getClientFactory(), clientRunner.getReaderGroupManager(), "RG", "R");
             log.info("Read all events again to verify that segments were recovered.");
@@ -230,13 +209,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testListSegmentsCommand";
 
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
@@ -277,7 +256,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -292,7 +271,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         String streamName = "testDataRecoveryCommand";
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
@@ -376,7 +355,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -391,7 +370,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         String streamName = "testDataRecoveryCommand";
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
@@ -784,7 +763,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -799,7 +778,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         String streamName = "testDataRecoveryCommand";
         TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
@@ -916,231 +895,5 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 () -> command.checkBackupLogAssertions(1, 1, 2, false), t -> t instanceof IllegalStateException);
         AssertExtensions.assertThrows("Not successful BackupLogProcessor execution should have thrown an assertion error..",
                 () -> command.checkBackupLogAssertions(1, 1, 1, true), t -> t instanceof IllegalStateException);
-    }
-
-    /**
-     * Sets up a new BookKeeper & ZooKeeper.
-     */
-    private static class BookKeeperRunner implements AutoCloseable {
-        @Getter
-        private final int bkPort;
-        private final BookKeeperServiceRunner bookKeeperServiceRunner;
-        @Getter
-        private final AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
-        @Getter
-        private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
-        private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
-        @Getter
-        private final String ledgerPath;
-        @Getter
-        private final String logMetaNamespace;
-        @Getter
-        private final String baseNamespace;
-        BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
-            this.ledgerPath = "/pravega/bookkeeper/ledgers" + instanceId;
-            this.bkPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-            val bookiePorts = new ArrayList<Integer>();
-            for (int i = 0; i < bookieCount; i++) {
-                bookiePorts.add(io.pravega.test.common.TestUtils.getAvailableListenPort());
-            }
-            this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
-                    .startZk(true)
-                    .zkPort(bkPort)
-                    .ledgersPath(ledgerPath)
-                    .bookiePorts(bookiePorts)
-                    .build();
-            try {
-                this.bookKeeperServiceRunner.startAll();
-            } catch (Exception e) {
-                log.error("Exception occurred while starting bookKeeper service.", e);
-                this.close();
-                throw e;
-            }
-            this.bkService.set(this.bookKeeperServiceRunner);
-
-            // Create a ZKClient with a unique namespace.
-            this.baseNamespace = "pravega" + instanceId;
-            this.zkClient.set(CuratorFrameworkFactory
-                    .builder()
-                    .connectString("localhost:" + bkPort)
-                    .namespace(baseNamespace)
-                    .retryPolicy(new ExponentialBackoffRetry(1000, 10))
-                    .build());
-
-            this.zkClient.get().start();
-
-            logMetaNamespace = "segmentstore/containers" + instanceId;
-            this.bkConfig.set(BookKeeperConfig
-                    .builder()
-                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
-                    .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
-                    .with(BookKeeperConfig.BK_LEDGER_PATH, ledgerPath)
-                    .build());
-        }
-
-        @Override
-        public void close() throws Exception {
-            val process = this.bkService.getAndSet(null);
-            if (process != null) {
-                process.close();
-            }
-
-            val bk = this.bookKeeperServiceRunner;
-            if (bk != null) {
-                bk.close();
-            }
-
-            val zkClient = this.zkClient.getAndSet(null);
-            if (zkClient != null) {
-                zkClient.close();
-            }
-        }
-    }
-
-    /**
-     * Creates a segment store.
-     */
-    private static class SegmentStoreRunner implements AutoCloseable {
-        private final int servicePort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-        @Getter
-        private final ServiceBuilder serviceBuilder;
-        private final PravegaConnectionListener server;
-        private final StreamSegmentStore streamSegmentStore;
-        private final TableStore tableStore;
-
-        SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount)
-                throws DurableDataLogException {
-            ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
-                    .builder()
-                    .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, containerCount))
-                    .include(WriterConfig.builder()
-                            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
-                            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
-                    );
-            if (storageFactory != null) {
-                if (dataLogFactory != null) {
-                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                            .withStorageFactory(setup -> storageFactory)
-                            .withDataLogFactory(setup -> dataLogFactory);
-                } else {
-                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                            .withStorageFactory(setup -> storageFactory);
-                }
-            } else {
-                this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-            }
-            this.serviceBuilder.initialize();
-            this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-            this.tableStore = this.serviceBuilder.createTableStoreService();
-            this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor());
-            this.server.startListening();
-        }
-
-        @Override
-        public void close() {
-            this.server.close();
-            this.serviceBuilder.close();
-        }
-    }
-
-    /**
-     * Creates a controller instance and runs it.
-     */
-    private static class ControllerRunner implements AutoCloseable {
-        private final int controllerPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-        private final String serviceHost = "localhost";
-        private final ControllerWrapper controllerWrapper;
-        @Getter
-        private final Controller controller;
-        private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-
-        ControllerRunner(int bkPort, int servicePort, int containerCount) {
-            this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
-                    controllerPort, serviceHost, servicePort, containerCount);
-            this.controllerWrapper.awaitRunning();
-            this.controller = controllerWrapper.getController();
-        }
-
-        @Override
-        public void close() throws Exception {
-            this.controller.close();
-            this.controllerWrapper.close();
-        }
-    }
-
-    /**
-     * Creates a client to read and write events.
-     */
-    private static class ClientRunner implements AutoCloseable {
-        private final ConnectionFactory connectionFactory;
-        @Getter
-        private final ClientFactoryImpl clientFactory;
-        @Getter
-        private final ReaderGroupManager readerGroupManager;
-
-        ClientRunner(ControllerRunner controllerRunner) {
-            this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                    .controllerURI(controllerRunner.controllerURI).build());
-            this.clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.controller, connectionFactory);
-            this.readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
-        }
-
-        @Override
-        public void close() {
-            this.readerGroupManager.close();
-            this.clientFactory.close();
-            this.connectionFactory.close();
-        }
-    }
-
-    /**
-     * Creates a Pravega instance.
-     */
-    private static class PravegaRunner implements AutoCloseable {
-        private final int containerCount;
-        private final int bookieCount;
-        @Getter
-        private BookKeeperRunner bookKeeperRunner;
-        @Getter
-        private SegmentStoreRunner segmentStoreRunner;
-        @Getter
-        private ControllerRunner controllerRunner;
-
-        PravegaRunner(int bookieCount, int containerCount) {
-            this.containerCount = containerCount;
-            this.bookieCount = bookieCount;
-        }
-
-        void startBookKeeperRunner(int instanceId) throws Exception {
-            this.bookKeeperRunner = new BookKeeperRunner(instanceId, this.bookieCount);
-        }
-
-        void startControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
-                throws DurableDataLogException {
-            this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
-            log.info("bk port to be connected = {}", this.bookKeeperRunner.bkPort);
-            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
-        }
-
-        private void shutDownControllerRunner() throws Exception {
-            this.controllerRunner.close();
-        }
-
-        private void shutDownSegmentStoreRunner() {
-            this.segmentStoreRunner.close();
-        }
-
-        private void shutDownBookKeeperRunner() throws Exception {
-            this.bookKeeperRunner.close();
-        }
-
-        @Override
-        public void close() throws Exception {
-            shutDownControllerRunner();
-            shutDownSegmentStoreRunner();
-            shutDownBookKeeperRunner();
-        }
     }
 }
