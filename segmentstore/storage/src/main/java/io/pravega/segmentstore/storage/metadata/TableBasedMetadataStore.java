@@ -204,7 +204,8 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     }
 
     /**
-     * Retrieve all entries.
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
      * If the operation failed, it will be completed with the appropriate exception.
@@ -212,7 +213,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     @Override
     public CompletableFuture<Stream<StorageMetadata>> getAllEntries() {
         return this.tableStore.entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
-                .thenApplyAsync( i -> getStreamFromTableIterator(i).map(td -> td.getValue()), getExecutor())
+                .thenApplyAsync(i -> getStreamFromTableIterator(i).map(td -> td.getValue()), getExecutor())
                 .exceptionally(e -> {
                     val ex = Exceptions.unwrap(e);
                     throw new CompletionException(handleException(ex));
@@ -220,7 +221,8 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     }
 
     /**
-     * Retrieve all keys.
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
      * If the operation failed, it will be completed with the appropriate exception.
@@ -228,7 +230,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     @Override
     public CompletableFuture<Stream<String>> getAllKeys() {
         return this.tableStore.entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
-                .thenApplyAsync( i -> getStreamFromTableIterator(i).map(td -> td.getKey()), getExecutor())
+                .thenApplyAsync(i -> getStreamFromTableIterator(i).map(td -> td.getKey()), getExecutor())
                 .exceptionally(e -> {
                     val ex = Exceptions.unwrap(e);
                     throw new CompletionException(handleException(ex));
@@ -241,7 +243,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
      * @return {@link Stream} of {@link TransactionData}.
      */
     Stream<TransactionData> getStreamFromTableIterator(AsyncIterator<IteratorItem<TableEntry>> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator.asIterator(), Spliterator.ORDERED), true)
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator.asIterator(), Spliterator.CONCURRENT), true)
                 .map(collection -> collection.getEntries())
                 .flatMap(entry -> entry.stream())
                 .map(tableEntry -> {

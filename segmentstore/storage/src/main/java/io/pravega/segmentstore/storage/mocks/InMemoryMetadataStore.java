@@ -19,6 +19,7 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import lombok.Getter;
 import lombok.Setter;
@@ -140,7 +141,8 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
     }
 
     /**
-     * Retrieve all entries.
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
      * If the operation failed, it will be completed with the appropriate exception.
@@ -153,7 +155,8 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
     }
 
     /**
-     * Retrieve all keys.
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
      *
      * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
      * If the operation failed, it will be completed with the appropriate exception.

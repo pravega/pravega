@@ -610,7 +610,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     @Override
     public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
         return metadataStore.getAllEntries()
-                .thenApplyAsync( storageMetadataStream ->
+                .thenApplyAsync(storageMetadataStream ->
                         storageMetadataStream
                                 .filter(metadata -> metadata instanceof SegmentMetadata && (((SegmentMetadata) metadata).isActive()))
                                 .map(metadata -> {
