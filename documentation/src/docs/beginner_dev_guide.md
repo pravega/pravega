@@ -78,7 +78,6 @@ $ cd pravega
 ```
 
 Build the Pravega standalone mode distribution.
-
 ```console
 $ ./gradlew startStandalone
 ```
@@ -108,7 +107,7 @@ $ pravega-<version>/bin/pravega-standalone
 </p>
 </details>  
 
-**Note:** In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overridden using the below command before starting Pravega in standalone mode.
+**Note:** In order to remotely troubleshoot Java application, JDWP port is being used. The default JDWP port in Pravega(8050) can be overridden using the below command before starting Pravega in standalone mode. 0 to 65535 are allowed range of port numbers.
 
 ```
 $ export JDWP_PORT=8888
