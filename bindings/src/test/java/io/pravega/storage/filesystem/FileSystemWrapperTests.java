@@ -31,6 +31,8 @@ import java.util.Set;
 
 public class FileSystemWrapperTests {
     public static final int CACHE_SIZE = 1024;
+    public static final String USER_NAME_PROPERTY = "user.name";
+    public static final String ROOT_USER_NAME = "root";
     Path tempDirPath;
 
     @Before
@@ -170,6 +172,9 @@ public class FileSystemWrapperTests {
 
     @Test
     public void validateSetPermissions() throws IOException {
+        if (isRootUser()) {
+            return;
+        }
         // Arrange. Create FileSystemWrapper instance to test
         String filename4 = "temp8";
         Path filePath = tempDirPath.resolve(Path.of(filename4));
@@ -231,6 +236,9 @@ public class FileSystemWrapperTests {
 
     @Test
     public void validateSetPermissionsAfter() throws IOException {
+        if (isRootUser()) {
+            return;
+        }
         // Arrange. Create FileSystemWrapper instance to test
         String filename6 = "temp10";
         Path filePath = tempDirPath.resolve(Path.of(filename6));
@@ -256,6 +264,10 @@ public class FileSystemWrapperTests {
         // Set read-write permission on the file and verify that it's writable
         fw.setPermissions(filePath, FileSystemWrapper.READ_WRITE_PERMISSION);
         Assert.assertTrue(fw.isWritable(filePath));
+    }
+
+    private boolean isRootUser() {
+        return System.getProperty(USER_NAME_PROPERTY).equals(ROOT_USER_NAME);
     }
 }
 
