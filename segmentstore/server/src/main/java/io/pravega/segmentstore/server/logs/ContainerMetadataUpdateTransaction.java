@@ -826,7 +826,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                         // This segment existed in our Update Transaction/Base Metadata, however this checkpoint no longer has it.
                         // This means that the segment has been evicted at one point between the last checkpoint and this one,
                         // so it should be safe to remove it from our list (if possible).
-                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id '%s' because it is no longer present in a MetadataCheckpoint.", t.containerId);
+                        log.info("MetadataUpdate[{}]: Un-mapping Segment Id {} because it is no longer present in a MetadataCheckpoint.", t.containerId, segmentId);
                         t.removeNewSegment(segmentId);
                     }
                 } else {
@@ -837,6 +837,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                     }
 
                     if (m.isDeletedInStorage()) {
+                        log.info("MetadataUpdate[{}]: Marking segment {} ({}) as deleted.", t.containerId, segmentUpdate.getId(), segmentId);
                         segmentUpdate.markDeleted();
                     }
 
@@ -846,8 +847,12 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         private boolean canUnregister(SegmentMetadata existingMetadata) {
-            return existingMetadata.isDeleted()
+            boolean canUnregister = existingMetadata.isDeleted()
                     || existingMetadata.getStorageLength() >= existingMetadata.getLength();
+            log.info("MetadataUpdate[{}]: Can unregister segment {} ({}) (deleted = {}, storageLength = {}, length = {})? {}",
+                    existingMetadata.getContainerId(), existingMetadata.getId(), existingMetadata.getName(), existingMetadata.isDeleted(),
+                    existingMetadata.getStorageLength(), existingMetadata.getLength(), canUnregister);
+            return canUnregister;
         }
 
         @Data

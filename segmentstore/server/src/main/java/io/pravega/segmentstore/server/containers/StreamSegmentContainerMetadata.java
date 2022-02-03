@@ -231,7 +231,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             candidates = this.metadataById
                     .values().stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff))
+                    .filter(m -> {
+                        boolean eligible = isEligibleForEviction(m, adjustedCutoff);
+                        log.info("{}: MapStreamSegment SegmentId = {}, Name = '{}', Active = {}, Deleted = {}. Eligible = {}",
+                                this.traceObjectId, m.getId(), m.getName(), m.isActive(), m.isDeleted(), eligible);
+                        return eligible;
+                    })
                     .collect(Collectors.toList());
         }
 
@@ -263,7 +268,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         }
 
         if (evictedSegments.size() > 0) {
-            log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
+            log.info("{}: EvictedStreamSegments Count = {}, Active = {}, Segments = {}", this.traceObjectId, evictedSegments.size(), count, evictedSegments);
             this.metrics.segmentCount(count);
         }
 
