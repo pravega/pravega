@@ -45,5 +45,12 @@ public interface EventPointer {
     static EventPointer fromBytes(ByteBuffer eventPointer) {
         return EventPointerInternal.fromBytes(eventPointer);
     }
-    
+
+    /**
+     * Returns the stream name from which event is read from , If no event to read then this will return null.
+     *
+     * @return The name of the stream
+     */
+    String getStreamName();
+
 }

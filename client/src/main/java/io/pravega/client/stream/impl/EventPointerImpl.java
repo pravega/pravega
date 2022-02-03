@@ -23,6 +23,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.shared.NameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import lombok.Builder;
@@ -132,4 +133,10 @@ public class EventPointerImpl extends EventPointerInternal {
     public static EventPointerInternal fromBytes(ByteBuffer data) {
         return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
+
+    @Override
+    public String getStreamName() {
+        return NameUtils.getScopedStreamName(segment.getScope(), segment.getStreamName());
+    }
+
 }
