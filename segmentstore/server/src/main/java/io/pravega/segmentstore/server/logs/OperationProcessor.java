@@ -479,6 +479,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator(),
                         this.state::notifyOperationCommitted);
                 this.metrics.memoryCommit(items.size(), memoryCommitTimer.getElapsed());
+                SegmentStoreMetrics.reportOperationLogSize(this.stateUpdater.getInMemoryOperationLogSize(), this.metadata.getContainerId());
                 items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
             } while (!items.isEmpty());
         } catch (Throwable ex) {

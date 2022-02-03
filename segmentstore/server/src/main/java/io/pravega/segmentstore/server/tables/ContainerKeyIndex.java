@@ -37,6 +37,7 @@ import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
 import java.time.Duration;
@@ -911,6 +912,7 @@ class ContainerKeyIndex implements AutoCloseable {
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
+            SegmentStoreMetrics.tableSegmentUsedCredits(segment.getInfo().getName(), throttler.getUsedCredits());
             if (isSystemCriticalSegment.test(segment) && throttler.getUsedCredits() + updateSize > totalCredits) {
                 log.warn("{}: System-critical TableSegment {} is blocked due to reaching max unindexed size.", traceObjectId, segment.getSegmentId());
             }
