@@ -18,14 +18,25 @@ package io.pravega.client.stream;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.ObjectBuilder;
+
 import lombok.Builder;
 import lombok.Data;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import lombok.SneakyThrows;
 
 @Data
 @Builder
 public class EventWriterConfig implements Serializable {
-    
-    private static final long serialVersionUID = 1L;
+
+    private static final long serialVersionUID = 2L;
+
+    private static final EventWriterConfigSerializer SERIALIZER = new EventWriterConfigSerializer();
     /**
      * Initial backoff in milli seconds used in the retry logic of the writer. The default value is 1ms.
      *
@@ -116,7 +127,7 @@ public class EventWriterConfig implements Serializable {
      */
     private final boolean enableLargeEvents;
 
-    public static final class EventWriterConfigBuilder {
+    public static final class EventWriterConfigBuilder implements ObjectBuilder<EventWriterConfig> {
         private static final long MIN_TRANSACTION_TIMEOUT_TIME_MILLIS = 10000;
         private int initialBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
@@ -141,6 +152,72 @@ public class EventWriterConfig implements Serializable {
                                          transactionTimeoutTime,
                                          automaticallyNoteTime,
                                          enableLargeEvents);
+        }
+    }
+
+    static class EventWriterConfigSerializer
+            extends VersionedSerializer.WithBuilder<EventWriterConfig, EventWriterConfigBuilder> {
+        @Override
+        protected EventWriterConfigBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, EventWriterConfigBuilder builder) throws IOException {
+            builder.initialBackoffMillis(revisionDataInput.readInt());
+            builder.maxBackoffMillis(revisionDataInput.readInt());
+            builder.retryAttempts(revisionDataInput.readInt());
+            builder.backoffMultiple(revisionDataInput.readInt());
+            builder.enableConnectionPooling(revisionDataInput.readBoolean());
+            builder.transactionTimeoutTime(revisionDataInput.readLong());
+            builder.automaticallyNoteTime(revisionDataInput.readBoolean());
+            builder.enableLargeEvents(revisionDataInput.readBoolean());
+        }
+
+        private void write00(EventWriterConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(object.getInitialBackoffMillis());
+            revisionDataOutput.writeInt(object.getMaxBackoffMillis());
+            revisionDataOutput.writeInt(object.getRetryAttempts());
+            revisionDataOutput.writeInt(object.getBackoffMultiple());
+            revisionDataOutput.writeBoolean(object.enableConnectionPooling);
+            revisionDataOutput.writeLong(object.getTransactionTimeoutTime());
+            revisionDataOutput.writeBoolean(object.automaticallyNoteTime);
+            revisionDataOutput.writeBoolean(object.enableLargeEvents);
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static EventWriterConfig fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
+    @SneakyThrows(IOException.class)
+    private Object writeReplace() {
+        return new EventWriterConfig.SerializedForm(SERIALIZER.serialize(this).getCopy());
+    }
+
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 2L;
+        private final byte[] value;
+        @SneakyThrows(IOException.class)
+        Object readResolve() {
+            return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }
 }
