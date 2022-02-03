@@ -37,7 +37,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
-import static io.pravega.shared.MetricsTags.*;
+import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.eventProcessorTag;
+import static io.pravega.shared.MetricsTags.throttlerTag;
 
 /**
  * General Metrics for the SegmentStore.
@@ -519,7 +521,7 @@ public final class SegmentStoreMetrics {
      * @param containerId       Container owning the operationlog.
      */
     public static void reportOperationLogSize(int logSize, int containerId) {
-        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_LOG_SIZE, logSize, new String[] {TAG_CONTAINER, String.valueOf(containerId)});
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_LOG_SIZE, logSize, containerTag(containerId));
     }
 
     //endregion
