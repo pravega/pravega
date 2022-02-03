@@ -215,7 +215,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testOperationProcessorMetrics() {
+    public void testOperationProcessorMetrics() throws Exception {
         int containerId = 1;
         final String[] containerTag = containerTag(containerId);
         @Cleanup
@@ -230,16 +230,9 @@ public class SegmentStoreMetricsTests {
                 new TestCompletableOperation(30));
         op.operationsFailed(opf);
         assertEquals(20, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
-
-        assertEquals(3, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-        op.operationLogRead(1);
-        assertEquals(2, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-
-        op.operationLogInit();
-        assertEquals(0, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-
+        SegmentStoreMetrics.reportOperationLogSize(1000, 1);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getGauge(MetricsNames.OPERATION_LOG_SIZE).value() == 1000, 2000);
         op.close();
-        assertNull(MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag));
     }
 
     @Test

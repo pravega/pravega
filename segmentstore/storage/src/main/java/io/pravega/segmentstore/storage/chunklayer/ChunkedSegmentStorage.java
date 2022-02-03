@@ -146,7 +146,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Prefix string to use for logging.
      */
     @Getter
-    private String logPrefix;
+    private String logPrefix = "";
 
     /**
      * Instance of {@link MultiKeySequentialProcessor}.
