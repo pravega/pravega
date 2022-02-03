@@ -108,6 +108,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -177,6 +178,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         val policy = new SegmentRollingPolicy(maxLength);
         val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
@@ -206,6 +208,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -242,6 +245,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         val policy = new SegmentRollingPolicy(maxLength);
         val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
@@ -966,6 +970,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -1001,6 +1006,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
@@ -1016,6 +1022,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
@@ -1046,6 +1053,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -1081,6 +1089,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
@@ -1096,6 +1105,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
@@ -1129,6 +1139,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -1163,6 +1174,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(2, snapshotInfoStore).join();
@@ -1190,6 +1202,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(3, snapshotInfoStore).join();
@@ -1217,6 +1230,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector4.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter3 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash3, garbageCollector4, config, executorService());
 
         systemJournalAfter3.bootstrap(4, snapshotInfoStore).join();

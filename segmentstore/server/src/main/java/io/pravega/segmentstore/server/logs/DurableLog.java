@@ -37,6 +37,7 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -106,7 +107,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
+        ThrottlerPolicy throttlerPolicy = new ThrottlerPolicy(config);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, throttlerPolicy, executor);
         Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.closed = new AtomicBoolean();
         this.delayedStart = new CompletableFuture<>();
@@ -210,7 +212,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING || (state() == State.RUNNING && isOffline()), "Invalid State for recovery.");
 
-        this.operationProcessor.getMetrics().operationLogInit();
         Timer timer = new Timer();
         try {
             // Initialize the DurableDataLog, which will acquire its lock and ensure we are the only active users of it.
@@ -220,6 +221,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.memoryStateUpdater);
             int recoveredItemCount = p.performRecovery();
             this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
+            SegmentStoreMetrics.reportOperationLogSize(recoveredItemCount, this.getId());
 
             // Verify that the Recovery Processor has left the metadata in a non-recovery mode.
             Preconditions.checkState(!this.metadata.isRecoveryMode(), "Recovery completed but Metadata is still in Recovery Mode.");
@@ -349,7 +351,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         CompletableFuture<Queue<Operation>> result = this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
         result.thenAccept(r -> {
             final int size = r.size();
-            this.operationProcessor.getMetrics().operationLogRead(size);
+            SegmentStoreMetrics.reportOperationLogSize(this.inMemoryOperationLog.size(), this.getId());
             log.debug("{}: ReadResult (Count = {}, Remaining = {}).", this.traceObjectId, size, this.inMemoryOperationLog.size());
             if (size > 0) {
                 this.memoryStateUpdater.notifyLogRead();
