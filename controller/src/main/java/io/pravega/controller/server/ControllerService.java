@@ -389,7 +389,7 @@ public class ControllerService {
 
     private CompletableFuture<CreateStreamStatus> callCreateStream(final String scope, final String stream,
                                                                    final StreamConfiguration streamConfig,
-                                                                   final long createTimestamp, long requestId){
+                                                                   final long createTimestamp, long requestId) {
         Timer timer = new Timer();
         return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor),
                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
