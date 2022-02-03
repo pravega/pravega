@@ -266,6 +266,8 @@ public class FileSystemWrapperTests {
         Assert.assertTrue(fw.isWritable(filePath));
     }
 
+    // Added to debug issue where file was reported as writable even after making it read only.
+    // Now it makes sense - all files are writeable for root
     private boolean isRootUser() {
         return System.getProperty(USER_NAME_PROPERTY).equals(ROOT_USER_NAME);
     }
