@@ -206,7 +206,7 @@ public abstract class ControllerServiceWithStreamTest {
         // there will be two invocations because we also create internal mark stream
         verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
-        streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
+        streamStatus = consumer.createStreamInternal(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again
