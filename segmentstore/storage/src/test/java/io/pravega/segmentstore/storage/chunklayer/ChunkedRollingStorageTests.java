@@ -82,12 +82,4 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
     protected ChunkMetadataStore getMetadataStore() throws Exception {
         return new InMemoryMetadataStore(getDefaultConfig(), executorService());
     }
-
-    @Override
-    public void testListSegmentsWithOneSegment() {
-    }
-
-    @Override
-    public void testListSegmentsNextNoSuchElementException() {
-    }
 }
