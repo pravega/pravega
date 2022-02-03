@@ -596,55 +596,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
-    /**
-     * @see SegmentOutputStream#flushAsync()
-     */
-    @Override
-    public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
-        int numInflight = state.getNumInflight();
-        log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
-        if (numInflight != 0) {
-            try {
-                ClientConnection connection = Futures.getThrowingException(getConnection());
-                connection.send(new KeepAlive());
-            } catch (SegmentSealedException | NoSuchSegmentException e) {
-                if (NameUtils.isTransactionSegment(segmentName)) {
-                    log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
-                            "committed/aborted. Details: {}", e.getMessage());
-                    failConnection(e);
-                } else {
-                    log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
-                }
-            } catch (Exception e) {
-                failConnection(e);
-                if (e instanceof RetriesExhaustedException) {
-                    log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
-                    //throw an exception to the external world that the flush failed due to RetriesExhaustedException
-                    throw Exceptions.sneakyThrow(e);
-                }
-            }
-            Exceptions.checkNotClosed(state.isClosed(), this);
-            /* SegmentSealedException is thrown if either of the below conditions are true
-                 - resendToSuccessorsCallback has been invoked.
-                 - the segment corresponds to an aborted Transaction.
-             */
-            if (state.needSuccessors.get() || (NameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
-                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
-            }
-
-        } else if (state.exception instanceof RetriesExhaustedException) {
-            // All attempts to connect with SSS have failed.
-            // The number of retry attempts is based on EventWriterConfig
-            log.error("Flush on segment {} by writer {} failed after all retries", segmentName, writerId);
-            throw Exceptions.sneakyThrow(state.exception);
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            responseProcessor.ackUpTo(state.inflight.getLast().getKey());
-            return true;
-        }, connectionPool.getInternalExecutor());
-    }
-
     private void failConnection(Throwable e) {
         if (e instanceof TokenExpiredException) {
             this.tokenProvider.signalTokenExpired();

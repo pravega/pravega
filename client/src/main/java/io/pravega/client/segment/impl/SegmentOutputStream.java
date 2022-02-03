@@ -18,7 +18,6 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.stream.impl.PendingEvent;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines an OutputStream for a segment.
@@ -55,12 +54,6 @@ public interface SegmentOutputStream extends AutoCloseable {
      * @throws SegmentSealedException If the segment is closed for modifications.
      */
     public abstract void flush() throws SegmentSealedException;
-
-    /**
-     * Completes remaining writes asynchronously.
-     * @throws SegmentSealedException If the segment is closed for modifications.
-     */
-    public abstract CompletableFuture<Boolean> flushAsync() throws SegmentSealedException;
 
     /**
      * Change the state of SegmentOutputStream to sealed to prevent future writes and return the list of unackedEvents.

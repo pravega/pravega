@@ -30,6 +30,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
 import org.junit.After;
@@ -92,9 +93,38 @@ public class ByteStreamWriterTest {
         headoffset = 10;
         writer.write(value, 0, value.length);
         writer.truncateDataBefore(headoffset);
-        writer.flushAsync();
+        writer.flushAsync().join();
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 4, writer.fetchTailOffset());
+    }
+
+    @Test(timeout = 5000)
+    public void testAsyncFlush() throws Exception {
+        @Cleanup
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
+        byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7 };
+        int headoffset = 0;
+        writer.write(value);
+        CompletableFuture<Void> firstFlushAsync = writer.flushAsync();
+        writer.write(value);
+        writer.write(value);
+        writer.write(value);
+
+        CompletableFuture<Void> secondFlushAsync = writer.flushAsync();
+
+        firstFlushAsync.join();
+        assertEquals(headoffset, writer.fetchHeadOffset());
+        assertEquals(value.length * 4, writer.fetchTailOffset());
+
+        secondFlushAsync.join();
+        assertEquals(headoffset, writer.fetchHeadOffset());
+        assertEquals(value.length * 4, writer.fetchTailOffset());
+
+        writer.write(value);
+        CompletableFuture<Void> thirdFlushAsync = writer.flushAsync();
+        thirdFlushAsync.join();
+        assertEquals(headoffset, writer.fetchHeadOffset());
+        assertEquals(value.length * 5, writer.fetchTailOffset());
     }
 
     @Test(timeout = 5000)

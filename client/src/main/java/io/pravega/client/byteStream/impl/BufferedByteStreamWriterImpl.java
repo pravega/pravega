@@ -99,7 +99,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public CompletableFuture<Boolean> flushAsync() throws IOException {
+    public CompletableFuture<Void> flushAsync() throws IOException {
         commitBuffer();
         return out.flushAsync();
     }

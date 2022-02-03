@@ -205,11 +205,6 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         }
 
         @Override
-        public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
-            return null;
-        }
-
-        @Override
         public List<PendingEvent> getUnackedEventsOnSeal() {
             sealed = true;
             return Collections.unmodifiableList(unacked);
@@ -263,11 +258,6 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
             //flushLatch is used to simulate a blocking Flush(). .
             Exceptions.handleInterrupted(() -> flushLatch.await());
             throw new SegmentSealedException(segment.toString());
-        }
-
-        @Override
-        public CompletableFuture<Boolean> flushAsync() throws SegmentSealedException {
-            return null;
         }
 
         @Override

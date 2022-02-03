@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
 
 @RequiredArgsConstructor
 public class ByteStreamWriterImpl extends ByteStreamWriter {
@@ -34,6 +35,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     private final SegmentOutputStream out;
     @NonNull
     private final SegmentMetadataClient meta;
+    private CompletableFuture<Void> latestEventFuture;
 
     @Override
     public void write(int b) throws IOException {
@@ -42,13 +44,22 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     
     @Override
     public void write(ByteBuffer src) throws IOException {
-        out.write(PendingEvent.withoutHeader(null, src, new CompletableFuture<>()));
+        CompletableFuture<Void> latestEventFuture = new CompletableFuture<>();
+        out.write(PendingEvent.withoutHeader(null, src, latestEventFuture));
+        updateLastEventFuture(latestEventFuture);
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         ByteBuffer data = ByteBuffer.wrap(b, off, len);
-        out.write(PendingEvent.withoutHeader(null, data, new CompletableFuture<>()));
+        CompletableFuture<Void> latestEventFuture = new CompletableFuture<>();
+        out.write(PendingEvent.withoutHeader(null, data, latestEventFuture));
+        updateLastEventFuture(latestEventFuture);
+    }
+
+    @Synchronized
+    private void updateLastEventFuture(CompletableFuture<Void> latestFuture) {
+        this.latestEventFuture = latestFuture;
     }
 
     @Override
@@ -63,8 +74,8 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public CompletableFuture<Boolean> flushAsync() throws IOException {
-        return out.flushAsync();
+    public CompletableFuture<Void> flushAsync() {
+        return this.latestEventFuture;
     }
 
     @Override

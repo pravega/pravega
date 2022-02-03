@@ -89,12 +89,13 @@ public abstract class ByteStreamWriter extends OutputStream {
     public abstract void flush() throws IOException;
 
     /**
-     * Persists remaining data writes in background.
+     * Persists remaining data writes in up to data written or further at the moment. This does
+     * not block new writes with the writer.
      *
      * @see java.io.OutputStream#flush()
      * @throws IOException If for any reason the flush fails including if the stream is sealed.
      */
-    public abstract CompletableFuture<Boolean> flushAsync() throws IOException;
+    public abstract CompletableFuture<Void> flushAsync() throws IOException;
 
 
     /**

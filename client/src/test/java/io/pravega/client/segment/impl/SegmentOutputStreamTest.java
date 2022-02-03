@@ -324,7 +324,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack2));
             // Verify that a flush on the SegmentOutputStream does throw a RetriesExhaustedException.
             AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flush);
-            AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flushAsync);
         } finally {
             // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
             AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
@@ -550,16 +549,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
-
-        CompletableFuture<Void> acked3 = new CompletableFuture<>();
-        output.write(PendingEvent.withoutHeader(null, data, acked3));
-        order.verify(connection).send(new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
-        CompletableFuture<Boolean> asyncCall = output.flushAsync();
-        assertEquals(asyncCall.join().booleanValue(), true);
-        assertEquals(false, acked3.isCompletedExceptionally());
-        assertEquals(true, acked3.isDone());
-        order.verify(connection).send(new WireCommands.KeepAlive());
-
         order.verifyNoMoreInteractions();
     }
 
@@ -953,7 +942,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)
@@ -980,13 +968,11 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertEquals(false, ack.isDone());
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     /**
@@ -1028,11 +1014,9 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> latch.release());
 
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)
@@ -1283,13 +1267,11 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertBlocks(() -> {
             // A flush() should throw a SegmentSealedException.
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
         }, () -> {
             // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
             cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), TXN_SEGMENT, "SomeException", -1L));
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flushAsync());
     }
 
     @Test(timeout = 10000)
