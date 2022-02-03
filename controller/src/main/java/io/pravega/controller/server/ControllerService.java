@@ -368,7 +368,7 @@ public class ControllerService {
     /**
      * Creates stream with specified configuration. 
      * @param scope scope
-     * @param stream stream
+     * @param stream stream name
      * @param streamConfig stream configuration
      * @param createTimestamp creation time
      * @param requestId request id
