@@ -23,7 +23,6 @@ import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
@@ -156,8 +155,12 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments() throws IOException {
-        return this.syncStorage.listSegments();
+    public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
+        try {
+            return CompletableFuture.completedFuture(this.syncStorage.listSegments());
+        } catch (Exception ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
     }
 
     @Override

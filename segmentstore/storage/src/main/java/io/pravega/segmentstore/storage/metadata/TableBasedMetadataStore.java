@@ -20,11 +20,14 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -38,10 +41,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_STORE;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_NOT_FOUND;
@@ -193,6 +200,58 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                 .exceptionally(e -> {
                     val ex = Exceptions.unwrap(e);
                     throw new CompletionException(handleException(ex));
+                });
+    }
+
+    /**
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    @Override
+    public CompletableFuture<Stream<StorageMetadata>> getAllEntries() {
+        return this.tableStore.entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
+                .thenApplyAsync(i -> getStreamFromTableIterator(i).map(td -> td.getValue()), getExecutor())
+                .exceptionally(e -> {
+                    val ex = Exceptions.unwrap(e);
+                    throw new CompletionException(handleException(ex));
+                });
+    }
+
+    /**
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    @Override
+    public CompletableFuture<Stream<String>> getAllKeys() {
+        return this.tableStore.entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
+                .thenApplyAsync(i -> getStreamFromTableIterator(i).map(td -> td.getKey()), getExecutor())
+                .exceptionally(e -> {
+                    val ex = Exceptions.unwrap(e);
+                    throw new CompletionException(handleException(ex));
+                });
+    }
+
+    /**
+     * Converts the given {@link AsyncIterator} to {@link Stream} of {@link TransactionData}.
+     * @param iterator Iterator to convert.
+     * @return {@link Stream} of {@link TransactionData}.
+     */
+    Stream<TransactionData> getStreamFromTableIterator(AsyncIterator<IteratorItem<TableEntry>> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator.asIterator(), Spliterator.CONCURRENT), true)
+                .map(collection -> collection.getEntries())
+                .flatMap(entry -> entry.stream())
+                .map(tableEntry -> {
+                    try {
+                        return SERIALIZER.deserialize(tableEntry.getValue());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                 });
     }
 
