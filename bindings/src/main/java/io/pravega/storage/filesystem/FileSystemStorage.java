@@ -272,22 +272,21 @@ public class FileSystemStorage implements SyncStorage {
                     "current size of segment (%d).", offset, fileSize));
         }
 
-        try (FileChannel channel = getFileChannel(path, StandardOpenOption.READ)) {
-            int totalBytesRead = 0;
-            long readOffset = offset;
-            do {
-                ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
-                int bytesRead = channel.read(readBuffer, readOffset);
-                bufferOffset += bytesRead;
-                totalBytesRead += bytesRead;
-                length -= bytesRead;
-                readOffset += bytesRead;
-            } while (length != 0);
-            FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-            FileSystemMetrics.READ_BYTES.add(totalBytesRead);
-            LoggerHelpers.traceLeave(log, "read", traceId, totalBytesRead);
-            return totalBytesRead;
-        }
+        FileChannel channel = getFileChannel(path, StandardOpenOption.READ);
+        int totalBytesRead = 0;
+        long readOffset = offset;
+        do {
+            ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
+            int bytesRead = channel.read(readBuffer, readOffset);
+            bufferOffset += bytesRead;
+            totalBytesRead += bytesRead;
+            length -= bytesRead;
+            readOffset += bytesRead;
+        } while (length != 0);
+        FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        FileSystemMetrics.READ_BYTES.add(totalBytesRead);
+        LoggerHelpers.traceLeave(log, "read", traceId, totalBytesRead);
+        return totalBytesRead;
     }
 
     protected SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
@@ -340,24 +339,24 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = getFileChannel(path, StandardOpenOption.WRITE)) {
-            long fileSize = channel.size();
-            if (fileSize != offset) {
-                throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
-            }
-
-            // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
-            // the underlying InputStream, which is not desirable if it is to be reused.
-            ReadableByteChannel sourceChannel = Channels.newChannel(data);
-            while (length != 0) {
-                long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
-                assert bytesWritten > 0 : "Unable to make any progress transferring data.";
-                offset += bytesWritten;
-                totalBytesWritten += bytesWritten;
-                length -= bytesWritten;
-            }
-            channel.force(false);
+        FileChannel channel = getFileChannel(path, StandardOpenOption.WRITE);
+        long fileSize = channel.size();
+        if (fileSize != offset) {
+            throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         }
+
+        // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
+        // the underlying InputStream, which is not desirable if it is to be reused.
+        ReadableByteChannel sourceChannel = Channels.newChannel(data);
+        while (length != 0) {
+            long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+            assert bytesWritten > 0 : "Unable to make any progress transferring data.";
+            offset += bytesWritten;
+            totalBytesWritten += bytesWritten;
+            length -= bytesWritten;
+        }
+        channel.force(false);
+
         FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
         FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
         LoggerHelpers.traceLeave(log, "write", traceId);

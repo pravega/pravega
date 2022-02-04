@@ -46,6 +46,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -125,12 +127,16 @@ public class InMemoryTableStore implements TableStore {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
-        throw new UnsupportedOperationException();
+        Collection<TableEntry> tableEntries = getTableEntries(segmentName);
+        val item = new IteratorItemImpl<>(args.getContinuationToken(), tableEntries.stream().map(TableEntry::getKey).collect(Collectors.toList()));
+        return CompletableFuture.completedFuture(AsyncIterator.singleton(item));
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
-        throw new UnsupportedOperationException();
+        Collection<TableEntry> tableEntries = getTableEntries(segmentName);
+        val item = new IteratorItemImpl<>(args.getContinuationToken(), tableEntries);
+        return CompletableFuture.completedFuture(AsyncIterator.singleton(item));
     }
 
     @Override
@@ -152,6 +158,16 @@ public class InMemoryTableStore implements TableStore {
             }
             return result;
         }
+    }
+
+    private Collection<TableEntry> getTableEntries(String segmentName) {
+        TableData tableData = this.tables.get(segmentName);
+        Collection<TableEntry> tableEntries =  null != tableData ?
+                tableData.entries.values().stream()
+                        .filter(tableEntry -> tableEntry != null && tableEntry.getValue() != null)
+                        .collect(Collectors.toList())
+                : Collections.emptyList();
+        return tableEntries;
     }
 
     //endregion
@@ -212,6 +228,16 @@ public class InMemoryTableStore implements TableStore {
             clone.entries.putAll(this.entries);
             return clone;
         }
+    }
+
+    /**
+     * Implementation of {@link IteratorItem} for {@link InMemoryTableStore}.
+     * @param <T> Entry type.
+     */
+    @Data
+    private static class IteratorItemImpl<T> implements IteratorItem<T> {
+        private final BufferView state;
+        private final Collection<T> entries;
     }
 
     //endregion
