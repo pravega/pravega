@@ -250,7 +250,7 @@ public abstract class RequestHandlersTest {
         
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
-        VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
+        VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), "", Long.MIN_VALUE, null, executor).join();
 
         // regular commit
@@ -446,7 +446,7 @@ public abstract class RequestHandlersTest {
 
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
-        VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
+        VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), "", Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),

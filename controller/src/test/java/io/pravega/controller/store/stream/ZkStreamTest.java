@@ -475,12 +475,12 @@ public class ZkStreamTest {
         OperationContext context = store.createStreamContext(ZkStreamTest.SCOPE, streamName, 0L);
 
         UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
-        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000,
+        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000,
                 context, executor).get();
         Assert.assertEquals(txnId1, tx.getId());
 
         UUID txnId2 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
-        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000,
+        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000,
                 context, executor).get();
         Assert.assertEquals(txnId2, tx2.getId());
 
@@ -582,7 +582,7 @@ public class ZkStreamTest {
         stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber, context).join();
         stream.updateState(State.ACTIVE, context).join();
         UUID txId = stream.generateNewTxnId(0, 0L, context).join();
-        stream.createTransaction(txId, 1000L, 1000L, context).join();
+        stream.createTransaction(txId, 1000L, context).join();
 
         String activeTxPath = stream.getActiveTxPath(0, txId.toString());
         // throw DataNotFoundException for txn path

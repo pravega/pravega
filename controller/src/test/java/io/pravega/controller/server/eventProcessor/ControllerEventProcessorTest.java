@@ -155,7 +155,7 @@ public abstract class ControllerEventProcessorTest {
     @Test(timeout = 10000)
     public void testCommitEventProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
@@ -179,7 +179,7 @@ public abstract class ControllerEventProcessorTest {
         streamStore.setState(SCOPE, stream, State.ACTIVE, null, executor).join();
         
         UUID txnOnEpoch0 = streamStore.generateTransactionId(SCOPE, stream, null, executor).join();
-        VersionedTransactionData txnData0 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch0, 10000, 10000,
+        VersionedTransactionData txnData0 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch0, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData0);
         checkTransactionState(SCOPE, stream, txnOnEpoch0, TxnStatus.OPEN);
@@ -193,7 +193,7 @@ public abstract class ControllerEventProcessorTest {
         scaleTask.execute(new ScaleOpEvent(SCOPE, stream, Collections.singletonList(0L), newRange, false, System.currentTimeMillis(), 0L)).join();
 
         UUID txnOnEpoch1 = streamStore.generateTransactionId(SCOPE, stream, null, executor).join();
-        VersionedTransactionData txnData1 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch1, 10000, 10000,
+        VersionedTransactionData txnData1 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch1, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData1);
         checkTransactionState(SCOPE, stream, txnOnEpoch1, TxnStatus.OPEN);
@@ -353,7 +353,7 @@ public abstract class ControllerEventProcessorTest {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-            VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+            VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000,
                     null, executor).join();
             Assert.assertNotNull(txnData);
             checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
@@ -369,7 +369,7 @@ public abstract class ControllerEventProcessorTest {
     @Test(timeout = 10000)
     public void testAbortEventProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
@@ -390,7 +390,7 @@ public abstract class ControllerEventProcessorTest {
     @Test(timeout = 10000)
     public void testMarkOnCommit() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000,
                 null, executor).join();
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);

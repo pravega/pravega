@@ -578,15 +578,14 @@ public class StreamTransactionMetadataTasksTest {
                         invocation.callRealMethod();
                 return future;
             }
-        }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), any(), any());
+        }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), any(), any());
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 
                 0L, 1024 * 1024L).join();
 
         // verify that generate transaction id is called 3 times
         verify(streamStoreMock, times(3)).generateTransactionId(any(), any(), any(), any());
         // verify that create transaction is called 2 times
-        verify(streamStoreMock, times(2)).createTransaction(any(), any(), any(), anyLong(), 
-                anyLong(), any(), any());
+        verify(streamStoreMock, times(2)).createTransaction(any(), any(), any(), anyLong(), any(), any());
 
         // verify that the txn id that is generated is of type ""
         UUID txnId = txn.getKey().getId();

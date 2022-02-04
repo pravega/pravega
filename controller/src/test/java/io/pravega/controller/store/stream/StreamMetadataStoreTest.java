@@ -789,7 +789,7 @@ public abstract class StreamMetadataStoreTest {
         // first txn created before-scale
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx01 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         assertEquals(0, tx01.getEpoch());
         VersionedMetadata<EpochTransitionRecord> versioned = store.submitScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment2, segment3), scaleTs, null, null, executor).join();
@@ -806,7 +806,7 @@ public abstract class StreamMetadataStoreTest {
         store.scaleCreateNewEpochs(scope, stream, versioned, null, executor).join();
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx02 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         assertEquals(0, tx02.getEpoch());
         assertEquals(0, (int) (tx02.getId().getMostSignificantBits() >> 32));
 
@@ -820,7 +820,7 @@ public abstract class StreamMetadataStoreTest {
                 null, executor).join();
         store.completeScale(scope, stream, versioned, null, executor).join();
         VersionedTransactionData tx03 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         assertEquals(0, tx03.getEpoch());
         assertEquals(0, (int) (tx03.getId().getMostSignificantBits() >> 32));
 
@@ -876,7 +876,7 @@ public abstract class StreamMetadataStoreTest {
 
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx14 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         assertEquals(1, tx14.getEpoch());
 
         store.sealTransaction(scope, stream, tx14.getId(), true, Optional.of(tx14.getVersion()), "", Long.MIN_VALUE, null, executor).get();
@@ -884,7 +884,7 @@ public abstract class StreamMetadataStoreTest {
         // verify that new txns can be created and are created on original epoch
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx15 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         assertEquals(1, tx15.getEpoch());
 
         store.scaleCreateNewEpochs(scope, stream, versioned2, null, executor).join();
@@ -927,7 +927,7 @@ public abstract class StreamMetadataStoreTest {
 
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
         long scaleTs = System.currentTimeMillis();
@@ -1000,13 +1000,13 @@ public abstract class StreamMetadataStoreTest {
         // keep third as open. add ordered entries for all three.. verify that they are present in ordered set.
         UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx00,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         UUID tx01 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx01,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         UUID tx02 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx02,
-                100, 100, null, executor).get();
+                100, null, executor).get();
 
         // committing
         store.sealTransaction(scope, stream, tx00, true, Optional.empty(),
@@ -1050,13 +1050,13 @@ public abstract class StreamMetadataStoreTest {
         // keep third as open. add ordered entries for all three.. verify that they are present in ordered set.
         UUID tx10 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx10,
-                100, 100, null, executor).get();
+                100,  null, executor).get();
         UUID tx11 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx11,
-                100, 100, null, executor).get();
+                100,  null, executor).get();
         UUID tx12 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx12,
-                100, 100, null, executor).get();
+                100,  null, executor).get();
         // set all three transactions to committing
         store.sealTransaction(scope, stream, tx10, true, Optional.empty(),
                 "", Long.MIN_VALUE, null, executor).get();
@@ -1167,13 +1167,13 @@ public abstract class StreamMetadataStoreTest {
         // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
         UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx00,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         UUID tx01 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx01,
-                100, 100, null, executor).get();
+                100, null, executor).get();
         UUID tx02 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx02,
-                100, 100, null, executor).get();
+                100, null, executor).get();
 
         // committing
         store.sealTransaction(scope, stream, tx00, true, Optional.empty(),
@@ -1223,13 +1223,13 @@ public abstract class StreamMetadataStoreTest {
         // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
         UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx00,
-                100, 100, null, executor).get();
+                100,  null, executor).get();
         UUID tx01 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx01,
-                100, 100, null, executor).get();
+                100,  null, executor).get();
         UUID tx02 = store.generateTransactionId(scope, stream, null, executor).join();
         store.createTransaction(scope, stream, tx02,
-                100, 100, null, executor).get();
+                100, null, executor).get();
 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         // duplicate for tx00
@@ -1273,7 +1273,7 @@ public abstract class StreamMetadataStoreTest {
         for (int i = 0; i < 100; i++) {
             UUID tx = store.generateTransactionId(scope, stream, context, executor).join();
             store.createTransaction(scope, stream, tx,
-                    100, 100, context, executor).join();
+                    100, context, executor).join();
             store.sealTransaction(scope, stream, tx, true, Optional.empty(),
                     "", Long.MIN_VALUE, context, executor).join();
             txns.add(tx);
@@ -1930,7 +1930,7 @@ public abstract class StreamMetadataStoreTest {
 
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx01 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).join();
+                100, null, executor).join();
 
         String writer1 = "writer1";
         long time = 1L;

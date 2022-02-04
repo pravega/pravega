@@ -139,7 +139,7 @@ public abstract class StreamTestBase {
     private UUID createAndCommitTransaction(Stream stream, int msb, long lsb) {
         OperationContext context = getContext();
         return stream.generateNewTxnId(msb, lsb, context)
-                     .thenCompose(x -> stream.createTransaction(x, 1000L, 1000L, context))
+                     .thenCompose(x -> stream.createTransaction(x, 1000L, context))
                      .thenCompose(y -> stream.sealTransaction(y.getId(), true, Optional.empty(), "", 
                              Long.MIN_VALUE, context)
                                              .thenApply(z -> y.getId())).join();
@@ -1523,7 +1523,6 @@ public abstract class StreamTestBase {
         assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == three.segmentId() || x.segmentId() == four.segmentId()
                 || x.segmentId() == seven.segmentId() || x.segmentId() == eight.segmentId() || x.segmentId() == nine.segmentId()
                 || x.segmentId() == ten.segmentId()));
-
     }
 
     @Test(timeout = 30000L)
@@ -1609,7 +1608,7 @@ public abstract class StreamTestBase {
 
         UUID txnId = new UUID(0L, 0L);
         OperationContext context = getContext();
-        VersionedTransactionData tx01 = streamObj.createTransaction(txnId, 100, 100, context).join();
+        VersionedTransactionData tx01 = streamObj.createTransaction(txnId, 100, context).join();
 
         String writer1 = "writer1";
         long time = 1L;
@@ -1653,16 +1652,16 @@ public abstract class StreamTestBase {
         // create 4 transactions with same writer id. 
         // two of the transactions should have same highest time. 
         OperationContext context = getContext();
-        VersionedTransactionData tx01 = streamObj.createTransaction(txnId1, 100, 100, context).join();
+        VersionedTransactionData tx01 = streamObj.createTransaction(txnId1, 100, context).join();
         streamObj.sealTransaction(txnId1, true, Optional.of(tx01.getVersion()), writer, time, context).join();
 
-        VersionedTransactionData tx02 = streamObj.createTransaction(txnId2, 100, 100, context).join();
+        VersionedTransactionData tx02 = streamObj.createTransaction(txnId2, 100, context).join();
         streamObj.sealTransaction(txnId2, true, Optional.of(tx02.getVersion()), writer, time + 1L, context).join();
 
-        VersionedTransactionData tx03 = streamObj.createTransaction(txnId3, 100, 100, context).join();
+        VersionedTransactionData tx03 = streamObj.createTransaction(txnId3, 100, context).join();
         streamObj.sealTransaction(txnId3, true, Optional.of(tx03.getVersion()), writer, time + 4L, context).join();
 
-        VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100, context).join();
+        VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, context).join();
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L, context).join();
 
         streamObj.startCommittingTransactions(100, context).join();
@@ -1692,10 +1691,10 @@ public abstract class StreamTestBase {
         List<UUID> txns = Lists.newArrayList(txnId1, txnId2, txnId3, txnId4);
         // create 1 2 and 4. dont create 3.
         OperationContext context = getContext();
-        streamObj.createTransaction(txnId1, 1000L, 1000L, context).join();
-        streamObj.createTransaction(txnId2, 1000L, 1000L, context).join();
+        streamObj.createTransaction(txnId1, 1000L, context).join();
+        streamObj.createTransaction(txnId2, 1000L, context).join();
         streamObj.sealTransaction(txnId2, true, Optional.empty(), "w", 1000L, context).join();
-        streamObj.createTransaction(txnId4, 1000L, 1000L, context).join();
+        streamObj.createTransaction(txnId4, 1000L, context).join();
         streamObj.sealTransaction(txnId4, false, Optional.empty(), "w", 1000L, context).join();
         List<ActiveTxnRecord> transactions = 
                 streamObj.getTransactionRecords(0, txns.stream().map(UUID::toString).collect(Collectors.toList()), 
