@@ -263,20 +263,20 @@ public class EventStreamReaderTest {
         name.append("/");
         name.append("Bar");
         assertEquals(buffer1, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(name.toString(), e.getEventPointer().getStreamName());
+        assertEquals(name.toString(), e.getEventPointer().getStream().getScopedName());
         assertEquals(Long.valueOf(WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         e = reader.readNextEvent(0);
         assertEquals(buffer2, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(name.toString(), e.getEventPointer().getStreamName());
+        assertEquals(name.toString(), e.getEventPointer().getStream().getScopedName());
         assertEquals(Long.valueOf(2 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         e = reader.readNextEvent(0);
         assertEquals(buffer3, ByteBuffer.wrap(e.getEvent()));
-        assertEquals(name.toString(), e.getEventPointer().getStreamName());
+        assertEquals(name.toString(), e.getEventPointer().getStream().getScopedName());
         assertEquals(Long.valueOf(3 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
                 e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
-        assertEquals(name.toString(), e.getEventPointer().getStreamName());
+        assertEquals(name.toString(), e.getEventPointer().getStream().getScopedName());
         e = reader.readNextEvent(0);
         assertNull(e.getEvent());
         assertNull(e.getEventPointer());

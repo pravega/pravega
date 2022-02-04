@@ -18,12 +18,12 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.Stream;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.shared.NameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import lombok.Builder;
@@ -135,8 +135,8 @@ public class EventPointerImpl extends EventPointerInternal {
     }
 
     @Override
-    public String getStreamName() {
-        return NameUtils.getScopedStreamName(segment.getScope(), segment.getStreamName());
+    public Stream getStream() {
+        return Stream.of(segment.getScope(), segment.getStreamName());
     }
 
 }

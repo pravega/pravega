@@ -47,10 +47,11 @@ public interface EventPointer {
     }
 
     /**
-     * Returns the stream name from which event is read from , If no event to read then this will return null.
+     * Returns the stream from which event is read from, fully qualified stream name can be obtained from calling {@link Stream#getScopedName()} }
+     * If no event to read then this will return null.
      *
-     * @return The name of the stream
+     * @return the stream object
      */
-    String getStreamName();
+    Stream getStream();
 
 }
