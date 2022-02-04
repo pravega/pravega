@@ -131,6 +131,7 @@ public class EventWriterConfig implements Serializable {
         private boolean enableConnectionPooling = false;
         private boolean enableLargeEvents = false;
 
+        @Override
         public EventWriterConfig build() {
             Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME_MILLIS, "Transaction time must be at least 10 seconds.");
             Preconditions.checkArgument(initialBackoffMillis >= 0, "Backoff times must be positive numbers");

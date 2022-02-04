@@ -35,7 +35,7 @@ import lombok.SneakyThrows;
  * class to make pointer instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-public class EventPointerImpl extends EventPointerInternal {
+public final class EventPointerImpl extends EventPointerInternal {
     private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
     private final Segment segment;
     private final long eventStartOffset;
