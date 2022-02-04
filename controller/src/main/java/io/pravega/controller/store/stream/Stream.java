@@ -523,6 +523,15 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context);
 
     /**
+     * Api to get all transactions ids having a particular status.
+     *
+     * @param context operational context
+     * @param status  Transaction status
+     * @return List of txIds
+     */
+    CompletableFuture<List<UUID>> listTransactionsInState(OperationContext context, TxnStatus status);
+
+    /**
      * Returns the currently active stream epoch.
      *
      * @param ignoreCached if ignore cache is set to true then fetch the value from the store. 

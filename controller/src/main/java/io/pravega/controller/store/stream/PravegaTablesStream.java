@@ -812,6 +812,57 @@ class PravegaTablesStream extends PersistentStreamBase {
         });
     }
 
+    @Override
+    public CompletableFuture<List<UUID>> listTransactionsInActiveStates(OperationContext context, TxnStatus status) {
+        return getEpochsWithTransactions(context)
+                .thenCompose(epochsWithTransactions -> Futures.allOfWithResults(epochsWithTransactions.stream().map(x ->
+                        getTxnInEpoch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
+                    List<UUID> listTxnIds = new ArrayList<>();
+                    list.forEach(map -> {
+                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getTxnStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                    });
+                    return listTxnIds;
+                });
+    }
+
+    @Override
+    public CompletableFuture<List<UUID>> listTransactionsInCompletedStates(OperationContext context, TxnStatus status) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        return getAllBatchesForCompletedTxns(context)
+                .thenCompose(batches -> Futures.allOfWithResults(batches.stream().map(x ->
+                        getTxnInBatch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
+                    List<UUID> listTxnIds = new ArrayList<>();
+                    list.forEach(map -> {
+                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getCompletionStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                    });
+                    return listTxnIds;
+                });
+    }
+
+    private CompletableFuture<List<Integer>> getAllBatchesForCompletedTxns(OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+        List<Integer> batches = new ArrayList<>();
+        return Futures.exceptionallyExpecting(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE, context.getRequestId())
+                .collectRemaining(x -> {
+                    batches.add(Integer.parseInt(x));
+                    return true;
+                }).thenApply(v -> batches), DATA_NOT_FOUND_PREDICATE, Collections.emptyList());
+    }
+
+    private CompletableFuture<Map<UUID, CompletedTxnRecord>> getTxnInBatch(int batch, OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        Map<String, VersionedMetadata<CompletedTxnRecord>> result = new ConcurrentHashMap<>();
+        String tableName = getCompletedTransactionsBatchTableName(batch);
+        return storeHelper.expectingDataNotFound(storeHelper.getAllEntries(
+                tableName, CompletedTxnRecord::fromBytes, context.getRequestId()).collectRemaining(x -> {
+            result.put(x.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""), x.getValue());
+            return true;
+        }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
+                x -> x.getValue().getObject()))), Collections.emptyMap());
+    }
+
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 

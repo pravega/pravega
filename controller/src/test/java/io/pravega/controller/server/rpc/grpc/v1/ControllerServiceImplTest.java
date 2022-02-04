@@ -1144,6 +1144,27 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void testListTransactionInState() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+
+        ResultObserver<CreateTxnResponse> createTxnObserver = new ResultObserver<>();
+        CreateTxnRequest createTxnRequest = CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(1002L)
+                .build();
+        this.controllerService.createTransaction(createTxnRequest, createTxnObserver);
+        CreateTxnResponse createTxnResponse = createTxnObserver.get();
+        Controller.ListTxnInStateRequest listTxnInStateRequest = Controller.ListTxnInStateRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setTxnState(Controller.TxnState.newBuilder().setState(Controller.TxnState.State.OPEN).buildPartial())
+                .build();
+        ResultObserver<Controller.ListTxnInStateResponse> listTxnInStateObserver = new ResultObserver<>();
+        this.controllerService.listTransactionsInState(listTxnInStateRequest, listTxnInStateObserver);
+        assertTrue(listTxnInStateObserver.get().getTxnIdList().contains(createTxnResponse.getTxnId()));
+    }
+
+    @Test
     public void testListScopes() {
         ResultObserver<Controller.ScopesResponse> list = new ResultObserver<>();
         this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
