@@ -249,9 +249,8 @@ public class ClientConfig implements Serializable {
             // In all those cases will throw IllegalArgumentException.
             if (!isValidScheme(scheme)) {
                 String uri = controllerURI.toString();
-                String[] uriParts = uri.split(":");
-                if (uriParts.length == 2) {
-                    controllerURI = URI.create(SCHEME_DIRECT + "://" + uriParts[0].replaceAll("/", "") + ":" + uriParts[1]);
+                if (controllerURI.getScheme() != null && controllerURI.getHost() == null) {
+                    controllerURI = URI.create(SCHEME_DIRECT + "://" + uri);
                     log.info("ControllerURI is kind of {} appending default scheme to it {}", uri,
                             controllerURI.toString());
                 } else {

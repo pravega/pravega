@@ -55,10 +55,8 @@ public class ClientConfigTest {
         assertEquals(URI.create("tcp://localhost:9090"), defaultURIConfig.getControllerURI());
         ClientConfig defaultSchemeConfig = ClientConfig.builder().controllerURI(URI.create("localhost:9090")).build();
         assertEquals(URI.create("tcp://localhost:9090"), defaultSchemeConfig.getControllerURI());
-        ClientConfig config1 = ClientConfig.builder().controllerURI(URI.create("/localhost:9090")).build();
-        assertEquals(URI.create("tcp://localhost:9090"), config1.getControllerURI());
-        ClientConfig config2 = ClientConfig.builder().controllerURI(URI.create("//localhost:9090")).build();
-        assertEquals(URI.create("tcp://localhost:9090"), config2.getControllerURI());
+        ClientConfig config1 = ClientConfig.builder().controllerURI(URI.create("pravega://localhost:9090")).build();
+        assertEquals(URI.create("pravega://localhost:9090"), config1.getControllerURI());
     }
 
     @Test
@@ -121,7 +119,7 @@ public class ClientConfigTest {
     @Test
     public void testTlsIsDisabledWhenSchemeIsNull() {
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .build();
         assertFalse("TLS is enabled", clientConfig.isEnableTls());
     }
@@ -129,11 +127,11 @@ public class ClientConfigTest {
     @Test
     public void testMetricsListener() {
         ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create("//hostname:9090"))
+                                                .controllerURI(URI.create("hostname:9090"))
                                                 .build();
         assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
         clientConfig = ClientConfig.builder()
-                                   .controllerURI(URI.create("//hostname:9090"))
+                                   .controllerURI(URI.create("hostname:9090"))
                                    .metricListener(null)
                                    .build();
         assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
@@ -143,7 +141,7 @@ public class ClientConfigTest {
     public void testOverrideMaxConnections() {
         // create a client config with default number of for the max connections.
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .build();
         assertEquals(ClientConfig.DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE, clientConfig.getMaxConnectionsPerSegmentStore());
         assertTrue(clientConfig.isDefaultMaxConnections());
@@ -158,7 +156,7 @@ public class ClientConfigTest {
     @Test
     public void testPreventOverrideMaxConnections() {
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .maxConnectionsPerSegmentStore(5)
                 .build();
         assertFalse(clientConfig.isDefaultMaxConnections());
