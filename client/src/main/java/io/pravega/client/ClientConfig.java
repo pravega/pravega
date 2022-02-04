@@ -46,17 +46,15 @@ public class ClientConfig implements Serializable {
 
     static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
     private static final long serialVersionUID = 1L;
-    // Use this scheme when client want to connect to a static set of controller
-    // servers.
+    // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2
     private final static String SCHEME_DIRECT = "tcp";
     // Secure versions of the direct scheme.
     private final static String SCHEME_DIRECT_TLS = "tls";
     private final static String SCHEME_DIRECT_SSL = "ssl";
 
-    // Use this scheme when client only knows a subset of controllers and wants
-    // other controller instances to be
-    // auto discovered.
+    // Use this scheme when client only knows a subset of controllers and wants other controller instances
+    // To be auto discovered.
     // Eg: pravega://ip1:port1,ip2:port2
     private final static String SCHEME_DISCOVER = "pravega";
     // Secure version of discover scheme.
