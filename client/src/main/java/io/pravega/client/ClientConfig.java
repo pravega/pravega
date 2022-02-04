@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -45,7 +46,21 @@ public class ClientConfig implements Serializable {
 
     static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
     private static final long serialVersionUID = 1L;
+    // Use this scheme when client want to connect to a static set of controller
+    // servers.
+    // Eg: tcp://ip1:port1,ip2:port2
+    private final static String SCHEME_DIRECT = "tcp";
+    // Secure versions of the direct scheme.
+    private final static String SCHEME_DIRECT_TLS = "tls";
+    private final static String SCHEME_DIRECT_SSL = "ssl";
 
+    // Use this scheme when client only knows a subset of controllers and wants
+    // other controller instances to be
+    // auto discovered.
+    // Eg: pravega://ip1:port1,ip2:port2
+    private final static String SCHEME_DISCOVER = "pravega";
+    // Secure version of discover scheme.
+    private final static String SCHEME_DISCOVER_TLS = "pravegas";
 
     /** controllerURI The controller rpc URI. This can be of 2 types
      * 1. tcp://ip1:port1,ip2:port2,...
@@ -230,6 +245,23 @@ public class ClientConfig implements Serializable {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
+            String scheme = controllerURI.getScheme();
+            // If controllerURI is kind of <HOST>:<PORT> then will add TCP as default. 
+            // Otherwise if URI have some other Unsupported Scheme like http, https, ftp etc.
+            // In all those cases will throw IllegalArgumentException.
+            if (!isValidScheme(scheme)) {
+                String uri = controllerURI.toString();
+                String[] uriParts = uri.split(":");
+                if (uriParts.length == 2) {
+                    controllerURI = URI.create(SCHEME_DIRECT + "://" + uriParts[0].replaceAll("/", "") + ":" + uriParts[1]);
+                    log.info("ControllerURI is kind of {} appending default scheme to it {}", uri,
+                            controllerURI.toString());
+                } else {
+                    log.warn("ControllerURI is having unsupported scheme {}.", scheme);
+                    throw new IllegalArgumentException(
+                            "Expected Schemes:  [" + SCHEME_DIRECT + ", " + SCHEME_DIRECT_SSL + ", " + SCHEME_DIRECT_TLS + ", " + SCHEME_DISCOVER + ", " + SCHEME_DISCOVER_TLS + "] but was: " + scheme);
+                }
+            }
             extractCredentials();
             if (maxConnectionsPerSegmentStore <= 0) {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
@@ -237,6 +269,11 @@ public class ClientConfig implements Serializable {
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
                     isDefaultMaxConnections, deriveTlsEnabledFromControllerURI, enableTlsToController,
                     enableTlsToSegmentStore, metricListener);
+        }
+
+        private boolean isValidScheme(String scheme) {
+            return Stream.of(SCHEME_DISCOVER, SCHEME_DISCOVER_TLS, SCHEME_DIRECT, SCHEME_DIRECT_SSL, SCHEME_DIRECT_TLS)
+                .anyMatch(x -> x.equals(scheme));
         }
 
         /**

@@ -196,6 +196,13 @@ public class MetricsTagsTest {
         assertEquals("myProcessor", tags[3]);
     }
 
+    @Test
+    public void testSegmentTagDirect() {
+        String[] tags = segmentTagDirect("mySegment");
+        assertEquals(TAG_SEGMENT, tags[0]);
+        assertEquals("mySegment", tags[1]);
+    }
+
     private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {
         Assert.assertEquals(4, tags.length);
         Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
