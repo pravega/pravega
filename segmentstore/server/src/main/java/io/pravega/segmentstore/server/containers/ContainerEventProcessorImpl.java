@@ -319,7 +319,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                           .thenCompose(segment -> segment.append(serializedEvent, null, timeout))
                           .thenApply(offset -> {
                               this.segmentLength.addAndGet(serializedEvent.getLength());
-                              log.info("{}: Segment length after append ({}): {}", this.traceObjectId, serializedEvent.getLength(), this.segmentLength.get());
                               return getOutstandingBytes();
                           });
         }
@@ -333,7 +332,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @VisibleForTesting
         long getOutstandingBytes() {
             Preconditions.checkState(this.segmentLength.get() >= this.processedUpToOffset.get());
-            log.info("{}: Outstanding bytes {}", this.traceObjectId, (this.segmentLength.get() - this.processedUpToOffset.get()));
             return this.segmentLength.get() - this.processedUpToOffset.get();
         }
 
@@ -419,7 +417,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private CompletableFuture<Void> processEvents() {
             final Timer iterationTime = new Timer();
             return refreshSegment()
-                    .thenComposeAsync(v -> readEvents(),this.executor)
+                    .thenComposeAsync(v -> readEvents(), this.executor)
                     .thenComposeAsync(this::applyProcessorHandler, this.executor)
                     .thenComposeAsync(readResult -> truncateInternalSegment(readResult, iterationTime), this.executor)
                     .handleAsync((r, ex) -> {
@@ -438,8 +436,14 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     }, this.executor);
         }
 
-        @VisibleForTesting
-        CompletableFuture<Void> refreshSegment() {
+        /**
+         * Refreshes the cached {@link DirectSegmentAccess} objects to point to fresh metadata. This method is invoked
+         * on each processing iteration.
+         *
+         * @return Returns a {@link CompletableFuture} that, when successfully complete, sets a new {@link DirectSegmentAccess}
+         * object in {@link EventProcessorImpl#segment} to operate with a fresh version of it.
+         */
+        private CompletableFuture<Void> refreshSegment() {
             return this.segmentSupplier.apply(this.name).thenApply(segment -> {
                 this.segment = segment;
                 return null;
@@ -451,7 +455,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * Segment's metadata.
          */
         private void reconcileOffsets() {
-            this.segment = this.segmentSupplier.apply(this.name).join();
+            refreshSegment().join();
             long newStartOffset = this.segment.getInfo().getStartOffset();
             log.info("{}: Reconciling processed offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
             this.processedUpToOffset.set(newStartOffset);
@@ -475,8 +479,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                         long outStandingBytes = getOutstandingBytes();
                                         SegmentStoreMetrics.outstandingEventProcessorBytes(this.name, containerId, outStandingBytes);
                                         int readLength = (int) Math.min(outStandingBytes, 2 * ProcessorEventData.MAX_EVENT_SIZE);
-                                        log.info("{}: SegmentId {}, reading from {} up to {} bytes.", this.traceObjectId, this.segment.getSegmentId(),
-                                            this.processedUpToOffset.get(), readLength);
                                         return this.segment.read(this.processedUpToOffset.get(), readLength, this.containerOperationTimeout);
                                     }, this.executor)
                                     .thenCompose(rr -> AsyncReadResultProcessor.processAll(rr, this.executor, this.containerOperationTimeout))
@@ -546,10 +548,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private boolean shouldTruncate() {
-            boolean shouldTruncate = this.processedUpToOffset.get() - this.segmentStartOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
-            log.info("{}: SegmentId {}, processedUpToOffset {}, segmentStartOffset {}. Should truncate? {}", this.traceObjectId, this.segment.getSegmentId(),
-                    this.processedUpToOffset.get(), this.segmentStartOffset.get(), shouldTruncate);
-            return shouldTruncate;
+            return this.processedUpToOffset.get() - this.segmentStartOffset.get() >= this.config.getProcessedDataTruncationSizeInBytes();
         }
 
         private CompletableFuture<Void> doTruncateInternalSegment() {
@@ -559,7 +558,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             return this.segment.truncate(truncationOffset, this.containerOperationTimeout)
                     .thenAccept(v -> {
                         // Reset the start offset to the new one.
-                        log.info("{}: Successfully truncated ContainerEventProcessor segment {} at offset {}.", this.traceObjectId, this.segment.getSegmentId(), truncationOffset);
                         this.segmentStartOffset.set(truncationOffset);
                     });
         }
