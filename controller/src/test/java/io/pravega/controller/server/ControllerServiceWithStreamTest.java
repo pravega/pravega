@@ -199,8 +199,8 @@ public abstract class ControllerServiceWithStreamTest {
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
 
-        // create stream starting with underscore
-        Controller.CreateStreamStatus streamStatus1 = consumer.createStream(SCOPE, "_TestStream", configuration1, start, 0L).get();
+        // create internal stream with invalid name
+        Controller.CreateStreamStatus streamStatus1 = consumer.createStreamInternal(SCOPE, "$InvalidStream", configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus1.getStatus());
         
         // create stream
