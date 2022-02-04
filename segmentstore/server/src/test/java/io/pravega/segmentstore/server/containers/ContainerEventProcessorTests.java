@@ -194,20 +194,6 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(true, () -> retries.get() == 10, 10000);
     }
 
-    /**
-     * Check that multiple EventProcessors can work in parallel under the same {@link ContainerEventProcessor}, even in if
-     * some of them are faulty.
-     *
-     * @throws Exception
-     */
-    @Test(timeout = TIMEOUT_SUITE_MILLIS)
-    public void testMultipleProcessors() throws Exception {
-        @Cleanup
-        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
-                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
-        testMultipleProcessors(eventProcessorService);
-    }
-
     public static void testMultipleProcessors(ContainerEventProcessor eventProcessorService) throws Exception {
         int allEventsToProcess = 100;
         int maxItemsPerBatch = 10;
@@ -691,12 +677,12 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
-        return s -> CompletableFuture.completedFuture(new SegmentMock(this.executorService()));
+        MockSegmentSupplier mockSegmentSupplier = new MockSegmentSupplier();
+        return s -> mockSegmentSupplier.mockSegmentSupplier().apply(s);
     }
 
     class MockSegmentSupplier {
         SegmentMock segmentMock = spy(new SegmentMock(executorService()));
-
         private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
             return s -> CompletableFuture.completedFuture(this.segmentMock);
         }
