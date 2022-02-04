@@ -18,7 +18,10 @@ package io.pravega.client;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import java.net.URI;
+
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -29,6 +32,9 @@ public class ClientConfigTest {
 
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
+
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
 
     @Test
     public void serializable() {
@@ -41,6 +47,23 @@ public class ClientConfigTest {
                 .build();
         ClientConfig actual = s.deserialize(s.serialize(expected));
         assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testControllerURI() {
+        ClientConfig defaultURIConfig = ClientConfig.builder().controllerURI(null).build();
+        assertEquals(URI.create("tcp://localhost:9090"), defaultURIConfig.getControllerURI());
+        ClientConfig defaultSchemeConfig = ClientConfig.builder().controllerURI(URI.create("localhost:9090")).build();
+        assertEquals(URI.create("tcp://localhost:9090"), defaultSchemeConfig.getControllerURI());
+        ClientConfig config1 = ClientConfig.builder().controllerURI(URI.create("pravega://localhost:9090")).build();
+        assertEquals(URI.create("pravega://localhost:9090"), config1.getControllerURI());
+    }
+
+    @Test
+    public void testInvalidSchemeInControllerURI() {
+        exception.expect(IllegalArgumentException.class);
+        exception.expectMessage("Expected Schemes:  [tcp, ssl, tls, pravega, pravegas] but was: https");
+        ClientConfig.builder().controllerURI(URI.create("https://localhost:9090")).build();
     }
 
     @Test
@@ -96,7 +119,7 @@ public class ClientConfigTest {
     @Test
     public void testTlsIsDisabledWhenSchemeIsNull() {
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .build();
         assertFalse("TLS is enabled", clientConfig.isEnableTls());
     }
@@ -104,11 +127,11 @@ public class ClientConfigTest {
     @Test
     public void testMetricsListener() {
         ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create("//hostname:9090"))
+                                                .controllerURI(URI.create("hostname:9090"))
                                                 .build();
         assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
         clientConfig = ClientConfig.builder()
-                                   .controllerURI(URI.create("//hostname:9090"))
+                                   .controllerURI(URI.create("hostname:9090"))
                                    .metricListener(null)
                                    .build();
         assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
@@ -118,7 +141,7 @@ public class ClientConfigTest {
     public void testOverrideMaxConnections() {
         // create a client config with default number of for the max connections.
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .build();
         assertEquals(ClientConfig.DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE, clientConfig.getMaxConnectionsPerSegmentStore());
         assertTrue(clientConfig.isDefaultMaxConnections());
@@ -133,7 +156,7 @@ public class ClientConfigTest {
     @Test
     public void testPreventOverrideMaxConnections() {
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create("//hostname:9090"))
+                .controllerURI(URI.create("hostname:9090"))
                 .maxConnectionsPerSegmentStore(5)
                 .build();
         assertFalse(clientConfig.isDefaultMaxConnections());
