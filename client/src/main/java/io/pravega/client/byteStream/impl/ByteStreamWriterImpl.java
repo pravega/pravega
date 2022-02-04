@@ -45,16 +45,16 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public void write(ByteBuffer src) throws IOException {
         CompletableFuture<Void> latestEventFuture = new CompletableFuture<>();
-        out.write(PendingEvent.withoutHeader(null, src, latestEventFuture));
         updateLastEventFuture(latestEventFuture);
+        out.write(PendingEvent.withoutHeader(null, src, latestEventFuture));
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         ByteBuffer data = ByteBuffer.wrap(b, off, len);
         CompletableFuture<Void> latestEventFuture = new CompletableFuture<>();
-        out.write(PendingEvent.withoutHeader(null, data, latestEventFuture));
         updateLastEventFuture(latestEventFuture);
+        out.write(PendingEvent.withoutHeader(null, data, latestEventFuture));
     }
 
     @Synchronized
@@ -74,6 +74,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Void> flushAsync() {
         return this.latestEventFuture;
     }
