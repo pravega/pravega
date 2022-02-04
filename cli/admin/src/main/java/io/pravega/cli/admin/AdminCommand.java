@@ -42,6 +42,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryComman
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
@@ -392,6 +393,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataListEntriesCommand::descriptor, ControllerMetadataListEntriesCommand::new)
                         .put(ParseReaderGroupStreamCommand::descriptor, ParseReaderGroupStreamCommand::new)
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
+                        .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .build());
 
         /**

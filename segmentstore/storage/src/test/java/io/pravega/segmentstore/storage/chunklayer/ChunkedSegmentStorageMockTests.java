@@ -522,4 +522,33 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         Assert.assertEquals(123, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_BYTES).value(), 0);
         Assert.assertEquals(12.3, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_PERCENTAGE).value(), 0);
     }
+
+    @Test
+    public void testExceptionDuringListSegments() throws Exception {
+        Exception exceptionToThrow = new CompletionException(new StorageMetadataException("Test Exception"));
+        val clazz = StorageMetadataException.class;
+
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        spyMetadataStore.setMaxEntriesInTxnBuffer(0);
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
+        // Inject fault.
+        CompletableFuture f = new CompletableFuture();
+        f.completeExceptionally(exceptionToThrow);
+        doReturn(f).when(spyMetadataStore).getAllEntries();
+        doReturn(f).when(spyMetadataStore).getAllKeys();
+
+        AssertExtensions.assertThrows(
+                "listSegments succeeded when exception was expected.",
+                () -> chunkedSegmentStorage.listSegments().get(),
+                ex -> clazz.equals(ex.getClass()));
+    }
 }
