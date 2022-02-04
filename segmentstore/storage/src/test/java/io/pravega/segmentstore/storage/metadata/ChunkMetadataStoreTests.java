@@ -36,6 +36,7 @@ import org.junit.rules.Timeout;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for ChunkMetadataStoreTests.
@@ -103,6 +104,9 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                     "openWrite succeeded when exception was expected.",
                     () -> txn.commit(),
                     ex -> ex instanceof IllegalStateException);
+
+            Assert.assertEquals(0, metadataStore.getAllEntries().join().count());
+            Assert.assertEquals(0, metadataStore.getAllKeys().join().count());
         }
     }
 
@@ -1497,6 +1501,57 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                     () -> metadataStore.commit(txn, true, true),
                     ex -> ex instanceof IllegalStateException);
         }
+    }
+
+    @Test
+    public void testGetAll() throws Exception {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
+            // NO value should be found.
+            assertNull(txn.get(KEY0));
+            assertNull(txn.get(KEY1));
+            assertNull(txn.get(KEY3));
+            Assert.assertEquals(0, metadataStore.getAllEntries().join().count());
+            Assert.assertEquals(0, metadataStore.getAllKeys().join().count());
+
+            // Create data
+            txn.create(new MockStorageMetadata(KEY0, VALUE0));
+            txn.create(new MockStorageMetadata(KEY1, VALUE1));
+            txn.create(new MockStorageMetadata(KEY2, VALUE2));
+
+            Assert.assertEquals(0, metadataStore.getAllEntries().join().count());
+            Assert.assertEquals(0, metadataStore.getAllKeys().join().count());
+
+            txn.commit().join();
+        }
+
+        val allEntries = metadataStore.getAllEntries().join().map(e -> (MockStorageMetadata) e).collect(Collectors.toMap( StorageMetadata::getKey, s -> s));
+        Assert.assertEquals(3, allEntries.size());
+        assertEquals(allEntries.get(KEY0), KEY0, VALUE0);
+        assertEquals(allEntries.get(KEY1), KEY1, VALUE1);
+        assertEquals(allEntries.get(KEY2), KEY2, VALUE2);
+
+        val allKeys = metadataStore.getAllKeys().join().collect(Collectors.toSet());
+        Assert.assertTrue(allKeys.contains(KEY0));
+        Assert.assertTrue(allKeys.contains(KEY1));
+        Assert.assertTrue(allKeys.contains(KEY2));
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
+            // delete data
+            txn.delete(KEY0);
+            txn.delete(KEY1);
+            txn.commit().join();
+        }
+
+        val allEntriesSet = metadataStore.getAllEntries().join().collect(Collectors.toSet());
+        val allEntriesAfter =  allEntriesSet.stream().map(e -> (MockStorageMetadata) e).collect(Collectors.toMap( StorageMetadata::getKey, s -> s));
+        Assert.assertEquals(1, allEntriesAfter.size());
+        assertEquals(allEntriesAfter.get(KEY2), KEY2, VALUE2);
+        Assert.assertFalse(allEntriesAfter.containsKey(KEY0));
+        Assert.assertFalse(allEntriesAfter.containsKey(KEY1));
+        val allKeysAfter = metadataStore.getAllKeys().join().collect(Collectors.toSet());
+        Assert.assertFalse(allKeysAfter.contains(KEY0));
+        Assert.assertFalse(allKeysAfter.contains(KEY1));
+        Assert.assertTrue(allKeysAfter.contains(KEY2));
     }
 
     private void assertNotNull(CompletableFuture<StorageMetadata> data) throws Exception {

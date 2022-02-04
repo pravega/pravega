@@ -31,6 +31,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -288,4 +289,24 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
                 tableBasedMetadataStore.writeAll(Collections.singleton(td)),
                 ex -> ex instanceof StorageMetadataException && ex.getCause() instanceof IllegalStateException);
     }
+
+    @Test
+    public void testExceptionDuringIterator() {
+        TableStore mockTableStore = mock(TableStore.class);
+        @Cleanup
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+
+        when(mockTableStore.entryIterator(anyString(), any())).thenReturn(Futures.failedFuture(new CompletionException(new IOException("test"))));
+
+        AssertExtensions.assertFutureThrows(
+                "getAllEntries",
+                tableBasedMetadataStore.getAllEntries(),
+                ex -> ex instanceof StorageMetadataException && ex.getCause() instanceof IOException);
+
+        AssertExtensions.assertFutureThrows(
+                "getAllKeys",
+                tableBasedMetadataStore.getAllKeys(),
+                ex -> ex instanceof StorageMetadataException && ex.getCause() instanceof IOException);
+    }
+
 }
