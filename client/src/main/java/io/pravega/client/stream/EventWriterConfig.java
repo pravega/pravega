@@ -78,7 +78,7 @@ public class EventWriterConfig implements Serializable {
      */
     private final boolean enableConnectionPooling;
 
-    /*
+    /**
      * The transaction timeout parameter corresponds to the lease renewal period.
      * In every period, the client must send at least one ping to keep the txn alive.
      * If the client fails to do so, then Pravega aborts the txn automatically. The client
