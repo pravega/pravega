@@ -244,15 +244,12 @@ public class ClientConfig implements Serializable {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
             String scheme = controllerURI.getScheme();
-            // If controllerURI is kind of <HOST>:<PORT> then will add TCP as default. 
-            // Otherwise if URI have some other Unsupported Scheme like http, https, ftp etc.
-            // In all those cases will throw IllegalArgumentException.
+            // If Scheme name is missing in the controllerURI then will add tcp as default scheme.
+            // Otherwise if Scheme is not one of the valid scheme then will throw IllegalArgumentException
             if (!isValidScheme(scheme)) {
-                String uri = controllerURI.toString();
                 if (controllerURI.getScheme() != null && controllerURI.getHost() == null) {
-                    controllerURI = URI.create(SCHEME_DIRECT + "://" + uri);
-                    log.info("ControllerURI is kind of {} appending default scheme to it {}", uri,
-                            controllerURI.toString());
+                    controllerURI = URI.create(SCHEME_DIRECT + "://" + controllerURI.toString());
+                    log.info("Scheme name is missing in the ControllerURI, therefore adding the default scheme {} to it", SCHEME_DIRECT);
                 } else {
                     log.warn("ControllerURI is having unsupported scheme {}.", scheme);
                     throw new IllegalArgumentException(
