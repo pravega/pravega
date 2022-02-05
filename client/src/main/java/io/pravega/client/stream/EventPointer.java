@@ -47,9 +47,9 @@ public interface EventPointer {
     }
 
     /**
-     * Returns the stream from which event is read from, fully qualified stream name can be obtained from calling {@link Stream#getScopedName()} }
+     * Returns the stream from which event is read from, fully qualified stream name can be obtained from calling {@link Stream#getScopedName()} }.
      *
-     * @return the stream object
+     * @return the stream object.
      */
     Stream getStream();
 
