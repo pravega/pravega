@@ -48,7 +48,6 @@ public interface EventPointer {
 
     /**
      * Returns the stream from which event is read from, fully qualified stream name can be obtained from calling {@link Stream#getScopedName()} }
-     * If no event to read then this will return null.
      *
      * @return the stream object
      */
