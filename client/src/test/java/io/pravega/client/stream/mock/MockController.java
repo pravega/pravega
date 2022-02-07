@@ -212,16 +212,6 @@ public class MockController implements Controller {
                 .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
     }
 
-    @Override
-    @Synchronized
-    public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, StreamConfiguration streamConfig) {
-        String markStream = NameUtils.getMarkStreamForStream(streamName);
-        StreamConfiguration markStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
-
-        return createStreamInternal(scope, markStream, markStreamConfig)
-                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
-    }
-
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
