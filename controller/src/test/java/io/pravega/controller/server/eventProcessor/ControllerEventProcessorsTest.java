@@ -106,7 +106,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 30000L)
     public void testIsReady() throws Exception {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
@@ -200,7 +200,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
-        Controller localController = mock(Controller.class);
+        LocalController localController = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -237,7 +237,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     
     @Test(timeout = 30000L)
     public void testBootstrap() throws Exception {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -352,7 +352,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     
     @Test(timeout = 10000L)
     public void testTruncate() throws CheckpointStoreException, InterruptedException {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);

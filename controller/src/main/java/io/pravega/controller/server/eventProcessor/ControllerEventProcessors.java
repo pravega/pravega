@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -110,7 +109,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final ControllerEventProcessorConfig config;
     private final CheckpointStore checkpointStore;
     private final EventProcessorSystem system;
-    private final Controller controller;
     private final ClientFactoryImpl clientFactory;
     private final ScheduledExecutorService executor;
 
@@ -125,12 +123,13 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final long rebalanceIntervalMillis;
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
+    private final LocalController controller;
     @Getter
     private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
-                                     final Controller controller,
+                                     final LocalController controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,
@@ -147,7 +146,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @VisibleForTesting
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
-                                     final Controller controller,
+                                     final LocalController controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,

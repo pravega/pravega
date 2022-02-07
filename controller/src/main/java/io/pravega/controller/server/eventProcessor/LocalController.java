@@ -204,7 +204,6 @@ public class LocalController implements Controller {
                 .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
     }
 
-    @Override
     public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.createInternalStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
                 .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
