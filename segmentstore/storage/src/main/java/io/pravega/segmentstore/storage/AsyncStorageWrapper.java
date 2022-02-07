@@ -20,14 +20,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.function.RunnableWithException;
-import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -161,11 +159,6 @@ public class AsyncStorageWrapper implements Storage {
         } catch (Exception ex) {
             return CompletableFuture.failedFuture(ex);
         }
-    }
-
-    @Override
-    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
-        throw new UnsupportedOperationException("This operation is not supported.");
     }
 
     //endregion

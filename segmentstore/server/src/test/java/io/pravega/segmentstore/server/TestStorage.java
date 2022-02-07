@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
@@ -29,7 +28,6 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -215,11 +213,6 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
-        return null;
     }
 
     @Override

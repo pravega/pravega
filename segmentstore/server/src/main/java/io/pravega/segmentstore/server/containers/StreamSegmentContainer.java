@@ -82,6 +82,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
+import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -728,7 +729,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @SneakyThrows
     @Override
     public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
-        return storage.listStorageChunks(streamSegmentName, 1048576, timeout);
+        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 1048576, timeout);
+        return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 
     //endregion

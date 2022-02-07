@@ -23,7 +23,6 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -624,12 +623,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                                                     .lastModified(new ImmutableDate(segmentMetadata.getLastModified()))
                                                                     .build();
                                 }).iterator(), executor);
-    }
-
-    @Override
-    public CompletableFuture<List<ExtendedChunkInfo>> listStorageChunks(String streamSegmentName, int bufferSize, Duration timeout) {
-        UtilsWrapper wrapper = new UtilsWrapper(this, bufferSize, timeout);
-        return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 
     @Override
