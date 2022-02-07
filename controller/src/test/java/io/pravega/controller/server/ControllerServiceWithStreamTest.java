@@ -200,7 +200,7 @@ public abstract class ControllerServiceWithStreamTest {
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
 
         // create internal stream with invalid name
-        Controller.CreateStreamStatus streamStatus1 = consumer.createStreamInternal(SCOPE, "$InvalidStream", configuration1, start, 0L).get();
+        Controller.CreateStreamStatus streamStatus1 = consumer.createInternalStream(SCOPE, "$InvalidStream", configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus1.getStatus());
         
         // create stream
@@ -210,7 +210,7 @@ public abstract class ControllerServiceWithStreamTest {
         // there will be two invocations because we also create internal mark stream
         verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
-        streamStatus = consumer.createStreamInternal(SCOPE, stream, configuration1, start, 0L).get();
+        streamStatus = consumer.createInternalStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again

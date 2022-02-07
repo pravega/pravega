@@ -152,7 +152,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doAnswer(x -> {
             createStreamSignals.take().complete(null);
             return createStreamResponses.take();
-        }).when(controller).createStream(anyString(), anyString(), any());
+        }).when(controller).createInternalStream(anyString(), anyString(), any());
 
         @Cleanup
         ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
@@ -289,7 +289,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doAnswer(x -> {
             createStreamSignals.take().complete(null);
             return createStreamResponses.take();
-        }).when(controller).createStream(anyString(), anyString(), any());
+        }).when(controller).createInternalStream(anyString(), anyString(), any());
 
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
@@ -314,7 +314,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         verify(controller, times(2)).createScope(any());
         
         // so far no create stream should have been invoked
-        verify(controller, times(0)).createStream(anyString(), anyString(), any());
+        verify(controller, times(0)).createInternalStream(anyString(), anyString(), any());
 
         // complete scopeFuture2 successfully
         createScopeResponsesList.get(1).complete(true);
@@ -326,7 +326,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamSignalsList.get(2).join();
         createStreamSignalsList.get(3).join();
 
-        verify(controller, times(4)).createStream(anyString(), anyString(), any());
+        verify(controller, times(4)).createInternalStream(anyString(), anyString(), any());
 
         // fail first four requests
         createStreamResponsesList.get(0).completeExceptionally(new RuntimeException());
@@ -340,7 +340,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamSignalsList.get(6).join();
         createStreamSignalsList.get(7).join();
 
-        verify(controller, times(8)).createStream(anyString(), anyString(), any());
+        verify(controller, times(8)).createInternalStream(anyString(), anyString(), any());
         
         // complete successfully
         createStreamResponsesList.get(4).complete(true);
@@ -389,7 +389,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doReturn(getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(null)).when(controller).createScope(anyString());
-        doReturn(CompletableFuture.completedFuture(null)).when(controller).createStream(anyString(), anyString(), any());
+        doReturn(CompletableFuture.completedFuture(null)).when(controller).createInternalStream(anyString(), anyString(), any());
 
         doNothing().when(streamMetadataTasks).initializeStreamWriters(any(), anyString());
         doNothing().when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),

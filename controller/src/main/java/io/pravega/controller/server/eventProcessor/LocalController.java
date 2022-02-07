@@ -206,7 +206,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createStreamInternal(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
+        return this.controller.createInternalStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
                 .thenApply(x -> returnCreateStreamStatus(x, scope, streamName, streamConfig));
     }
 

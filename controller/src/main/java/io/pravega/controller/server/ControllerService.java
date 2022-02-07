@@ -352,7 +352,7 @@ public class ControllerService {
      * @param requestId request id
      * @return Create stream status future.
      */
-    public CompletableFuture<CreateStreamStatus> createStreamInternal(String scope, String stream, final StreamConfiguration streamConfig,
+    public CompletableFuture<CreateStreamStatus> createInternalStream(String scope, String stream, final StreamConfiguration streamConfig,
                                                               final long createTimestamp, long requestId) {
         validate(streamConfig, createTimestamp);
         try {
