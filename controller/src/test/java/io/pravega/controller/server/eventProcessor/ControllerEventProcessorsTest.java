@@ -165,10 +165,10 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         Assert.assertFalse(processors.isRunning());
         Assert.assertFalse(processors.isReady());
 
-        // call bootstrap on ControllerEventProcessors
+        // Call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
 
-        // wait on create scope being called.
+        // Wait on create scope being called.
         createScopeSignalFuture.join();
         createScopeResponseFuture.complete(true);
         createStreamSignalsList.get(0).join();
