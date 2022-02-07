@@ -125,7 +125,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         createCSVFiles();
 
         output("Writing segments' details to the csv files...");
-        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments().get();
         while (segmentIterator.hasNext()) {
             SegmentProperties currentSegment = segmentIterator.next();
 
