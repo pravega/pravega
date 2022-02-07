@@ -351,7 +351,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream {} with exception {}", streamName, 
                         Exceptions.unwrap(e).toString()))
-                                   .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
+                                   .runAsync(() -> controller.createInternalStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
                                         log.info("Created internal stream {}/{}", scope, streamName)),
                         executor));

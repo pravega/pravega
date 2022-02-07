@@ -630,6 +630,11 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.createStream(scope, streamName, streamConfig);
+    }
+
+    @Override
     public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         final long requestId = requestIdGenerator.get();

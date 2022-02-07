@@ -48,6 +48,7 @@ import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -199,8 +200,18 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createStreamInternal(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong()).thenApply(x -> {
-            switch (x.getStatus()) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
+                .thenApply(x -> returnCreateStreamStatus(x, scope, streamName, streamConfig));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createStreamInternal(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
+                .thenApply(x -> returnCreateStreamStatus(x, scope, streamName, streamConfig));
+    }
+
+    private boolean returnCreateStreamStatus(CreateStreamStatus streamStatus, String scope, String streamName, StreamConfiguration streamConfig) {
+        switch (streamStatus.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
             case INVALID_STREAM_NAME:
@@ -213,9 +224,8 @@ public class LocalController implements Controller {
                 return true;
             default:
                 throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
-                                                     + " " + x.getStatus());
-            }
-        });
+                        + " " + streamStatus.getStatus());
+        }
     }
 
     @Override
