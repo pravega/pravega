@@ -437,7 +437,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         /**
-         * Refreshes the cached {@link DirectSegmentAccess} objects to point to fresh metadata. This method is invoked
+         * Refreshes the cached {@link DirectSegmentAccess} object to point to fresh metadata. This method is invoked
          * on each processing iteration.
          *
          * @return Returns a {@link CompletableFuture} that, when successfully complete, sets a new {@link DirectSegmentAccess}
@@ -541,7 +541,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     }, this.executor)
                     // Only do the actual truncation if the internal Segment has accumulated the configured amount of data.
                     // Note that a restart will induce re-processing of the non-truncated tasks, but this is fine as this class
-                    // ensured at-least-once processing guarantees
+                    // ensured at-least-once processing guarantees.
                     .thenCompose(v -> shouldTruncate() ? doTruncateInternalSegment() : CompletableFuture.completedFuture(null))
                     // Report latency metrics upon complete processing iteration (irrespective of if truncation happened or not).
                     .thenAccept(v -> this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis()));
