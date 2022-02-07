@@ -201,16 +201,16 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
-                .thenApply(x -> returnCreateStreamStatus(x, scope, streamName, streamConfig));
+                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
     }
 
     @Override
     public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.createInternalStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
-                .thenApply(x -> returnCreateStreamStatus(x, scope, streamName, streamConfig));
+                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
     }
 
-    private boolean returnCreateStreamStatus(CreateStreamStatus streamStatus, String scope, String streamName, StreamConfiguration streamConfig) {
+    private boolean getCreateStreamStatus(CreateStreamStatus streamStatus, String scope, String streamName, StreamConfiguration streamConfig) {
         switch (streamStatus.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
