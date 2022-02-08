@@ -87,7 +87,7 @@ jobs:
             ${{github.ref}}
       - name: Clean
         if: ${{ startsWith(github.ref, 'refs/heads/') }}
-        run: ./gradlew clean --debug ${{env.GRADLE_OPTS}}
+        run: ./gradlew clean ${{env.GRADLE_OPTS}}
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports

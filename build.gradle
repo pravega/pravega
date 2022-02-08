@@ -33,6 +33,7 @@ buildscript {
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
         classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+        classpath "org.codehaus.groovy:groovy-all:3.0.9"
     }
 }
 
