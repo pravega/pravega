@@ -40,7 +40,7 @@ buildscript {
 // apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
 // https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
 plugins {
-    id 'org.ajoberstar.grgit' version '4.1.1'
+    id 'org.ajoberstar.grgit' version '4.1.0'
 }
 
 if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
