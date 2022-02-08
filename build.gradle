@@ -90,6 +90,10 @@ allprojects {
     repositories {
         mavenCentral()
         mavenLocal()
+        maven {
+            name = 'ajoberstar-backup'
+            url = 'https://ajoberstar.org/bintray-backup/'
+        }
     }
 
     version = getProjectVersion()
