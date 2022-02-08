@@ -303,6 +303,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, 
                 null, "", Long.MIN_VALUE, context),
                 RETRYABLE_PREDICATE, 3, executor);
@@ -323,9 +324,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final String writerId, final long timestamp,
                                                   final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, 
-                writerId, timestamp, context),
-                RETRYABLE_PREDICATE, 3, executor);
+        return withRetriesAsync(() -> checkTxnLeaseExpiry(scope, stream, txId, context, requestId)
+                .thenCompose(hasExpired -> sealTxnBody(hostId, scope, stream, !hasExpired, txId, null, writerId, timestamp, context)), RETRYABLE_PREDICATE, 3, executor);
+    }
+
+    private CompletableFuture<Boolean> checkTxnLeaseExpiry(final String scope, final String stream, final UUID txId, final OperationContext context, final long requestId) {
+        final long currentTime = System.currentTimeMillis();
+        return streamMetadataStore.getTransactionData(scope, stream, txId, context, executor).thenApply(txnData -> (txnData.getMaxExecutionExpiryTime() <= currentTime));
+
     }
 
     /**
@@ -411,18 +417,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
         }, 5, executor));
-    }
-
-    private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
-                                        CompletableFuture<VersionedTransactionData> txnFuture, long requestId) {
-        Version version = null;
-        long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
-        if (!txnFuture.isCompletedExceptionally()) {
-            version = txnFuture.join().getVersion();
-            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
-        }
-        timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime);
-        log.trace(requestId, "Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
     private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease,
@@ -639,8 +633,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         Optional<Version> versionOpt = Optional.ofNullable(version);
 
         // Step 1. Add txn to current host's index, if it is not already present
-        //TODO: Remove reference to timeout service here...
-        CompletableFuture<Void> addIndex = host.equals(hostId) && !timeoutService.containsTxn(scope, stream, txnId) ?
+        CompletableFuture<Void> addIndex = host.equals(hostId) ?
                 // PS: txn version in index does not matter, because if update is successful,
                 // then txn would no longer be open.
                 streamMetadataStore.addTxnToIndex(hostId, resource, version) :
@@ -710,7 +703,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         List<CompletableFuture<Void>> txnFuturesList = openTransactionData.entrySet().stream()
                 .filter(txn -> txn.getValue().getLeaseExpiryTime() != Long.MAX_VALUE).map(txnEntry -> {
             final long currentTime = System.currentTimeMillis();
-            if (txnEntry.getValue().getLeaseExpiryTime() < currentTime) {
+            if (txnEntry.getValue().getLeaseExpiryTime() <= currentTime) {
                 // the transaction is past its expiry, so abort it.
                 return abortTxn(scope, stream, txnEntry.getKey(), null, contextOpt)
                         .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
