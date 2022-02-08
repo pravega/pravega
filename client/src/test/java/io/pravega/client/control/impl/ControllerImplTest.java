@@ -1047,6 +1047,23 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void listTransactionsInState(Controller.ListTxnInStateRequest request, StreamObserver<Controller.ListTxnInStateResponse> responseObserver) {
+                UUID uuid = UUID.randomUUID();
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(Controller.ListTxnInStateResponse.newBuilder()
+                            .addTxnId( TxnId.newBuilder()
+                                    .setLowBits(uuid.getLeastSignificantBits())
+                                    .setHighBits(uuid.getMostSignificantBits())
+                                    .build())
+                            .build());
+                } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    responseObserver.onNext(Controller.ListTxnInStateResponse.newBuilder()
+                            .build());
+                }
+                responseObserver.onCompleted();
+            }
+
+            @Override
             public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
                 if (request.getScope().equals("scope1")) {
                     responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
@@ -2090,6 +2107,16 @@ public class ControllerImplTest {
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream7"), UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+    }
+
+    @Test
+    public void testListTransactionsInState() throws Exception {
+        List<UUID> listUUID;
+        listUUID = controllerClient.listTransactionsInState(new StreamImpl("scope1", "stream1"), Transaction.Status.OPEN).get();
+        assertEquals(1, listUUID.size());
+
+        listUUID = controllerClient.listTransactionsInState(new StreamImpl("scope1", "stream2"), Transaction.Status.COMMITTING).get();
+        assertEquals(0, listUUID.size());
     }
 
     @Test

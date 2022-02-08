@@ -669,6 +669,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<UUID>> listTransactionsInState(Stream stream, Transaction.Status status) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();

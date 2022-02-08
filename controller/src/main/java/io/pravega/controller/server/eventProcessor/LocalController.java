@@ -49,6 +49,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -200,17 +201,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
-                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
-    }
-
-    public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createInternalStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
-                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
-    }
-
-    private boolean getCreateStreamStatus(CreateStreamStatus streamStatus, String scope, String streamName, StreamConfiguration streamConfig) {
-        switch (streamStatus.getStatus()) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong()).thenApply(x -> {
+            switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
             case INVALID_STREAM_NAME:
@@ -223,8 +215,9 @@ public class LocalController implements Controller {
                 return true;
             default:
                 throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
-                        + " " + streamStatus.getStatus());
-        }
+                                                     + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
@@ -563,6 +556,12 @@ public class LocalController implements Controller {
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
         return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId, requestIdGenerator.nextLong())
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
+    }
+
+    @Override
+    public CompletableFuture<List<UUID>> listTransactionsInState(Stream stream, Transaction.Status status) {
+        return controller.listTransactionsInState(stream.getScope(), stream.getStreamName(), TxnStatus.valueOf(status.name()), requestIdGenerator.nextLong())
+                .thenApply(result -> result);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -535,6 +536,48 @@ class ZKStream extends PersistentStreamBase {
                                           return map;
                                       });
                     });
+    }
+
+
+    @Override
+    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
+        return store.getChildren(activeTxRoot)
+                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x), context))
+                        .collect(Collectors.toList())).thenApply(list -> {
+                    List<UUID> listTxnIds = new ArrayList<>();
+                    list.forEach(map -> {
+                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getTxnStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                    });
+                    return listTxnIds;
+                }));
+    }
+
+    @Override
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
+        return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInBatch(x, context))
+                        .collect(Collectors.toList())).thenApply(list -> {
+                    List<UUID> listTxnIds = new ArrayList<>();
+                    list.forEach(map -> {
+                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getCompletionStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                    });
+                    return listTxnIds;
+                }));
+    }
+
+    private CompletableFuture<Map<UUID, CompletedTxnRecord>> getTxnInBatch(String batch, OperationContext context) {
+        VersionedMetadata<CompletedTxnRecord> empty = getEmptyData();
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(batch), getScope(), getName());
+        return Futures.exceptionallyExpecting(store.getChildren(root),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
+                .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
+                                Collectors.toMap(txId -> txId,
+                                        txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
+                                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
+                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
+                                .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
+                                        x -> x.getValue().getObject())))
+                );
     }
 
     @Override

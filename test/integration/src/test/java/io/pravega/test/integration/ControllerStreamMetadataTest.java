@@ -23,7 +23,10 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -39,6 +42,9 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.List;
+import java.util.UUID;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -188,5 +194,19 @@ public class ControllerStreamMetadataTest {
 
         // Delete twice
         assertFalse(streamManager.deleteScope(SCOPE));
+    }
+
+    @Test
+    public void testListTransactionInState() {
+        // Create test scope. This operation should succeed.
+        assertTrue(controller.createScope(SCOPE).join());
+
+        assertTrue(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
+
+        TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+
+        List<UUID> listUUID = controller.listTransactionsInState(Stream.of(SCOPE, STREAM), Transaction.Status.OPEN).join();
+        assertTrue(listUUID.contains(txnSegments.getTxnId()));
+
     }
 }
