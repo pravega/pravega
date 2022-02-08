@@ -48,6 +48,7 @@ public class EventPointerTest {
         name.append("/");
         name.append(stream);
         assertEquals(name.toString(), pointerRead.asImpl().getSegment().getScopedStreamName());
+        assertEquals(name.toString(), pointer.getStream().getScopedName());
 
         name.append("/");
         name.append(segmentId);
