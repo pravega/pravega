@@ -344,22 +344,17 @@ public class ControllerService {
     }
 
     /**
-     * Creates stream with specified configuration. 
+     * Creates stream with specified configuration.
      * @param scope scope
      * @param stream stream
      * @param streamConfig stream configuration
      * @param createTimestamp creation time
      * @param requestId request id
-     * @return Create stream status future. 
+     * @return Create stream status future.
      */
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
-            final long createTimestamp, long requestId) {
-        Preconditions.checkNotNull(streamConfig, "streamConfig");
-        Preconditions.checkArgument(createTimestamp >= 0);
-        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
-                String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
-
-        Timer timer = new Timer();
+    public CompletableFuture<CreateStreamStatus> createInternalStream(String scope, String stream, final StreamConfiguration streamConfig,
+                                                              final long createTimestamp, long requestId) {
+        validate(streamConfig, createTimestamp);
         try {
             NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -367,26 +362,61 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
+        return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+    }
 
+    /**
+     * Creates stream with specified configuration. 
+     * @param scope scope
+     * @param stream stream name
+     * @param streamConfig stream configuration
+     * @param createTimestamp creation time
+     * @param requestId request id
+     * @return Create stream status future. 
+     */
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
+            final long createTimestamp, long requestId) {
+        validate(streamConfig, createTimestamp);
+        try {
+            NameUtils.validateUserStreamName(stream);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.error(requestId, "Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(
+                    CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
+        }
+        return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+    }
+
+    private CompletableFuture<CreateStreamStatus> callCreateStream(final String scope, final String stream,
+                                                                   final StreamConfiguration streamConfig,
+                                                                   final long createTimestamp, long requestId) {
+        Timer timer = new Timer();
         return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
-                      .thenCompose(state -> {
-                          if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                              return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
-                                      stream,
-                                      streamConfig,
-                                      createTimestamp, 10, 
-                                      requestId).thenApplyAsync(status -> {
-                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), 
-                                          status, timer.getElapsed());
-                                  return CreateStreamStatus.newBuilder().setStatus(status).build();
-                              }, executor);
-                          } else {
-                              log.info(requestId, "Stream {} already exists ", NameUtils.getScopedStreamName(scope, stream));
-                              return CompletableFuture.completedFuture(
-                                      CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
-                          }
-                      });
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
+                                stream,
+                                streamConfig,
+                                createTimestamp, 10,
+                                requestId).thenApplyAsync(status -> {
+                            reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(),
+                                    status, timer.getElapsed());
+                            return CreateStreamStatus.newBuilder().setStatus(status).build();
+                        }, executor);
+                    } else {
+                        log.info(requestId, "Stream {} already exists ", NameUtils.getScopedStreamName(scope, stream));
+                        return CompletableFuture.completedFuture(
+                                CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+                    }
+                });
+    }
+
+    private void validate(final StreamConfiguration streamConfig, final long createTimestamp) {
+        Preconditions.checkNotNull(streamConfig, "streamConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
+                String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
     }
 
     /**
