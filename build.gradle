@@ -32,7 +32,16 @@ buildscript {
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
         classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
+        classpath "org.ajoberstar.grgit:grgit-core:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+    }
+
+    // Specifically force the version for GrGit plugin required modules to prevent downloading the most recent release.
+    configurations.all {
+        resolutionStrategy {
+            force "org.ajoberstar.grgit:grgit-gradle:" + gradleGitPluginVersion
+            force "org.ajoberstar.grgit:grgit-core:" + gradleGitPluginVersion
+        }
     }
 }
 
