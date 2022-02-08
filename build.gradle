@@ -33,19 +33,17 @@ buildscript {
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
         classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
-        classpath "org.codehaus.groovy:groovy-all:2.5.15"
     }
-}
-
-
-if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
-    apply from: "$rootDir/gradle/mkdocs.gradle"
 }
 
 // apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
 // https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
 plugins {
     id 'org.ajoberstar.grgit' version '4.1.1'
+}
+
+if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
+    apply from: "$rootDir/gradle/mkdocs.gradle"
 }
 
 allprojects {
