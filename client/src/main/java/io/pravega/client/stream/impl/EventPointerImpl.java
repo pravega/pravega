@@ -18,6 +18,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.Stream;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -132,4 +133,10 @@ public final class EventPointerImpl extends EventPointerInternal {
     public static EventPointerInternal fromBytes(ByteBuffer data) {
         return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
+
+    @Override
+    public Stream getStream() {
+        return Stream.of(segment.getScope(), segment.getStreamName());
+    }
+
 }

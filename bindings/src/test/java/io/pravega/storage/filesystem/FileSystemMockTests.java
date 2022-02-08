@@ -53,9 +53,9 @@ public class FileSystemMockTests {
     public void setUp() throws Exception {
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         this.storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
-                .build();
+                            .builder()
+                            .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                            .build();
     }
 
     /**
