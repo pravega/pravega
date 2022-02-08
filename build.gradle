@@ -44,7 +44,9 @@ if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equa
 
 // apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
 // https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
-apply plugin: 'org.ajoberstar.grgit'
+plugins {
+    id 'org.ajoberstar.grgit' version '4.1.1'
+}
 
 allprojects {
     apply plugin: 'idea'
