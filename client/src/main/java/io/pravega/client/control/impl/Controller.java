@@ -364,6 +364,15 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
+    /**
+     * Method to get transaction list in a specific state.
+     *
+     * @param stream Stream Name
+     * @param status Transaction Status
+     * @return list of transaction ids
+     */
+    CompletableFuture<List<UUID>> listTransactionsInState(final Stream stream, final Transaction.Status status);
+
     // Controller Apis that are called by readers
 
     /**

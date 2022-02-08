@@ -757,7 +757,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInActiveStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableList(
                     activeTxns.entrySet().stream().filter(t -> t.getValue().getObject().getTxnStatus() == status).map(x -> x.getKey()).collect(Collectors.toList())));
@@ -765,7 +765,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInCompletedStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableList(
                     completedTxns.asMap().entrySet().stream().filter(t -> t.getValue().getObject().getCompletionStatus() == status).map(x -> x.getKey()).collect(Collectors.toList())));

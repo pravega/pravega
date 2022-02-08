@@ -813,7 +813,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInActiveStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
         return getEpochsWithTransactions(context)
                 .thenCompose(epochsWithTransactions -> Futures.allOfWithResults(epochsWithTransactions.stream().map(x ->
                         getTxnInEpoch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
@@ -826,7 +826,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInCompletedStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getAllBatchesForCompletedTxns(context)

@@ -912,6 +912,52 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
+
+    @Test
+    public void testListTransactionsInState() throws Exception {
+        final String scope = "ScopeListTxn";
+        final String stream = "StreamListTxn";
+        final ScalingPolicy policy = ScalingPolicy.fixed(4);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope, null, executor).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
+                100, 100, null, executor).get();
+
+        List<UUID> listTxn = store.listTransactionsInState(scope, stream, TxnStatus.OPEN, null, executor).join();
+        assertTrue(listTxn.contains(tx1.getId()));
+
+        EpochRecord epochRecord = store.getActiveEpoch(scope, stream, null, true, executor).join();
+
+        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
+        store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+
+        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.COMMITTING, null, executor).join();
+        assertTrue(listTxn.contains(tx1.getId()));
+
+        record = store.startRollingTxn(scope, stream, epochRecord.getEpoch(), record, null, executor).join();
+        store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
+        store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
+
+        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.COMMITTED, null, executor).join();
+        assertTrue(listTxn.contains(tx1.getId()));
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.OPEN, null, executor).join();
+        assertFalse(listTxn.contains(tx1.getId()));
+    }
+
+
     @Test(timeout = 30000)
     public void scaleWithTxnForInconsistentScanerios() throws Exception {
         final String scope = "ScopeScaleWithTx";

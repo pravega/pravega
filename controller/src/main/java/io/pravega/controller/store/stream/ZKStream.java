@@ -540,7 +540,7 @@ class ZKStream extends PersistentStreamBase {
 
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInActiveStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
         return store.getChildren(activeTxRoot)
                 .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x), context))
                         .collect(Collectors.toList())).thenApply(list -> {
@@ -553,7 +553,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInCompletedStates(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
                 .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInBatch(x, context))
                         .collect(Collectors.toList())).thenApply(list -> {

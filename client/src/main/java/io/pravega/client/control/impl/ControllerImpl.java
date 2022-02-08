@@ -107,6 +107,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListTxnInStateRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListTxnInStateResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
@@ -190,6 +192,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREA
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_TRANSACTION_IN_STATE;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -1509,6 +1512,34 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<UUID>> listTransactionsInState(Stream stream, Transaction.Status status) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(status, "status");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "listTransactionsInState", stream, status, requestId);
+
+        final CompletableFuture<ListTxnInStateResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ListTxnInStateResponse> callback = new RPCAsyncCallback<>(traceId, "listTransactionsInState", stream, status);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_TRANSACTION_IN_STATE,
+                            stream.getScope(), stream.getStreamName(), status.name())
+                    .listTransactionsInState(ListTxnInStateRequest.newBuilder()
+                                    .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                    .setTxnState(TxnState.newBuilder().setState(TxnState.State.valueOf(status.name())).build())
+                                    .build(),
+                            callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(x -> x.getTxnIdList().stream().map(uuid -> encode(uuid)).collect(Collectors.toList()), this.executor)
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn(requestId, "listTransactionsInState for stream {} with status {} failed ", stream, status.name(), e);
+                    }
+                    LoggerHelpers.traceLeave(log, "listTransactionsInState", traceId, status.name(), requestId);
+                });
+    }
+
+    @Override
     public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, 
                                                            WriterPosition lastWrittenPosition) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -2225,6 +2256,10 @@ public class ControllerImpl implements Controller {
 
         public void checkTransactionState(TxnRequest request, RPCAsyncCallback<TxnState> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(request, callback);
+        }
+
+        public void listTransactionsInState(ListTxnInStateRequest request, RPCAsyncCallback<ListTxnInStateResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).listTransactionsInState(request, callback);
         }
 
         public void noteTimestampFromWriter(TimestampFromWriter request, RPCAsyncCallback<TimestampResponse> callback) {
