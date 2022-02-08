@@ -45,5 +45,12 @@ public interface EventPointer {
     static EventPointer fromBytes(ByteBuffer eventPointer) {
         return EventPointerInternal.fromBytes(eventPointer);
     }
-    
+
+    /**
+     * Returns the stream from which event is read from, fully qualified stream name can be obtained from calling {@link Stream#getScopedName()}}.
+     *
+     *  @return the stream object.
+     */
+    Stream getStream();
+
 }
