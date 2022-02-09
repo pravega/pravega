@@ -800,13 +800,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                       final VersionedTransactionData txData,
-                                                                       final long lease,
-                                                                       final OperationContext ctx,
-                                                                       final Executor executor) {
+    public CompletableFuture<VersionedTransactionData> updateTransactionLease(final String scopeName, final String streamName,
+                                                                              final VersionedTransactionData txData,
+                                                                              final long lease,
+                                                                              final OperationContext ctx,
+                                                                              final Executor executor) {
         OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scopeName, streamName, context).pingTransaction(txData, lease, context), executor);
+        return Futures.completeOn(getStream(scopeName, streamName, context).updateTransactionLease(txData, lease, context), executor);
     }
 
     @Override

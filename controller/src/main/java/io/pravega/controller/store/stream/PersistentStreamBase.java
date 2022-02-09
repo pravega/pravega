@@ -1502,26 +1502,24 @@ public abstract class PersistentStreamBase implements Stream {
                                                                          OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         final long currentTimestamp = System.currentTimeMillis();
-        final long leaseTimestamp =  Long.MAX_VALUE == lease ? Long.MAX_VALUE : currentTimestamp + lease;
-        // deprecated, maintained for backward compatibility
-        final long maxExecTimestamp = leaseTimestamp;
+        final long leaseExpiryTime =  Long.MAX_VALUE == lease ? Long.MAX_VALUE : currentTimestamp + lease;
         // extract epoch from txnid
         final int epoch = RecordHelper.getTransactionEpoch(txnId);
-        ActiveTxnRecord record = ActiveTxnRecord.builder().txnStatus(TxnStatus.OPEN).leaseExpiryTime(leaseTimestamp)
-                                                .txCreationTimestamp(currentTimestamp).maxExecutionExpiryTime(maxExecTimestamp)
+        ActiveTxnRecord record = ActiveTxnRecord.builder().txnStatus(TxnStatus.OPEN).leaseExpiryTime(leaseExpiryTime)
+                                                .txCreationTimestamp(currentTimestamp).maxExecutionExpiryTime(leaseExpiryTime)
                                                 .writerId(Optional.empty())
                                                 .commitTime(Optional.empty())
                                                 .commitOrder(Optional.empty())
                                                 .build();
         return verifyNotSealed(context).thenCompose(v -> createNewTransaction(epoch, txnId, record, context)
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, currentTimestamp, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of())));
+                        TxnStatus.OPEN, currentTimestamp, leaseExpiryTime, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of())));
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData,
-                                                                       final long lease,
-                                                                       OperationContext context) {
+    public CompletableFuture<VersionedTransactionData> updateTransactionLease(final VersionedTransactionData txnData,
+                                                                              final long lease,
+                                                                              OperationContext context) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         // Update txn record with new lease value and return versioned tx data.
         final int epoch = txnData.getEpoch();

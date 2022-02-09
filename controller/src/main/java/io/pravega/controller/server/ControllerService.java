@@ -797,6 +797,27 @@ public class ControllerService {
     }
 
     /**
+     * Pings transaction by updating its metadata.
+     * @param scope scope
+     * @param stream stream name
+     * @param txId transaction id
+     * @param lease lease
+     * @param requestId request id
+     * @return Ping Transaction status future
+     */
+    public CompletableFuture<PingTxnStatus> extendTransactionLease(final String scope,
+                                                            final String stream,
+                                                            final UUID txId,
+                                                            final long lease,
+                                                            final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Preconditions.checkNotNull(txId, "txnId");
+
+        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, requestId);
+    }
+
+    /**
      * Checks transaction status.
      * @param scope scope 
      * @param stream stream name

@@ -1045,9 +1045,9 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor   callers executor
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                final VersionedTransactionData txData, final long lease,
-                                                                final OperationContext context, final Executor executor);
+    CompletableFuture<VersionedTransactionData> updateTransactionLease(final String scopeName, final String streamName,
+                                                                       final VersionedTransactionData txData, final long lease,
+                                                                       final OperationContext context, final Executor executor);
 
     /**
      * Fetch transaction metadata along with its version.

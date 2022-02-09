@@ -249,8 +249,26 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                     final UUID txId,
                                                     final long lease,
                                                     final long requestId) {
+        return extendLease(scope, stream, txId, lease, requestId);
+    }
+
+    /**
+     * Transaction heartbeat, that increases transaction timeout by lease number of milliseconds.
+     *
+     * @param scope Stream scope.
+     * @param stream Stream name.
+     * @param txId Transaction identifier.
+     * @param lease Amount of time in milliseconds by which to extend the transaction lease.
+     * @param requestId requestId
+     * @return Transaction metadata along with the version of it record in the store.
+     */
+    public CompletableFuture<PingTxnStatus> extendLease(final String scope,
+                                                    final String stream,
+                                                    final UUID txId,
+                                                    final long lease,
+                                                    final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return pingTxnBody(scope, stream, txId, lease, context);
+        return extendTransactionLease(scope, stream, txId, lease, context);
     }
 
     /**
@@ -302,11 +320,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final long requestId) {
-        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-
-        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, 
-                null, "", Long.MIN_VALUE, context),
-                RETRYABLE_PREDICATE, 3, executor);
+        return commitTxn(scope, stream, txId, "", Long.MIN_VALUE, requestId);
     }
 
     /**
@@ -480,15 +494,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param ctx        context.
      * @return           ping status.
      */
-    private CompletableFuture<PingTxnStatus> pingTxnBody(final String scope,
+    private CompletableFuture<PingTxnStatus> extendTransactionLease(final String scope,
                                                  final String stream,
                                                  final UUID txnId,
                                                  final long lease,
                                                  final OperationContext ctx) {
         Preconditions.checkNotNull(ctx, "operation context is null");
-        if (!timeoutService.isRunning()) {
-            return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
-        }
 
         log.debug(ctx.getRequestId(), "Txn={}, updating txn node in store and extending lease", txnId);
         return fenceTxnUpdateLease(scope, stream, txnId, lease, ctx);
@@ -503,14 +514,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                  final UUID txnId,
                                                                  final long lease,
                                                                  final OperationContext ctx) {
-        // Step 1. Check whether lease value is within necessary bounds.
+        // Step 1. Check if txn is still OPEN.
         // Step 2. Add txn to host-transaction index.
         // Step 3. Update txn node data in the store,thus updating its version
-        //         and fencing other processes from tracking this txn's timeout.
-        // Step 4. Add this txn to timeout service and start managing timeout for this txn.
+        // Step 4. Update the leaseExpiry in metadata.
         CompletableFuture<PingTxnStatus> pingTxnFuture = streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
             final TxnStatus txnStatus = txnData.getStatus();
-            if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
+            if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, don't ping it
                 return CompletableFuture.completedFuture(getPingTxnStatus(txnStatus));
             }
             // Step 1. Sanity check for lease value.
@@ -520,12 +530,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
             } else {
                 TxnResource resource = new TxnResource(scope, stream, txnId);
-
                 // Step 2. Add txn to host-transaction index
-                CompletableFuture<Void> addIndex = !timeoutService.containsTxn(scope, stream, txnId) ?
-                        streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion()) :
-                        CompletableFuture.completedFuture(null);
-
+                CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion());
                 addIndex.whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug(ctx.getRequestId(), "Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
@@ -533,11 +539,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         log.debug(ctx.getRequestId(), "Txn={}, added txn to host-txn index of host={}", txnId, hostId);
                     }
                 });
-
                 return addIndex.thenComposeAsync(x -> {
                     // Step 3. Update txn node data in the store.
                     long requestId = ctx.getRequestId();
-                    CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.pingTransaction(
+                    CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.updateTransactionLease(
                             scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
                         if (e != null) {
                             log.debug(requestId, "Txn={}, failed updating txn node in store", txnId);
@@ -545,24 +550,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             log.debug(requestId, "Txn={}, updated txn node in store", txnId);
                         }
                     });
-
-                    // Step 4. Add it to timeout service and start managing timeout for this txn.
-                    return pingTxn.thenApplyAsync(data -> {
-                        Version version = data.getVersion();
-                        long expiryTime = data.getMaxExecutionExpiryTime();
-                        // Even if timeout service has an active/executing timeout task for this txn, it is bound
-                        // to fail, since version of txn node has changed because of the above store.pingTxn call.
-                        // Hence explicitly add a new timeout task.
-                        if (timeoutService.containsTxn(scope, stream, txnId)) {
-                            // If timeout service knows about this transaction, attempt to increase its lease.
-                            log.debug(requestId, "Txn={}, extending lease in timeout service", txnId);
-                            timeoutService.pingTxn(scope, stream, txnId, version, lease);
-                        } else {
-                            log.debug(requestId, "Txn={}, adding in timeout service", txnId);
-                            timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime);
-                        }
-                        return createStatus(Status.OK);
-                    }, executor);
+                    return pingTxn.thenApply(v -> createStatus(Status.OK));
                 }, executor);
             }
         }, executor);
@@ -603,7 +591,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      *     (a) txn state is COMMITTING/ABORTING,
      *     (b) CommitEvent/AbortEvent is present in the commit stream/abort stream,
      *     (c) txn is removed from host-txn index,
-     *     (d) txn is removed from the timeout service.
      *
      * 2. If process fails after transitioning txn to COMMITTING/ABORTING state, but before responding to client, then
      * since txn is present in the host-txn index, some other controller process shall put CommitEvent/AbortEvent to

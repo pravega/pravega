@@ -463,8 +463,8 @@ interface Stream {
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease, 
-                                                                OperationContext context);
+    CompletableFuture<VersionedTransactionData> updateTransactionLease(final VersionedTransactionData txnData, final long lease,
+                                                                       OperationContext context);
 
     /**
      * Fetch transaction metadata along with its version.
