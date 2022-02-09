@@ -197,7 +197,7 @@ public class TxnSweeper implements FailoverSweeper {
         UUID txnId = txn.getTxnId();
         log.info("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
-                .thenCompose(txnData -> transactionMetadataTasks.pingTxn(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerService.nextRequestId()))
+                .thenCompose(txnData -> transactionMetadataTasks.updateTransactionLease(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerService.nextRequestId()))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 }

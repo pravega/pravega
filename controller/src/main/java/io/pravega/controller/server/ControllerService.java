@@ -793,7 +793,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txId, "txnId");
 
-        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, requestId);
+        return extendTransactionLease(scope, stream, txId, lease, requestId);
     }
 
     /**
@@ -814,7 +814,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txId, "txnId");
 
-        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, requestId);
+        return streamTransactionMetadataTasks.updateTransactionLease(scope, stream, txId, lease, requestId);
     }
 
     /**

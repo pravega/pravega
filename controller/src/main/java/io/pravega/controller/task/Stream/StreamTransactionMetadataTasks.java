@@ -244,11 +244,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param requestId requestId
      * @return Transaction metadata along with the version of it record in the store.
      */
-    public CompletableFuture<PingTxnStatus> pingTxn(final String scope,
-                                                    final String stream,
-                                                    final UUID txId,
-                                                    final long lease,
-                                                    final long requestId) {
+    public CompletableFuture<PingTxnStatus> updateTransactionLease(final String scope,
+                                                                   final String stream,
+                                                                   final UUID txId,
+                                                                   final long lease,
+                                                                   final long requestId) {
         return extendLease(scope, stream, txId, lease, requestId);
     }
 

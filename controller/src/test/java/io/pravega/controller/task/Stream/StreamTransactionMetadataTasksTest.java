@@ -306,7 +306,7 @@ public class StreamTransactionMetadataTasksTest {
         VersionedTransactionData tx4 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 0L, 0L).join().getKey();
 
         // Ping another txn from failedHost.
-        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, tx4.getId(), 10000, 0L).join();
+        PingTxnStatus pingStatus = failedTxnTasks.updateTransactionLease(SCOPE, STREAM, tx4.getId(), 10000, 0L).join();
         VersionedTransactionData tx4get = streamStore.getTransactionData(SCOPE, STREAM, tx4.getId(), null, executor).join();
 
         // Validate versions of all txn
@@ -621,7 +621,7 @@ public class StreamTransactionMetadataTasksTest {
                 0L, 0L).join();
         UUID txnId = txn.getKey().getId();
         txnTasks.commitTxn(SCOPE, STREAM, txnId, 0L).join();
-        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
+        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.updateTransactionLease(SCOPE, STREAM, txnId, 10000L,
                 0L).join().getStatus());
 
         // complete commit of transaction. 
@@ -635,14 +635,14 @@ public class StreamTransactionMetadataTasksTest {
                 streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
+        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.updateTransactionLease(SCOPE, STREAM, txnId, 10000L,
                 0L).join().getStatus());
 
         // Verify Ping transaction on an aborting transaction.
         txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L, 1024 * 1024L).join();
         txnId = txn.getKey().getId();
         txnTasks.abortTxn(SCOPE, STREAM, txnId, null, 0L).join();
-        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
+        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.updateTransactionLease(SCOPE, STREAM, txnId, 10000L,
                 0L).join().getStatus());
 
         // now complete abort so that the transaction is removed from active txn and added to completed txn.
@@ -650,19 +650,19 @@ public class StreamTransactionMetadataTasksTest {
         AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF", 
                 streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
-        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, 
+        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.updateTransactionLease(SCOPE, STREAM, txnId, 10000L,
                 0L).join().getStatus());
 
         // try with a non existent transaction id 
         assertEquals(PingTxnStatus.Status.UNKNOWN, 
-                txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, 0L).join().getStatus());
+                txnTasks.updateTransactionLease(SCOPE, STREAM, UUID.randomUUID(), 10000L, 0L).join().getStatus());
 
         // Verify max execution time.
         txnTasks.setMaxExecutionTime(1L);
         txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 0L, 1024 * 1024L).join();
         UUID tid = txn.getKey().getId();
         AssertExtensions.assertEventuallyEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, 
-                () -> txnTasks.pingTxn(SCOPE, STREAM, tid, 10000L, 0L).join().getStatus(), 10000L);
+                () -> txnTasks.updateTransactionLease(SCOPE, STREAM, tid, 10000L, 0L).join().getStatus(), 10000L);
         txnTasks.setMaxExecutionTime(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
     
@@ -727,7 +727,7 @@ public class StreamTransactionMetadataTasksTest {
         createFuture.join();
         assertTrue(Futures.await(createFuture));
         UUID txnId = createFuture.join().getKey().getId();
-        CompletableFuture<PingTxnStatus> pingFuture = txnTasks.pingTxn(SCOPE, STREAM, txnId, leasePeriod, 0L);
+        CompletableFuture<PingTxnStatus> pingFuture = txnTasks.updateTransactionLease(SCOPE, STREAM, txnId, leasePeriod, 0L);
         assertTrue(Futures.await(pingFuture));
 
         CompletableFuture<TxnStatus> commitFuture = txnTasks.commitTxn(SCOPE, STREAM, txnId, 0L);
