@@ -421,19 +421,21 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     .thenComposeAsync(this::applyProcessorHandler, this.executor)
                     .thenComposeAsync(readResult -> truncateInternalSegment(readResult, iterationTime), this.executor)
                     .handleAsync((r, ex) -> {
+                        boolean needsReconcileOffsets = false;
                         // If we got an exception different from NoDataAvailableException, report it as something is off.
                         if (ex != null && !(Exceptions.unwrap(ex) instanceof NoDataAvailableException)) {
                             log.warn("{}: Processing iteration failed, retrying.", this.traceObjectId, ex);
                             this.failedIteration.set(true);
-                            reconcileOffsets();
+                            needsReconcileOffsets = true;
                         } else {
                             this.failedIteration.set(false);
                         }
                         log.debug("{}: Finished iteration for EventProcessor (Name = {}, Start offset = {}, " +
                                 "Processed offset = {}, Failed iteration = {}).", this.traceObjectId, this.name,
                                 this.segmentStartOffset.get(), this.processedUpToOffset.get(), this.failedIteration.get());
-                        return null;
-                    }, this.executor);
+                        return needsReconcileOffsets;
+                    }, this.executor)
+                    .thenComposeAsync(this::reconcileOffsetsIfNeeded, this.executor);
         }
 
         /**
@@ -455,7 +457,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * Segment's metadata.
          */
         private void reconcileOffsets() {
-            refreshSegment().join();
             long newStartOffset = this.segment.getInfo().getStartOffset();
             log.info("{}: Reconciling processed offset from {} to {}.", this.traceObjectId, this.processedUpToOffset.get(), newStartOffset);
             this.processedUpToOffset.set(newStartOffset);
@@ -464,6 +465,24 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             long segmentLength = this.segment.getInfo().getLength();
             log.info("{}: Reconciling segment length from {} to {}.", this.traceObjectId, this.segmentLength.get(), segmentLength);
             this.segmentLength.set(segmentLength);
+        }
+
+        /**
+         * Combines refreshing the internal Segment and performing offset reconciliation.
+         *
+         * @param shouldReconcile If offset reconciliation is required.
+         * @return A completable that, when complete, will perform an internal Segment refresh and offset reconciliation
+         * if shouldReconcile is set to true.
+         */
+        private CompletableFuture<Void> reconcileOffsetsIfNeeded(boolean shouldReconcile) {
+            if (shouldReconcile) {
+                log.info("{}: Need to reconcile offsets for Segment {}.", this.traceObjectId, this.segment.getInfo().getName());
+                return refreshSegment().thenCompose(v -> {
+                    reconcileOffsets();
+                    return CompletableFuture.completedFuture(null);
+                });
+            }
+            return CompletableFuture.completedFuture(null);
         }
 
         /**
