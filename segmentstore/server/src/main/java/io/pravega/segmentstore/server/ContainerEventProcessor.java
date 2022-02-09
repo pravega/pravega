@@ -96,6 +96,11 @@ public interface ContainerEventProcessor extends AutoCloseable {
          * Maximum number of outstanding bytes that can be accumulated for a given {@link EventProcessor}.
          */
         private final long maxProcessorOutstandingBytes;
+
+        /**
+         * Amount of processed data to be accumulated to truncate the internal Segment.
+         */
+        private final long processedDataTruncationSizeInBytes;
     }
 
     /**
