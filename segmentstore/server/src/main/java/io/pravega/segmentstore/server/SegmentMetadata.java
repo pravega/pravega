@@ -73,7 +73,7 @@ public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating whether this instance of the SegmentMetadata is still active. As long as the Segment is
      * registered in the ContainerMetadata, this will return true. If this returns false, it means this SegmentMetadata
-     * instance has been evicted from the ContainerMetadata (for whatever reasons) and is should be considered stale.
+     * instance has been evicted from the ContainerMetadata (for whatever reasons) and should be considered stale.
      *
      * @return Whether this instance of the SegmentMetadata is active or not.
      */
