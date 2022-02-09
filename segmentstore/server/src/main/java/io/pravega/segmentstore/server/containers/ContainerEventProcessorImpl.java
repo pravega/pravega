@@ -471,8 +471,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * Combines refreshing the internal Segment and performing offset reconciliation.
          *
          * @param shouldReconcile If offset reconciliation is required.
-         * @return A completable that, when complete, will perform an internal Segment refresh and offset reconciliation
-         * if shouldReconcile is set to true.
+         * @return A {@link CompletableFuture} that, when complete, will perform an internal Segment refresh and offset
+         * reconciliation if shouldReconcile is set to true.
          */
         private CompletableFuture<Void> reconcileOffsetsIfNeeded(boolean shouldReconcile) {
             if (shouldReconcile) {
