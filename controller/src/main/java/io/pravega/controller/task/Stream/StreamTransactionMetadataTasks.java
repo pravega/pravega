@@ -324,13 +324,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final String writerId, final long timestamp,
                                                   final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return withRetriesAsync(() -> checkTxnLeaseExpiry(scope, stream, txId, context, requestId)
+        return withRetriesAsync(() -> checkTxnLeaseExpiry(scope, stream, txId, context)
                 .thenCompose(hasExpired -> sealTxnBody(hostId, scope, stream, !hasExpired, txId, null, writerId, timestamp, context)), RETRYABLE_PREDICATE, 3, executor);
     }
 
-    private CompletableFuture<Boolean> checkTxnLeaseExpiry(final String scope, final String stream, final UUID txId, final OperationContext context, final long requestId) {
+    private CompletableFuture<Boolean> checkTxnLeaseExpiry(final String scope, final String stream, final UUID txId, final OperationContext context) {
         final long currentTime = System.currentTimeMillis();
-        return streamMetadataStore.getTransactionData(scope, stream, txId, context, executor).thenApply(txnData -> (txnData.getMaxExecutionExpiryTime() <= currentTime));
+        return streamMetadataStore.getTransactionData(scope, stream, txId, context, executor).thenApply(txnData -> txnData.getMaxExecutionExpiryTime() <= currentTime);
 
     }
 
