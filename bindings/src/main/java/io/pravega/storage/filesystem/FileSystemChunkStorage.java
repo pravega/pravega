@@ -76,7 +76,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     public FileSystemChunkStorage(FileSystemStorageConfig config, Executor executor) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
-        this.fileSystem = new FileSystemWrapper();
+        this.fileSystem = new FileSystemWrapper(config.getReadChannelCacheSize(), config.getWriteChannelCacheSize());
     }
 
     /**
@@ -198,16 +198,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
         Path path = getFilePath(handle.getChunkName());
         try {
-            long fileSize = fileSystem.getFileSize(path);
-            if (fileSize < fromOffset) {
-                throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
-                        "current size of chunk (%d).", fromOffset, fileSize));
-            }
-        } catch (IOException e) {
-            throw convertException(handle.getChunkName(), "doRead", e);
-        }
-
-        try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.READ)) {
+            FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.READ);
             int totalBytesRead = 0;
             long readOffset = fromOffset;
             do {
@@ -221,6 +212,9 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             return totalBytesRead;
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doRead", e);
+        } catch (IndexOutOfBoundsException e) {
+            throw new IllegalArgumentException(String.format("doRead - %s - Reading at offset (%d) which is beyond the " +
+                    "current size of chunk.", handle.getChunkName(), fromOffset), e);
         }
     }
 
@@ -229,7 +223,8 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
         Path path = getFilePath(handle.getChunkName());
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.WRITE)) {
+        try {
+            FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.WRITE);
             long fileSize = channel.size();
             if (fileSize != offset) {
                 throw new InvalidOffsetException(handle.getChunkName(), fileSize, offset, "doWrite");
@@ -258,25 +253,24 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             int totalBytesConcated = 0;
             Path targetPath = getFilePath(chunks[0].getName());
             long offset = chunks[0].getLength();
-            try (val targetChannel = fileSystem.getFileChannel(targetPath, StandardOpenOption.WRITE)) {
-                for (int i = 1; i < chunks.length; i++) {
-                    val source = chunks[i];
-                    Preconditions.checkArgument(!chunks[0].getName().equals(source.getName()), "target and source can not be same.");
-                    Path sourcePath = getFilePath(source.getName());
-                    long length = chunks[i].getLength();
-                    Preconditions.checkState(offset <= fileSystem.getFileSize(targetPath));
-                    Preconditions.checkState(length <= fileSystem.getFileSize(sourcePath));
-                    try (val sourceChannel = fileSystem.getFileChannel(sourcePath, StandardOpenOption.READ)) {
-                        while (length > 0) {
-                            long bytesTransferred = targetChannel.transferFrom(sourceChannel, offset, length);
-                            offset += bytesTransferred;
-                            length -= bytesTransferred;
-                        }
-                        targetChannel.force(true);
-                        totalBytesConcated += length;
-                        offset += length;
-                    }
+
+            val targetChannel = fileSystem.getFileChannel(targetPath, StandardOpenOption.WRITE);
+            for (int i = 1; i < chunks.length; i++) {
+                val source = chunks[i];
+                Preconditions.checkArgument(!chunks[0].getName().equals(source.getName()), "target and source can not be same.");
+                Path sourcePath = getFilePath(source.getName());
+                long length = chunks[i].getLength();
+                Preconditions.checkState(offset <= fileSystem.getFileSize(targetPath));
+                Preconditions.checkState(length <= fileSystem.getFileSize(sourcePath));
+                val sourceChannel = fileSystem.getFileChannel(sourcePath, StandardOpenOption.READ);
+                while (length > 0) {
+                    long bytesTransferred = targetChannel.transferFrom(sourceChannel, offset, length);
+                    offset += bytesTransferred;
+                    length -= bytesTransferred;
                 }
+                targetChannel.force(true);
+                totalBytesConcated += length;
+                offset += length;
             }
             return totalBytesConcated;
         } catch (IOException e) {

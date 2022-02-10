@@ -55,9 +55,6 @@ class ControllerResolverFactory extends NameResolver.Factory {
     // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2
     private final static String SCHEME_DIRECT = "tcp";
-    //Secure versions of the direct scheme.
-    private final static String SCHEME_DIRECT_TLS = "tls";
-    private final static String SCHEME_DIRECT_SSL = "ssl";
 
     // Use this scheme when client only knows a subset of controllers and wants other controller instances to be
     // auto discovered.
@@ -72,10 +69,6 @@ class ControllerResolverFactory extends NameResolver.Factory {
     @Override
     public NameResolver newNameResolver(URI targetUri, NameResolver.Args params) {
         final String scheme = targetUri.getScheme();
-        if (!SCHEME_DISCOVER.equals(scheme) && !SCHEME_DISCOVER_TLS.equals(scheme) &&
-                !SCHEME_DIRECT.equals(scheme) && !SCHEME_DIRECT_SSL.equals(scheme) && !SCHEME_DIRECT_TLS.equals(scheme)) {
-            return null;
-        }
 
         final String authority = targetUri.getAuthority();
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {

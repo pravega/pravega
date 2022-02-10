@@ -41,6 +41,7 @@ plugins.withId('application') {
     startScripts {
         doLast {
             unixScript.text = unixScript.text.replace('PRAVEGA_APP_HOME', '\$APP_HOME')
+            unixScript.text = unixScript.text.replace('+JDWP_DEFAULT_PORT\"', '\"+\$JDWP_DEFAULT_PORT')
             windowsScript.text = windowsScript.text.replace('PRAVEGA_APP_HOME', '%~dp0..')
             // Replace the classpath on windows with the pathing JAR and the main archive
             windowsScript.text = windowsScript.text.replaceAll('set CLASSPATH=.*', Matcher.quoteReplacement(
