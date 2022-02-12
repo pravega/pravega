@@ -16,12 +16,13 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
@@ -62,7 +63,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private final int length;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
-    private final Timer timer;
+    private final AbstractTimer timer;
     private volatile SegmentMetadata segmentMetadata;
     private final AtomicInteger bytesRemaining = new AtomicInteger();
     private final AtomicInteger currentBufferOffset = new AtomicInteger();
@@ -84,7 +85,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
-        timer = new Timer();
+        timer = TimerUtils.createTimer();
     }
 
     @Override
@@ -114,10 +115,12 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                     .exceptionally(ex -> {
                                         log.debug("{} read - exception op={}, segment={}, offset={}, bytesRead={}.",
                                                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
-                                        if (ex instanceof CompletionException) {
-                                            throw (CompletionException) ex;
+                                        var e = Exceptions.unwrap(ex);
+                                        if (e instanceof ChunkStorageUnavailableException) {
+                                            chunkedSegmentStorage.getHealthTracker().reportUnavailable();
+                                            throw new CompletionException(new StorageUnavailableException(handle.getSegmentName(), ex));
                                         }
-                                        throw new CompletionException(ex);
+                                        throw new CompletionException(e);
                                     })
                                     .thenApplyAsync(v -> {
                                         logEnd();
@@ -256,7 +259,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         final long floorBlockStartOffset = getFloorBlockStartOffset(offset);
         CompletableFuture<Void>  f;
         if (!shouldOnlyReadLastChunk && !segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
-            val indexLookupTimer = new Timer();
+            val indexLookupTimer = TimerUtils.createTimer();
             f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
                     .thenAcceptAsync(storageMetadata -> {
                         if (null != storageMetadata) {
@@ -293,7 +296,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
            f = CompletableFuture.completedFuture(null);
         }
 
-        val readIndexTimer = new Timer();
+        val readIndexTimer = TimerUtils.createTimer();
         // Navigate to the chunk that contains the first byte of requested data.
         return f.thenComposeAsync( vv -> Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,

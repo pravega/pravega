@@ -23,12 +23,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ConcurrentHashMultiset;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.chunklayer.TimerUtils;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -303,7 +303,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
         val modifiedKeys = new ArrayList<String>();
         val modifiedValues = new ArrayList<TransactionData>();
-        val t = new Timer();
+        val t = TimerUtils.createTimer();
         val shouldReleaseKeys = new AtomicBoolean(false);
         val retValue = CompletableFuture.runAsync(() -> {
                     if (fenced.get()) {
@@ -598,7 +598,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         if (null == key) {
             return CompletableFuture.completedFuture(null);
         }
-        val t = new Timer();
+        val t = TimerUtils.createTimer();
         val txnData = txn.getData();
 
         // Record is found in transaction data itself.

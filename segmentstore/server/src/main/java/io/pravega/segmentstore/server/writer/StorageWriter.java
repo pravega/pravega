@@ -52,6 +52,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+
+import io.pravega.segmentstore.storage.StorageUnavailableException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -142,12 +145,15 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
     private void beginIteration() {
         this.state.recordIterationStarted(this.timer);
+        storage.beginIteration(state.getIterationId());
         logStageEvent("Start", null);
     }
 
     private void endIteration() {
         // Perform internal cleanup (get rid of those SegmentProcessors that are closed).
         cleanup();
+        this.state.recordIterationEnded(this.timer);
+        storage.endIteration(state.getIterationId());
         Duration elapsed = this.state.getElapsedSinceIterationStart(this.timer);
         this.metrics.iterationComplete(elapsed);
         logStageEvent("Finish", "Elapsed " + elapsed.toMillis() + "ms");
@@ -168,10 +174,19 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             super.errorHandler(ex);
             stopAsync();
         } else {
-            this.state.recordIterationError();
+            if (shouldThrottle(ex)) {
+                this.state.recordIterationError();
+            }
         }
 
         return null;
+    }
+
+    private boolean shouldThrottle(Throwable ex) {
+        if (storage instanceof ChunkedSegmentStorage && !(ex instanceof StorageUnavailableException)) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -513,7 +528,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      */
     private Duration getIterationStartDelay() {
         if (this.state.getLastIterationError()) {
-            return this.config.getErrorSleepDuration();
+            // Simple linear backoff.
+            return Duration.ofMillis(this.state.getFailedIterationCount() * this.config.getErrorSleepDuration().toMillis());
         } else {
             // No error, we can proceed right away.
             return Duration.ZERO;

@@ -20,7 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
+
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -738,7 +738,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         return CompletableFuture.supplyAsync(() -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
-                val timer = new Timer();
+                val timer = TimerUtils.createTimer();
                 val ret = operation.call();
                 opContext.setInclusiveLatency(timer.getElapsed());
                 return ret;

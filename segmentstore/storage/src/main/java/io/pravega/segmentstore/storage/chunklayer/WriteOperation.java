@@ -16,15 +16,16 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
@@ -62,7 +63,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final int length;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
-    private final Timer timer;
+    private final AbstractTimer timer;
     private final List<SystemJournal.SystemJournalRecord> systemLogRecords = Collections.synchronizedList(new ArrayList<>());
     private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
@@ -89,7 +90,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
-        timer = new Timer();
+        timer = TimerUtils.createTimer();
     }
 
     @Override
@@ -149,6 +150,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         if (ex instanceof ChunkStorageFullException) {
             throw new CompletionException(new StorageFullException(handle.getSegmentName(), ex));
         }
+        if (ex instanceof ChunkStorageUnavailableException) {
+            chunkedSegmentStorage.getHealthTracker().reportUnavailable();
+            throw new CompletionException(new StorageUnavailableException(handle.getSegmentName(), ex));
+        }
         throw new CompletionException(ex);
     }
 
@@ -184,7 +189,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} write - late op={}, segment={}, offset={}, length={}, latency={}.",
+            chunkedSegmentStorage.recordLateRequest(elapsed.toMillis());
+            log.warn("{} write - finished late op={}, segment={}, offset={}, length={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
         } else {
             log.debug("{} write - finished op={}, segment={}, offset={}, length={}, latency={}.",

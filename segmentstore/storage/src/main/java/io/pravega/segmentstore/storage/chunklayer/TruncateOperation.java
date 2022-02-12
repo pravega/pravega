@@ -16,12 +16,13 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
@@ -50,7 +51,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
     private final long traceId;
-    private final Timer timer;
+    private final AbstractTimer timer;
     private volatile String currentChunkName;
     private volatile ChunkMetadata currentMetadata;
     private volatile long oldLength;
@@ -64,7 +65,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         this.offset = offset;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "truncate", handle, offset);
-        timer = new Timer();
+        timer = TimerUtils.createTimer();
     }
 
     @Override
@@ -135,7 +136,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                         }, chunkedSegmentStorage.getExecutor());
                                             }, chunkedSegmentStorage.getExecutor()),
                                     chunkedSegmentStorage.getExecutor());
-                        }, chunkedSegmentStorage.getExecutor()),
+                        }, chunkedSegmentStorage.getExecutor())
+                        .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
     }
 
@@ -248,7 +250,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             SLTS_TRUNCATE_RELOCATION_BYTES.add(currentMetadata.getLength());
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
+            chunkedSegmentStorage.recordLateRequest(elapsed.toMillis());
+            log.warn("{} truncate - finished late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
         } else {
             log.debug("{} truncate - finished op={}, segment={}, offset={}, latency={}.",
@@ -264,6 +267,10 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             val ex = Exceptions.unwrap(e);
             if (ex instanceof StorageMetadataWritesFencedOutException) {
                 throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
+            }
+            if (ex instanceof ChunkStorageUnavailableException) {
+                chunkedSegmentStorage.getHealthTracker().reportUnavailable();
+                throw new CompletionException(new StorageUnavailableException(handle.getSegmentName(), ex));
             }
             throw new CompletionException(ex);
         }

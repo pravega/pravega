@@ -57,6 +57,10 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.RELOCATE_ON_TRUNCATE_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "20");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "21");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_LATE_REQUEST_THROTTLE_DURATION.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "22");
+        props.setProperty(ChunkedSegmentStorageConfig.MAX_LATE_REQUEST_THROTTLE_DURATION.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "23");
+        props.setProperty(ChunkedSegmentStorageConfig.MIN_LATE_REQUEST_THROTTLE_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "24");
+        props.setProperty(ChunkedSegmentStorageConfig.MAX_LATE_REQUEST_THROTTLE_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "25");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -86,6 +90,10 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertFalse(config.isRelocateOnTruncateEnabled());
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), 20);
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), 21);
+        Assert.assertEquals(config.getMinLateThrottleDurationInMillis(), 22);
+        Assert.assertEquals(config.getMaxLateThrottleDurationInMillis(), 23);
+        Assert.assertEquals(config.getMinLateThrottlePercentage(), 24);
+        Assert.assertEquals(config.getMaxLateThrottlePercentage(), 25);
     }
 
     @Test
@@ -124,6 +132,10 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.isRelocateOnTruncateEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isRelocateOnTruncateEnabled());
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeForTruncateRelocationInbytes());
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
+        Assert.assertEquals(config.getMinLateThrottleDurationInMillis(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinLateThrottleDurationInMillis());
+        Assert.assertEquals(config.getMaxLateThrottleDurationInMillis(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxLateThrottleDurationInMillis());
+        Assert.assertEquals(config.getMinLateThrottlePercentage(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinLateThrottlePercentage());
+        Assert.assertEquals(config.getMaxLateThrottlePercentage(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxLateThrottlePercentage());
     }
 
     @Test
@@ -154,6 +166,10 @@ public class ChunkedSegmentStorageConfigTests {
         testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
         testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
         testGetPositiveValue(ChunkedSegmentStorageConfig.SELF_CHECK_LATE_WARNING_THRESHOLD.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_LATE_REQUEST_THROTTLE_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_LATE_REQUEST_THROTTLE_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MIN_LATE_REQUEST_THROTTLE_DURATION.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
+        testGetPositiveValue(ChunkedSegmentStorageConfig.MAX_LATE_REQUEST_THROTTLE_DURATION.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE));
     }
 
     /**

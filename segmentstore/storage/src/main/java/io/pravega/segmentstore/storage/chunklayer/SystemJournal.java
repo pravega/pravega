@@ -18,7 +18,6 @@ package io.pravega.segmentstore.storage.chunklayer;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -312,7 +311,7 @@ public class SystemJournal {
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
 
         log.debug("SystemJournal[{}] BOOT started.", containerId);
-        Timer t = new Timer();
+        val t = TimerUtils.createTimer();
 
         // Start a transaction
         val txn = metadataStore.beginTransaction(false, getSystemSegments());

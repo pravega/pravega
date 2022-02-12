@@ -74,6 +74,11 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> MIN_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.min", 64 * 1024 * 1024L);
     public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
 
+    public static final Property<Integer> MAX_LATE_REQUEST_THROTTLE_PERCENT = Property.named("throttle.late.percent.max", 75);
+    public static final Property<Integer> MIN_LATE_REQUEST_THROTTLE_PERCENT = Property.named("throttle.late.percent.min", 25);
+    public static final Property<Integer> MAX_LATE_REQUEST_THROTTLE_DURATION = Property.named("throttle.late.max.ms", 1000);
+    public static final Property<Integer> MIN_LATE_REQUEST_THROTTLE_DURATION = Property.named("throttle.late.min.ms", 100);
+
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
@@ -109,6 +114,10 @@ public class ChunkedSegmentStorageConfig {
             .relocateOnTruncateEnabled(true)
             .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
             .minPercentForTruncateRelocation(80)
+            .minLateThrottleDurationInMillis(100)
+            .maxLateThrottleDurationInMillis(1000)
+            .minLateThrottlePercentage(25)
+            .maxLateThrottlePercentage(75)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -305,6 +314,30 @@ public class ChunkedSegmentStorageConfig {
     final private int safeStorageSizeCheckFrequencyInSeconds;
 
     /**
+     *  Maximum percentage of late requests per iteration beyond which all requests are rejected with {@link io.pravega.segmentstore.storage.StorageUnavailableException}
+     */
+    @Getter
+    final private int maxLateThrottlePercentage;
+
+    /**
+     *  Minimum percentage of late requests per iteration bellow which no requests are throttled.
+     */
+    @Getter
+    final private int minLateThrottlePercentage;
+
+    /**
+     *  Minimum throttle for lateness in millis.
+     */
+    @Getter
+    final private int maxLateThrottleDurationInMillis;
+
+    /**
+     *  Maximum throttle for lateness in millis.
+     */
+    @Getter
+    final private int minLateThrottleDurationInMillis;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -342,6 +375,10 @@ public class ChunkedSegmentStorageConfig {
         this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
         this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
         this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
+        this.minLateThrottlePercentage = properties.getPositiveInt(MIN_LATE_REQUEST_THROTTLE_PERCENT);
+        this.maxLateThrottlePercentage = properties.getPositiveInt(MAX_LATE_REQUEST_THROTTLE_PERCENT);
+        this.minLateThrottleDurationInMillis = properties.getPositiveInt(MIN_LATE_REQUEST_THROTTLE_DURATION);
+        this.maxLateThrottleDurationInMillis = properties.getPositiveInt(MAX_LATE_REQUEST_THROTTLE_DURATION);
     }
 
     /**
