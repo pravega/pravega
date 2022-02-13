@@ -215,6 +215,30 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void resetReaderGroup(ReaderGroupConfig config) {
         log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
         synchronizer.fetchUpdates();
+
+        //If null passed to ReaderGroupConfig then reset the reader group to last completed checkpoint.
+        if (config == null) {
+            val latestCheckpointConfig = synchronizer.getState().getConfig();
+            Optional<Map<Stream, Map<Segment, Long>>> lastCheckPointPositions =
+                    synchronizer.getState().getPositionsForLastCompletedCheckpoint();
+
+            Map<Stream, StreamCut> streamCuts = new HashMap<>();
+            if (lastCheckPointPositions.isPresent()) {
+                for (Entry<Stream, Map<Segment, Long>> streamPosition : lastCheckPointPositions.get().entrySet()) {
+                    streamCuts.put(streamPosition.getKey(), new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue()));
+                }
+
+            } else {
+                log.info("Reset reader group to last completed checkpoint is not successful as there is no checkpoint available, so resetting to start of the stream ");
+                Set<String> streamNames = getStreamNames();
+                for (String stream : streamNames) {
+                    streamCuts.put(Stream.of(stream), StreamCut.UNBOUNDED);
+                }
+            }
+            //apply streamcut to reader group config from reader group state object
+            ReaderGroupConfig readerConfig = latestCheckpointConfig.toBuilder().startingStreamCuts(streamCuts).build();
+            config = ReaderGroupConfig.cloneConfig(readerConfig, latestCheckpointConfig.getReaderGroupId(), latestCheckpointConfig.getGeneration());
+        }
         while (true) {
             val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
@@ -252,6 +276,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return;
             }
         }
+
     }
 
     private void updateConfigInStateSynchronizer(ReaderGroupConfig config, long newGen) {
