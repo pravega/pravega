@@ -172,9 +172,9 @@ public class CheckpointTest {
     public void testCheckpointAndRestoreToLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
-        String streamName = "testCheckpointAndRestore";
+        String streamName = "testCheckpointAndRestoreLastCP";
         String readerName = "reader";
-        String readerGroupName = "testCheckpointAndRestore-group";
+        String readerGroupName = "testCheckpointAndRestore-groupCP1";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
@@ -184,7 +184,7 @@ public class CheckpointTest {
         String testString5 = "Hello world 5\n";
         String testString6 = "Hello world 6\n";
 
-        String scope = "Scope1";
+        String scope = "ScopeLCP";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
@@ -306,9 +306,9 @@ public class CheckpointTest {
     public void testCheckpointAndRestoreNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
-        String streamName = "testCheckpointAndRestore";
+        String streamName = "testCheckpointAndRestoreNoCP";
         String readerName = "reader";
-        String readerGroupName = "testCheckpointAndRestore-group";
+        String readerGroupName = "testCheckpointAndRestore-groupNoCP";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
@@ -318,7 +318,7 @@ public class CheckpointTest {
         String testString5 = "Hello world 5\n";
         String testString6 = "Hello world 6\n";
 
-        String scope = "Scope1";
+        String scope = "ScopeCP";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
@@ -371,7 +371,7 @@ public class CheckpointTest {
         //Read 3rd Event
         assertEquals(testString3, reader.readNextEvent(1000).getEvent());
 
-        //Initiate 2nd checkpoint -- silent
+        //Initiate checkpoint -- silent
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         @Cleanup("shutdown")
         final InlineExecutor backgroundExecutor1 = new InlineExecutor();
@@ -406,7 +406,7 @@ public class CheckpointTest {
         assertEquals(testString4, reader.readNextEvent(1000).getEvent());
         assertEquals(testString5, reader.readNextEvent(1000).getEvent());
         assertEquals(testString6, reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(1000).getEvent());
+        assertNull(reader.readNextEvent(3000).getEvent());
 
     }
 
