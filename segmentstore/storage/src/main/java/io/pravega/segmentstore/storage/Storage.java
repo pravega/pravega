@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;

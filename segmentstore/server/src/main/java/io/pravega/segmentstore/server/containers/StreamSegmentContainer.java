@@ -117,6 +117,8 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
+    // Default buffer size of 1 MB.
+    private static final int BUFFER_SIZE = 1048576;
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -730,7 +732,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 1048576, timeout);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 

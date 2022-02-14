@@ -101,7 +101,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
         return invoke(
                 streamSegmentName,
                 container -> container.getExtendedChunkInfo(streamSegmentName, timeout),
-                "", streamSegmentName);
+                "getExtendedChunkInfo", streamSegmentName);
     }
 
     @Override
