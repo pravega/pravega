@@ -367,9 +367,7 @@ public class CheckpointTest {
 
         //Read 2nd event.
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
-
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    //Read 3rd Event                                                                                                                                                     
-        assertEquals(testString3, reader.readNextEvent(1000).getEvent());                                                                                       
+        assertEquals(testString3, reader.readNextEvent(1000).getEvent());
 
         //Initiate checkpoint -- silent
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
