@@ -388,6 +388,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      */
     @VisibleForTesting
     public synchronized void markInactive() {
+        log.debug("{}: Inactive = true.", this.traceObjectId);
         this.active = false;
     }
 
