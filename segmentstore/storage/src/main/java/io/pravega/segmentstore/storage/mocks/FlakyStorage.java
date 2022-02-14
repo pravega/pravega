@@ -1,3 +1,18 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.Futures;
@@ -79,7 +94,7 @@ public class FlakyStorage implements Storage {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         return Futures.delayedFuture(duration, executorService).
-                thenComposeAsync(v -> inner.concat(targetHandle, offset, sourceSegment,timeout));
+                thenComposeAsync(v -> inner.concat(targetHandle, offset, sourceSegment, timeout));
     }
 
     @Override

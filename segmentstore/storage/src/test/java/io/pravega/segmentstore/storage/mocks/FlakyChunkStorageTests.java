@@ -15,9 +15,13 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 
@@ -76,20 +80,10 @@ public class FlakyChunkStorageTests extends SimpleStorageTests {
             return new FlakyStorageTestContext(executorService(), config);
         }
 
-//        @Override
-//        public void testFencing() throws Exception {
-//
-//        }
-
         @Override
         protected void populate(byte[] data) {
             rnd.nextBytes(data);
         }
-
-//        @Override
-//        protected Storage createStorage() throws Exception {
-//            return null;
-//        }
 
         @Override
         protected void checkData(byte[] expected, byte[] output) {
