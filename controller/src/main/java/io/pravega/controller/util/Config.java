@@ -172,7 +172,7 @@ public final class Config {
             "retention.frequency.minutes", 30, "retention.frequencyMinutes");
 
     public static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named(
-            "retention.bucket.count", 1, "retention.bucketCount");
+            "retention.bucket.count", 5, "retention.bucketCount");
 
     public static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named(
             "retention.thread.count", 1, "retention.threadCount");
@@ -193,7 +193,7 @@ public final class Config {
             "watermarking.frequency.seconds", 10, "watermarking.frequencySeconds");
 
     public static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named(
-            "watermarking.bucket.count", 100, "watermarking.bucketCount");
+            "watermarking.bucket.count", 50, "watermarking.bucketCount");
 
     public static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named(
             "watermarking.thread.count", 10, "watermarking.threadCount");
