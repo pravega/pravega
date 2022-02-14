@@ -303,7 +303,7 @@ public final class Config {
     //endregion
 
 
-    //region Initialization
+    //#region Initialization
 
     static {
         val properties = loadConfiguration();
