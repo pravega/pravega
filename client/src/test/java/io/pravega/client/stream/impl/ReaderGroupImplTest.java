@@ -182,11 +182,10 @@ public class ReaderGroupImplTest {
 
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
-        when(synchronizer.getState().getStreamNames()).thenReturn(new HashSet<String>(Arrays.asList("scope/s1")));
         when(controller.getSegmentsAtTime(any(Stream.class), anyLong())).thenReturn(CompletableFuture.completedFuture(positions));
         readerGroup.resetReaderGroup(null);
 
-        verify(synchronizer, times(2)).fetchUpdates();
+        verify(synchronizer, times(1)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }

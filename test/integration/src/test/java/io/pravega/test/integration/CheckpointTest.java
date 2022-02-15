@@ -17,6 +17,7 @@ package io.pravega.test.integration;
 
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -32,8 +33,10 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -41,12 +44,14 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -401,6 +406,96 @@ public class CheckpointTest {
         assertEquals(testString1, reader.readNextEvent(1000).getEvent());
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
         assertEquals(testString3, reader.readNextEvent(1000).getEvent());
+        assertEquals(testString4, reader.readNextEvent(1000).getEvent());
+        assertEquals(testString5, reader.readNextEvent(1000).getEvent());
+        assertEquals(testString6, reader.readNextEvent(1000).getEvent());
+        assertNull(reader.readNextEvent(3000).getEvent());
+
+    }
+
+    /* Scenario where application trigger a call to read data from a specific streamcut.
+    * Consider scenario when there is no checkpoint created in the stream.
+    * Now when resetReaderGroup(null) call triggers, then reader group starts reading from start of streamcut not start of stream.
+    */
+    @Test(timeout = 120000)
+    public void testCPAndRestoreToStreamCutNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
+            ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "testCPAndRestoreToSCNoCP";
+        String readerName = "reader";
+        String readerGroupName = "testCheckpointAndRestore-groupSCNoCP";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String testString1 = "Hello world 1\n";
+        String testString2 = "Hello world 2\n";
+        String testString3 = "Hello world 3\n";
+        String testString4 = "Hello world 4\n";
+        String testString5 = "Hello world 5\n";
+        String testString6 = "Hello world 6\n";
+
+        String scope = "ScopeNoCP";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        Map<Segment, Long> positions = new HashMap<>();
+        IntStream.of(0).forEach(segNum -> positions.put(new Segment(scope, streamName, segNum), 114L));
+        StreamCut streamCut= new StreamCutImpl(Stream.of(scope, streamName), positions);
+        Map<Stream, StreamCut> streamcuts= new HashMap<Stream,StreamCut>();
+        streamcuts.put(Stream.of(scope, streamName),streamCut);
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         //.stream(Stream.of(scope, streamName), streamCut).build();
+                                                         .startFromStreamCuts(streamcuts).build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString1);
+        producer.writeEvent(testString2);
+        producer.writeEvent(testString3);
+        producer.writeEvent(testString4);
+        producer.writeEvent(testString5);
+        producer.writeEvent(testString6);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+
+        //Read event from stream cut. Stream cut created after completion of event 3 so read next returns from event 4 onwards
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertEquals(testString4, read.getEvent());
+        assertEquals(testString5, reader.readNextEvent(1000).getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        readerGroup.resetReaderGroup(null);
+        try {
+            reader.readNextEvent(60000);
+            fail();
+        } catch (ReinitializationRequiredException e) {
+            //Expected
+        }
+        reader.close();
+        reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
+
+        //reset to start of streamcut ie read from event 4 onwards
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         assertEquals(testString4, reader.readNextEvent(1000).getEvent());
         assertEquals(testString5, reader.readNextEvent(1000).getEvent());
         assertEquals(testString6, reader.readNextEvent(1000).getEvent());
