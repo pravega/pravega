@@ -36,7 +36,6 @@ import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -445,12 +444,11 @@ public class CheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(0).forEach(segNum -> positions.put(new Segment(scope, streamName, segNum), 114L));
-        StreamCut streamCut= new StreamCutImpl(Stream.of(scope, streamName), positions);
-        Map<Stream, StreamCut> streamcuts= new HashMap<Stream,StreamCut>();
-        streamcuts.put(Stream.of(scope, streamName),streamCut);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(scope, streamName), positions);
+        Map<Stream, StreamCut> streamcuts = new HashMap<Stream, StreamCut>();
+        streamcuts.put(Stream.of(scope, streamName), streamCut);
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
-                                                         //.stream(Stream.of(scope, streamName), streamCut).build();
                                                          .startFromStreamCuts(streamcuts).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
