@@ -1144,50 +1144,26 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void testListTransactionInState() {
+    public void testListCompletedTransaction() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
         StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
 
-        Controller.ListTxnInStateRequest listTxnInOpenStateRequest = Controller.ListTxnInStateRequest.newBuilder()
+        // Invalid lease
+        CreateTxnRequest request = CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
-                .setTxnState(Controller.TxnState.newBuilder().setState(Controller.TxnState.State.OPEN).buildPartial())
+                .setLease(1000L)
+                .build();
+        ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver);
+
+        Controller.ListCompletedTxnRequest listTxnInOpenStateRequest = Controller.ListCompletedTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
                 .build();
 
-        ResultObserver<Controller.ListTxnInStateResponse> listTxnInStateObserver = new ResultObserver<>();
+        ResultObserver<Controller.ListCompletedTxnResponse> listTxnInStateObserver = new ResultObserver<>();
 
-        this.controllerService.listTransactionsInState(listTxnInOpenStateRequest, listTxnInStateObserver);
+        this.controllerService.listCompletedTransactions(listTxnInOpenStateRequest, listTxnInStateObserver);
         assertEquals(0, listTxnInStateObserver.get().getTxnIdCount());
-
-        ResultObserver<CreateTxnResponse> createTxnObserver = new ResultObserver<>();
-        CreateTxnRequest createTxnRequest = CreateTxnRequest.newBuilder()
-                .setStreamInfo(streamInfo)
-                .setLease(1002L)
-                .build();
-        this.controllerService.createTransaction(createTxnRequest, createTxnObserver);
-        CreateTxnResponse createTxnResponse = createTxnObserver.get();
-
-        ResultObserver<Controller.ListTxnInStateResponse> listTxnInStateOpenObserver = new ResultObserver<>();
-        this.controllerService.listTransactionsInState(listTxnInOpenStateRequest, listTxnInStateOpenObserver);
-        assertTrue(listTxnInStateOpenObserver.get().getTxnIdList().contains(createTxnResponse.getTxnId()));
-
-        Controller.TxnRequest commitTxnRequest = Controller.TxnRequest.newBuilder()
-                .setTxnId(createTxnResponse.getTxnId())
-                .setStreamInfo(streamInfo).build();
-        ResultObserver<Controller.TxnStatus> commitTxnObserver = new ResultObserver<>();
-        this.controllerService.commitTransaction(commitTxnRequest, commitTxnObserver);
-
-        ResultObserver<Controller.TxnState> checkTxnStateObserver = new ResultObserver<>();
-        this.controllerService.checkTransactionState(commitTxnRequest, checkTxnStateObserver);
-
-        ResultObserver<Controller.ListTxnInStateResponse> listTxnInCommitStateObserver = new ResultObserver<>();
-        Controller.ListTxnInStateRequest listTxnInCommitStateRequest = Controller.ListTxnInStateRequest.newBuilder()
-                    .setStreamInfo(streamInfo)
-                    .setTxnState(checkTxnStateObserver.get())
-                    .build();
-
-        this.controllerService.listTransactionsInState(listTxnInCommitStateRequest, listTxnInCommitStateObserver);
-        assertTrue(listTxnInCommitStateObserver.get().getTxnIdList().contains(createTxnResponse.getTxnId()));
-
     }
 
     @Test

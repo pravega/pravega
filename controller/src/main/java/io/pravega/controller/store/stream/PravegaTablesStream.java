@@ -813,20 +813,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
-        return getEpochsWithTransactions(context)
-                .thenCompose(epochsWithTransactions -> Futures.allOfWithResults(epochsWithTransactions.stream().map(x ->
-                        getTxnInEpoch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
-                    List<UUID> listTxnIds = new ArrayList<>();
-                    list.forEach(map -> {
-                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getTxnStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
-                    });
-                    return listTxnIds;
-                });
-    }
-
-    @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getAllBatchesForCompletedTxns(context)
@@ -834,7 +821,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                         getTxnInBatch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
                     List<UUID> listTxnIds = new ArrayList<>();
                     list.forEach(map -> {
-                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getCompletionStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                        listTxnIds.addAll(map.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList()));
                     });
                     return listTxnIds;
                 });

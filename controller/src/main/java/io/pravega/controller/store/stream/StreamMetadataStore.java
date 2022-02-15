@@ -1126,16 +1126,15 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
-     * Method to retrieve all active transactions from metadata store by status.
+     * Method to retrieve all active transactions from metadata store in completed state.
      *
      * @param scope Scope of stream
      * @param stream name of stream
-     * @param status transaction status
      * @param context operation context
      * @param executor caller executor
      * @return list of txIds
      */
-    CompletableFuture<List<UUID>> listTransactionsInState(final String scope, final String stream, final TxnStatus status, final OperationContext context, final Executor executor);
+    CompletableFuture<List<UUID>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Adds specified resource as a child of current host's hostId node.

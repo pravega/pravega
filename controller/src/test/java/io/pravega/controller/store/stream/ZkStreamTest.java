@@ -542,6 +542,9 @@ public class ZkStreamTest {
         Assert.assertEquals(TxnStatus.ABORTED,
                 store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
+        List<UUID>  listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
+        assertEquals(2, listAborted.size());
+
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
 

@@ -540,26 +540,13 @@ class ZKStream extends PersistentStreamBase {
 
 
     @Override
-    public CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status) {
-        return store.getChildren(activeTxRoot)
-                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x), context))
-                        .collect(Collectors.toList())).thenApply(list -> {
-                    List<UUID> listTxnIds = new ArrayList<>();
-                    list.forEach(map -> {
-                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getTxnStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
-                    });
-                    return listTxnIds;
-                }));
-    }
-
-    @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
                 .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInBatch(x, context))
                         .collect(Collectors.toList())).thenApply(list -> {
                     List<UUID> listTxnIds = new ArrayList<>();
                     list.forEach(map -> {
-                        listTxnIds.addAll(map.entrySet().stream().filter(t -> t.getValue().getCompletionStatus() == status).map(x -> x.getKey()).collect(Collectors.toList()));
+                        listTxnIds.addAll(map.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList()));
                     });
                     return listTxnIds;
                 }));

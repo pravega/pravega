@@ -25,7 +25,6 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -197,7 +196,7 @@ public class ControllerStreamMetadataTest {
     }
 
     @Test
-    public void testListTransactionInState() {
+    public void testListCompletedTxns() {
         // Create test scope. This operation should succeed.
         assertTrue(controller.createScope(SCOPE).join());
 
@@ -205,8 +204,7 @@ public class ControllerStreamMetadataTest {
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
-        List<UUID> listUUID = controller.listTransactionsInState(Stream.of(SCOPE, STREAM), Transaction.Status.OPEN).join();
-        assertTrue(listUUID.contains(txnSegments.getTxnId()));
-
+        List<UUID> listUUID = controller.listCompletedTxns(Stream.of(SCOPE, STREAM)).join();
+        assertFalse(listUUID.contains(txnSegments.getTxnId()));
     }
 }

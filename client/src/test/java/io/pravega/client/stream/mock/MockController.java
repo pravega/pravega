@@ -669,7 +669,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInState(Stream stream, Transaction.Status status) {
+    public CompletableFuture<List<UUID>> listCompletedTxns(Stream stream) {
         throw new UnsupportedOperationException();
     }
 

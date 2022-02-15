@@ -1579,8 +1579,8 @@ public abstract class PersistentStreamBase implements Stream {
 
 
     @Override
-    public CompletableFuture<List<UUID>> listTransactionsInState(OperationContext context, TxnStatus status) {
-            return (status == TxnStatus.OPEN || status == TxnStatus.COMMITTING || status == TxnStatus.ABORTING) ? listActiveTransactions(context, status) : listCompletedTransactions(context, status);
+    public CompletableFuture<List<UUID>> listCompletedTxns(OperationContext context) {
+        return listCompletedTransactions(context);
     }
 
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId, OperationContext context) {
@@ -2637,23 +2637,14 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch, OperationContext context);
 
-    /**
-     * Method to get active txns according to their status.
-     *
-     * @param context operational context
-     * @param status  transaction status
-     * @return list of transaction ids having given status
-     */
-    abstract CompletableFuture<List<UUID>> listActiveTransactions(OperationContext context, TxnStatus status);
 
     /**
-     * Method to get completed txns according to their status.
+     * Method to get completed txns.
      *
      * @param context operational context
-     * @param status  transaction status
-     * @return list of transaction ids having given status
+     * @return list of transaction ids
      */
-    abstract CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context, TxnStatus status);
+    abstract CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context);
 
     /**
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 

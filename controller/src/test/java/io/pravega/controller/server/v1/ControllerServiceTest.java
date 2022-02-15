@@ -45,7 +45,6 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -72,7 +71,6 @@ import org.junit.Test;
 import org.junit.ClassRule;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -286,16 +284,8 @@ public class ControllerServiceTest {
         TransactionMetrics.initialize();
         OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
 
-        List<UUID> listTxns = consumer.listTransactionsInState(SCOPE, stream1, TxnStatus.OPEN, 0L).join();
+        List<UUID> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 0L).join();
         assertEquals(0, listTxns.size());
-
-        listTxns = consumer.listTransactionsInState(SCOPE, stream1, TxnStatus.ABORTED, 0L).join();
-        assertEquals(0, listTxns.size());
-
-        UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L, 0L).join().getKey();
-        listTxns = consumer.listTransactionsInState(SCOPE, stream1, TxnStatus.OPEN, 0L).join();
-        assertTrue(listTxns.contains(txnId));
-
     }
     
     @Test(timeout = 10000L)

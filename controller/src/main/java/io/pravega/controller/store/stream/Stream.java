@@ -523,13 +523,12 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context);
 
     /**
-     * Api to get all transactions ids having a particular status.
+     * Api to get all transactions ids in completed state.
      *
      * @param context operational context
-     * @param status  Transaction status
      * @return List of txIds
      */
-    CompletableFuture<List<UUID>> listTransactionsInState(OperationContext context, TxnStatus status);
+    CompletableFuture<List<UUID>> listCompletedTxns(OperationContext context);
 
     /**
      * Returns the currently active stream epoch.

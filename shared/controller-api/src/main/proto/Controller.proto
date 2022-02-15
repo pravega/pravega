@@ -46,7 +46,7 @@ service ControllerService {
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
-    rpc listTransactionsInState(ListTxnInStateRequest) returns (ListTxnInStateResponse);
+    rpc listCompletedTransactions(ListCompletedTxnRequest) returns (ListCompletedTxnResponse);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc listScopes(ScopesRequest) returns (ScopesResponse);
     rpc checkScopeExists(ScopeInfo) returns (ExistsResponse);
@@ -330,12 +330,11 @@ message TxnState {
     State state = 1;
 }
 
-message ListTxnInStateRequest {
+message ListCompletedTxnRequest {
     StreamInfo streamInfo = 1;
-    TxnState txnState = 2;
 }
 
-message ListTxnInStateResponse{
+message ListCompletedTxnResponse{
     repeated TxnId txnId = 1;
 }
 

@@ -148,7 +148,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREA
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_TRANSACTION_IN_STATE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
 
 /**
  * gRPC Service API implementation for the Controller.
@@ -906,15 +906,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void listTransactionsInState(Controller.ListTxnInStateRequest request, StreamObserver<Controller.ListTxnInStateResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(), LIST_TRANSACTION_IN_STATE, request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnState().getState().name());
-        log.info(requestTag.getRequestId(), "listTransactions called for stream {}/{}, status={}.", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnState().getState().name());
+    public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(), LIST_COMPLETED_TRANSACTIONS, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+        log.info(requestTag.getRequestId(), "listCompletedTransactions called for stream {}/{}.", request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                         authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                         AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listTransactionsInState(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream(),
-                        io.pravega.controller.store.stream.TxnStatus.valueOf(request.getTxnState().getState().name()), requestTag.getRequestId()).thenApply(result -> Controller.ListTxnInStateResponse.newBuilder().addAllTxnId(getAllTxnIds(result)).build()),
+                delegationToken -> controllerService.listCompletedTxns(request.getStreamInfo().getScope(),
+                        request.getStreamInfo().getStream(), requestTag.getRequestId()).thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder().addAllTxnId(getAllTxnIds(result)).build()),
                 responseObserver, requestTag);
     }
 

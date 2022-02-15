@@ -816,16 +816,15 @@ public class ControllerService {
     }
 
     /**
-     * List txnIds based on status.
+     * List txnIds in completed state.
      * @param scope scope name
      * @param stream stream name
-     * @param status status value
      * @param requestId request id
      * @return list of txnIds future
      */
-    public CompletableFuture<List<UUID>> listTransactionsInState(final String scope, final String stream, final io.pravega.controller.store.stream.TxnStatus status, final long requestId) {
+    public CompletableFuture<List<UUID>> listCompletedTxns(final String scope, final String stream, final long requestId) {
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
-        return streamStore.listTransactionsInState(scope, stream, status, context, executor);
+        return streamStore.listCompletedTxns(scope, stream, context, executor);
     }
 
 

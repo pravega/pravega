@@ -930,8 +930,8 @@ public abstract class StreamMetadataStoreTest {
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
                 100, 100, null, executor).get();
 
-        List<UUID> listTxn = store.listTransactionsInState(scope, stream, TxnStatus.OPEN, null, executor).join();
-        assertTrue(listTxn.contains(tx1.getId()));
+        List<UUID> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(0, listTxn.size());
 
         EpochRecord epochRecord = store.getActiveEpoch(scope, stream, null, true, executor).join();
 
@@ -940,21 +940,15 @@ public abstract class StreamMetadataStoreTest {
         VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
 
-        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.COMMITTING, null, executor).join();
-        assertTrue(listTxn.contains(tx1.getId()));
-
         record = store.startRollingTxn(scope, stream, epochRecord.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
 
-        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.COMMITTED, null, executor).join();
+        listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
         assertTrue(listTxn.contains(tx1.getId()));
 
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
-
-        listTxn = store.listTransactionsInState(scope, stream, TxnStatus.OPEN, null, executor).join();
-        assertFalse(listTxn.contains(tx1.getId()));
     }
 
 

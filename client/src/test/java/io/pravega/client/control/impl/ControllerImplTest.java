@@ -1047,17 +1047,17 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void listTransactionsInState(Controller.ListTxnInStateRequest request, StreamObserver<Controller.ListTxnInStateResponse> responseObserver) {
+            public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
                 UUID uuid = UUID.randomUUID();
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(Controller.ListTxnInStateResponse.newBuilder()
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
                             .addTxnId( TxnId.newBuilder()
                                     .setLowBits(uuid.getLeastSignificantBits())
                                     .setHighBits(uuid.getMostSignificantBits())
                                     .build())
                             .build());
                 } else if (request.getStreamInfo().getStream().equals("stream2")) {
-                    responseObserver.onNext(Controller.ListTxnInStateResponse.newBuilder()
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
                             .build());
                 }
                 responseObserver.onCompleted();
@@ -2110,12 +2110,12 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testListTransactionsInState() throws Exception {
+    public void testListCompletedTransaction() throws Exception {
         List<UUID> listUUID;
-        listUUID = controllerClient.listTransactionsInState(new StreamImpl("scope1", "stream1"), Transaction.Status.OPEN).get();
+        listUUID = controllerClient.listCompletedTxns(new StreamImpl("scope1", "stream1")).get();
         assertEquals(1, listUUID.size());
 
-        listUUID = controllerClient.listTransactionsInState(new StreamImpl("scope1", "stream2"), Transaction.Status.COMMITTING).get();
+        listUUID = controllerClient.listCompletedTxns(new StreamImpl("scope1", "stream2")).get();
         assertEquals(0, listUUID.size());
     }
 
