@@ -55,19 +55,27 @@ public class FileSystemStorageConfig {
     @Getter
     private final boolean replaceEnabled;
 
-    // Read cache size of the FileChannel
+    /**
+     * Size of FileChannel Read Cache.
+     */
     @Getter
     private final int readChannelCacheSize;
 
-    // Write cache size of the FileChannel
+    /**
+     * Size of FileChannel Write Cache.
+     */
     @Getter
     private final int writeChannelCacheSize;
 
-    // Read cache expiration of the FileChannel
+    /**
+     * Expiration duration for FileChannel Read Cache.
+     */
     @Getter
     private  final Duration readChannelCacheExpiration;
 
-    // Write cache expiration of the FileChannel
+    /**
+     * Expiration duration for FileChannel Write Cache.
+     */
     @Getter
     private final Duration writeChannelCacheExpiration;
 
