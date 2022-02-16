@@ -31,7 +31,6 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
@@ -142,10 +141,6 @@ public class ControllerWrapper implements AutoCloseable {
                 .hostContainerMap(HostMonitorConfigImpl.getHostContainerMap(serviceHost, servicePort, containerCount))
                 .build();
 
-        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .build();
-
         Optional<ControllerEventProcessorConfig> eventProcessorConfig;
         if (!disableEventProcessor) {
             eventProcessorConfig = Optional.of(ControllerEventProcessorConfigImpl.builder()
@@ -202,7 +197,6 @@ public class ControllerWrapper implements AutoCloseable {
                 .storeClientConfig(storeClientConfig)
                 .controllerClusterListenerEnabled(!disableControllerCluster)
                 .hostMonitorConfig(hostMonitorConfig)
-                .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(eventProcessorConfig)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
