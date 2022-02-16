@@ -311,9 +311,9 @@ public class CheckpointTest {
     public void testCheckpointAndRestoreNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
-        String streamName = "testCheckpointAndRestoreNoCP";
+        String streamName = "testCPAndRestoreNolastCP";
         String readerName = "reader";
-        String readerGroupName = "testCheckpointAndRestore-groupNoCP";
+        String readerGroupName = "testCPAndRestore-groupNolastCP";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
@@ -323,7 +323,7 @@ public class CheckpointTest {
         String testString5 = "Hello world 5\n";
         String testString6 = "Hello world 6\n";
 
-        String scope = "ScopeCP";
+        String scope = "ScopeNoLastCP";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
