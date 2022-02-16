@@ -823,6 +823,8 @@ public class ControllerService {
      * @return list of txnIds future
      */
     public CompletableFuture<List<UUID>> listCompletedTxns(final String scope, final String stream, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
         return streamStore.listCompletedTxns(scope, stream, context, executor);
     }

@@ -1706,4 +1706,29 @@ public abstract class StreamTestBase {
         assertEquals(transactions.get(2), ActiveTxnRecord.EMPTY);
         assertEquals(transactions.get(3).getTxnStatus(), TxnStatus.ABORTING);
     }
+
+    @Test
+    public void testListCompletedTnxns() {
+        OperationContext context = getContext();
+        createScope("listCompletedScope", context);
+        PersistentStreamBase stream = createStream("listCompletedScope", "listCompletedStream", System.currentTimeMillis(), 5, new Random().nextInt(2000), 2, 2);
+        createAndCommitTransaction(stream, 0, 0L);
+        createAndCommitTransaction(stream, 0, 1L);
+
+        List<UUID> list = stream.listCompletedTransactions(context).join();
+        assertEquals(0, list.size());
+
+        // start commit transactions
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join().getKey();
+        stream.getVersionedState(context).thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN, context)).join();
+
+        // start rolling transaction
+        ctr = stream.startRollingTxn(1, ctr, context).join();
+
+        stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
+        stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
+
+        list = stream.listCompletedTransactions(context).join();
+        assertEquals(2, list.size());
+    }
 }
