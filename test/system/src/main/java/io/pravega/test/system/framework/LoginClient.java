@@ -29,7 +29,7 @@ import javax.net.ssl.SSLSession;
 import lombok.Data;
 import mesosphere.client.common.ModelUtils;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static javax.ws.rs.core.Response.Status.OK;
 import static io.pravega.test.system.framework.Utils.getConfig;
 
 /**
@@ -56,7 +56,7 @@ public class LoginClient {
 
         Response response = client.login(new AuthRequest(getUsername(), getPassword(), "LOCAL"));
 
-        if (response.status() == OK.code()) {
+        if (response.status() == OK.getStatusCode()) {
             Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
             return headers.toArray(new String[headers.size()])[0];
         } else {
