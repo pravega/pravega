@@ -308,20 +308,15 @@ public class CheckpointTest {
     }
 
     @Test(timeout = 20000)
-    public void testCheckpointAndRestoreNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
-            ExecutionException, TimeoutException {
+    public void testCheckpointAndRestoreNoLastCheckpoint() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "testCPAndRestoreNolastCP";
-        String readerName = "reader";
+        String readerName = "readerCP";
         String readerGroupName = "testCPAndRestore-groupNolastCP";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";
-        String testString3 = "Hello world 3\n";
-        String testString4 = "Hello world 4\n";
-        String testString5 = "Hello world 5\n";
-        String testString6 = "Hello world 6\n";
 
         String scope = "ScopeNoLastCP";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -350,10 +345,6 @@ public class CheckpointTest {
         producer.writeEvent(testString);
         producer.writeEvent(testString1);
         producer.writeEvent(testString2);
-        producer.writeEvent(testString3);
-        producer.writeEvent(testString4);
-        producer.writeEvent(testString5);
-        producer.writeEvent(testString6);
         producer.flush();                                               
 
         AtomicLong clock = new AtomicLong();
@@ -372,15 +363,6 @@ public class CheckpointTest {
 
         //Read 2nd event.
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString3, reader.readNextEvent(1000).getEvent());
-
-        read = reader.readNextEvent(1000);
-        assertFalse(read.isCheckpoint());
-        assertEquals(testString4, read.getEvent());
-
-        //Read 5th event onwards
-        assertEquals(testString5, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString6, reader.readNextEvent(1000).getEvent());
         assertNull(reader.readNextEvent(1000).getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
@@ -399,10 +381,6 @@ public class CheckpointTest {
         assertEquals(testString, read.getEvent());
         assertEquals(testString1, reader.readNextEvent(1000).getEvent());
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString3, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString4, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString5, reader.readNextEvent(1000).getEvent());
-        assertEquals(testString6, reader.readNextEvent(1000).getEvent());
         assertNull(reader.readNextEvent(3000).getEvent());
 
     }
