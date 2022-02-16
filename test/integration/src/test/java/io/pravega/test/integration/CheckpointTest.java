@@ -58,6 +58,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -498,6 +499,170 @@ public class CheckpointTest {
         assertEquals(testString5, reader.readNextEvent(1000).getEvent());
         assertEquals(testString6, reader.readNextEvent(1000).getEvent());
         assertNull(reader.readNextEvent(3000).getEvent());
+
+    }
+
+    /*
+    * Consider the scenario where reader in RG reading Stream s1 and created checkpoint CP1(say position p1 in segment).
+    *  Now there is call reset readergroup by adding new stream s2 and streamcut sc1 on stream s1(say position p2(>p1) in segment
+    *  Now If there is call to resetReaderGroup(null) then It should start reading stream s1 from streamcut sc1 and s2 from head.
+    */
+    @Test(timeout = 120000)
+    public void testCPAndRestoreWithAddDeleteStream() throws ReinitializationRequiredException, InterruptedException,
+            ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "testCPAndRestoreMewStream";
+        String streamNameNew = "testCPAndRestoreMewStream1";
+        String readerName = "reader";
+        String readerGroupName = "testCheckpointAndRestore-groupSCNoCP";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String testString1 = "Hello world 1\n";
+        String testString2 = "Hello world 2\n";
+        String testString3 = "Hello world 3\n";
+        String testString4 = "Hello world 4\n";
+        String testString5 = "Hello world 5\n";
+        String testString6 = "Hello world 6\n";
+
+        String streamString = "Hello Stream2\n";
+        String streamString1 = "Hello Stream2 1\n";
+        String streamString2 = "Hello Stream2 2\n";
+        String streamString3 = "Hello Stream2 3\n";
+        String streamString4 = "Hello Stream2 4\n";
+        String streamString5 = "Hello Stream2 5\n";
+        String streamString6 = "Hello Stream2 6\n";
+
+        String scope = "ScopeNewStream";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        Map<Segment, Long> positions = new HashMap<>();
+        IntStream.of(0).forEach(segNum -> positions.put(new Segment(scope, streamName, segNum), 114L));
+        StreamCut streamCut = new StreamCutImpl(Stream.of(scope, streamName), positions);
+        Map<Stream, StreamCut> streamcuts = new HashMap<Stream, StreamCut>();
+        streamcuts.put(Stream.of(scope, streamName), streamCut);
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         .stream(Stream.of(scope, streamName)).build();
+
+        //readerGroup pointing to new streamcut for s1 and head of newly added stream s2
+        ReaderGroupConfig groupConfigSC = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         .stream(Stream.of(scope, streamName), streamCut)
+                                                          .stream(Stream.of(scope, streamNameNew)).build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        streamManager.createStream(scope, streamNameNew, StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString1);
+        producer.writeEvent(testString2);
+        producer.writeEvent(testString3);
+        producer.writeEvent(testString4);
+        producer.writeEvent(testString5);
+        producer.writeEvent(testString6);
+        producer.flush();
+
+        @Cleanup
+        EventStreamWriter<String> producer1 = clientFactory.createEventWriter(streamNameNew, serializer,
+                EventWriterConfig.builder().build());
+        producer1.writeEvent(streamString);
+        producer1.writeEvent(streamString1);
+        producer1.writeEvent(streamString2);
+        producer1.writeEvent(streamString3);
+        producer1.writeEvent(streamString4);
+        producer1.writeEvent(streamString5);
+        producer1.writeEvent(streamString6);
+        producer1.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+
+        //Read event from stream s1.
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+        assertEquals(testString1, reader.readNextEvent(1000).getEvent());
+
+        //Initiate 1st checkpoint after 2 events read by reader ie 0 and 1
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", backgroundExecutor);
+        assertFalse(checkpoint.isDone());
+        read = reader.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        //Read 2 more event ie event 2 and event 3
+        assertEquals(testString2, reader.readNextEvent(1000).getEvent());
+        assertEquals(testString3, reader.readNextEvent(1000).getEvent());
+
+        //Modify RG to add new stream s2 and start reading from stream s1 (streamcut sc1). SC1 positions are greater than checkpoint.
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        readerGroup.resetReaderGroup(groupConfigSC);
+        try {
+            reader.readNextEvent(60000);
+            fail();
+        } catch (ReinitializationRequiredException e) {
+            //Expected
+        }
+        reader.close();
+        reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
+
+        //reset to start of streamcut of S1 and new stream s2
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+
+        //Reset reader group to null been called which essentially reset readergroup to streamcut sc1 of stream s1 and head of stream s2.
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        readerGroup.resetReaderGroup(null);
+        try {
+            reader.readNextEvent(60000);
+
+        } catch (ReinitializationRequiredException e) {
+            //Expected
+        }
+        reader.close();
+        reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
+
+        //reset to start of streamcut of S1(event 4 onwards in total 3 event from stream s1) and new stream s2(7 events)
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNull(reader.readNextEvent(1000).getEvent());
 
     }
 
