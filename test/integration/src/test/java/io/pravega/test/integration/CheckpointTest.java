@@ -374,12 +374,6 @@ public class CheckpointTest {
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
         assertEquals(testString3, reader.readNextEvent(1000).getEvent());
 
-        //Initiate checkpoint -- silent
-        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        @Cleanup("shutdown")
-        final InlineExecutor backgroundExecutor1 = new InlineExecutor();
-        CompletableFuture<Checkpoint> silentCheckpoint = readerGroup.initiateCheckpoint("SilentCheckpoint" + SILENT, backgroundExecutor1);
-        assertFalse(silentCheckpoint.isDone());
         read = reader.readNextEvent(1000);
         assertFalse(read.isCheckpoint());
         assertEquals(testString4, read.getEvent());
