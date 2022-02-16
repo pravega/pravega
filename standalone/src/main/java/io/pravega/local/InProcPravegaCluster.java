@@ -405,10 +405,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .hostMonitorMinRebalanceInterval(1)
                 .build();
 
-        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .build();
-
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl
                 .withDefaultBuilder()
                 .shutdownTimeout(Duration.ofMillis(100))
@@ -449,7 +445,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerEnabled(false)
-                .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
