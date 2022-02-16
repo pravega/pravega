@@ -204,7 +204,7 @@ public class ControllerStreamMetadataTest {
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
-        List<UUID> listUUID = controller.listCompletedTxns(Stream.of(SCOPE, STREAM)).join();
+        List<UUID> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join();
         assertFalse(listUUID.contains(txnSegments.getTxnId()));
     }
 }

@@ -2112,10 +2112,10 @@ public class ControllerImplTest {
     @Test
     public void testListCompletedTransaction() throws Exception {
         List<UUID> listUUID;
-        listUUID = controllerClient.listCompletedTxns(new StreamImpl("scope1", "stream1")).get();
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).get();
         assertEquals(1, listUUID.size());
 
-        listUUID = controllerClient.listCompletedTxns(new StreamImpl("scope1", "stream2")).get();
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).get();
         assertEquals(0, listUUID.size());
     }
 

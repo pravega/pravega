@@ -1512,23 +1512,22 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTxns(Stream stream) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(Stream stream) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "listCompletedTxns", stream, requestId);
+        long traceId = LoggerHelpers.traceEnter(log, "listCompletedTransactions", stream, requestId);
 
-        final CompletableFuture<ListCompletedTxnResponse> result = this.retryConfig.runAsync(() -> {
+        final CompletableFuture<ListCompletedTxnResponse> listCompletedTxnsResponse = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, "listCompletedTransactions", stream);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS,
-                            stream.getScope(), stream.getStreamName())
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
                     .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
                                     .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                                     .build(),
                             callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApplyAsync(x -> x.getTxnIdList().stream().map(uuid -> encode(uuid)).collect(Collectors.toList()), this.executor)
+        return listCompletedTxnsResponse.thenApplyAsync(completedTxnResponse -> completedTxnResponse.getTxnIdList().stream().map(uuid -> encode(uuid)).collect(Collectors.toList()), this.executor)
                 .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn(requestId, "listCompletedTransactions for stream {} ", stream, e);

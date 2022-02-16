@@ -370,7 +370,7 @@ public interface Controller extends AutoCloseable {
      * @param stream Stream Name
      * @return list of transaction ids
      */
-    CompletableFuture<List<UUID>> listCompletedTxns(final Stream stream);
+    CompletableFuture<List<UUID>> listCompletedTransactions(final Stream stream);
 
     // Controller Apis that are called by readers
 

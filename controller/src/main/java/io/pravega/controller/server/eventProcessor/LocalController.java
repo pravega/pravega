@@ -566,7 +566,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTxns(Stream stream) {
+    public CompletableFuture<List<UUID>> listCompletedTransactions(Stream stream) {
         return controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong());
     }
 
