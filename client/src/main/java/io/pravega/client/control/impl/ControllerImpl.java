@@ -1365,6 +1365,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    @Deprecated
     public CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease) {
         Exceptions.checkNotClosed(closed.get(), this);
         final long requestId = requestIdGenerator.get();
@@ -1379,6 +1380,37 @@ public class ControllerImpl implements Controller {
                                                          stream.getStreamName()))
                                                  .setTxnId(ModelHelper.decode(txId))
                                                  .setLease(lease).build(), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(status -> {
+            try {
+                return encode(status.getStatus(), stream + " " + txId);
+            } catch (PingFailedException ex) {
+                throw new CompletionException(ex);
+            }
+        }, this.executor).whenComplete((s, e) -> {
+            if (e != null) {
+                log.warn(requestId, "PingTransaction {} failed:", txId, e);
+            }
+            LoggerHelpers.traceLeave(log, "pingTransaction", traceId, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Transaction.PingStatus> extendTransactionLease(final Stream stream, final UUID txId, final long lease) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease, requestId);
+
+        final CompletableFuture<PingTxnStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>(traceId, "pingTransaction", txId, lease);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, PING_TRANSACTION,
+                            stream.getScope(), stream.getStreamName(), txId.toString())
+                    .pingTransaction(PingTxnRequest.newBuilder()
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                    stream.getStreamName()))
+                            .setTxnId(ModelHelper.decode(txId))
+                            .setLease(lease).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApplyAsync(status -> {
@@ -2220,6 +2252,10 @@ public class ControllerImpl implements Controller {
         }
 
         public void pingTransaction(PingTxnRequest request, RPCAsyncCallback<PingTxnStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).pingTransaction(request, callback);
+        }
+
+        public void extendTransactionLease(PingTxnRequest request, RPCAsyncCallback<PingTxnStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).pingTransaction(request, callback);
         }
 

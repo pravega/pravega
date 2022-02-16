@@ -532,7 +532,17 @@ public class LocalController implements Controller {
                 .thenApply(pair -> new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey()));
     }
 
+    /**
+     * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
+     *
+     * @param stream     Stream name
+     * @param txId       Transaction id
+     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
+     * @return           Transaction.PingStatus or PingFailedException
+     * * @deprecated As of Pravega release 0.12.0.
+     */
     @Override
+    @Deprecated
     public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
         return controller.pingTransaction(stream.getScope(), stream.getStreamName(), txId, lease, requestIdGenerator.nextLong())
                          .thenApply(status -> {
@@ -542,6 +552,18 @@ public class LocalController implements Controller {
                                  throw new CompletionException(ex);
                              }
                          });
+    }
+
+    @Override
+    public CompletableFuture<Transaction.PingStatus> extendTransactionLease(Stream stream, UUID txId, long lease) {
+        return controller.extendTransactionLease(stream.getScope(), stream.getStreamName(), txId, lease, requestIdGenerator.nextLong())
+                .thenApply(status -> {
+                    try {
+                        return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+                    } catch (PingFailedException ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
     }
 
     @Override

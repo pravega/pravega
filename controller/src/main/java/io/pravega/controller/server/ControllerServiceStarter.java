@@ -275,7 +275,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,
                     serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
 
@@ -322,8 +322,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), controllerExecutor,
                     streamMetadataTasks);
 
-            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
-                    serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
+            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks, controllerExecutor);
             RequestSweeper requestSweeper = new RequestSweeper(streamStore, controllerExecutor,
                     streamMetadataTasks);
 

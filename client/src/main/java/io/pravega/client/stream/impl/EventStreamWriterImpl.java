@@ -91,7 +91,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final ConcurrentLinkedQueue<Segment> sealedSegmentQueue = new ConcurrentLinkedQueue<>();
     private final ReusableLatch sealedSegmentQueueEmptyLatch = new ReusableLatch(true);
     private final ExecutorService retransmitPool;
-    private final Pinger pinger;
     private final DelegationTokenProvider tokenProvider;
     private final ConnectionPool connectionPool;
     
@@ -109,7 +108,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
-        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
         if (config.isAutomaticallyNoteTime()) {
@@ -341,7 +339,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         if (closed.getAndSet(true)) {
             return;
         }
-        pinger.close();
         synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {

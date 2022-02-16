@@ -126,7 +126,7 @@ public class ControllerClusterListenerTest {
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
+        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, executor);
 
         // Create ControllerClusterListener.
         ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
@@ -203,7 +203,7 @@ public class ControllerClusterListenerTest {
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
 
-        TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
+        TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, executor));
         // any attempt to sweep txnHost should have been ignored
         AtomicBoolean txnSweeperRealMethod = new AtomicBoolean(false);
         doAnswer(invocation -> {

@@ -50,7 +50,6 @@ public class TxnSweeper implements FailoverSweeper {
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamTransactionMetadataTasks transactionMetadataTasks;
-    private final long maxTxnTimeoutMillis;
     private final ScheduledExecutorService executor;
 
     @Data
@@ -62,16 +61,13 @@ public class TxnSweeper implements FailoverSweeper {
 
     public TxnSweeper(final StreamMetadataStore streamMetadataStore,
                       final StreamTransactionMetadataTasks transactionMetadataTasks,
-                      final long maxTxnTimeoutMillis,
                       final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore, "streamMetadataStore");
         Preconditions.checkNotNull(transactionMetadataTasks, "transactionMetadataTasks");
         Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkArgument(maxTxnTimeoutMillis > 0, "maxTxnTimeoutMillis should be a positive number");
 
         this.streamMetadataStore = streamMetadataStore;
         this.transactionMetadataTasks = transactionMetadataTasks;
-        this.maxTxnTimeoutMillis = maxTxnTimeoutMillis;
         this.executor = executor;
     }
 
@@ -104,7 +100,7 @@ public class TxnSweeper implements FailoverSweeper {
             return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         log.info("Host={}, sweeping orphaned transactions", failedHost);
-        CompletableFuture<Void> delay = Futures.delayedFuture(Duration.ofMillis(2 * maxTxnTimeoutMillis), executor);
+        CompletableFuture<Void> delay = Futures.delayedFuture(Duration.ofMillis(2 * 100), executor);
         return delay.thenComposeAsync(x -> withRetriesAsync(() -> sweepOrphanedTxnsWithoutDelay(failedHost),
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
     }
@@ -197,7 +193,7 @@ public class TxnSweeper implements FailoverSweeper {
         UUID txnId = txn.getTxnId();
         log.info("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
-                .thenCompose(txnData -> transactionMetadataTasks.updateTransactionLease(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerService.nextRequestId()))
+                .thenCompose(txnData -> transactionMetadataTasks.extendLease(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, ControllerService.nextRequestId()))
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 }

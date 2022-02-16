@@ -23,7 +23,6 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.util.Config;
 import java.time.Duration;
@@ -43,7 +42,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final StoreClientConfig storeClientConfig;
     private final HostMonitorConfig hostMonitorConfig;
     private final boolean controllerClusterListenerEnabled;
-    private final TimeoutServiceConfig timeoutServiceConfig;
 
     private final String tlsEnabledForSegmentStore;
 
@@ -70,7 +68,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final HostMonitorConfig hostMonitorConfig,
                                 final boolean controllerClusterListenerEnabled,
                                 final String tlsEnabledForSegmentStore,
-                                final TimeoutServiceConfig timeoutServiceConfig,
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
@@ -81,7 +78,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         if (controllerClusterListenerEnabled) {
@@ -105,7 +101,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.hostMonitorConfig = hostMonitorConfig;
         this.controllerClusterListenerEnabled = controllerClusterListenerEnabled;
         this.tlsEnabledForSegmentStore = tlsEnabledForSegmentStore;
-        this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;
         this.restServerConfig = restServerConfig;

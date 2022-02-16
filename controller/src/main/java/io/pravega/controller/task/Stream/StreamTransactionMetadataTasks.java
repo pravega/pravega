@@ -42,9 +42,6 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
@@ -63,7 +60,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import lombok.Getter;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -99,9 +95,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final StreamMetadataStore streamMetadataStore;
     private final SegmentHelper segmentHelper;
     private final GrpcAuthHelper authHelper;
-    @Getter
-    @VisibleForTesting
-    private final TimeoutService timeoutService;
 
     private volatile boolean ready;
     private final CountDownLatch readyLatch;
@@ -115,7 +108,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final ScheduledExecutorService eventExecutor,
                                           final String hostId,
-                                          final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
                                           final GrpcAuthHelper authHelper) {
         this.hostId = hostId;
@@ -124,7 +116,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.streamMetadataStore = streamMetadataStore;
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
-        this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
@@ -136,10 +127,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, taskCompletionQueue, authHelper);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -147,9 +137,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final ScheduledExecutorService eventExecutor,
                                           final String hostId,
-                                          final TimeoutServiceConfig timeoutServiceConfig,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, 
+        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId,
                 null, authHelper);
     }
 
@@ -159,7 +148,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, authHelper);
     }
 
     private void setReady() {
@@ -232,24 +221,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                       final long rolloverSizeBytes) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
         return createTxnBody(scope, stream, lease, context, rolloverSizeBytes);
-    }
-
-    /**
-     * Transaction heartbeat, that increases transaction timeout by lease number of milliseconds.
-     *
-     * @param scope Stream scope.
-     * @param stream Stream name.
-     * @param txId Transaction identifier.
-     * @param lease Amount of time in milliseconds by which to extend the transaction lease.
-     * @param requestId requestId
-     * @return Transaction metadata along with the version of it record in the store.
-     */
-    public CompletableFuture<PingTxnStatus> updateTransactionLease(final String scope,
-                                                                   final String stream,
-                                                                   final UUID txId,
-                                                                   final long lease,
-                                                                   final long requestId) {
-        return extendLease(scope, stream, txId, lease, requestId);
     }
 
     /**
@@ -523,36 +494,29 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, don't ping it
                 return CompletableFuture.completedFuture(getPingTxnStatus(txnStatus));
             }
-            // Step 1. Sanity check for lease value.
-            if (lease > timeoutService.getMaxLeaseValue()) {
-                return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));
-            } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
-                return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
-            } else {
-                TxnResource resource = new TxnResource(scope, stream, txnId);
-                // Step 2. Add txn to host-transaction index
-                CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion());
-                addIndex.whenComplete((v, e) -> {
+            TxnResource resource = new TxnResource(scope, stream, txnId);
+            // Step 2. Add txn to host-transaction index
+            CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion());
+            addIndex.whenComplete((v, e) -> {
+                if (e != null) {
+                    log.debug(ctx.getRequestId(), "Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                } else {
+                    log.debug(ctx.getRequestId(), "Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                }
+            });
+            return addIndex.thenComposeAsync(x -> {
+                // Step 3. Update txn node data in the store.
+                long requestId = ctx.getRequestId();
+                CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.updateTransactionLease(
+                        scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug(ctx.getRequestId(), "Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                        log.debug(requestId, "Txn={}, failed updating txn node in store", txnId);
                     } else {
-                        log.debug(ctx.getRequestId(), "Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                        log.debug(requestId, "Txn={}, updated txn node in store", txnId);
                     }
                 });
-                return addIndex.thenComposeAsync(x -> {
-                    // Step 3. Update txn node data in the store.
-                    long requestId = ctx.getRequestId();
-                    CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.updateTransactionLease(
-                            scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
-                        if (e != null) {
-                            log.debug(requestId, "Txn={}, failed updating txn node in store", txnId);
-                        } else {
-                            log.debug(requestId, "Txn={}, updated txn node in store", txnId);
-                        }
-                    });
-                    return pingTxn.thenApply(v -> createStatus(Status.OK));
-                }, executor);
-            }
+                return pingTxn.thenApply(v -> createStatus(Status.OK));
+            }, executor);
         }, executor);
         return Futures.exceptionallyComposeExpecting(pingTxnFuture,
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
@@ -769,8 +733,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     @Override
     @Synchronized
     public void close() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         CompletableFuture<Void> commitCloseFuture = commitWriterFuture.thenAccept(EventStreamWriter::close);
         CompletableFuture<Void> abortCloseFuture = abortWriterFuture.thenAccept(EventStreamWriter::close);
 

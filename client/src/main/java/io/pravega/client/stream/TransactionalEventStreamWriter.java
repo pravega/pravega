@@ -29,8 +29,7 @@ import java.util.UUID;
 public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
     
     /**
-     * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
-     * Note that transactions can only be open for {@link EventWriterConfig#transactionTimeoutTime}.
+     * Start a new transaction on this stream. This allows events written to the transaction be written and committed atomically.
      * 
      * @return A transaction through which multiple events can be written atomically.
      */
@@ -50,6 +49,12 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
      * @return Writer configuration
      */
     EventWriterConfig getConfig();
+
+    /**
+     * Extends the Transaction Lease by the provided value
+     * @return Status indicating if extending the lease was successful or not
+     */
+    Transaction.PingStatus extendTransactionLease(UUID txnId, long leaseInterval);
     
     /**
      * Closes the writer. (No further methods may be called)

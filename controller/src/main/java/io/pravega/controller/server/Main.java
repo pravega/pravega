@@ -26,7 +26,6 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -79,10 +78,6 @@ public class Main {
                             Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                     .build();
 
-            TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                    .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                    .build();
-
             ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
             GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
@@ -101,7 +96,6 @@ public class Main {
                     .storeClientConfig(storeClientConfig)
                     .hostMonitorConfig(hostMonitorConfig)
                     .controllerClusterListenerEnabled(true)
-                    .timeoutServiceConfig(timeoutServiceConfig)
                     .eventProcessorConfig(Optional.of(eventProcessorConfig))
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))

@@ -27,6 +27,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
+import io.pravega.client.stream.Transaction.PingStatus;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import java.util.HashMap;
@@ -59,7 +60,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
-    private final Pinger pinger;
     
     TransactionalEventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config, ScheduledExecutorService executor) {
@@ -69,7 +69,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
     }
 
     @RequiredArgsConstructor
@@ -83,7 +82,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         private final Controller controller;
         @NonNull
         private final Stream stream;
-        private final Pinger pinger;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         
         /**
@@ -96,7 +94,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             this.segments = null;
             this.controller = controller;
             this.stream = stream;
-            this.pinger = null;
             this.closed.set(true);
         }
 
@@ -136,7 +133,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             }
             inner.clear(); // clear all references to SegmentTransaction to enable garbage collection.
             Futures.getThrowingException(controller.commitTransaction(stream, writerId, timestamp, txId));
-            pinger.stopPing(txId);
             closed.set(true);
         }
 
@@ -144,7 +140,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         public void abort() {
             log.info("Abort transaction {}", txId);
             if (!closed.get()) {
-                pinger.stopPing(txId);
                 for (SegmentTransaction<Type> tx : inner.values()) {
                     try {
                         tx.close();
@@ -200,8 +195,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
-        pinger.startPing(txnId);
-        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream);
     }
 
     @Override
@@ -230,8 +224,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        pinger.startPing(txId);
-        return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream);
     }
 
     @Override
@@ -239,7 +232,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         if (closed.getAndSet(true)) {
             return;
         }
-        pinger.close();
     }
 
     @Override
@@ -247,4 +239,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         return config;
     }
 
+    public PingStatus extendTransactionLease(UUID txnId, long lease) {
+        return Futures.getThrowingException(controller.extendTransactionLease(stream, txnId, lease));
+    }
 }

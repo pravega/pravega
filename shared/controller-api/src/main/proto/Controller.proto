@@ -45,6 +45,7 @@ service ControllerService {
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
+    rpc extendTransactionLease(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc listScopes(ScopesRequest) returns (ScopesResponse);
@@ -306,10 +307,10 @@ message TxnStatus {
 message PingTxnStatus {
     enum Status {
         OK = 0;
-        LEASE_TOO_LARGE = 1;
-        MAX_EXECUTION_TIME_EXCEEDED = 2;
+        LEASE_TOO_LARGE = 1 [deprecated=true];
+        MAX_EXECUTION_TIME_EXCEEDED = 2 [deprecated=true];
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
-        DISCONNECTED = 4;
+        DISCONNECTED = 4 [deprecated=true];
         COMMITTED = 5;
         ABORTED = 6;
         UNKNOWN = 7;

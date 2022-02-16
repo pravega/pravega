@@ -328,8 +328,20 @@ public interface Controller extends AutoCloseable {
      * @param txId       Transaction id
      * @param lease      Time for which transaction shall remain open with sending any heartbeat.
      * @return           Transaction.PingStatus or PingFailedException
+     * * @deprecated As of Pravega release 0.12.0.
      */
+    @Deprecated
     CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease);
+
+    /**
+     * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
+     *
+     * @param stream     Stream name
+     * @param txId       Transaction id
+     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
+     * @return           Transaction.PingStatus or PingFailedException
+     */
+    CompletableFuture<Transaction.PingStatus> extendTransactionLease(final Stream stream, final UUID txId, final long lease);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the

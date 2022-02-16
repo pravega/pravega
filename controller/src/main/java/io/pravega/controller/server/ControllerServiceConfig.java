@@ -20,7 +20,6 @@ import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -75,13 +74,6 @@ public interface ControllerServiceConfig {
      * @return Specified configuration value
      */
     String getTlsEnabledForSegmentStore();
-
-    /**
-     * Fetches the configuration of service managing transaction timeouts.
-     *
-     * @return The configuration of service managing transaction timeouts.
-     */
-    TimeoutServiceConfig getTimeoutServiceConfig();
 
     /**
      * Fetches whether the event processors are enabled, and their configuration if they are enabled.

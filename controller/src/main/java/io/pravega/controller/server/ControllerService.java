@@ -814,7 +814,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txId, "txnId");
 
-        return streamTransactionMetadataTasks.updateTransactionLease(scope, stream, txId, lease, requestId);
+        return streamTransactionMetadataTasks.extendLease(scope, stream, txId, lease, requestId);
     }
 
     /**
