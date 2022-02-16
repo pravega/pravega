@@ -724,6 +724,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Transaction.PingStatus> extendTransactionLease(Stream stream, UUID txId, long lease) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
         return CompletableFuture.completedFuture(getSegmentsForStream(stream).stream().collect(Collectors.toMap(s -> s, s -> 0L)));
     }
