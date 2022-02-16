@@ -85,48 +85,49 @@ From that point onwards, you can check the available commands by typing `help`:
 ``` 
 > help
 All available commands:
-	bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
-	bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
-	bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
-	bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
-	bk list : Lists all BookKeeper Logs.
-	bk list-ledgers : List all the ledgers in Bookkeeper.
-	bk reconcile <log-id>: Allows reconstructing a BookkeeperLog metadata (stored in ZK) in case it got wiped out.
-	cluster get-host-by-container <container-id>: Get the Segment Store host responsible for a given container id.
-	cluster list-containers : Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
-	cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
-	config list : Lists all configuration set during this session.
-	config set <name=value list>: Sets one or more config values for use during this session.
-	container continuous-recover <number-of-runs> <seconds-between-runs>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
-	container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
-	container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
-	controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
-	controller describe-scope <scope-name>: Get the details of a given Scope.
-	controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
-	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
-	controller list-scopes : Lists all the existing scopes in the system.
-	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
-	controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
-	controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
-	controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
-	controller-metadata tables-info : List all the controller metadata tables.
-	controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
-	controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
-	data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
-	data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
-	data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
-	password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
-	readerGroup parse-rg-stream <scope> <reader-group-name> <segmentstore-endpoint> <file-name>: Parse ReaderGroup Stream into a file
-	segmentstore get-segment-attribute <qualified-segment-name> <attribute-id> <segmentstore-endpoint>: Gets an attribute for a Segment.
-	segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
-	segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
-	segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
-	table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
-	table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
-	table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.
-	table-segment modify <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>: Modify the entry for the given key in the table using the given field info.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
-	table-segment put <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>: Update the given key in the table with the provided value.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
-	table-segment set-serializer <serializer-name>: Set the serializer for keys and values that are obtained from, and updated to table segments.
+        bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
+        bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
+        bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
+        bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
+        bk list : Lists all BookKeeper Logs.
+        bk list-ledgers : List all the ledgers in Bookkeeper.
+        bk reconcile <log-id>: Allows reconstructing a BookkeeperLog metadata (stored in ZK) in case it got wiped out.
+        cluster get-host-by-container <container-id>: Get the Segment Store host responsible for a given container id.
+        cluster list-containers : Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
+        cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
+        config list : Lists all configuration set during this session.
+        config set <name=value list>: Sets one or more config values for use during this session. Environment variables can also be provided. For example, if the variable is ENV_VARIABLE, it can be provided as name=$ENV_VARIABLE.
+        container continuous-recover <number-of-runs> <seconds-between-runs>: Executes a local, non-invasive recovery for all SegmentContainers in the cluster during the specified duration.
+        container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
+        container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
+        controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+        controller describe-scope <scope-name>: Get the details of a given Scope.
+        controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
+        controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
+        controller list-scopes : Lists all the existing scopes in the system.
+        controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
+        controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
+        controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
+        controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
+        controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
+        controller-metadata tables-info : List all the controller metadata tables.
+        controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
+        data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
+        data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
+        data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
+        password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
+        readerGroup parse-rg-stream <scope> <reader-group-name> <segmentstore-endpoint> <file-name>: Parse ReaderGroup Stream into a file
+        segmentstore get-segment-attribute <qualified-segment-name> <attribute-id> <segmentstore-endpoint>: Gets an attribute for a Segment.
+        segmentstore get-segment-info <qualified-segment-name> <segmentstore-endpoint>: Get the details of a given Segment.
+        segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
+        segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
+        storage list-chunks <qualified-segment-name> <segmentstore-endpoint>: Get the list of storage chunks for the given segment.
+        table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
+        table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
+        table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.
+        table-segment modify <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>: Modify the entry for the given key in the table using the given field info.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
+        table-segment put <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>: Update the given key in the table with the provided value.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
+        table-segment set-serializer <serializer-name>: Set the serializer for keys and values that are obtained from, and updated to table segments.
 ```
 And execute any of them:
 ```
