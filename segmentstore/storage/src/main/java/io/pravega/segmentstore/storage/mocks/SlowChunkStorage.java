@@ -26,12 +26,12 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class FlakyChunkStorage implements ChunkStorage {
+public class SlowChunkStorage implements ChunkStorage {
     final ChunkStorage inner;
     final ScheduledExecutorService executorService;
     final Duration duration;
 
-    public FlakyChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService, Duration duration) {
+    public SlowChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService, Duration duration) {
         this.inner = inner;
         this.executorService = executorService;
         this.duration = duration;
