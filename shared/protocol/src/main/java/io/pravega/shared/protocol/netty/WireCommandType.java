@@ -35,6 +35,9 @@ public enum WireCommandType {
     FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
     FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlushed::readFrom),
 
+    LIST_STORAGE_CHUNKS(-5, WireCommands.ListStorageChunks::readFrom),
+    STORAGE_CHUNKS_LISTED(-6, WireCommands.StorageChunksListed::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),

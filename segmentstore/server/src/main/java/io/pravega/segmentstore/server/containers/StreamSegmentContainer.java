@@ -33,6 +33,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -81,6 +82,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
+import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -88,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -114,6 +117,8 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
+    // Default buffer size of 1 MB.
+    private static final int BUFFER_SIZE = 1048576;
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -721,6 +726,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> flushToStorage(Duration timeout) {
         LogFlusher flusher = new LogFlusher(this.metadata.getContainerId(), this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout);
+    }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 
     //endregion

@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
+import java.time.Duration;
 import java.util.Set;
 
 /**
@@ -66,14 +67,18 @@ public class FileSystemWrapper {
      * Constructs new instance of FileSystemWrapper.
      * @param readCacheSize Read cache size
      * @param writeCacheSize Write cache size
+     * @param readCacheExpirationDuration Read Cache Expiration Duration
+     * @param writeCacheExpirationDuration Write Cache Expiration Duration
      */
-    public FileSystemWrapper(int readCacheSize, int writeCacheSize) {
+    public FileSystemWrapper(int readCacheSize, int writeCacheSize, Duration readCacheExpirationDuration, Duration writeCacheExpirationDuration) {
         readCache = CacheBuilder.newBuilder()
-                .maximumSize(FileSystemStorageConfig.READ_CHANNEL_CACHE_SIZE.getDefaultValue())
+                .maximumSize(readCacheSize)
+                .expireAfterAccess(readCacheExpirationDuration)
                 .removalListener(this::handleRemovalNotification)
                 .build();
         writeCache = CacheBuilder.newBuilder()
-                .maximumSize(FileSystemStorageConfig.WRITE_CHANNEL_CACHE_SIZE.getDefaultValue())
+                .maximumSize(writeCacheSize)
+                .expireAfterAccess(writeCacheExpirationDuration)
                 .removalListener(this::handleRemovalNotification)
                 .build();
     }
