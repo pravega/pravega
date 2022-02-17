@@ -25,7 +25,7 @@ import lombok.val;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class FlakyStorageTests extends StorageTestBase {
+public class SlowStorageTests extends StorageTestBase {
 
     @Override
     public void testFencing() throws Exception {
@@ -37,14 +37,14 @@ public class FlakyStorageTests extends StorageTestBase {
         return getFlakyStorage(executorService());
     }
 
-    private static FlakyStorage getFlakyStorage(ScheduledExecutorService executor) {
+    private static SlowStorage getFlakyStorage(ScheduledExecutorService executor) {
         val chunkStorage = new InMemoryChunkStorage(executor);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
         val metaDataStore = new InMemoryMetadataStore(config, executor);
         val innerStorage = new ChunkedSegmentStorage(10, chunkStorage, metaDataStore, executor, config);
         // We do not need to call bootstrap method here. We can just initialize garbageCollector directly.
         innerStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
-        return new FlakyStorage(innerStorage, executor, Duration.ZERO);
+        return new SlowStorage(innerStorage, executor, Duration.ZERO);
     }
 
     public static class FlakyRollingTests extends RollingStorageTests {

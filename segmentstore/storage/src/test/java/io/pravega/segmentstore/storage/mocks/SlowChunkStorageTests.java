@@ -15,35 +15,30 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
-import io.pravega.test.common.AssertExtensions;
-import org.junit.Assert;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Unit tests for {@link FlakyChunkStorage} using {@link SimpleStorageTests}.
+ * Unit tests for {@link SlowChunkStorage} using {@link SimpleStorageTests}.
  */
-public class FlakyChunkStorageTests extends SimpleStorageTests {
+public class SlowChunkStorageTests extends SimpleStorageTests {
     @Override
     protected ChunkStorage getChunkStorage() {
         return getFlakyChunkStorage(executorService());
     }
 
-    static io.pravega.segmentstore.storage.mocks.FlakyChunkStorage getFlakyChunkStorage(ScheduledExecutorService executorService) {
+    static SlowChunkStorage getFlakyChunkStorage(ScheduledExecutorService executorService) {
         ChunkStorage inner = new InMemoryChunkStorage(executorService);
-        return new io.pravega.segmentstore.storage.mocks.FlakyChunkStorage(inner, executorService, Duration.ZERO);
+        return new SlowChunkStorage(inner, executorService, Duration.ZERO);
     }
 
     /*
-     * Unit tests for {@link FlakyChunkStorage} using {@link ChunkedRollingStorageTests}.
+     * Unit tests for {@link SlowChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class FlakyChunkStorageRollingStorageTests extends ChunkedRollingStorageTests {
         @Override
@@ -53,9 +48,9 @@ public class FlakyChunkStorageTests extends SimpleStorageTests {
     }
 
     /**
-     * Unit tests for {@link FlakyChunkStorage} using {@link ChunkStorageTests}.
+     * Unit tests for {@link SlowChunkStorage} using {@link ChunkStorageTests}.
      */
-    public static class FlakyChunkStorageTest extends ChunkStorageTests {
+    public static class SlowChunkStorageTest extends ChunkStorageTests {
         @Override
         protected ChunkStorage createChunkStorage() {
             return getFlakyChunkStorage(executorService());

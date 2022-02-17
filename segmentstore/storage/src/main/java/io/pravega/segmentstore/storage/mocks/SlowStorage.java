@@ -27,12 +27,12 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class FlakyStorage implements Storage {
+public class SlowStorage implements Storage {
     final Storage inner;
     final ScheduledExecutorService executorService;
     final Duration duration;
 
-    public FlakyStorage(Storage inner, ScheduledExecutorService executorService, Duration duration) {
+    public SlowStorage(Storage inner, ScheduledExecutorService executorService, Duration duration) {
         this.inner = inner;
         this.executorService = executorService;
         this.duration = duration;
