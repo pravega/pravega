@@ -27,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 @RequiredArgsConstructor
 
-public class FlakyStorageFactory implements SimpleStorageFactory {
+public class SlowStorageFactory implements SimpleStorageFactory {
     @Getter
     final protected ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
 
@@ -42,11 +42,11 @@ public class FlakyStorageFactory implements SimpleStorageFactory {
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        return new FlakyStorage(inner.createStorageAdapter(containerId, metadataStore), executor, duration);
+        return new SlowStorage(inner.createStorageAdapter(containerId, metadataStore), executor, duration);
     }
 
     @Override
     public Storage createStorageAdapter() {
-        return new FlakyStorage(inner.createStorageAdapter(), executor, duration);
+        return new SlowStorage(inner.createStorageAdapter(), executor, duration);
     }
 }
