@@ -94,7 +94,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
      *
      * @param config The new configuration for the ReaderGroup. Config accepts null value to reset the whole group to last completed checkpoint.
-     * Get last completed checkpoint from ReaderGroupState object and reset reader group to this checkpoint position.
+     * To use a different checkpoint, set the `startingStreamCuts` on the `ReaderGroupConfig` from a streamcut obtained from a {@link Checkpoint} or {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService).}
      */
     void resetReaderGroup(ReaderGroupConfig config);
     
