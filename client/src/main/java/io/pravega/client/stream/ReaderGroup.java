@@ -91,7 +91,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      *
      * All existing readers will have to call
      * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
-     * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
+     * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException}.
      *
      * @param config The new configuration for the ReaderGroup. Config accepts null value to reset the whole group to last completed checkpoint.
      * To use a different checkpoint, set the `startingStreamCuts` on the `ReaderGroupConfig` from a streamcut obtained from a {@link Checkpoint} or {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService).}
