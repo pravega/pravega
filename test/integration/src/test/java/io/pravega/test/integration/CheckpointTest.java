@@ -256,7 +256,7 @@ public class CheckpointTest {
         assertEquals("Checkpoint", cpResult.getName());
 
         //Read 3rd Event.
-        read = reader.readNextEvent(100);
+        read = reader.readNextEvent(1000);
         assertEquals(testString3, read.getEvent());
         assertFalse(read.isCheckpoint());
 
