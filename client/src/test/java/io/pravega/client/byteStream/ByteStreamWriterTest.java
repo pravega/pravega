@@ -15,23 +15,33 @@
  */
 package io.pravega.client.byteStream;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.mock.MockByteStreamWriter;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -40,6 +50,7 @@ import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
 
 public class ByteStreamWriterTest {
 
@@ -48,12 +59,13 @@ public class ByteStreamWriterTest {
     private MockConnectionFactoryImpl connectionFactory;
     private MockController controller;
     private ByteStreamClientFactory clientFactory;
+    private MockByteStreamWriter mockWriter;
 
     @Before
     public void setup() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        ClientConnection connection = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         controller.createScope(SCOPE);
@@ -63,6 +75,18 @@ public class ByteStreamWriterTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         clientFactory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
                                                  streamFactory);
+
+        StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(SCOPE, STREAM));
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
+        Segment segment = segments.getSegments().iterator().next();
+        EventWriterConfig config = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build();
+
+        DelegationTokenProvider tokenProvider =
+                DelegationTokenProviderFactory.create(controller, segment, AccessOperation.WRITE);
+
+        mockWriter = new MockByteStreamWriter(streamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
+                streamFactory.createSegmentMetadataClient(segment, tokenProvider));
     }
 
     @After
@@ -101,30 +125,47 @@ public class ByteStreamWriterTest {
     @Test(timeout = 5000)
     public void testAsyncFlush() throws Exception {
         @Cleanup
-        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
+        MockByteStreamWriter writer = Mockito.spy(mockWriter);
         byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7 };
         int headoffset = 0;
         writer.write(value);
+
+        CompletableFuture<Void> firstFuture = new CompletableFuture<>();
+
+        doReturn(firstFuture)
+            .when(writer).updateLastEventFuture();
         CompletableFuture<Void> firstFlushAsync = writer.flushAsync();
         writer.write(value);
         writer.write(value);
         writer.write(value);
+        firstFuture.complete(null);
+        firstFlushAsync.join();
 
+        reset(writer);
         CompletableFuture<Void> secondFlushAsync = writer.flushAsync();
 
-        firstFlushAsync.join();
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 4, writer.fetchTailOffset());
-
         secondFlushAsync.join();
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 4, writer.fetchTailOffset());
+    }
+
+    @Test(timeout = 5000)
+    public void testAsyncAndSyncFlush() throws Exception {
+        @Cleanup
+        MockByteStreamWriter writer = Mockito.spy(mockWriter);
+        byte[] value = new byte[] { 1, 2, 3, 4, 5, 6, 7 };
+        writer.write(value);
+
+        for (int i = 0; i < 1000; i++) {
+            writer.write(value);
+        }
+        writer.flush();
 
         writer.write(value);
-        CompletableFuture<Void> thirdFlushAsync = writer.flushAsync();
-        thirdFlushAsync.join();
-        assertEquals(headoffset, writer.fetchHeadOffset());
-        assertEquals(value.length * 5, writer.fetchTailOffset());
+        CompletableFuture<Void> asyncFuture = writer.flushAsync();
+        assertEquals(value.length * 1002, writer.fetchTailOffset());
     }
 
     @Test(timeout = 5000)
