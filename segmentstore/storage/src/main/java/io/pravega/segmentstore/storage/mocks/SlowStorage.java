@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
+import lombok.Getter;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -28,8 +29,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class SlowStorage implements Storage {
+    @Getter
     final Storage inner;
+
+    @Getter
     final ScheduledExecutorService executorService;
+
+    @Getter
     final Duration duration;
 
     public SlowStorage(Storage inner, ScheduledExecutorService executorService, Duration duration) {

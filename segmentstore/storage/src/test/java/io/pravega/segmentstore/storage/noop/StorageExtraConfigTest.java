@@ -43,4 +43,18 @@ public class StorageExtraConfigTest {
         builder.with(Property.named("storageNoOpMode"), true);
         assertEquals(true, builder.build().isStorageNoOpMode());
     }
+
+    @Test
+    public void testSlowModeEnabled() {
+        ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
+        builder.with(Property.named("slow.enable"), true);
+        assertEquals(true, builder.build().isSlowModeEnabled());
+    }
+
+    @Test
+    public void testSlowModeLatency() {
+        ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
+        builder.with(Property.named("slow.latency.ms"), 42);
+        assertEquals(42, builder.build().getSlowModeLatencyMillis());
+    }
 }

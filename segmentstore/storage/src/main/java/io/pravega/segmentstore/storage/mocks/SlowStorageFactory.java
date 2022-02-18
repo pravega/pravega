@@ -17,10 +17,13 @@ package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,24 +32,44 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class SlowStorageFactory implements SimpleStorageFactory {
     @Getter
-    final protected ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
-
-    @Getter
     final protected ScheduledExecutorService executor;
 
     @Getter
-    final protected SimpleStorageFactory inner;
+    final protected StorageFactory inner;
 
     @Getter
     final protected Duration duration;
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        return new SlowStorage(inner.createStorageAdapter(containerId, metadataStore), executor, duration);
+        if (inner instanceof SimpleStorageFactory) {
+            val innerStorage = ((SimpleStorageFactory) inner).createStorageAdapter(containerId, metadataStore);
+            return new SlowStorage(innerStorage, executor, duration);
+        } else {
+            throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
+        }
     }
 
     @Override
     public Storage createStorageAdapter() {
         return new SlowStorage(inner.createStorageAdapter(), executor, duration);
+    }
+
+    @Override
+    public ChunkedSegmentStorageConfig getChunkedSegmentStorageConfig() {
+        if (inner instanceof SimpleStorageFactory) {
+            return ((SimpleStorageFactory) inner).getChunkedSegmentStorageConfig();
+        } else {
+            throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
+        }
+    }
+
+    @Override
+    public SyncStorage createSyncStorage() {
+        if (inner instanceof SimpleStorageFactory) {
+            throw new UnsupportedOperationException("SimpleStorageFactory does not support createSyncStorage");
+        } else {
+            return inner.createSyncStorage();
+        }
     }
 }

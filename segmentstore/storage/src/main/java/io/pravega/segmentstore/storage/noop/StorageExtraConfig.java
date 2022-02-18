@@ -30,6 +30,9 @@ public class StorageExtraConfig {
 
     public static final Property<Boolean> STORAGE_NO_OP_MODE = Property.named("noOp.mode.enable", false, "storageNoOpMode");
     public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("noOp.write.latency.milliseconds", 20, "storageWriteNoOpLatencyMillis");
+
+    public static final Property<Boolean> STORAGE_SLOW_MODE = Property.named("slow.enable", false);
+    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY = Property.named("slow.latency.ms", 500);
     private static final String COMPONENT_CODE = "storageextra";
 
     /**
@@ -45,6 +48,20 @@ public class StorageExtraConfig {
     private final boolean storageNoOpMode;
 
     /**
+     * Flag to enable slow mode.
+     */
+    @Getter
+    private final boolean slowModeEnabled;
+
+    /**
+     * Latency in milliseconds applied for slow storage mode.
+     */
+    @Getter
+    private final int slowModeLatencyMillis;
+
+
+
+    /**
      * Creates a new instance of StorageExtraConfig.
      *
      * @param properties The TypedProperties object to read properties from.
@@ -52,7 +69,9 @@ public class StorageExtraConfig {
      */
     private StorageExtraConfig(TypedProperties properties) throws ConfigurationException {
         this.storageNoOpMode = properties.getBoolean(STORAGE_NO_OP_MODE);
-        this.storageWriteNoOpLatencyMillis = properties.getInt(STORAGE_WRITE_NO_OP_LATENCY);
+        this.storageWriteNoOpLatencyMillis = properties.getPositiveInt(STORAGE_WRITE_NO_OP_LATENCY);
+        this.slowModeEnabled = properties.getBoolean(STORAGE_SLOW_MODE);
+        this.slowModeLatencyMillis = properties.getPositiveInt(STORAGE_SLOW_MODE_LATENCY);
     }
 
     public static ConfigBuilder<StorageExtraConfig> builder() {

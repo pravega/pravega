@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import java.time.Duration;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +43,7 @@ public class StorageLoader {
                                StorageLayoutType storageLayoutType,
                                ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
-        StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
+        StorageExtraConfig storageExtraConfig = setup.getConfig(StorageExtraConfig::builder);
         for (StorageFactoryCreator factoryCreator : loader) {
             val factories = factoryCreator.getStorageFactories();
             for (val factoryInfo : factories) {
@@ -49,12 +51,16 @@ public class StorageLoader {
                 if (factoryInfo.getName().equals(storageImplementation)
                         && factoryInfo.getStorageLayoutType() == storageLayoutType) {
                     StorageFactory factory = factoryCreator.createFactory(factoryInfo, setup, executor);
-                    if (!noOpConfig.isStorageNoOpMode()) {
-                        return factory;
-                    } else { //The specified storage implementation is in No-Op mode.
+                    if (storageExtraConfig.isStorageNoOpMode()) {
+                        //The specified storage implementation is in No-Op mode.
                         log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new NoOpStorageFactory(noOpConfig, executor, factory, null);
+                        return new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
                     }
+                    if (storageExtraConfig.isSlowModeEnabled()) {
+                        log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
+                        return new SlowStorageFactory(executor, factory, Duration.ofMillis(storageExtraConfig.getSlowModeLatencyMillis()));
+                    }
+                    return factory;
                 }
             }
         }
