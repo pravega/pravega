@@ -34,7 +34,6 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
