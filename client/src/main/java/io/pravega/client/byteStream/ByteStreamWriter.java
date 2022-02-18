@@ -93,6 +93,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * not block new writes with the writer.
      *
      * @see java.io.OutputStream#flush()
+     * @return The future related to last write
      * @throws IOException If for any reason the flush fails including if the stream is sealed.
      */
     public abstract CompletableFuture<Void> flushAsync() throws IOException;

@@ -28,6 +28,8 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+import javax.annotation.concurrent.GuardedBy;
+
 @RequiredArgsConstructor
 public class ByteStreamWriterImpl extends ByteStreamWriter {
     
@@ -35,6 +37,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     private final SegmentOutputStream out;
     @NonNull
     private final SegmentMetadataClient meta;
+    @GuardedBy("$lock")
     private CompletableFuture<Void> latestEventFuture;
 
     @Override
