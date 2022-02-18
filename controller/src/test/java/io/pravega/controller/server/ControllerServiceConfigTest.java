@@ -22,7 +22,6 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
@@ -109,18 +108,6 @@ public class ControllerServiceConfigTest {
                 .containerCount(10)
                 .hostMonitorMinRebalanceInterval(10).build();
 
-        // Values should be specified
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> TimeoutServiceConfig.builder().build());
-
-        // Positive values required
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> TimeoutServiceConfig.builder().maxLeaseValue(-10).build());
-
-        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                .maxLeaseValue(10)
-                .build();
-
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> StoreClientConfigImpl.withZKClient(null));
 
@@ -154,7 +141,6 @@ public class ControllerServiceConfigTest {
                         .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
-                        .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.of(null))
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.empty())
@@ -166,7 +152,6 @@ public class ControllerServiceConfigTest {
                         .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
-                        .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
                         .grpcServerConfig(Optional.of(null))
                         .restServerConfig(Optional.empty())
@@ -178,7 +163,6 @@ public class ControllerServiceConfigTest {
                         .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
-                        .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.of(null))
@@ -190,7 +174,6 @@ public class ControllerServiceConfigTest {
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .controllerClusterListenerEnabled(true)
-                        .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.empty())

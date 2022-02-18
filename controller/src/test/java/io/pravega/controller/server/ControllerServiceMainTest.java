@@ -20,7 +20,6 @@ import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import java.io.IOException;
 import java.util.Optional;
@@ -125,16 +124,11 @@ public abstract class ControllerServiceMainTest {
                         Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
 
-        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .build();
-
         return ControllerServiceConfigImpl.builder()
                 .threadPoolSize(15)
                 .storeClientConfig(storeClientConfig)
                 .controllerClusterListenerEnabled(!disableControllerCluster)
                 .hostMonitorConfig(hostMonitorConfig)
-                .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.empty())
                 .grpcServerConfig(Optional.empty())
                 .restServerConfig(Optional.empty())

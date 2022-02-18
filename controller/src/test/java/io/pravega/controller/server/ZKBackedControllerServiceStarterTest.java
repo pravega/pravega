@@ -38,7 +38,6 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -248,16 +247,11 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                                                                            Config.HOST_STORE_CONTAINER_COUNT))
                                                                    .build();
 
-        TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
-                                                                        .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                                                                        .build();
-
         return ControllerServiceConfigImpl.builder()
                                           .threadPoolSize(15)
                                           .storeClientConfig(storeClientConfig)
                                           .controllerClusterListenerEnabled(false)
                                           .hostMonitorConfig(hostMonitorConfig)
-                                          .timeoutServiceConfig(timeoutServiceConfig)
                                           .eventProcessorConfig(Optional.of(ControllerEventProcessorConfigImpl.withDefault()))
                                           .grpcServerConfig(Optional.of(GRPCServerConfigImpl.builder()
                                                                                             .port(grpcPort)
