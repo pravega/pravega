@@ -21,6 +21,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.local.SingleNodeConfig.PROPERTY_FILE_DEFAULT_PATH;
+
 /**
  * Main entry point for Integration tests that need an in-process Pravega cluster.
  * This class is intended to be used both by internal test suites
@@ -108,7 +110,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
-                    .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, "./config/standalone-config.properties"))
+                    .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, PROPERTY_FILE_DEFAULT_PATH))
                     .include(System.getProperties())
                     .build();
             SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);

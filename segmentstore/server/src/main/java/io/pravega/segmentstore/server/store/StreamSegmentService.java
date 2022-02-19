@@ -19,6 +19,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -28,6 +29,7 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
@@ -92,6 +94,14 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
                 containerId,
                 container -> container.flushToStorage(timeout),
                 "flushToStorage");
+    }
+
+    @Override
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+        return invoke(
+                streamSegmentName,
+                container -> container.getExtendedChunkInfo(streamSegmentName, timeout),
+                "getExtendedChunkInfo", streamSegmentName);
     }
 
     @Override
