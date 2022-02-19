@@ -28,6 +28,9 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Mock for StorageFactory. Contents is destroyed when object is garbage collected.
+ */
 public class SlowStorage implements Storage {
     @Getter
     final Storage inner;
@@ -38,6 +41,12 @@ public class SlowStorage implements Storage {
     @Getter
     final Duration duration;
 
+    /**
+     * Creates a new instance of SlowStorage.
+     * @param inner inner Storage for this instance
+     * @param executorService executorService to be used
+     * @param duration duration for that instance
+     */
     public SlowStorage(Storage inner, ScheduledExecutorService executorService, Duration duration) {
         this.inner = inner;
         this.executorService = executorService;

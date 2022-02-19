@@ -26,11 +26,21 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+* Mock for StorageFactory. Contents is destroyed when object is garbage collected.
+*
+*/
 public class SlowChunkStorage implements ChunkStorage {
     final ChunkStorage inner;
     final ScheduledExecutorService executorService;
     final Duration duration;
 
+    /**
+     * Creates a new instance of SlowChunkStorage.
+     * @param inner inner Storage for this instance
+     * @param executorService executorService to be used
+     * @param duration duration for that instance
+     */
     public SlowChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService, Duration duration) {
         this.inner = inner;
         this.executorService = executorService;
@@ -52,12 +62,22 @@ public class SlowChunkStorage implements ChunkStorage {
         return inner.supportsConcat();
     }
 
+    /**
+     * Checks for the existence of the chunk in the chunkStorage.
+     * @param chunkName Name of the storage object to check.
+     * @return boolean value depending on the chunk's existence
+     */
     @Override
     public CompletableFuture<Boolean> exists(String chunkName) {
         return Futures.delayedFuture(duration, executorService).
                 thenComposeAsync(v -> inner.exists(chunkName));
     }
 
+    /**
+     * Creates a chunk in the chunkStorage.
+     * @param chunkName String name of the storage object to create.
+     * @return handle to a chunk
+     */
     @Override
     public CompletableFuture<ChunkHandle> create(String chunkName) {
         return Futures.delayedFuture(duration, executorService).
