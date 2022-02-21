@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
