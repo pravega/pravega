@@ -47,6 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -542,8 +543,8 @@ public class ZkStreamTest {
         Assert.assertEquals(TxnStatus.ABORTED,
                 store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
-        List<UUID>  listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
-        assertEquals(2, listAborted.size());
+        Pair<Map<UUID, TxnStatus>, String> listAborted = store.listCompletedTxns(SCOPE, streamName, 10, "", context, executor).join();
+        assertEquals(2, listAborted.getKey().size());
 
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);

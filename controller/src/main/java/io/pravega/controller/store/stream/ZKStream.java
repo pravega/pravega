@@ -43,11 +43,12 @@ import io.pravega.controller.store.stream.records.Subscribers;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -540,31 +541,34 @@ class ZKStream extends PersistentStreamBase {
 
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context) {
+    public CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTransactions(final int limit, final String continuationToken, final OperationContext context) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
-                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(x -> getTxnInBatch(x, context))
-                        .collect(Collectors.toList())).thenApply(list -> {
-                    List<UUID> listTxnIds = new ArrayList<>();
-                    list.forEach(map -> {
-                        listTxnIds.addAll(map.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList()));
-                    });
-                    return listTxnIds;
-                }));
+                .thenCompose(children -> {
+                    if (children.size() == 0) {
+                        return CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyMap(), continuationToken));
+                    } else {
+                        return getTxnInBatch(children.get(children.size() - 1), limit, continuationToken, context);
+                    }
+                });
     }
 
-    private CompletableFuture<Map<UUID, CompletedTxnRecord>> getTxnInBatch(String batch, OperationContext context) {
+    private CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> getTxnInBatch(final String children, final int limit, final String continuationToken, final OperationContext context) {
         VersionedMetadata<CompletedTxnRecord> empty = getEmptyData();
-        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(batch), getScope(), getName());
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(children), getScope(), getName());
         return Futures.exceptionallyExpecting(store.getChildren(root),
                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                 .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                                Collectors.toMap(txId -> txId,
-                                        txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
-                                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
-                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
-                                .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
-                                        x -> x.getValue().getObject())))
-                );
+                        Collectors.toMap(txId -> txId,
+                                txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
+                                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
+                ).thenApply(txnMap -> {
+                            Map<UUID, TxnStatus> listTxns = txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
+                                    .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
+                                            x -> x.getValue().getObject().getCompletionStatus()));
+                            return new ImmutablePair<>(listTxns, continuationToken);
+                        }
+
+                ));
     }
 
     @Override

@@ -332,10 +332,21 @@ message TxnState {
 
 message ListCompletedTxnRequest {
     StreamInfo streamInfo = 1;
+    ContinuationToken continuationToken = 2;
 }
 
 message ListCompletedTxnResponse{
-    repeated TxnId txnId = 1;
+    ContinuationToken continuationToken = 1;
+    repeated ListCompletedResponse response = 2;
+}
+
+message ListCompletedResponse{
+    TxnId txnId = 1;
+    enum Status {
+        COMMITTED = 0;
+        ABORTED = 1;
+    }
+    Status status = 2;
 }
 
  message ScopeInfo {

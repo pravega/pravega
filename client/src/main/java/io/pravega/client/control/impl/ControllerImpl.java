@@ -45,6 +45,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -125,6 +126,7 @@ import org.slf4j.LoggerFactory;
 import javax.net.ssl.SSLException;
 import java.io.File;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1512,28 +1514,35 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(Stream stream) {
+    public AsyncIterator<TransactionInfo> listCompletedTransactions(Stream stream) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "listCompletedTransactions", stream, requestId);
 
-        final CompletableFuture<ListCompletedTxnResponse> listCompletedTxnsResponse = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, "listCompletedTransactions", stream);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
-                    .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
-                                    .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                    .build(),
-                            callback);
-            return callback.getFuture();
-        }, this.executor);
-        return listCompletedTxnsResponse.thenApplyAsync(completedTxnResponse -> completedTxnResponse.getTxnIdList().stream().map(uuid -> encode(uuid)).collect(Collectors.toList()), this.executor)
-                .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn(requestId, "listCompletedTransactions for stream {} ", stream, e);
-                    }
-                    LoggerHelpers.traceLeave(log, "listCompletedTransactions", traceId, requestId);
-                });
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<TransactionInfo>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, "listCompletedTransactions", stream);
+
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
+                                .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
+                                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                        .setContinuationToken(token)
+                                        .build(), callback);
+                        return callback.getFuture()
+                                .thenApplyAsync(listCompletedTxnResponse -> {
+                                    List<TransactionInfo> result = new ArrayList<>();
+                                    listCompletedTxnResponse.getResponseList().forEach(response -> {
+                                        result.add(new TransactionInfo(encode(response.getTxnId()), Transaction.Status.valueOf(response.getStatus().name())));
+                                    });
+                                    return new AbstractMap.SimpleEntry<>(listCompletedTxnResponse.getContinuationToken(), result);
+                                }, this.executor);
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listCompletedTransactions", traceId);
+        }
     }
 
     @Override

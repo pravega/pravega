@@ -819,14 +819,16 @@ public class ControllerService {
      * List txnIds in completed state.
      * @param scope scope name
      * @param stream stream name
+     * @param limit max no of entries to get
+     * @param continuationToken continuationToken
      * @param requestId request id
-     * @return list of txnIds future
+     * @return pair having map of uuid with status and continuationToken
      */
-    public CompletableFuture<List<UUID>> listCompletedTxns(final String scope, final String stream, final long requestId) {
+    public CompletableFuture<Pair<Map<UUID, io.pravega.controller.store.stream.TxnStatus>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
-        return streamStore.listCompletedTxns(scope, stream, context, executor);
+        return streamStore.listCompletedTxns(scope, stream, limit, continuationToken, context, executor);
     }
 
 

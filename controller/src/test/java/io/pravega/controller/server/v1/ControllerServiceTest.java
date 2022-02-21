@@ -45,6 +45,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -65,6 +66,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -284,8 +286,8 @@ public class ControllerServiceTest {
         TransactionMetrics.initialize();
         OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
 
-        List<UUID> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 0L).join();
-        assertEquals(0, listTxns.size());
+        Pair<Map<UUID, TxnStatus>, String> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 10, "", 0L).join();
+        assertEquals(0, listTxns.getKey().size());
     }
     
     @Test(timeout = 10000L)

@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
@@ -41,6 +42,8 @@ import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
@@ -757,10 +760,26 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(OperationContext context) {
+    public CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTransactions(final int limit, final String continuationToken, final OperationContext context) {
+        String newContinuationToken;
+        Map<UUID, TxnStatus> limited;
+        int lastPos = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
+
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(Collections.unmodifiableList(
-                    completedTxns.asMap().entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList())));
+
+            if (Strings.isNullOrEmpty(continuationToken)) {
+                limited = completedTxns.asMap().entrySet().stream().limit(limit).collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getObject().getCompletionStatus()));
+            } else {
+                List listIds = completedTxns.asMap().keySet().stream().collect(Collectors.toList()).subList(lastPos, completedTxns.asMap().size());
+                limited = completedTxns.asMap().entrySet().stream().filter(x -> listIds.contains(x.getKey())).limit(limit).collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getObject().getCompletionStatus()));
+            }
+
+            if (limited.isEmpty()) {
+                newContinuationToken = continuationToken;
+            } else {
+                newContinuationToken = String.valueOf(lastPos + limited.size());
+            }
+            return CompletableFuture.completedFuture(new ImmutablePair<>(limited, newContinuationToken));
         }
     }
 

@@ -950,9 +950,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTxns(String scope, String stream, OperationContext context, Executor executor) {
+    public CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTxns(String scope, String stream, final int limit, final String continuationToken, OperationContext context, Executor executor) {
         OperationContext operationContext = getOperationContext(context);
-        return  Futures.completeOn(getStream(scope, stream, operationContext).listCompletedTxns(operationContext), executor);
+        return  Futures.completeOn(getStream(scope, stream, operationContext).listCompletedTxns(limit, continuationToken, operationContext), executor);
     }
 
     @Override

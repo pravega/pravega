@@ -1158,12 +1158,13 @@ public abstract class ControllerServiceImplTest {
 
         Controller.ListCompletedTxnRequest listTxnInOpenStateRequest = Controller.ListCompletedTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build())
                 .build();
 
         ResultObserver<Controller.ListCompletedTxnResponse> listTxnInStateObserver = new ResultObserver<>();
 
         this.controllerService.listCompletedTransactions(listTxnInOpenStateRequest, listTxnInStateObserver);
-        assertEquals(0, listTxnInStateObserver.get().getTxnIdCount());
+        assertEquals(0, listTxnInStateObserver.get().getResponseCount());
     }
 
     @Test

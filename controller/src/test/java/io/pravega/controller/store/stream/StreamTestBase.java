@@ -55,6 +55,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -1712,11 +1714,11 @@ public abstract class StreamTestBase {
         OperationContext context = getContext();
         createScope("listCompletedScope", context);
         PersistentStreamBase stream = createStream("listCompletedScope", "listCompletedStream", System.currentTimeMillis(), 5, new Random().nextInt(2000), 2, 2);
-        createAndCommitTransaction(stream, 0, 0L);
-        createAndCommitTransaction(stream, 0, 1L);
+        UUID txnId1 = createAndCommitTransaction(stream, 0, 0L);
+        UUID txnId2 = createAndCommitTransaction(stream, 0, 1L);
 
-        List<UUID> list = stream.listCompletedTransactions(context).join();
-        assertEquals(0, list.size());
+        Pair<Map<UUID, TxnStatus>, String> list = stream.listCompletedTransactions(1, "", context).join();
+        assertEquals(0, list.getKey().size());
 
         // start commit transactions
         VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join().getKey();
@@ -1728,7 +1730,10 @@ public abstract class StreamTestBase {
         stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
         stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
 
-        list = stream.listCompletedTransactions(context).join();
-        assertEquals(2, list.size());
+        list = stream.listCompletedTransactions(1, list.getValue(), context).join();
+        assertTrue(list.getKey().keySet().contains(txnId1));
+
+        list = stream.listCompletedTransactions(1, list.getValue(), context).join();
+        assertTrue(list.getKey().keySet().contains(txnId2));
     }
 }

@@ -36,6 +36,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -566,8 +567,20 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> listCompletedTransactions(Stream stream) {
-        return controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong());
+    public AsyncIterator<TransactionInfo> listCompletedTransactions(Stream stream) {
+        // return controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong());
+
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<TransactionInfo>>>> function = token ->
+                controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), PAGE_LIMIT, token, requestIdGenerator.nextLong())
+                        .thenApply(result -> {
+                            List<TransactionInfo> txnInfoList = new ArrayList<>();
+                            result.getKey().forEach((id, status) -> {
+                                txnInfoList.add(new TransactionInfo(id, Transaction.Status.valueOf(status.name())));
+                            });
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), txnInfoList);
+                        });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
     @Override

@@ -930,8 +930,8 @@ public abstract class StreamMetadataStoreTest {
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
                 100, 100, null, executor).get();
 
-        List<UUID> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
-        assertEquals(0, listTxn.size());
+        Pair<Map<UUID, TxnStatus>, String> listTxn = store.listCompletedTxns(scope, stream, 10, "", null, executor).join();
+        assertEquals(0, listTxn.getKey().size());
 
         EpochRecord epochRecord = store.getActiveEpoch(scope, stream, null, true, executor).join();
 
@@ -945,8 +945,8 @@ public abstract class StreamMetadataStoreTest {
         store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
 
-        listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
-        assertTrue(listTxn.contains(tx1.getId()));
+        listTxn = store.listCompletedTxns(scope, stream, 1, listTxn.getValue(), null, executor).join();
+        assertTrue(listTxn.getKey().keySet().contains(tx1.getId()));
 
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }

@@ -1130,11 +1130,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope Scope of stream
      * @param stream name of stream
+     * @param limit max no of record
+     * @param continuationToken continuation token
      * @param context operation context
      * @param executor caller executor
      * @return list of txIds
      */
-    CompletableFuture<List<UUID>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+    CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final OperationContext context, final Executor executor);
 
     /**
      * Adds specified resource as a child of current host's hostId node.

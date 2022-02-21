@@ -25,8 +25,10 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -41,10 +43,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.List;
-import java.util.UUID;
-
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -204,7 +202,7 @@ public class ControllerStreamMetadataTest {
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
-        List<UUID> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join();
-        assertFalse(listUUID.contains(txnSegments.getTxnId()));
+        AsyncIterator<TransactionInfo> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM));
+        assertFalse(listUUID.asIterator().hasNext());
     }
 }

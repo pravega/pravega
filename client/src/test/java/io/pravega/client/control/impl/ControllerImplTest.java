@@ -43,6 +43,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -1051,10 +1052,11 @@ public class ControllerImplTest {
                 UUID uuid = UUID.randomUUID();
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
-                            .addTxnId( TxnId.newBuilder()
-                                    .setLowBits(uuid.getLeastSignificantBits())
-                                    .setHighBits(uuid.getMostSignificantBits())
+                            .addResponse(Controller.ListCompletedResponse.newBuilder()
+                                    .setTxnId(TxnId.newBuilder().setHighBits(uuid.getMostSignificantBits()).setLowBits(uuid.getLeastSignificantBits()).build())
+                                    .setStatus(Controller.ListCompletedResponse.Status.ABORTED)
                                     .build())
+                            .setContinuationToken(request.getContinuationToken())
                             .build());
                 } else if (request.getStreamInfo().getStream().equals("stream2")) {
                     responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
@@ -2111,12 +2113,12 @@ public class ControllerImplTest {
 
     @Test
     public void testListCompletedTransaction() throws Exception {
-        List<UUID> listUUID;
-        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).get();
-        assertEquals(1, listUUID.size());
+        AsyncIterator<TransactionInfo> listUUID;
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1"));
+        assertTrue(listUUID.asIterator().hasNext());
 
-        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).get();
-        assertEquals(0, listUUID.size());
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2"));
+        assertFalse(listUUID.asIterator().hasNext());
     }
 
     @Test

@@ -93,6 +93,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -913,15 +914,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                         AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.listCompletedTxns(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream(), requestTag.getRequestId()).thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder().addAllTxnId(getAllTxnIds(result)).build()),
+                                request.getStreamInfo().getStream(), pageLimit, request.getContinuationToken().getToken(), requestTag.getRequestId())
+                        .thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder()
+                                .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(result.getValue()).build())
+                                .addAllResponse(getAllTxns(result.getKey()))
+                                .build()),
                 responseObserver, requestTag);
     }
 
 
-    private Iterable<Controller.TxnId> getAllTxnIds(List<UUID> result) {
-        List<Controller.TxnId> txnIds = new ArrayList<>();
-        result.forEach(id -> txnIds.add(decode(id)));
-        return txnIds;
+    private Iterable<Controller.ListCompletedResponse> getAllTxns(Map<UUID, io.pravega.controller.store.stream.TxnStatus> result) {
+        List<Controller.ListCompletedResponse> listTxns = new ArrayList<>();
+        result.forEach((id, status) -> listTxns.add(Controller.ListCompletedResponse.newBuilder()
+                .setTxnId(Controller.TxnId.newBuilder().setLowBits(id.getLeastSignificantBits()).setHighBits(id.getMostSignificantBits()).build())
+                .setStatus(Controller.ListCompletedResponse.Status.valueOf(status.name()))
+                .build()));
+        return listTxns;
     }
 
     @Override
