@@ -287,7 +287,7 @@ public final class SegmentStoreMetrics {
          * @param logSize           Size of the operationlog to be reported.
          * @param containerId       Container owning the operationlog.
          */
-        public static void reportOperationLogSize(int logSize, int containerId) {
+        public void reportOperationLogSize(int logSize, int containerId) {
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_LOG_SIZE, logSize, containerTag(containerId));
         }
     }
