@@ -31,6 +31,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
@@ -310,7 +311,7 @@ public abstract class StreamMetadataTasksTest {
         CompletableFuture<ScaleResponse> scaleResponse = streamMetadataTasks.manualScale(SCOPE, "hellow", 
                 Collections.singletonList(1L), newRanges, 30, 0L);
         if (!scaleResponse.isDone()) {
-            ClientFactoryImpl clientFactory = mock(ClientFactoryImpl.class);
+            AbstractClientFactoryImpl clientFactory = mock(AbstractClientFactoryImpl.class);
             streamMetadataTasks.initializeStreamWriters(clientFactory, "_requestStream");
         }
         assertEquals(ScaleResponse.ScaleStreamStatus.FAILURE, scaleResponse.join().getStatus());
