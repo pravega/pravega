@@ -92,6 +92,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final SegmentMetadataClientFactory metaFactory;
     private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final NotifierFactory notifierFactory;
+    private final ConnectionPool connectionPool;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
@@ -100,7 +101,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Preconditions.checkNotNull(initSerializer);
         Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
-        Preconditions.checkNotNull(connectionPool);
+        this.connectionPool = Preconditions.checkNotNull(connectionPool);
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
@@ -176,6 +177,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return waitForCheckpointComplete(checkpointName, backgroundExecutor)
                 .thenApply(v -> completeCheckpoint(checkpointName))
                 .thenApply(checkpoint -> checkpoint); //Added to prevent users from canceling completeCheckpoint
+    }
+
+    @Override
+    public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName) {
+        ScheduledExecutorService backgroundExecutor = connectionPool.getInternalExecutor();
+        return initiateCheckpoint(checkpointName, backgroundExecutor);
     }
 
     /**
