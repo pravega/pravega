@@ -182,8 +182,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName) {
-        ScheduledExecutorService backgroundExecutor = connectionPool.getInternalExecutor();
-        return initiateCheckpoint(checkpointName, backgroundExecutor);
+        return initiateCheckpoint(checkpointName, connectionPool.getInternalExecutor());
     }
 
     /**
