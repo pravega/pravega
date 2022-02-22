@@ -122,6 +122,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void storageChunksListed(WireCommands.StorageChunksListed storageChunksListed) {
+        throw new IllegalStateException("Unexpected operation: " + storageChunksListed);
+    }
+
+    @Override
     public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
         throw new IllegalStateException("Unexpected operation: " + segmentAttribute);
     }
