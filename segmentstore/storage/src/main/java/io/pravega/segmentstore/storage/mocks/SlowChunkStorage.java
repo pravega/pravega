@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import lombok.Getter;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -27,13 +28,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
-* Mock for StorageFactory. Contents is destroyed when object is garbage collected.
+* {@link ChunkStorage} implementation that introduces delays/slowness to inner instance.
 *
 */
 public class SlowChunkStorage implements ChunkStorage {
-    final ChunkStorage inner;
-    final ScheduledExecutorService executorService;
-    final Duration duration;
+    @Getter
+    final protected ChunkStorage inner;
+    @Getter
+    final protected ScheduledExecutorService executorService;
+    @Getter
+    final protected Duration duration;
 
     /**
      * Creates a new instance of SlowChunkStorage.
@@ -152,11 +156,13 @@ public class SlowChunkStorage implements ChunkStorage {
 
     @Override
     public void report() {
-
+        inner.report();
     }
 
     @Override
     public void close() throws Exception {
-
+        if (inner != null) {
+            inner.close();
+        }
     }
 }

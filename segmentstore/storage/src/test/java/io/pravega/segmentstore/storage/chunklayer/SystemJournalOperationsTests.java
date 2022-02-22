@@ -1234,7 +1234,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 } catch (RuntimeException e) {
                     throw e;
                 } catch (Exception e) {
-                    // SlowChunkStorage may throw exception.
+                    // FlakyChunkStorage may throw exception.
                 }
             }
 
@@ -1328,7 +1328,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     } catch (RuntimeException e) {
                         throw e;
                     } catch (Exception e) {
-                        // SlowChunkStorage may throw exception.
+                        // FlakyChunkStorage may throw exception.
                     }
                 }
 
@@ -1413,7 +1413,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Defines the flaky behavior for the SlowChunkStorage.
+     * Defines the flaky behavior for the FlakyChunkStorage.
      */
     @Builder
     @Data

@@ -28,8 +28,10 @@ import lombok.val;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Creates an instance of {@link  SlowStorage} and delegates calls to inner {@link SimpleStorageFactory}.
+ */
 @RequiredArgsConstructor
-
 public class SlowStorageFactory implements SimpleStorageFactory {
     @Getter
     final protected ScheduledExecutorService executor;

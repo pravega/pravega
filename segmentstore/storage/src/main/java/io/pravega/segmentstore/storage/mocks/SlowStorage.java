@@ -29,17 +29,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Mock for StorageFactory. Contents is destroyed when object is garbage collected.
+ * {@link Storage} implementation for introducing delays/slowness to inner Storage instance.
  */
 public class SlowStorage implements Storage {
     @Getter
-    final Storage inner;
+    final protected Storage inner;
 
     @Getter
-    final ScheduledExecutorService executorService;
+    final protected ScheduledExecutorService executorService;
 
     @Getter
-    final Duration duration;
+    final protected Duration duration;
 
     /**
      * Creates a new instance of SlowStorage.
@@ -142,5 +142,8 @@ public class SlowStorage implements Storage {
 
     @Override
     public void close() {
+        if (inner != null) {
+            inner.close();
+        }
     }
 }

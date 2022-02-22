@@ -25,6 +25,9 @@ import lombok.val;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Unit tests for {@link SlowStorage}
+ */
 public class SlowStorageTests extends StorageTestBase {
 
     @Override
