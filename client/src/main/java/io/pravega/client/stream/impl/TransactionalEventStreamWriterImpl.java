@@ -46,8 +46,7 @@ import static io.pravega.shared.NameUtils.getEpoch;
 
 /**
  * This class creates transactions, and manages their lifecycle.
- * 
- * @param <Type> The type of event that is sent
+ * @param <Type> The type of event that is sent.
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })

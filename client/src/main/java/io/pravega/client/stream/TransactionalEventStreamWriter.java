@@ -51,7 +51,9 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
     EventWriterConfig getConfig();
 
     /**
-     * Extends the Transaction Lease by the provided value
+     * Extends the Transaction Lease by the provided value.
+     * @param txnId The result retained from calling {@link Transaction#getTxnId()}
+     * @param leaseInterval Lease Interval extension in milliseconds
      * @return Status indicating if extending the lease was successful or not
      */
     Transaction.PingStatus extendTransactionLease(UUID txnId, long leaseInterval);
