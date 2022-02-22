@@ -74,7 +74,7 @@ PSearch is a component of **Dell EMC Streaming Data Platform** that provides sea
 
 <IfMissingFeature feature="nautilus">
 
-For more information, see the [Streaming Data Platform Developer's Guide](https://dl.dell.com/content/docu96951_Streaming_Data_Platform_Developers_Guide.pdf).
+For more information, see the [Streaming Data Platform Developer's Guide](https://www.dell.com/support/manuals/streaming-data-platform/sdp_pub_developers_guide).
 
 </IfMissingFeature>
 <IfHaveFeature feature="nautilus">
