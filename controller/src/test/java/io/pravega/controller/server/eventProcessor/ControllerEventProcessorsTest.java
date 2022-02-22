@@ -376,7 +376,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         map3.put(new SegmentWithRange(new Segment("scope", "stream", 4L), 0.33, 0.66), 10L);
         map3.put(new SegmentWithRange(new Segment("scope", "stream", 5L), 0.66, 1.0), 20L);
 
-        
         PositionImpl position1 = new PositionImpl(map1);
         PositionImpl position2 = new PositionImpl(map2);
         PositionImpl position3 = new PositionImpl(map3);
