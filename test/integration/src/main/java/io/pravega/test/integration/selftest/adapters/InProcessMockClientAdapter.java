@@ -31,6 +31,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -279,6 +280,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
             throw new UnsupportedOperationException("flushToStorage");
+        }
+
+        @Override
+        public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+            throw new UnsupportedOperationException("getExtendedChunkInfo");
         }
 
         @Override
