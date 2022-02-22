@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
@@ -42,6 +43,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
@@ -817,39 +819,23 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTransactions(final int limit, final String continuationToken, final OperationContext context) {
+    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
-        return getAllBatchesForCompletedTxns(context)
-                .thenCompose(batches -> {
-                    if (batches.size() == 0) {
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyMap(), continuationToken));
-                    } else {
-                        return getTxnInBatch(batches.get(batches.size() - 1), limit, continuationToken, context);
-                    }
-                });
+        return getTxnInBatch(0, limit, continuationToken, context);
     }
 
-    private CompletableFuture<List<Integer>> getAllBatchesForCompletedTxns(OperationContext context) {
-        Preconditions.checkNotNull(context, "operation context cannot be null");
-        List<Integer> batches = new ArrayList<>();
-        return Futures.exceptionallyExpecting(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE, context.getRequestId())
-                .collectRemaining(x -> {
-                    batches.add(Integer.parseInt(x));
-                    return true;
-                }).thenApply(v -> batches), DATA_NOT_FOUND_PREDICATE, Collections.emptyList());
-    }
-
-    private CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> getTxnInBatch(final Integer batch, final int limit, final String continuationToken, final OperationContext context) {
+    private CompletableFuture<Pair<List<Controller.TxnResponse>, String>> getTxnInBatch(final Integer batch, final int limit, final String continuationToken, final OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
         AtomicReference<String> token = new AtomicReference<>(continuationToken);
         String tableName = getCompletedTransactionsBatchTableName(batch);
         return Futures.exceptionallyExpecting(storeHelper.getEntriesPaginated(tableName, Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit, CompletedTxnRecord::fromBytes, context.getRequestId())
                 .thenApply(completedTxns -> {
-                    Map<UUID, TxnStatus> listTxns = completedTxns.getValue().stream().collect(Collectors.toMap(value -> UUID.fromString(value.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), "")), value -> value.getValue().getObject().getCompletionStatus()));
+                    List<Controller.TxnResponse> listTxns = completedTxns.getValue().stream().map(x -> Controller.TxnResponse.newBuilder()
+                            .setTxnId(ModelHelper.decode(UUID.fromString(x.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""))))
+                            .setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().getObject().getCompletionStatus().name())).build()).collect(Collectors.toList());
                     token.set(Base64.getEncoder().encodeToString(completedTxns.getKey().array()));
                     return new ImmutablePair<>(listTxns, token.get());
-                }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyMap(), token.get()));
+                }), DATA_NOT_FOUND_PREDICATE, new ImmutablePair<>(Collections.emptyList(), token.get()));
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {

@@ -337,10 +337,10 @@ message ListCompletedTxnRequest {
 
 message ListCompletedTxnResponse{
     ContinuationToken continuationToken = 1;
-    repeated ListCompletedResponse response = 2;
+    repeated TxnResponse response = 2;
 }
 
-message ListCompletedResponse{
+message TxnResponse{
     TxnId txnId = 1;
     enum Status {
         COMMITTED = 0;

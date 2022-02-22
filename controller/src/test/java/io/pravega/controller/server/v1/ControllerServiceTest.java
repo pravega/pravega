@@ -45,7 +45,6 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -286,7 +285,7 @@ public class ControllerServiceTest {
         TransactionMetrics.initialize();
         OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
 
-        Pair<Map<UUID, TxnStatus>, String> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 10, "", 0L).join();
+        Pair<List<Controller.TxnResponse>, String> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 10, "", 0L).join();
         assertEquals(0, listTxns.getKey().size());
     }
     

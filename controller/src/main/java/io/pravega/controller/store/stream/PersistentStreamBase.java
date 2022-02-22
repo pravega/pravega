@@ -77,7 +77,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
@@ -1579,11 +1578,6 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
 
-    @Override
-    public CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context) {
-        return listCompletedTransactions(limit, continuationToken, context);
-    }
-
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId, OperationContext context) {
         return getCompletedTx(txId, context).handle((ok, ex) -> {
             if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
@@ -2638,14 +2632,6 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch, OperationContext context);
 
-
-    /**
-     * Method to get completed txns.
-     *
-     * @param context operational context
-     * @return list of transaction ids
-     */
-    abstract CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTransactions(final int limit, final String continuationToken, final OperationContext context);
 
     /**
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 

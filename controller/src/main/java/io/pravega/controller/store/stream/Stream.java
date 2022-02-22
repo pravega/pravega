@@ -33,6 +33,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -529,9 +530,9 @@ interface Stream {
      * @param limit max no of transaction to get
      * @param continuationToken continuationToken
      * @param context operational context
-     * @return List of txIds
+     * @return List of txIds with status and token
      */
-    CompletableFuture<Pair<Map<UUID, TxnStatus>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context);
+    CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context);
 
     /**
      * Returns the currently active stream epoch.

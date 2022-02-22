@@ -28,7 +28,6 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -371,7 +370,7 @@ public interface Controller extends AutoCloseable {
      * @param stream Stream Name
      * @return list of transaction ids
      */
-    AsyncIterator<TransactionInfo> listCompletedTransactions(final Stream stream);
+    AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listCompletedTransactions(final Stream stream);
 
     // Controller Apis that are called by readers
 

@@ -25,7 +25,6 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -202,7 +201,7 @@ public class ControllerStreamMetadataTest {
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
-        AsyncIterator<TransactionInfo> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM));
+        AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM));
         assertFalse(listUUID.asIterator().hasNext());
     }
 }

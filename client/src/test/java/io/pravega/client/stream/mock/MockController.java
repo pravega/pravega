@@ -38,7 +38,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -670,7 +669,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public AsyncIterator<TransactionInfo> listCompletedTransactions(Stream stream) {
+    public AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listCompletedTransactions(Stream stream) {
         throw new UnsupportedOperationException();
     }
 

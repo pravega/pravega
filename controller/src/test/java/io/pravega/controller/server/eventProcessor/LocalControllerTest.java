@@ -871,4 +871,17 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals(new Segment("scope", "stream", 1), currentSegments.getSegmentForKey(0.2));
         assertEquals(new Segment("scope", "stream", 3), currentSegments.getSegmentForKey(0.9));
     }
+
+    @Test
+    public void testListCompletedTransactions() {
+        List<Controller.TxnResponse> listResponse = new ArrayList<>(2);
+        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.ABORTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
+        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.COMMITTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
+
+        when(this.mockControllerService.listCompletedTxns(any(), any(), anyInt(), any(), anyLong())).thenReturn(CompletableFuture.completedFuture(new ImmutablePair<>(listResponse, "")));
+        AsyncIterator<Controller.TxnResponse> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream"));
+
+        assertEquals(listResponse.get(0).getTxnId(), listTxns.getNext().join().getTxnId());
+        assertEquals(listResponse.get(1).getTxnId(), listTxns.getNext().join().getTxnId());
+    }
 }

@@ -93,7 +93,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -917,20 +916,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 request.getStreamInfo().getStream(), pageLimit, request.getContinuationToken().getToken(), requestTag.getRequestId())
                         .thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder()
                                 .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(result.getValue()).build())
-                                .addAllResponse(getAllTxns(result.getKey()))
+                                .addAllResponse(result.getKey())
                                 .build()),
                 responseObserver, requestTag);
-    }
-
-
-    private Iterable<Controller.ListCompletedResponse> getAllTxns(Map<UUID, io.pravega.controller.store.stream.TxnStatus> result) {
-        List<Controller.ListCompletedResponse> listTxns = new ArrayList<>();
-        result.forEach((id, status) -> listTxns.add(Controller.ListCompletedResponse.newBuilder()
-                .setTxnId(Controller.TxnId.newBuilder().setLowBits(id.getLeastSignificantBits()).setHighBits(id.getMostSignificantBits()).build())
-                .setStatus(Controller.ListCompletedResponse.Status.valueOf(status.name()))
-                .build()));
-        return listTxns;
-    }
+   }
 
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {

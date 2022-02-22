@@ -43,7 +43,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TransactionInfo;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -1052,9 +1051,9 @@ public class ControllerImplTest {
                 UUID uuid = UUID.randomUUID();
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
-                            .addResponse(Controller.ListCompletedResponse.newBuilder()
-                                    .setTxnId(TxnId.newBuilder().setHighBits(uuid.getMostSignificantBits()).setLowBits(uuid.getLeastSignificantBits()).build())
-                                    .setStatus(Controller.ListCompletedResponse.Status.ABORTED)
+                            .addResponse(Controller.TxnResponse.newBuilder()
+                                    .setTxnId(decode(uuid))
+                                    .setStatus(Controller.TxnResponse.Status.ABORTED)
                                     .build())
                             .setContinuationToken(request.getContinuationToken())
                             .build());
@@ -2113,9 +2112,9 @@ public class ControllerImplTest {
 
     @Test
     public void testListCompletedTransaction() throws Exception {
-        AsyncIterator<TransactionInfo> listUUID;
+        AsyncIterator<Controller.TxnResponse> listUUID;
         listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1"));
-        assertTrue(listUUID.asIterator().hasNext());
+        assertTrue(listUUID.getNext().join().hasTxnId());
 
         listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2"));
         assertFalse(listUUID.asIterator().hasNext());

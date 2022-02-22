@@ -824,7 +824,7 @@ public class ControllerService {
      * @param requestId request id
      * @return pair having map of uuid with status and continuationToken
      */
-    public CompletableFuture<Pair<Map<UUID, io.pravega.controller.store.stream.TxnStatus>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final long requestId) {
+    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
