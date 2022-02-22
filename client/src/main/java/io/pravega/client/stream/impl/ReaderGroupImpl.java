@@ -92,6 +92,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final SegmentMetadataClientFactory metaFactory;
     private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final NotifierFactory notifierFactory;
+    @VisibleForTesting
     private final ConnectionPool connectionPool;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,

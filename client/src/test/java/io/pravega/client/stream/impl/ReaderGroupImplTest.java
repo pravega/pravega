@@ -368,6 +368,15 @@ public class ReaderGroupImplTest {
         assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    public void initiateCheckpointInternalExecutorSuccess() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        when(connectionPool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("internalExecutor");
+        assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
+    }
+
     @Test(timeout = 10000)
     public void generateStreamCutSuccess() {
         when(synchronizer.getState()).thenReturn(state);
