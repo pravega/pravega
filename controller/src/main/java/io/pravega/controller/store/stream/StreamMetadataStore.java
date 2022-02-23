@@ -1127,7 +1127,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
-     * Method to retrieve all active transactions from metadata store in completed state.
+     * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state.
      *
      * @param scope Scope of stream
      * @param stream name of stream
@@ -1135,7 +1135,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param continuationToken continuation token
      * @param context operation context
      * @param executor caller executor
-     * @return Pair of list of txIds with status and token
+     * @return pair having list of TxnResponse and continuationToken
      */
     CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final OperationContext context, final Executor executor);
 

@@ -819,16 +819,20 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context) {
+    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken,
+                                                                                           final OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
         return getTxnInBatch(0, limit, continuationToken, context);
     }
 
-    private CompletableFuture<Pair<List<Controller.TxnResponse>, String>> getTxnInBatch(final Integer batch, final int limit, final String continuationToken, final OperationContext context) {
+    private CompletableFuture<Pair<List<Controller.TxnResponse>, String>> getTxnInBatch(final Integer batch, final int limit,
+                                                                                        final String continuationToken,
+                                                                                        final OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
         AtomicReference<String> token = new AtomicReference<>(continuationToken);
         String tableName = getCompletedTransactionsBatchTableName(batch);
-        return Futures.exceptionallyExpecting(storeHelper.getEntriesPaginated(tableName, Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit, CompletedTxnRecord::fromBytes, context.getRequestId())
+        return Futures.exceptionallyExpecting(storeHelper.getEntriesPaginated(tableName, Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())),
+                        limit, CompletedTxnRecord::fromBytes, context.getRequestId())
                 .thenApply(completedTxns -> {
                     List<Controller.TxnResponse> listTxns = completedTxns.getValue().stream().map(x -> Controller.TxnResponse.newBuilder()
                             .setTxnId(ModelHelper.decode(UUID.fromString(x.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""))))

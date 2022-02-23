@@ -1577,7 +1577,6 @@ public abstract class PersistentStreamBase implements Stream {
         });
     }
 
-
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId, OperationContext context) {
         return getCompletedTx(txId, context).handle((ok, ex) -> {
             if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
@@ -2631,7 +2630,6 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data, OperationContext context);
 
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch, OperationContext context);
-
 
     /**
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 

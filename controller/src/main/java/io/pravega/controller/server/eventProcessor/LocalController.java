@@ -57,7 +57,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -566,8 +566,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listCompletedTransactions(Stream stream) {
-        final Function<String, CompletableFuture<Map.Entry<String, Collection<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse>>>> function = token ->
+    public AsyncIterator<TxnResponse> listCompletedTransactions(Stream stream) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<TxnResponse>>>> function = token ->
                 controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), PAGE_LIMIT, token, requestIdGenerator.nextLong())
                         .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getValue(), result.getKey()));
 

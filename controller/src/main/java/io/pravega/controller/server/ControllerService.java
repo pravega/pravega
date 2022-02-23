@@ -816,15 +816,17 @@ public class ControllerService {
     }
 
     /**
-     * List txnIds in completed state.
+     * List transaction in completed(COMMITTED/ABORTED) state.
      * @param scope scope name
      * @param stream stream name
      * @param limit max no of entries to get
      * @param continuationToken continuationToken
      * @param requestId request id
-     * @return pair having map of uuid with status and continuationToken
+     * @return pair having list of TxnResponse and continuationToken
      */
-    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final long requestId) {
+    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final String scope, final String stream,
+                                                                                           final int limit, final String continuationToken,
+                                                                                           final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);

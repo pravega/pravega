@@ -121,6 +121,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.Credentials;
 import org.slf4j.LoggerFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
@@ -1512,16 +1513,16 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listCompletedTransactions(Stream stream) {
+    public AsyncIterator<TxnResponse> listCompletedTransactions(final Stream stream) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "listCompletedTransactions", stream, requestId);
+        long traceId = LoggerHelpers.traceEnter(log, LIST_COMPLETED_TRANSACTIONS, stream, requestId);
 
         try {
-            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse>>>> function =
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<TxnResponse>>>> function =
                     token -> this.retryConfig.runAsync(() -> {
-                        RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, "listCompletedTransactions", stream);
+                        RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, LIST_COMPLETED_TRANSACTIONS, stream);
 
                         new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
                                 .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
@@ -1532,7 +1533,7 @@ public class ControllerImpl implements Controller {
                     }, this.executor);
             return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
         } finally {
-            LoggerHelpers.traceLeave(log, "listCompletedTransactions", traceId);
+            LoggerHelpers.traceLeave(log, LIST_COMPLETED_TRANSACTIONS, traceId);
         }
     }
 

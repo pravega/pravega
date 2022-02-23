@@ -525,12 +525,12 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context);
 
     /**
-     * Api to get all transactions ids in completed state.
+     * Api to List transaction in completed(COMMITTED/ABORTED) state.
      *
      * @param limit max no of transaction to get
      * @param continuationToken continuationToken
      * @param context operational context
-     * @return List of txIds with status and token
+     * @return pair having list of TxnResponse and continuationToken
      */
     CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context);
 

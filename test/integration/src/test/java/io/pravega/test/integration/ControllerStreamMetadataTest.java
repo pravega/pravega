@@ -44,6 +44,7 @@ import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 
 /**
  * Controller stream metadata tests.
@@ -201,7 +202,7 @@ public class ControllerStreamMetadataTest {
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
-        AsyncIterator<io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM));
+        AsyncIterator<TxnResponse> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM));
         assertFalse(listUUID.asIterator().hasNext());
     }
 }
