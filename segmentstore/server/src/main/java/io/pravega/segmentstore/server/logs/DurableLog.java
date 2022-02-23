@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -221,7 +220,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.memoryStateUpdater);
             int recoveredItemCount = p.performRecovery();
             this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
-            SegmentStoreMetrics.reportOperationLogSize(recoveredItemCount, this.getId());
+            this.operationProcessor.getMetrics().reportOperationLogSize(recoveredItemCount, this.getId());
 
             // Verify that the Recovery Processor has left the metadata in a non-recovery mode.
             Preconditions.checkState(!this.metadata.isRecoveryMode(), "Recovery completed but Metadata is still in Recovery Mode.");
@@ -351,7 +350,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         CompletableFuture<Queue<Operation>> result = this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
         result.thenAccept(r -> {
             final int size = r.size();
-            SegmentStoreMetrics.reportOperationLogSize(this.inMemoryOperationLog.size(), this.getId());
+            this.operationProcessor.getMetrics().reportOperationLogSize(this.inMemoryOperationLog.size(), this.getId());
             log.debug("{}: ReadResult (Count = {}, Remaining = {}).", this.traceObjectId, size, this.inMemoryOperationLog.size());
             if (size > 0) {
                 this.memoryStateUpdater.notifyLogRead();
