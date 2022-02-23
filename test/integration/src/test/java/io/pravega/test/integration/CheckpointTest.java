@@ -527,7 +527,7 @@ public class CheckpointTest {
         ReaderGroupConfig groupConfigSC = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
                                                          .stream(Stream.of(scope, streamName), streamCut)
-                                                          .stream(Stream.of(scope, streamNameNew)).build();
+                                                         .stream(Stream.of(scope, streamNameNew)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
