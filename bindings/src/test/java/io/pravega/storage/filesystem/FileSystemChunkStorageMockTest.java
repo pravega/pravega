@@ -55,6 +55,7 @@ import static org.mockito.Mockito.when;
 public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
     static final int CACHE_SIZE = 1024;
+    static final Duration CACHE_EXP = Duration.ofSeconds(600);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
@@ -155,7 +156,7 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
 
     @Test
     public void testStorageFull() throws Exception {
-        val fs = spy(new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE));
+        val fs = spy(new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE, CACHE_EXP, CACHE_EXP));
         doThrow(new IOException("No space left on device")).when(fs).getFileSize(any());
         FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
         AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
@@ -165,7 +166,7 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
 
     @Test
     public void testGetUsageException() {
-        val fs = spy(new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE));
+        val fs = spy(new FileSystemWrapper(CACHE_SIZE, CACHE_SIZE, CACHE_EXP, CACHE_EXP));
         doThrow(new RuntimeException("Intentional")).when(fs).getUsedSpace(any());
         FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
         AssertExtensions.assertFutureThrows("should throw ChunkStorageException exception",

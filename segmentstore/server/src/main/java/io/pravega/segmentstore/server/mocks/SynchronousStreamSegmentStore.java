@@ -17,18 +17,22 @@ package io.pravega.segmentstore.server.mocks;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
+
+import java.time.Duration;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import java.time.Duration;
-import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -73,6 +77,13 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     @Override
     public CompletableFuture<Void> flushToStorage(int containerId, Duration timeout) {
         CompletableFuture<Void> result = impl.flushToStorage(containerId, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+        CompletableFuture<List<ExtendedChunkInfo>> result = impl.getExtendedChunkInfo(streamSegmentName, timeout);
         Futures.await(result);
         return result;
     }

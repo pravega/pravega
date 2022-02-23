@@ -836,6 +836,91 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class ListStorageChunks implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.LIST_STORAGE_CHUNKS;
+        final String segment;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).listStorageChunks(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new ListStorageChunks(segment, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class StorageChunksListed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_CHUNKS_LISTED;
+        final long requestId;
+        final List<ChunkInfo> chunks;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.storageChunksListed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeInt(chunks.size());
+            for (ChunkInfo chunk : chunks) {
+                chunk.writeFields(out);
+            }
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            int numberOfChunks = in.readInt();
+            List<ChunkInfo> chunks = new ArrayList<>(numberOfChunks);
+            for (int i = 0; i < numberOfChunks; i++) {
+                chunks.add(ChunkInfo.readFrom(in, in.available()));
+            }
+            return new StorageChunksListed(requestId, chunks);
+        }
+    }
+
+    @Data
+    public static final class ChunkInfo {
+        final long lengthInMetadata;
+        final long lengthInStorage;
+        final long startOffset;
+        final String chunkName;
+        final boolean existsInStorage;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(lengthInMetadata);
+            out.writeLong(lengthInStorage);
+            out.writeLong(startOffset);
+            out.writeUTF(chunkName);
+            out.writeBoolean(existsInStorage);
+        }
+
+        public static ChunkInfo readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long lengthInMetadata = in.readLong();
+            long lengthInStorage = in.readLong();
+            long startOffset = in.readLong();
+            String chunkName = in.readUTF();
+            boolean existsInStorage = in.readBoolean();
+            return new ChunkInfo(lengthInMetadata, lengthInStorage, startOffset, chunkName, existsInStorage);
+        }
+    }
+
+    @Data
     public static final class ReadSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;
