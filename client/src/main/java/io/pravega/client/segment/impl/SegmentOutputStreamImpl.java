@@ -596,6 +596,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
+    /**
+     * @see SegmentOutputStream#flush()
+     */
+    @Override
+    public void flushAsync() {}
+
     private void failConnection(Throwable e) {
         if (e instanceof TokenExpiredException) {
             this.tokenProvider.signalTokenExpired();

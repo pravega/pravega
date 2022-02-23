@@ -15,6 +15,7 @@
  */
 package io.pravega.client.byteStream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -56,8 +57,9 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
         out.write(PendingEvent.withoutHeader(null, data, updateLastEventFuture()));
     }
 
+    @VisibleForTesting
     @Synchronized
-    private CompletableFuture<Void> updateLastEventFuture() {
+    CompletableFuture<Void> updateLastEventFuture() {
         this.latestEventFuture = new CompletableFuture<>();
         return latestEventFuture;
     }
@@ -69,6 +71,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
+    @Synchronized
     public void flush() throws IOException {
         out.flush();
     }
@@ -76,6 +79,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     @Synchronized
     public CompletableFuture<Void> flushAsync() {
+        out.flushAsync();
         return this.latestEventFuture;
     }
 

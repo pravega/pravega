@@ -99,6 +99,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Void> flushAsync() throws IOException {
         commitBuffer();
         return out.flushAsync();

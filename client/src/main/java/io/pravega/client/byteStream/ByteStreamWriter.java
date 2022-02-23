@@ -89,8 +89,9 @@ public abstract class ByteStreamWriter extends OutputStream {
     public abstract void flush() throws IOException;
 
     /**
-     * Persists remaining data writes in up to data written or further at the moment. This does
-     * not block new writes with the writer.
+     * The future will complete successfully when all data which was passed to
+     * the write prior to calling this method has been persisted, and will complete exceptionally if that
+     * is not possible such as for example if the segment is sealed.
      *
      * @see java.io.OutputStream#flush()
      * @return The future related to last write
