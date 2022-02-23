@@ -63,7 +63,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
+public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     /**
      * These two locks are used to enforce the following behavior:

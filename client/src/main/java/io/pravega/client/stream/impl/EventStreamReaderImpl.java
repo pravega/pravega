@@ -68,7 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
 
 @Slf4j
-public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
+public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
     private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
