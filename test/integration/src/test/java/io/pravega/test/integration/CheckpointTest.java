@@ -363,7 +363,7 @@ public class CheckpointTest {
 
         //Read 2nd event.
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(1000).getEvent());
+        assertNull(reader.readNextEvent(100).getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         readerGroup.resetReaderGroup(null);
@@ -381,7 +381,7 @@ public class CheckpointTest {
         assertEquals(testString, read.getEvent());
         assertEquals(testString1, reader.readNextEvent(1000).getEvent());
         assertEquals(testString2, reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(3000).getEvent());
+        assertNull(reader.readNextEvent(100).getEvent());
 
     }
 
@@ -389,7 +389,7 @@ public class CheckpointTest {
     * Consider scenario when there is no checkpoint created in the stream.
     * Now when resetReaderGroup(null) call triggers, then reader group starts reading from start of streamcut not start of stream.
     */
-    @Test(timeout = 120000)
+    @Test(timeout = 20000)
     public void testCPAndRestoreToStreamCutNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
@@ -470,7 +470,7 @@ public class CheckpointTest {
         assertEquals(testString4, reader.readNextEvent(1000).getEvent());
         assertEquals(testString5, reader.readNextEvent(1000).getEvent());
         assertEquals(testString6, reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(3000).getEvent());
+        assertNull(reader.readNextEvent(100).getEvent());
 
     }
 
@@ -479,7 +479,7 @@ public class CheckpointTest {
     *  Now there is call reset readergroup by adding new stream s2 and streamcut sc1 on stream s1(say position p2(>p1) in segment
     *  Now If there is call to resetReaderGroup(null) then It should start reading stream s1 from streamcut sc1 and s2 from head.
     */
-    @Test(timeout = 120000)
+    @Test(timeout = 20000)
     public void testCPAndRestoreWithAddDeleteStream() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
@@ -634,7 +634,7 @@ public class CheckpointTest {
         assertNotNull(reader.readNextEvent(1000).getEvent());
         assertNotNull(reader.readNextEvent(1000).getEvent());
         assertNotNull(reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(1000).getEvent());
+        assertNull(reader.readNextEvent(100).getEvent());
 
     }
 
