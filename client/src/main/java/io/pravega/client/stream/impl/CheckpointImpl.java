@@ -37,7 +37,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 
 @EqualsAndHashCode
-public class CheckpointImpl implements Checkpoint {
+public final class CheckpointImpl implements Checkpoint {
 
     private static final CheckpointSerializer SERIALIZER = new CheckpointSerializer();
     @Getter
