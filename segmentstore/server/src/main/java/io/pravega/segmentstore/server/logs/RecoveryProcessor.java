@@ -84,6 +84,10 @@ class RecoveryProcessor {
      *                   * IOException: If a general IO exception occurred.
      */
     public int performRecovery() throws Exception {
+        return performRecovery(true);
+    }
+
+    public int performRecovery(boolean alertDataCorruption) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
         Timer timer = new Timer();
         log.info("{} Recovery started.", this.traceObjectId);
@@ -100,7 +104,7 @@ class RecoveryProcessor {
         boolean successfulRecovery = false;
         int recoveredItemCount;
         try {
-            recoveredItemCount = recoverAllOperations(metadataUpdater);
+            recoveredItemCount = recoverAllOperations(metadataUpdater, alertDataCorruption);
             this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
             long timeElapsed = timer.getElapsedMillis();
             log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
@@ -125,9 +129,10 @@ class RecoveryProcessor {
      * been built up using the Operations up to them).
      *
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
+     * @param alertDataCorruption Boolean determining how to handle DataCorruptionExceptions.
      * @return The number of Operations recovered.
      */
-    private int recoverAllOperations(OperationMetadataUpdater metadataUpdater) throws Exception {
+    private int recoverAllOperations(OperationMetadataUpdater metadataUpdater, boolean alertDataCorruption) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverAllOperations");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -140,25 +145,33 @@ class RecoveryProcessor {
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.
             while (true) {
-                // Fetch the next operation.
-                dataFrameRecord = reader.getNext();
-                if (dataFrameRecord == null) {
-                    // We have reached the end and have not found any MetadataCheckpointOperations.
-                    log.warn("{}: Reached the end of the DataFrameLog and could not find any MetadataCheckpointOperations after reading {} Operations and {} Data Frames.",
-                            this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
-                    break;
-                } else if (dataFrameRecord.getItem() instanceof MetadataCheckpointOperation) {
-                    // We found a checkpoint. Start recovering from here.
-                    log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data Frames).",
-                            this.traceObjectId, dataFrameRecord.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
-                    break;
-                } else if (dataFrameRecord.isLastFrameEntry()) {
-                    skippedDataFramesCount++;
-                }
+                try {
+                    // Fetch the next operation.
+                    dataFrameRecord = reader.getNext();
+                    if (dataFrameRecord == null) {
+                        // We have reached the end and have not found any MetadataCheckpointOperations.
+                        log.warn("{}: Reached the end of the DataFrameLog and could not find any MetadataCheckpointOperations after reading {} Operations and {} Data Frames.",
+                                this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
+                        break;
+                    } else if (dataFrameRecord.getItem() instanceof MetadataCheckpointOperation) {
+                        // We found a checkpoint. Start recovering from here.
+                        log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data Frames).",
+                                this.traceObjectId, dataFrameRecord.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
+                        break;
+                    } else if (dataFrameRecord.isLastFrameEntry()) {
+                        skippedDataFramesCount++;
+                    }
 
-                skippedOperationCount++;
-                log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far ({}).",
-                        this.traceObjectId, dataFrameRecord.getItem());
+                    skippedOperationCount++;
+                    log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far ({}).",
+                            this.traceObjectId, dataFrameRecord.getItem());
+                } catch (DataCorruptionException e) {
+                    if (alertDataCorruption) {
+                        throw e;
+                    } else {
+                        log.warn("{}: DataCorruptionException found while performing recovery.", this.traceObjectId);
+                    }
+                }
             }
 
             // Now continue with the recovery from here.

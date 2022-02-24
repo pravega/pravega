@@ -75,7 +75,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
         @Cleanup
         val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), callbacks);
         try {
-            rp.performRecovery();
+            rp.performRecovery(false);
             output("Recovery complete: %d DataFrame(s) containing %d Operation(s).",
                     recoveryState.dataFrameCount, recoveryState.operationCount);
         } catch (Exception ex) {

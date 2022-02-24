@@ -596,7 +596,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         @Cleanup
         val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
                 containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks);
-        int operationsRead = rp.performRecovery();
+        int operationsRead = rp.performRecovery(false);
         output("Number of operations read from DurableLog: " + operationsRead);
         return operationsRead;
     }
