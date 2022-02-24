@@ -55,6 +55,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -65,6 +66,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -77,6 +79,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -281,12 +284,17 @@ public class ControllerServiceTest {
     }
 
     @Test
-    public void testListTransactionsInState() {
+    public void testListCompletedTransactions() {
         TransactionMetrics.initialize();
         OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
+        List<Controller.TxnResponse> listResponse = new ArrayList<>(2);
+        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.ABORTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
+        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.COMMITTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
+
+        doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(listResponse, ""))).when(streamStore).listCompletedTxns(any(), any(), anyInt(), any(), any(), any());
 
         Pair<List<Controller.TxnResponse>, String> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 10, "", 0L).join();
-        assertEquals(0, listTxns.getKey().size());
+        assertEquals(2, listTxns.getKey().size());
     }
     
     @Test(timeout = 10000L)

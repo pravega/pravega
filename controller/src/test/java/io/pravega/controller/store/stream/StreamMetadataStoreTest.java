@@ -914,7 +914,7 @@ public abstract class StreamMetadataStoreTest {
 
 
     @Test
-    public void testListTransactionsInState() throws Exception {
+    public void testListCompletedTransactions() throws Exception {
         final String scope = "ScopeListTxn";
         final String stream = "StreamListTxn";
         final ScalingPolicy policy = ScalingPolicy.fixed(4);
@@ -926,27 +926,26 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
-        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
-                100, 100, null, executor).get();
-
         Pair<List<Controller.TxnResponse>, String> listTxn = store.listCompletedTxns(scope, stream, 10, "", null, executor).join();
         assertEquals(0, listTxn.getKey().size());
 
-        EpochRecord epochRecord = store.getActiveEpoch(scope, stream, null, true, executor).join();
+        UUID txnId1 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId1,
+                100, 100, null, executor).get();
 
-        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+        UUID txnId2 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId2,
+                100, 100, null, executor).get();
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
+        store.sealTransaction(scope, stream, txnId1, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+        store.sealTransaction(scope, stream, txnId2, true, Optional.of(tx2.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 2, null, executor).join().getKey();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
-
-        record = store.startRollingTxn(scope, stream, epochRecord.getEpoch(), record, null, executor).join();
-        store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
-        store.completeRollingTxn(scope, stream, Collections.emptyMap(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
 
-        listTxn = store.listCompletedTxns(scope, stream, 1, listTxn.getValue(), null, executor).join();
-        assertEquals(1, listTxn.getKey().size());
+        listTxn = store.listCompletedTxns(scope, stream, 2, listTxn.getValue(), null, executor).join();
+        assertEquals(2, listTxn.getKey().size());
 
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
