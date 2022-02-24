@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.util.ByteBufferUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -95,6 +96,13 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     public void flush() throws IOException {
         commitBuffer();
         out.flush();
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> flushAsync() throws IOException {
+        commitBuffer();
+        return out.flushAsync();
     }
 
     @Override

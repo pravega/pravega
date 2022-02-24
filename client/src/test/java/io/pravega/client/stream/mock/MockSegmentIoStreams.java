@@ -188,6 +188,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
+    public void flushAsync() {
+        //Noting to do.
+    }
+
+    @Override
     public boolean isSegmentReady() {
         return true;
     }
