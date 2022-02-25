@@ -15,6 +15,7 @@
  */
 package io.pravega.client.byteStream;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
@@ -23,9 +24,11 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,10 +38,10 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
 
 public class ByteStreamWriterTest {
 
@@ -52,7 +55,7 @@ public class ByteStreamWriterTest {
     public void setup() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        ClientConnection connection = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         controller.createScope(SCOPE);
@@ -62,6 +65,10 @@ public class ByteStreamWriterTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         clientFactory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
                                                  streamFactory);
+
+        StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(SCOPE, STREAM));
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
     }
 
     @After
@@ -88,6 +95,13 @@ public class ByteStreamWriterTest {
         writer.flush();
         assertEquals(headoffset, writer.fetchHeadOffset());
         assertEquals(value.length * 3, writer.fetchTailOffset());
+
+        headoffset = 10;
+        writer.write(value, 0, value.length);
+        writer.truncateDataBefore(headoffset);
+        writer.flushAsync().join();
+        assertEquals(headoffset, writer.fetchHeadOffset());
+        assertEquals(value.length * 4, writer.fetchTailOffset());
     }
 
     @Test(timeout = 5000)
