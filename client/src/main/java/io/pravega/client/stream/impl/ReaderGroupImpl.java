@@ -53,6 +53,7 @@ import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import java.time.Duration;
@@ -94,6 +95,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final NotifierFactory notifierFactory;
     @VisibleForTesting
     private final ConnectionPool connectionPool;
+    @VisibleForTesting
+    private final SequentialProcessor ackProcessor;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
@@ -103,6 +106,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
         this.connectionPool = Preconditions.checkNotNull(connectionPool);
+        this.ackProcessor = new SequentialProcessor(connectionPool.getInternalExecutor());
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
@@ -197,12 +201,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         return Futures.loop(checkpointPending::get, () -> {
             return Futures.delayedTask(() -> {
-                synchronizer.fetchUpdates();
-                checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
-                if (checkpointPending.get()) {
-                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
-                }
-                return null;
+                ackProcessor.add(() -> {
+                    synchronizer.fetchUpdates();
+                   checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
+                    if (checkpointPending.get()) {
+                        log.info("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
+                    }
+                    return CompletableFuture.completedFuture(null);
+               });
+               return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor);
     }
@@ -506,5 +513,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void close() {
         synchronizer.close();
+        ackProcessor.close();
     }
 }

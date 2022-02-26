@@ -108,6 +108,7 @@ public class ReaderGroupImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
+        when(connectionPool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionPool);
     }
@@ -428,7 +429,7 @@ public class ReaderGroupImplTest {
 
         return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
     }
-    
+
     @SuppressWarnings("unchecked")
     @Test
     public void testFutureCancelation() throws Exception {
@@ -462,9 +463,9 @@ public class ReaderGroupImplTest {
         SegmentWithRange segment = mock(SegmentWithRange.class);
         Map<SegmentWithRange, Long> map = Collections.singletonMap(segment, 0L);
         when(state.getAssignedSegments(anyString())).thenReturn(map);
-        
+
         when(state.getNumberOfUnassignedSegments()).thenReturn(2);
-        
+
         ReaderSegmentDistribution readerSegmentDistribution = readerGroup.getReaderSegmentDistribution();
 
         Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
