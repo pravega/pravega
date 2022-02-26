@@ -75,7 +75,7 @@ public class SynchronizerConfig implements Serializable {
 
         private void read00(RevisionDataInput revisionDataInput, SynchronizerConfigBuilder builder) throws IOException {
             builder.readBufferSize(revisionDataInput.readInt());
-            builder.eventWriterConfig(builder.eventWriterConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+            builder.eventWriterConfig(EventWriterConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
         }
 
         private void write00(SynchronizerConfig object, RevisionDataOutput revisionDataOutput) throws IOException {

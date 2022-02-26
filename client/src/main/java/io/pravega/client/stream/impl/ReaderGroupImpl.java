@@ -84,7 +84,7 @@ import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 @Slf4j
 @Data
-public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
+public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     static final String SILENT = "_SILENT_";
     private final String scope;

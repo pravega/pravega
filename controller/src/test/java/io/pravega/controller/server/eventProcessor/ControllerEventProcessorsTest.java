@@ -22,6 +22,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -363,27 +364,21 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
-        Map<Segment, Long> map1 = new HashMap<>();
-        map1.put(new Segment("scope", "stream", 0L), 10L);
-        map1.put(new Segment("scope", "stream", 1L), 10L);
-        map1.put(new Segment("scope", "stream", 2L), 20L);
-        Map<Segment, Long> map2 = new HashMap<>();
-        map2.put(new Segment("scope", "stream", 0L), 20L);
-        map2.put(new Segment("scope", "stream", 2L), 10L);
-        Map<Segment, Long> map3 = new HashMap<>();
-        map3.put(new Segment("scope", "stream", 3L), 0L);
-        map3.put(new Segment("scope", "stream", 4L), 10L);
-        map3.put(new Segment("scope", "stream", 5L), 20L);
+        Map<SegmentWithRange, Long> map1 = new HashMap<>();
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 0L), 0.0, 0.33), 10L);
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 1L), 0.33, 0.66), 10L);
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 2L), 0.66, 1.0), 20L);
+        Map<SegmentWithRange, Long> map2 = new HashMap<>();
+        map2.put(new SegmentWithRange(new Segment("scope", "stream", 0L), 0.0, 0.33), 20L);
+        map2.put(new SegmentWithRange(new Segment("scope", "stream", 2L), 0.66, 1.0), 10L);
+        Map<SegmentWithRange, Long> map3 = new HashMap<>();
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 3L), 0.0, 0.33), 0L);
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 4L), 0.33, 0.66), 10L);
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 5L), 0.66, 1.0), 20L);
 
-        PositionImpl position1 = mock(PositionImpl.class);
-        when(position1.getOwnedSegmentsWithOffsets()).thenReturn(map1);
-        when(position1.asImpl()).thenReturn(position1);
-        PositionImpl position2 = mock(PositionImpl.class);
-        when(position2.getOwnedSegmentsWithOffsets()).thenReturn(map2);
-        when(position2.asImpl()).thenReturn(position2);
-        PositionImpl position3 = mock(PositionImpl.class);
-        when(position3.getOwnedSegmentsWithOffsets()).thenReturn(map3);
-        when(position3.asImpl()).thenReturn(position3);
+        PositionImpl position1 = new PositionImpl(map1);
+        PositionImpl position2 = new PositionImpl(map2);
+        PositionImpl position3 = new PositionImpl(map3);
         
         doReturn(getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
