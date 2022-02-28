@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -276,8 +277,9 @@ class ContainerKeyIndex implements AutoCloseable {
             // Full cache hit.
             return CompletableFuture.completedFuture(result);
         } else {
-            // Fetch information for missing hashes.
-            return this.segmentTracker.waitIfNeeded(segment, cacheUpdated -> getBucketOffsetFromSegment(segment, result, toLookup, cacheUpdated, timer));
+            // Fetch information for missing hashes. Re-check cache always, as cache may contain the last value added while
+            // we are checking the index.
+            return this.segmentTracker.waitIfNeeded(segment, ignored -> getBucketOffsetFromSegment(segment, result, toLookup, true, timer));
         }
     }
 
@@ -652,14 +654,22 @@ class ContainerKeyIndex implements AutoCloseable {
         // Begin a loop which will end when either we've reached the target offset (defined in the RecoveryTask) or when
         // the recovery task itself has been cancelled (i.e., segment evicted, shutting down, etc.).
         Map<UUID, Long> tailCachePreIndexVersionTracker = new ConcurrentHashMap<>();
+        TailUpdates updates = new TailUpdates();
         Futures.loop(
                 () -> !task.task.isDone() && preIndexOffset.get() < task.triggerIndexOffset,
                 () -> {
                     int maxLength = (int) Math.min(this.config.getMaxTailCachePreIndexBatchLength(), task.triggerIndexOffset - preIndexOffset.get());
-                    return preIndexBatch(segment, preIndexOffset.get(), maxLength, tailCachePreIndexVersionTracker, lastIndexedOffset)
+                    return preIndexBatch(segment, preIndexOffset.get(), maxLength, tailCachePreIndexVersionTracker, lastIndexedOffset, updates)
                             .thenAccept(preIndexOffset::set);
                 },
                 this.executor)
+                .thenAcceptAsync(v -> {
+                    // Atomically update all the entries in cache after performing tail-caching process.
+                    this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
+                    Preconditions.checkState(this.cache.getTailHashes(segment.getSegmentId()).size() == updates.byBucket.size());
+                    // Notify the Segment Tracker that this segment has been recovered up to whatever offset we were able to process.
+                    this.segmentTracker.updateSegmentIndexOffset(segment.getSegmentId(), updates.getMaxOffset(), 0, updates.byBucket.size() > 0);
+                }, this.executor)
                 .exceptionally(ex -> {
                     log.warn("{}: Tail-caching failed for Table Segment {}; TailCachingStartOffset={}, LastIndexedOffset={}, CurrentOffset={}, SegmentLength={}.",
                             this.traceObjectId, segment.getSegmentId(), tailCachingStartOffset, lastIndexedOffset, preIndexOffset, task.triggerIndexOffset, Exceptions.unwrap(ex));
@@ -678,7 +688,8 @@ class ContainerKeyIndex implements AutoCloseable {
      * @return Max offset of processed entries.
      */
     private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength,
-                                                  Map<UUID, Long> tailCachePreIndexVersionTracker, long lastIndexedOffset) {
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker, long lastIndexedOffset,
+                                                  TailUpdates updates) {
         log.trace("{}: Tail-caching batch started for Table Segment {}. StartOffset={}, MaxLength={}.",
                 this.traceObjectId, segment.getSegmentId(), startOffset, maxLength);
         val timer = new Timer();
@@ -687,17 +698,10 @@ class ContainerKeyIndex implements AutoCloseable {
                 .processAll(rr, this.executor, this.config.getRecoveryTimeout())
                 .thenApplyAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
-                    val updates = new TailUpdates();
                     collectEntriesWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker, lastIndexedOffset);
 
-                    // Incorporate that into the cache.
-                    this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
-
                     log.debug("{}: Tail-caching batch complete for Table Segment {}. StartOffset={}, EndOffset={}, Key Update Count={}, Bucket Update Count={}, Elapsed={}ms.",
-                            this.traceObjectId, segment.getSegmentId(), startOffset, updates.getMaxOffset(), updates.getKeyCount(), updates.byBucket.size(), timer.getElapsedMillis());
-
-                    // Notify the Segment Tracker that this segment has been recovered up to whatever offset we were able to process.
-                    this.segmentTracker.updateSegmentIndexOffset(segment.getSegmentId(), updates.getMaxOffset(), 0, updates.byBucket.size() > 0);
+                            this.traceObjectId, segment.getSegmentId(), startOffset, updates.getMaxOffset(), updates.byBucket.size(), updates.byBucket.size(), timer.getElapsedMillis());
                     return updates.getMaxOffset();
                 }, this.executor);
     }
@@ -973,7 +977,7 @@ class ContainerKeyIndex implements AutoCloseable {
 
             if (task == null) {
                 // No recovery task. Execute right away.
-                return toExecute.apply(false);
+                return toExecute.apply(true);
             } else {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
