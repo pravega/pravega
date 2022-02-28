@@ -50,6 +50,8 @@ public interface ReplyProcessor {
 
     void storageFlushed(WireCommands.StorageFlushed storageFlushed);
 
+    void storageChunksListed(WireCommands.StorageChunksListed storageChunksListed);
+
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
     void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);

@@ -13,26 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl;
+package io.pravega.cli.admin.segmentstore.storage;
 
-import io.pravega.client.segment.impl.Segment;
-import java.util.Collections;
-import java.util.Map;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import lombok.ToString;
+import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.SegmentStoreCommand;
 
-@Builder
-@RequiredArgsConstructor
-@ToString
-@EqualsAndHashCode
-public final class WriterPosition {
+public abstract class StorageCommand extends SegmentStoreCommand {
+    static final String COMPONENT = "storage";
 
-    private final Map<Segment, Long> segments;
-
-    public Map<Segment, Long> getSegmentsWithOffsets() {
-        return Collections.unmodifiableMap(segments);
+    public StorageCommand(CommandArgs args) {
+        super(args);
     }
-
 }

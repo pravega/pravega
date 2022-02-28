@@ -565,6 +565,17 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testListStorageChunks() throws IOException {
+        testCommand(new WireCommands.ListStorageChunks(testString1, "", l));
+    }
+
+    @Test
+    public void testStorageChunksListed() throws IOException {
+        List<WireCommands.ChunkInfo> chunks = Collections.singletonList(new WireCommands.ChunkInfo(l, l, l, testString1, false));
+        testCommand(new WireCommands.StorageChunksListed(l, chunks));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }

@@ -74,7 +74,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 @Slf4j
-public class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
+public final class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
 
 
     private final SegmentInputStreamFactory inFactory;

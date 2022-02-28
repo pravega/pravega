@@ -224,7 +224,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connectionSetupCompleted = null;
                 if (closed || throwable instanceof SegmentSealedException || throwable instanceof RetriesExhaustedException) {
                     waitingInflight.release();
-                } 
+                }
                 if (!closed) {
                     String message = throwable.getMessage() == null ? throwable.getClass().toString() : throwable.getMessage();
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
@@ -601,6 +601,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             throw Exceptions.sneakyThrow(state.exception);
         }
     }
+
+    /**
+     * @see SegmentOutputStream#flush()
+     */
+    @Override
+    public void flushAsync() {}
 
     private void failConnection(Throwable e) {
         if (e instanceof TokenExpiredException) {
