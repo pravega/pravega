@@ -977,7 +977,7 @@ class ContainerKeyIndex implements AutoCloseable {
 
             if (task == null) {
                 // No recovery task. Execute right away.
-                return toExecute.apply(true);
+                return toExecute.apply(false);
             } else {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
