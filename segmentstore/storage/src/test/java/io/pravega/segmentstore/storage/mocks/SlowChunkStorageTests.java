@@ -19,8 +19,8 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 
-import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -29,21 +29,26 @@ import java.util.concurrent.ScheduledExecutorService;
 public class SlowChunkStorageTests extends SimpleStorageTests {
     @Override
     protected ChunkStorage getChunkStorage() {
-        return getFlakyChunkStorage(executorService());
+        return getSlowChunkStorage(executorService());
     }
 
-    static SlowChunkStorage getFlakyChunkStorage(ScheduledExecutorService executorService) {
+    static SlowChunkStorage getSlowChunkStorage(ScheduledExecutorService executorService) {
         ChunkStorage inner = new InMemoryChunkStorage(executorService);
-        return new SlowChunkStorage(inner, executorService, Duration.ZERO);
+        return new SlowChunkStorage(inner, executorService, StorageExtraConfig.builder()
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Normal")
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                .build());
     }
 
     /*
      * Unit tests for {@link SlowChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
-    public static class FlakyChunkStorageRollingStorageTests extends ChunkedRollingStorageTests {
+    public static class SlowChunkStorageRollingStorageTests extends ChunkedRollingStorageTests {
         @Override
         protected ChunkStorage getChunkStorage() {
-            return getFlakyChunkStorage(executorService());
+            return getSlowChunkStorage(executorService());
         }
     }
 
@@ -53,7 +58,7 @@ public class SlowChunkStorageTests extends SimpleStorageTests {
     public static class SlowChunkStorageTest extends ChunkStorageTests {
         @Override
         protected ChunkStorage createChunkStorage() {
-            return getFlakyChunkStorage(executorService());
+            return getSlowChunkStorage(executorService());
         }
     }
 }

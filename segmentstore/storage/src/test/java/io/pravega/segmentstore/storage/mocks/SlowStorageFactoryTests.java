@@ -22,13 +22,12 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.time.Duration;
 
 /**
  * Unit tests for {@link SlowStorageFactory}.
@@ -41,7 +40,7 @@ public class SlowStorageFactoryTests {
         val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         SimpleStorageFactory innerFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executor, false);
-        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, Duration.ZERO);
+        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder().build());
 
         @Cleanup
         SlowStorage storage1 = (SlowStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
@@ -67,7 +66,7 @@ public class SlowStorageFactoryTests {
         @Cleanup("shutdownNow")
         val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageFactory innerFactory = new InMemoryStorageFactory(executor);
-        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, Duration.ZERO);
+        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder().build());
 
         AssertExtensions.assertThrows(
                 "factory.createStorageAdapter should not succeed.",

@@ -55,6 +55,6 @@ public class StorageExtraConfigTest {
     public void testSlowModeLatency() {
         ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
         builder.with(Property.named("slow.latency.ms"), 42);
-        assertEquals(42, builder.build().getSlowModeLatencyMillis());
+        assertEquals(42, builder.build().getSlowModeLatencyMeanMillis());
     }
 }

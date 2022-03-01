@@ -32,8 +32,12 @@ public class StorageExtraConfig {
     public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("noOp.write.latency.milliseconds", 20, "storageWriteNoOpLatencyMillis");
 
     public static final Property<Boolean> STORAGE_SLOW_MODE = Property.named("slow.enable", false);
-    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY = Property.named("slow.latency.ms", 500);
+    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_MEAN = Property.named("slow.latency.mean.ms", 500);
+    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_STD_DEV = Property.named("slow.latency.std.ms", 500);
+    public static final Property<String> STORAGE_SLOW_MODE_DISTRIBUTION_TYPE = Property.named("slow.type", "Normal");
     private static final String COMPONENT_CODE = "storageextra";
+
+
 
     /**
      * Latency in milliseconds applied for storage write in no-op mode
@@ -57,9 +61,13 @@ public class StorageExtraConfig {
      * Latency in milliseconds applied for slow storage mode.
      */
     @Getter
-    private final int slowModeLatencyMillis;
+    private final int slowModeLatencyMeanMillis;
 
+    @Getter
+    private final int slowModeLatencyStdDevMillis;
 
+    @Getter
+    private final String distributionType;
 
     /**
      * Creates a new instance of StorageExtraConfig.
@@ -69,9 +77,11 @@ public class StorageExtraConfig {
      */
     private StorageExtraConfig(TypedProperties properties) throws ConfigurationException {
         this.storageNoOpMode = properties.getBoolean(STORAGE_NO_OP_MODE);
-        this.storageWriteNoOpLatencyMillis = properties.getPositiveInt(STORAGE_WRITE_NO_OP_LATENCY);
+        this.storageWriteNoOpLatencyMillis = properties.getNonNegativeInt(STORAGE_WRITE_NO_OP_LATENCY);
         this.slowModeEnabled = properties.getBoolean(STORAGE_SLOW_MODE);
-        this.slowModeLatencyMillis = properties.getPositiveInt(STORAGE_SLOW_MODE_LATENCY);
+        this.slowModeLatencyMeanMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_MEAN);
+        this.slowModeLatencyStdDevMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_STD_DEV);
+        this.distributionType = properties.get(STORAGE_SLOW_MODE_DISTRIBUTION_TYPE);
     }
 
     public static ConfigBuilder<StorageExtraConfig> builder() {

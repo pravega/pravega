@@ -21,11 +21,11 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
-import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -40,13 +40,19 @@ public class SlowStorageFactory implements SimpleStorageFactory {
     final protected StorageFactory inner;
 
     @Getter
-    final protected Duration duration;
+    final protected StorageExtraConfig config;
 
+    /**
+     * Creates an instance of Storage.
+     * @param containerId Container ID.
+     * @param metadataStore {@link ChunkMetadataStore} store to use.
+     * @return
+     */
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         if (inner instanceof SimpleStorageFactory) {
             val innerStorage = ((SimpleStorageFactory) inner).createStorageAdapter(containerId, metadataStore);
-            return new SlowStorage(innerStorage, executor, duration);
+            return new SlowStorage(innerStorage, executor, config);
         } else {
             throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
         }
@@ -54,7 +60,7 @@ public class SlowStorageFactory implements SimpleStorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new SlowStorage(inner.createStorageAdapter(), executor, duration);
+        return new SlowStorage(inner.createStorageAdapter(), executor, config);
     }
 
     @Override

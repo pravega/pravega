@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import java.time.Duration;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -58,7 +57,7 @@ public class StorageLoader {
                     }
                     if (storageExtraConfig.isSlowModeEnabled()) {
                         log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new SlowStorageFactory(executor, factory, Duration.ofMillis(storageExtraConfig.getSlowModeLatencyMillis()));
+                        return new SlowStorageFactory(executor, factory, storageExtraConfig);
                     }
                     return factory;
                 }

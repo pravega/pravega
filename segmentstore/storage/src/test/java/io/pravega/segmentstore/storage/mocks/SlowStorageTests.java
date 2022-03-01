@@ -19,10 +19,10 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTests;
 import lombok.val;
 
-import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -37,24 +37,29 @@ public class SlowStorageTests extends StorageTestBase {
 
     @Override
     protected Storage createStorage() throws Exception {
-        return getFlakyStorage(executorService());
+        return getSlowStorage(executorService());
     }
 
-    private static SlowStorage getFlakyStorage(ScheduledExecutorService executor) {
+    private static SlowStorage getSlowStorage(ScheduledExecutorService executor) {
         val chunkStorage = new InMemoryChunkStorage(executor);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
         val metaDataStore = new InMemoryMetadataStore(config, executor);
         val innerStorage = new ChunkedSegmentStorage(10, chunkStorage, metaDataStore, executor, config);
         // We do not need to call bootstrap method here. We can just initialize garbageCollector directly.
         innerStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
-        return new SlowStorage(innerStorage, executor, Duration.ZERO);
+        return new SlowStorage(innerStorage, executor, StorageExtraConfig.builder()
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Normal")
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                .build());
     }
 
-    public static class FlakyRollingTests extends RollingStorageTests {
+    public static class SlowRollingTests extends RollingStorageTests {
         @Override
         protected Storage createStorage() {
             useOldLayout = false;
-            return getFlakyStorage(executorService());
+            return getSlowStorage(executorService());
         }
     }
 }
