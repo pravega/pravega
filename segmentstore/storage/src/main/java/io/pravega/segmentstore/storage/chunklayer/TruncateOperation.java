@@ -40,6 +40,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.*;
+import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
 
 /**
  * Implements truncate operation.
@@ -217,7 +218,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private boolean shouldRelocate() {
         return chunkedSegmentStorage.getConfig().isRelocateOnTruncateEnabled()
             && chunkedSegmentStorage.shouldAppend()
-            && !chunkedSegmentStorage.isSegmentInSystemScope(handle)
+            && !isSegmentInSystemScope(handle.getSegmentName())
             && currentMetadata.getLength() >  chunkedSegmentStorage.getConfig().getMinSizeForTruncateRelocationInbytes()
             && getWastedSpacePercentage() >= chunkedSegmentStorage.getConfig().getMinPercentForTruncateRelocation();
     }

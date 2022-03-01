@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
+
 /**
  * Tracks the health status of the {@link ChunkedSegmentStorage}.
  */
@@ -134,36 +136,48 @@ class StorageHealthTracker {
             percentageLate.set((100.0 * lateRequestCount.get()) / completedRequestCount.get());
         }
 
-        // Set throttle status
+        // set degraded status.
         if (percentageLate.intValue() >= config.getMaxLateThrottlePercentage()) {
-            log.info("StorageHealthTracker[{}]: Storage is slow. {}% Requests are slow. Max {}% Min {}% allowed.",
-                    containerId, percentageLate.intValue(),
-                    config.getMaxLateThrottlePercentage(), config.getMinLateThrottlePercentage());
-            shouldThrottle.set(true);
-            isStorageDegraded.set(true);
-        } else if (percentageLate.intValue() > config.getMinLateThrottlePercentage()) {
-            log.info("StorageHealthTracker[{}]: Throttle is enabled. {}% Requests are slow. Max {}% Min {}% allowed.",
-                    containerId, percentageLate.intValue(),
-                    config.getMaxLateThrottlePercentage(), config.getMinLateThrottlePercentage());
-            shouldThrottle.set(true);
-            isStorageDegraded.set(false);
-        } else {
-            if (isStorageDegraded.get() || shouldThrottle.get()) {
-                log.info("StorageHealthTracker[{}]: Throttle is disabled. {}% Requests are slow.",
-                        containerId, percentageLate.intValue());
+            if (!isStorageDegraded.get()) {
+                log.info("StorageHealthTracker[{}]: Storage is slow. {}% Requests are slow. Max {}% Min {}% allowed.",
+                        containerId, percentageLate.intValue(),
+                        config.getMaxLateThrottlePercentage(), config.getMinLateThrottlePercentage());
             }
-            shouldThrottle.set(false);
+            isStorageDegraded.set(true);
+        } else {
+            if (isStorageDegraded.get()) {
+                log.info("StorageHealthTracker[{}]: Storage is not slow anymore. {}% Requests are slow. Max {}% Min {}% allowed.",
+                    containerId, percentageLate.intValue(),
+                    config.getMaxLateThrottlePercentage(), config.getMinLateThrottlePercentage());
+            }
             isStorageDegraded.set(false);
         }
 
         if (unavailableRequestCount.get() > 0) {
-            log.info("StorageHealthTracker[{}]: Storage is not available.");
+            if (!isStorageUnavailable.get()) {
+                log.info("StorageHealthTracker[{}]: Storage is unavailable.");
+            }
             isStorageUnavailable.set(true);
         } else {
-            if (isStorageUnavailable()) {
+            if (isStorageUnavailable.get()) {
                 log.info("StorageHealthTracker[{}]: Storage is available again.");
             }
             isStorageUnavailable.set(false);
+        }
+
+        // Finally, set whether we should throttle
+        if (percentageLate.intValue() > config.getMinLateThrottlePercentage() || isStorageUnavailable.get()) {
+            if (!shouldThrottle.get()) {
+                log.info("StorageHealthTracker[{}]: Throttle is enabled. {}% Requests are slow.",
+                        containerId, percentageLate.intValue());
+            }
+            shouldThrottle.set(true);
+        } else {
+            if (shouldThrottle.get()) {
+                log.info("StorageHealthTracker[{}]: Throttle is disabled. {}% Requests are slow.",
+                        containerId, percentageLate.intValue());
+            }
+            shouldThrottle.set(false);
         }
     }
 
@@ -250,7 +264,15 @@ class StorageHealthTracker {
      * Gets whether storage is unavailable.
      */
     boolean isStorageUnavailable() {
-        return isStorageDegraded.get() || isStorageUnavailable.get();
+        return isStorageUnavailable.get();
+    }
+
+
+    /**
+     * Gets whether storage is degraded.
+     */
+    boolean isStorageDegraded() {
+        return isStorageDegraded.get();
     }
 
     /**
@@ -265,21 +287,36 @@ class StorageHealthTracker {
     /**
      * Throttles a parallel operation if required.
      * @return A CompletableFuture that will complete after the throttle is applied.
+     * @param segmentNames The names of the Segments involved in this operation.
      */
-    CompletableFuture<Void> throttleParallelOperation() {
-        if (isStorageDegraded.get() || isStorageUnavailable.get() || shouldThrottle.get()) {
-            return delaySupplier.apply(getParallelThrottleDelay());
+    CompletableFuture<Void> throttleParallelOperation(String... segmentNames) {
+        if (!isSystemOperation(segmentNames)) {
+            if (isStorageUnavailable.get()) {
+                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+            }
+            if (isStorageDegraded.get()) {
+                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+            }
+            if (shouldThrottle.get()) {
+                return delaySupplier.apply(getParallelThrottleDelay());
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     /**
      * Throttles an exclusive operation if required.
+     * @param segmentNames The names of the Segments involved in this operation.
      * @return A CompletableFuture that will complete after the throttle is applied.
      */
-    CompletableFuture<Void> throttleExclusiveOperation() {
-        if (isStorageDegraded.get() || isStorageUnavailable.get() || shouldThrottle.get()) {
-            return delaySupplier.apply(getExclusiveThrottleDelay());
+    CompletableFuture<Void> throttleExclusiveOperation(String... segmentNames) {
+        if (!isSystemOperation(segmentNames) && (shouldThrottle.get() || isStorageUnavailable.get())) {
+            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+            }
+            if (shouldThrottle.get()) {
+                return delaySupplier.apply(getExclusiveThrottleDelay());
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -289,7 +326,10 @@ class StorageHealthTracker {
      * @return A CompletableFuture that will complete after the throttle is applied.
      */
     CompletableFuture<Void> throttleGarbageCollectionBatch() {
-        if (isStorageDegraded.get() || isStorageUnavailable.get() || shouldThrottle.get()) {
+        if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+            return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+        }
+        if (shouldThrottle.get()) {
             return delaySupplier.apply(getGarbageCollectionThrottleDelay());
         }
         return CompletableFuture.completedFuture(null);
@@ -312,5 +352,9 @@ class StorageHealthTracker {
 
     private long addValue(long incValueParam, long value) {
         return incValueParam + value;
+    }
+
+    private boolean isSystemOperation(String... segmentNames) {
+        return segmentNames.length >= 1 && isSegmentInSystemScope(segmentNames[0]);
     }
 }

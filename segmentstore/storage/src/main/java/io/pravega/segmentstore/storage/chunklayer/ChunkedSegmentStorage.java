@@ -71,7 +71,7 @@ import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
 import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
-import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_PREFIX;
+import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -439,9 +439,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         Exception ex = null;
         if (null == handle) {
             ex = new IllegalArgumentException("handle must not be null");
-        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(handle)) {
+        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(handle.getSegmentName())) {
             ex = new StorageFullException(handle.getSegmentName());
         } else if (healthTracker.isStorageUnavailable()) {
+            ex = new StorageUnavailableException(handle.getSegmentName());
+        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(handle.getSegmentName())) {
             ex = new StorageUnavailableException(handle.getSegmentName());
         }
 
@@ -512,9 +514,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
              ex = new IllegalArgumentException("handle must not be null");
         } else if (null == sourceSegment) {
             ex = new IllegalArgumentException("sourceSegment must not be null");
-        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(targetHandle)) {
+        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
             ex = new StorageFullException(targetHandle.getSegmentName());
         } else if (healthTracker.isStorageUnavailable()) {
+            ex = new StorageUnavailableException(targetHandle.getSegmentName());
+        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
             ex = new StorageUnavailableException(targetHandle.getSegmentName());
         }
 
@@ -607,6 +611,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
         if (healthTracker.isStorageUnavailable()) {
+            return CompletableFuture.failedFuture(new StorageUnavailableException(handle.getSegmentName()));
+        }
+        if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(handle.getSegmentName())) {
             return CompletableFuture.failedFuture(new StorageUnavailableException(handle.getSegmentName()));
         }
 
@@ -997,7 +1004,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * If the operation failed, it will contain the cause of the failure.
      * */
     <R> CompletableFuture<R> executeParallel(Callable<CompletableFuture<R>> operation, String... segmentNames) {
-        return healthTracker.throttleParallelOperation().thenComposeAsync(v -> {
+        return healthTracker.throttleParallelOperation(segmentNames).thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
                 return operation.call();
@@ -1036,11 +1043,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (segmentMetadata.isSealed()) {
             throw new CompletionException(new StreamSegmentSealedException(streamSegmentName));
         }
-    }
-
-
-    boolean isSegmentInSystemScope(SegmentHandle handle) {
-        return handle.getSegmentName().startsWith(INTERNAL_SCOPE_PREFIX);
     }
 
     private void checkInitialized() {

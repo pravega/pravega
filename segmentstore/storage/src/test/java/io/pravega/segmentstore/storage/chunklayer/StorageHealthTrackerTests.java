@@ -43,23 +43,24 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
                 System::currentTimeMillis,
                 delaySupplier);
 
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration
         storageHealthTracker.beginIteration(0);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Call throttle
         checkThrottling(storageHealthTracker, delaySupplier, 0);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // End iteration
         storageHealthTracker.endIteration(0);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
     }
 
-    private void checkState(StorageHealthTracker storageHealthTracker, boolean expectedStorageUnavailable, boolean expectedStorageFull, boolean expectedSafeMode, int expectedPercentLate) {
+    private void checkState(StorageHealthTracker storageHealthTracker, boolean expectedStorageUnavailable, boolean expectedDegraded, boolean expectedStorageFull, boolean expectedSafeMode, int expectedPercentLate) {
         Assert.assertEquals(expectedStorageUnavailable, storageHealthTracker.isStorageUnavailable());
+        Assert.assertEquals(expectedDegraded, storageHealthTracker.isStorageDegraded());
         Assert.assertEquals(expectedStorageFull, storageHealthTracker.isStorageFull());
         Assert.assertEquals(expectedSafeMode, storageHealthTracker.isSafeMode());
         Assert.assertEquals(expectedPercentLate, storageHealthTracker.getPercentLate());
@@ -72,36 +73,36 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
                 System::currentTimeMillis,
                 delaySupplier);
 
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
         for (int n = 0; n < 3; n++) {
             // Start iteration
             storageHealthTracker.beginIteration(n);
-            checkState(storageHealthTracker, false, false, false, 0);
+            checkState(storageHealthTracker, false, false, false, false, 0);
 
             // Call throttle
             checkThrottling(storageHealthTracker, delaySupplier, 0);
 
-            checkState(storageHealthTracker, false, false, false, 0);
+            checkState(storageHealthTracker, false, false, false, false, 0);
             TestUtils.addRequestStats(storageHealthTracker, 0, 5, 0, 0);
             // End iteration
             storageHealthTracker.endIteration(n);
-            checkState(storageHealthTracker, false, false, false, 0);
+            checkState(storageHealthTracker, false, false, false, false, 0);
         }
     }
 
     @Test
-    public void testTransition_Normal_Slow_Normal() {
+    public void testTransitionNormalSlowNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -114,39 +115,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 3);
     }
 
     @Test
-    public void testTransition_Normal_Slow_Degraded_Normal() {
+    public void testTransitionNormalSlowDegradedNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -159,14 +160,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2 - still unavailable
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Make degraded
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 9, 0);
@@ -174,39 +175,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Slow_Slow_Normal() {
+    public void testTransitionNormalSlowSlowNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -219,14 +220,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Make slow
         TestUtils.addRequestStats(storageHealthTracker, 0, 5, 5, 0);
@@ -234,39 +235,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, 50);
+        checkState(storageHealthTracker, false, false, false, false, 50);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, false, false, false, 50);
+        checkState(storageHealthTracker, false, false, false, false, 50);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, false, false, false, 50);
+        checkState(storageHealthTracker, false, false, false, false, 50);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Slow_Unavailable_Normal() {
+    public void testTransitionNormalSlowUnavailableNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -279,14 +280,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, false, false, false, 40);
+        checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Make unavailable
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
@@ -294,39 +295,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Degraded_Normal() {
+    public void testTransitionNormalDegradedNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -339,39 +340,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true,  false, false, 80);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Should still throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 3);
     }
 
     @Test
-    public void testTransition_Normal_Degraded_Degraded_Normal() {
+    public void testTransitionNormalDegradedDegradedNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1 - Degraded
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -384,14 +385,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Make degraded again
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 9, 0);
@@ -400,39 +401,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Should still throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, true, false, false, 90);
+        checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Degraded_Slow_Normal() {
+    public void testTransitionNormalDegradedSlowNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -445,14 +446,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 2 - still unavailable
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Make slow
         TestUtils.addRequestStats(storageHealthTracker, 0, 7, 3, 0);
@@ -461,39 +462,39 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, 30);
+        checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, false, false, false, 30);
+        checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Should still throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, false, false, false, 30);
+        checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Degraded_Unavailable_Normal() {
+    public void testTransitionNormalDegradedUnavailableNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -506,14 +507,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Make unavailable
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
@@ -521,41 +522,41 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 9);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
 
     @Test
-    public void testTransition_Normal_Unavailable_Normal() {
+    public void testTransitionNormalUnavailableNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
 
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -566,37 +567,37 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Start iteration 3
         storageHealthTracker.beginIteration(2);
 
         // Should still throttle.
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
     }
 
     @Test
-    public void testTransition_Normal_Unavailable_Degraded_Normal() {
+    public void testTransitionNormalUnavailableDegradedNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
 
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -607,15 +608,15 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Start iteration 2 - degraded
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // still unavailable should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 6);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Make degraded
         TestUtils.addRequestStats(storageHealthTracker, 0, 2, 8, 0);
@@ -625,37 +626,37 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 3 - Normal
         storageHealthTracker.beginIteration(3);
 
         // Should still throttle.
-        checkState(storageHealthTracker, true, false, false, 80);
+        checkState(storageHealthTracker, false, true, false, false, 80);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
 
     @Test
-    public void testTransition_Normal_Unavailable_Slow_Normal() {
+    public void testTransitionNormalUnavailableSlowNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
 
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -666,15 +667,15 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true,  false, false, false, 40);
 
         // Start iteration 2 - slow
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true,  false, false, false, 40);
 
         // still unavailable should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 6);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Make slow
         TestUtils.addRequestStats(storageHealthTracker, 0, 7, 3, 0);
@@ -684,35 +685,35 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, 30);
+        checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Start iteration 3 - Normal
         storageHealthTracker.beginIteration(3);
 
         // Should still throttle.
-        checkState(storageHealthTracker, false, false, false, 30);
+        checkState(storageHealthTracker, false, false, false, false, 30);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 3
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
 
     @Test
-    public void testTransition_Normal_Unavailable_Unavailable_Normal() {
+    public void testTransitionNormalUnavailableUnavailableNormal() {
         val delaySupplier = spy(new TestDelaySupplier());
         val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID, ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 System::currentTimeMillis,
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
@@ -725,13 +726,13 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 1
         storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Start iteration 2 - still unavailable
         storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
-        checkState(storageHealthTracker, true, false, false, 40);
+        checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Still unavailable
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
@@ -739,22 +740,22 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
         // End iteration 2
         storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Start iteration 3 - Unavailable
         storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 12);
-        checkState(storageHealthTracker, true, false, false, 33);
+        checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Make it normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
         storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, CONTAINER_ID);
+        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
@@ -849,14 +850,14 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
                 delaySupplier);
 
         // Initial
-        checkState(storageHealthTracker, false, false, false, 0);
+        checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
         storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
-        TestUtils.addRequestStats(storageHealthTracker, 0, 2, 8, 0);
+        TestUtils.addRequestStats(storageHealthTracker, 0, 3, 7, 0);
         // End iteration 1
         storageHealthTracker.endIteration(1);
 
@@ -864,9 +865,71 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         storageHealthTracker.beginIteration(2);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 3);
-        verify(delaySupplier, times(3)).apply(Duration.ofMillis(900)); // 80% throttle
-        TestUtils.addRequestStats(storageHealthTracker, 0, 2, 8, 0);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(800)); // 70% throttle
         // End iteration 2
+        storageHealthTracker.endIteration(2);
+    }
+
+    @Test
+    public void testThrottleDurationForUnavailable() {
+        val delaySupplier = spy(new TestDelaySupplier());
+        val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .minLateThrottleDurationInMillis(100)
+                        .maxLateThrottleDurationInMillis(1100)
+                        .build(),
+                System::currentTimeMillis,
+                delaySupplier);
+
+        // Initial
+        checkState(storageHealthTracker, false, false, false, false, 0);
+
+        // Start iteration 1
+        storageHealthTracker.beginIteration(1);
+        // No throttling.
+        checkThrottling(storageHealthTracker, delaySupplier, 0);
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
+        TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
+        // End iteration 1
+        storageHealthTracker.endIteration(1);
+
+        // Start iteration 2
+        storageHealthTracker.beginIteration(2);
+        // No throttling.
+        checkThrottling(storageHealthTracker, delaySupplier, 3);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
+        // End iteration 2
+        storageHealthTracker.endIteration(2);
+    }
+
+    @Test
+    public void testThrottleDurationForDegraded() {
+        val delaySupplier = spy(new TestDelaySupplier());
+        val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .minLateThrottleDurationInMillis(100)
+                        .maxLateThrottleDurationInMillis(1100)
+                        .build(),
+                System::currentTimeMillis,
+                delaySupplier);
+
+        // Initial
+        checkState(storageHealthTracker, false, false, false, false, 0);
+
+        // Start iteration 1
+        storageHealthTracker.beginIteration(1);
+        // No throttling.
+        checkThrottling(storageHealthTracker, delaySupplier, 0);
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
+        TestUtils.addRequestStats(storageHealthTracker, 0, 1, 9, 0);
+        // End iteration 1
+        storageHealthTracker.endIteration(1);
+
+        // Start iteration 2
+        storageHealthTracker.beginIteration(2);
+        // No throttling.
+        checkThrottling(storageHealthTracker, delaySupplier, 3);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
         storageHealthTracker.endIteration(2);
     }
 
