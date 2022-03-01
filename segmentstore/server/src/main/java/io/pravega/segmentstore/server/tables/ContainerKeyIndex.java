@@ -700,8 +700,8 @@ class ContainerKeyIndex implements AutoCloseable {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     collectEntriesWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker, lastIndexedOffset);
 
-                    log.debug("{}: Tail-caching batch complete for Table Segment {}. StartOffset={}, EndOffset={}, Key Update Count={}, Bucket Update Count={}, Elapsed={}ms.",
-                            this.traceObjectId, segment.getSegmentId(), startOffset, updates.getMaxOffset(), updates.byBucket.size(), updates.byBucket.size(), timer.getElapsedMillis());
+                    log.debug("{}: Tail-caching batch complete for Table Segment {}. StartOffset={}, EndOffset={}, Updated Keys Count={}, Key Updates Count={}, Elapsed={}ms.",
+                            this.traceObjectId, segment.getSegmentId(), startOffset, updates.getMaxOffset(), updates.byBucket.size(), updates.getKeyUpdateCount(), timer.getElapsedMillis());
                     return updates.getMaxOffset();
                 }, this.executor);
     }
@@ -766,14 +766,14 @@ class ContainerKeyIndex implements AutoCloseable {
     private static class TailUpdates {
         final Map<UUID, CacheBucketOffset> byBucket = new HashMap<>();
         @Getter
-        private int keyCount = 0;
+        private int keyUpdateCount = 0;
         @Getter
         private long maxOffset = -1;
 
         void add(UUID keyHash, long offset, int serializationLength, boolean isDeletion) {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
-            this.keyCount++;
+            this.keyUpdateCount++;
             setMaxOffset(offset, serializationLength);
         }
 
