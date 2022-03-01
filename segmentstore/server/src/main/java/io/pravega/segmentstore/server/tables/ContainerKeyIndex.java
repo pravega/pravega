@@ -238,7 +238,7 @@ class ContainerKeyIndex implements AutoCloseable {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
-        // We need to check first the tail-cache as a callback of waitIfNeeded(). This ensures that the read will be
+        // We need to check the tail-cache as a callback of waitIfNeeded(). This ensures that the read will be
         // executed only once the tail-cache is completely recovered (otherwise, we may retrieve stale data).
         return this.segmentTracker.waitIfNeeded(segment, cacheUpdated -> {
             // Find those keys which already exist in the cache. The same hash may occur multiple times, but this process
@@ -344,13 +344,16 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        // Nothing in the tail cache; look it up in the index.
+        // We need to check the tail-cache as a callback of waitIfNeeded(). This ensures that the read will be
+        // executed only once the tail-cache is completely recovered (otherwise, we may retrieve stale data).
         return this.segmentTracker.waitIfNeeded(segment, ignored -> {
             // First check the index tail cache.
             long cachedBackpointer = this.cache.getBackpointer(segment.getSegmentId(), offset);
             if (cachedBackpointer >= 0) {
                 return CompletableFuture.completedFuture(cachedBackpointer);
             }
+
+            // Nothing in the tail cache; look it up in the index.
             return this.indexReader.getBackpointerOffset(segment, offset, timeout);
         });
     }
