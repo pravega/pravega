@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -90,7 +91,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
-        timer = TimerUtils.createTimer();
+        timer = new Timer();
     }
 
     @Override

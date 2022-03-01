@@ -18,9 +18,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Longs;
 import io.pravega.common.Exceptions;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -65,9 +63,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
@@ -3164,76 +3159,6 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("conact() should throw an exception",
                 testContext.chunkedSegmentStorage.truncate(h, 0, TIMEOUT),
                 ex -> ex instanceof StorageUnavailableException);
-    }
-
-    @Test
-    public void testLateRequests() throws Exception {
-        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        val h1 = testContext.chunkedSegmentStorage.create("target", TIMEOUT).get();
-        val h2 = testContext.chunkedSegmentStorage.create("source1", TIMEOUT).get();
-        val h3 = testContext.chunkedSegmentStorage.create("source2", TIMEOUT).get();
-
-        testLateRequest(testContext,
-                Duration.ofHours(10),
-                100,
-                () -> {
-                    testContext.chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
-                });
-
-        testLateRequest(testContext,
-                Duration.ZERO,
-                0,
-                () -> {
-                    testContext.chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
-                    testContext.chunkedSegmentStorage.write(h3, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
-                });
-
-        testLateRequest(testContext,
-                Duration.ofHours(10),
-                100,
-                () -> {
-                    testContext.chunkedSegmentStorage.truncate(h1, 2, TIMEOUT).get();
-                });
-
-        testLateRequest(testContext,
-                Duration.ZERO,
-                0,
-                () -> {
-                    testContext.chunkedSegmentStorage.truncate(h1, 5, TIMEOUT).get();
-                });
-
-        testContext.chunkedSegmentStorage.seal(h2, TIMEOUT).get();
-        testContext.chunkedSegmentStorage.seal(h3, TIMEOUT).get();
-        testLateRequest(testContext,
-                Duration.ofHours(10),
-                100,
-                () -> {
-                    testContext.chunkedSegmentStorage.concat(h1, 10, "source1", TIMEOUT).get();
-                });
-
-        testLateRequest(testContext,
-                Duration.ZERO,
-                0,
-                () -> {
-                    testContext.chunkedSegmentStorage.concat(h1, 20, "source2", TIMEOUT).get();
-                });
-
-    }
-
-    private void testLateRequest(TestContext testContext, Duration duration, int expectedLatePercent, RunnableWithException runnableWithException) throws Exception {
-        Timer timer = spy(Timer.class);
-        TimerUtils.getSINGLETON().setTimerSupplier(() -> timer);
-        when(timer.getElapsedNanos()).thenReturn(duration.toNanos());
-
-        testContext.chunkedSegmentStorage.getHealthTracker().beginIteration(10);
-        runnableWithException.run();
-        testContext.chunkedSegmentStorage.getHealthTracker().endIteration(10);
-        Assert.assertEquals(expectedLatePercent, testContext.chunkedSegmentStorage.getHealthTracker().getPercentLate());
-
-        // Clear health tracker state
-        testContext.chunkedSegmentStorage.getHealthTracker().beginIteration(11);
-        TestUtils.addRequestStats(testContext.chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        testContext.chunkedSegmentStorage.getHealthTracker().endIteration(11);
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {

@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +37,9 @@ import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
 @Slf4j
 @RequiredArgsConstructor
 class StorageHealthTracker {
+    private static final int PARALLEL_OP_MULTIPLIER = 1;
+    private static final int EXCLUSIVE_OP_MULTIPLIER = 1;
+    private static final int GC_OP_MULTIPLIER = 1;
     /**
      * Tracks whether storage is slow.
      */
@@ -335,19 +339,43 @@ class StorageHealthTracker {
         return CompletableFuture.completedFuture(null);
     }
 
-    Duration getParallelThrottleDelay() {
-        var millis = config.getMinLateThrottleDurationInMillis() + (percentageLate.doubleValue() * (config.getMaxLateThrottleDurationInMillis() - config.getMinLateThrottleDurationInMillis())) / 100;
-        return Duration.ofMillis(Math.round(millis));
+    /**
+     * Calculate throttle for parallel operations.
+     *
+     * @return Duration for throttle.
+     */
+    private Duration getParallelThrottleDelay() {
+        return Duration.ofMillis(PARALLEL_OP_MULTIPLIER * getLinearlyProportionalDelay());
     }
 
-    Duration getExclusiveThrottleDelay() {
-        var millis = config.getMinLateThrottleDurationInMillis() + (percentageLate.doubleValue() * (config.getMaxLateThrottleDurationInMillis() - config.getMinLateThrottleDurationInMillis())) / 100;
-        return Duration.ofMillis(Math.round(millis));
+    /**
+     *  Calculate delay for exclusive operations.
+     *
+     * @return Duration for throttle.
+     */
+    private Duration getExclusiveThrottleDelay() {
+        return Duration.ofMillis(EXCLUSIVE_OP_MULTIPLIER * getLinearlyProportionalDelay());
     }
 
-    Duration getGarbageCollectionThrottleDelay() {
-        var millis = config.getMinLateThrottleDurationInMillis() + (percentageLate.doubleValue() * (config.getMaxLateThrottleDurationInMillis() - config.getMinLateThrottleDurationInMillis())) / 100;
-        return Duration.ofMillis(Math.round(millis));
+    /**
+     *  Calculate throttle for garbage collection operations.
+     *
+     * @return Duration for throttle.
+     */
+    private Duration getGarbageCollectionThrottleDelay() {
+        return Duration.ofMillis(GC_OP_MULTIPLIER * getLinearlyProportionalDelay());
+    }
+
+    /**
+     * Get linearly proportional delay.
+     * Duration is between min and max throttle delay and value is proportional to percentage late requests in most recent iterations.
+     *
+     * @return long linearly proportional delay for throttle
+     */
+    private long getLinearlyProportionalDelay() {
+        val maxRange = config.getMaxLateThrottleDurationInMillis() - config.getMinLateThrottleDurationInMillis();
+        val millis = config.getMinLateThrottleDurationInMillis() + (percentageLate.doubleValue() * maxRange / 100);
+        return Math.round(millis);
     }
 
     private long addValue(long incValueParam, long value) {

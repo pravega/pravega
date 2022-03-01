@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
@@ -66,7 +67,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         this.offset = offset;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "truncate", handle, offset);
-        timer = TimerUtils.createTimer();
+        timer = new Timer();
     }
 
     @Override

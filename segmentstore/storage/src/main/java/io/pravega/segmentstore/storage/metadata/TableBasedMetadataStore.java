@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -32,7 +33,6 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.segmentstore.storage.chunklayer.TimerUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -99,7 +99,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     protected CompletableFuture<TransactionData> read(String key) {
         val keys = new ArrayList<BufferView>();
         keys.add(new ByteArraySegment(key.getBytes(Charsets.UTF_8)));
-        val t = TimerUtils.createTimer();
+        val t = new Timer();
         return ensureInitialized()
                 .thenComposeAsync(v -> this.tableStore.get(tableName, keys, timeout)
                         .thenApplyAsync(entries -> {
@@ -143,7 +143,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
         val entryToTxnDataMap = new HashMap<TableEntry, TransactionData>();
         val deletedKeyToTxnDataMap = new HashMap<TableKey, TransactionData>();
         val keysToDelete = new ArrayList<TableKey>();
-        val t = TimerUtils.createTimer();
+        val t = new Timer();
         return ensureInitialized()
                 .thenRunAsync(() -> {
                     for (TransactionData txnData : dataList) {

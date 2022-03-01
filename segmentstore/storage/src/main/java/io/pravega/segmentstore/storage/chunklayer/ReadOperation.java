@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -85,7 +86,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
-        timer = TimerUtils.createTimer();
+        timer = new Timer();
     }
 
     @Override
@@ -259,7 +260,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         final long floorBlockStartOffset = getFloorBlockStartOffset(offset);
         CompletableFuture<Void>  f;
         if (!shouldOnlyReadLastChunk && !segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
-            val indexLookupTimer = TimerUtils.createTimer();
+            val indexLookupTimer = new Timer();
             f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
                     .thenAcceptAsync(storageMetadata -> {
                         if (null != storageMetadata) {
@@ -296,7 +297,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
            f = CompletableFuture.completedFuture(null);
         }
 
-        val readIndexTimer = TimerUtils.createTimer();
+        val readIndexTimer = new Timer();
         // Navigate to the chunk that contains the first byte of requested data.
         return f.thenComposeAsync( vv -> Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,

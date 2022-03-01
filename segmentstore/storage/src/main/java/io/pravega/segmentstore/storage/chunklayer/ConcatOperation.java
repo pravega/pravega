@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -66,7 +67,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         this.offset = offset;
         this.sourceSegment = sourceSegment;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
-        timer = TimerUtils.createTimer();
+        timer = new Timer();
         traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle, offset, sourceSegment);
     }
 

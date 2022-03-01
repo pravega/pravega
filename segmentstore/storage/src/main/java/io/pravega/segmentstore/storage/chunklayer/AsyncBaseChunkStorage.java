@@ -28,6 +28,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.common.Timer;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.val;
@@ -738,7 +740,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         return CompletableFuture.supplyAsync(() -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
-                val timer = TimerUtils.createTimer();
+                val timer = new Timer();
                 val ret = operation.call();
                 opContext.setInclusiveLatency(timer.getElapsed());
                 return ret;

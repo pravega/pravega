@@ -447,13 +447,14 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                 log.debug("{}: deleteGarbage - transaction is still active - re-queuing {}.", traceObjectId, infoToDelete.transactionId);
                 taskQueue.addTask(taskQueueName, infoToDelete);
             } else {
-                val f = executeSerialized(() -> processTask(infoToDelete), infoToDelete.name);
                 val now = currentTimeSupplier.get();
                 if (infoToDelete.scheduledTime > currentTimeSupplier.get()) {
+                    // Delay execution until task is ready
                     futures.add(delaySupplier.apply(Duration.ofMillis(infoToDelete.scheduledTime - now))
-                            .thenComposeAsync(v -> f, storageExecutor));
+                            .thenComposeAsync(v -> executeSerialized(() -> processTask(infoToDelete), infoToDelete.name), storageExecutor));
                 } else {
-                    futures.add(f);
+                    // Task is ready
+                    futures.add(executeSerialized(() -> processTask(infoToDelete), infoToDelete.name));
                 }
             }
         }

@@ -19,6 +19,7 @@ import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.ImmutableDate;
@@ -245,7 +246,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             log.debug("{} openWrite - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName),
@@ -375,7 +376,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, rollingPolicy);
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             log.debug("{} create - started segment={}, rollingPolicy={}.", logPrefix, streamSegmentName, rollingPolicy);
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> {
                 // Retrieve metadata and make sure it does not exist.
@@ -469,7 +470,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "seal", handle);
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             log.debug("{} seal - started segment={}.", logPrefix, handle.getSegmentName());
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
@@ -568,7 +569,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "delete", handle);
             log.debug("{} delete - started segment={}.", logPrefix, handle.getSegmentName());
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             val streamSegmentName = handle.getSegmentName();
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
                     .thenComposeAsync(storageMetadata -> {
@@ -662,7 +663,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             log.debug("{} openRead - started segment={}.", logPrefix, streamSegmentName);
@@ -711,7 +712,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-            val timer = TimerUtils.createTimer();
+            val timer = new Timer();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             log.debug("{} getStreamSegmentInfo - started segment={}.", logPrefix, streamSegmentName);
             return tryWith(metadataStore.beginTransaction(true, streamSegmentName), txn ->
