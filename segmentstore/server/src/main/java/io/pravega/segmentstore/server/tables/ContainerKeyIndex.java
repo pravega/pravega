@@ -344,19 +344,15 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        // First check the index tail cache.
-        long cachedBackpointer = this.cache.getBackpointer(segment.getSegmentId(), offset);
-        if (cachedBackpointer >= 0) {
-            return CompletableFuture.completedFuture(cachedBackpointer);
-        }
-
-        if (offset <= this.cache.getSegmentIndexOffset(segment.getSegmentId())) {
-            // The sought source offset is already indexed; do not bother with waiting for recovery.
+        // Nothing in the tail cache; look it up in the index.
+        return this.segmentTracker.waitIfNeeded(segment, ignored -> {
+            // First check the index tail cache.
+            long cachedBackpointer = this.cache.getBackpointer(segment.getSegmentId(), offset);
+            if (cachedBackpointer >= 0) {
+                return CompletableFuture.completedFuture(cachedBackpointer);
+            }
             return this.indexReader.getBackpointerOffset(segment, offset, timeout);
-        } else {
-            // Nothing in the tail cache; look it up in the index.
-            return this.segmentTracker.waitIfNeeded(segment, ignored -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
-        }
+        });
     }
 
     /**
