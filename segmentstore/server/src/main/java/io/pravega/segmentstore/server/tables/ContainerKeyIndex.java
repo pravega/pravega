@@ -668,6 +668,7 @@ class ContainerKeyIndex implements AutoCloseable {
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
                     // Notify the Segment Tracker that this segment has been recovered so queued tasks can be released.
                     this.segmentTracker.updateSegmentIndexOffset(segment.getSegmentId(), updates.getMaxOffset(), 0, updates.byBucket.size() > 0);
+                    log.info("{}: Tail-caching recovery successfully completed for Table Segment {}.", this.traceObjectId, segment.getSegmentId());
                 }, this.executor)
                 .exceptionally(ex -> {
                     log.warn("{}: Tail-caching failed for Table Segment {}; TailCachingStartOffset={}, LastIndexedOffset={}, CurrentOffset={}, SegmentLength={}.",
