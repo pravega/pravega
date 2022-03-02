@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.Before;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
@@ -111,6 +112,15 @@ public class ReaderGroupImplTest {
         when(connectionPool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionPool);
+    }
+
+    @After
+    public void shutDown() {
+        readerGroup.close();
+        controller.close();
+        clientFactory.close();
+        connectionPool.close();
+        scheduledThreadPoolExecutor.shutdownNow();
     }
 
     @Test(expected = IllegalArgumentException.class)

@@ -32,6 +32,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -199,7 +200,7 @@ public class CheckpointTest {
         streamManager.createReaderGroup(readerGroupName, groupConfig);
         @Cleanup
         ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
-        JavaSerializer<String> serializer = new JavaSerializer<>();
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                 EventWriterConfig.builder().build());

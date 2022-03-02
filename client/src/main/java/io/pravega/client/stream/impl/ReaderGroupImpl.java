@@ -96,7 +96,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @VisibleForTesting
     private final ConnectionPool connectionPool;
     @VisibleForTesting
-    private final SequentialProcessor ackProcessor;
+    private final SequentialProcessor sequentialProcessor;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
@@ -106,7 +106,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
         this.connectionPool = Preconditions.checkNotNull(connectionPool);
-        this.ackProcessor = new SequentialProcessor(connectionPool.getInternalExecutor());
+        this.sequentialProcessor = new SequentialProcessor(connectionPool.getInternalExecutor());
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
@@ -201,9 +201,9 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         return Futures.loop(checkpointPending::get, () -> {
             return Futures.delayedTask(() -> {
-                ackProcessor.add(() -> {
+                sequentialProcessor.add(() -> {
                     synchronizer.fetchUpdates();
-                   checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
+                    checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                     if (checkpointPending.get()) {
                         log.info("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
                     }
@@ -513,6 +513,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void close() {
         synchronizer.close();
-        ackProcessor.close();
+        sequentialProcessor.close();
     }
 }
