@@ -182,6 +182,11 @@ public final class MetricsNames {
     public static final String SLTS_STORAGE_USED_BYTES = PREFIX + "segmentstore.storage.used_bytes";
     public static final String SLTS_STORAGE_USED_PERCENTAGE = PREFIX + "segmentstore.storage.used_percentage";
 
+    public static final String SLTS_HEALTH_SLOW_PERCENTAGE = PREFIX + "segmentstore.storage.slts.health.slow_percentage";   // Histogram
+    public static final String SLTS_HEALTH_EXCLUSIVE_THROTTLE = PREFIX + "segmentstore.storage.slts.health.exclusive_throttle_ms";   // Histogram
+    public static final String SLTS_HEALTH_PARALLEL_THROTTLE = PREFIX + "segmentstore.storage.slts.health.parallel_throttle_ms";   // Histogram
+    public static final String SLTS_HEALTH_GC_THROTTLE = PREFIX + "segmentstore.storage.slts.health.gc_throttle_ms";   // Histogram
+
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
     public static final String STORAGE_METADATA_NUM_CHUNKS = PREFIX + "segmentstore.storage.num_chunks.";

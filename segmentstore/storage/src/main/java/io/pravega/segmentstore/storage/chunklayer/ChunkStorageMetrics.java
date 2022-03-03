@@ -94,4 +94,8 @@ public class ChunkStorageMetrics {
     static final Counter SLTS_SYSTEM_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_TRUNCATE_COUNT);
 
     static final Counter LARGE_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_LARGE_CONCAT_COUNT);
+
+    static final OpStatsLogger SLTS_HEALTH_PARALLEL_THROTTLE = STATS_LOGGER.createStats(MetricsNames.SLTS_HEALTH_PARALLEL_THROTTLE);
+    static final OpStatsLogger SLTS_HEALTH_EXCLUSIVE_THROTTLE = STATS_LOGGER.createStats(MetricsNames.SLTS_HEALTH_EXCLUSIVE_THROTTLE);
+    static final OpStatsLogger SLTS_HEALTH_GC_THROTTLE = STATS_LOGGER.createStats(MetricsNames.SLTS_HEALTH_GC_THROTTLE);
 }

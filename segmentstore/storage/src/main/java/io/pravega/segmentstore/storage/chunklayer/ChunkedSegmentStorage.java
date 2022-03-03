@@ -68,8 +68,6 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
@@ -776,9 +774,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         metadataStore.report();
         chunkStorage.report();
         readIndexCache.report();
-        // Report storage size.
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, healthTracker.getStorageUsed());
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, healthTracker.getStorageUsedPercentage());
+        healthTracker.report();
     }
 
     /**

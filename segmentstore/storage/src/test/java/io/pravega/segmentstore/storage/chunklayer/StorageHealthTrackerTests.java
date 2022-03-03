@@ -63,7 +63,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         Assert.assertEquals(expectedDegraded, storageHealthTracker.isStorageDegraded());
         Assert.assertEquals(expectedStorageFull, storageHealthTracker.isStorageFull());
         Assert.assertEquals(expectedSafeMode, storageHealthTracker.isSafeMode());
-        Assert.assertEquals(expectedPercentLate, storageHealthTracker.getPercentLate());
+        Assert.assertEquals(expectedPercentLate, storageHealthTracker.getLatePercentage());
     }
 
     @Test
@@ -856,7 +856,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
-        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 3, 7, 0);
         // End iteration 1
         storageHealthTracker.endIteration(1);
@@ -888,7 +888,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
-        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
         // End iteration 1
         storageHealthTracker.endIteration(1);
@@ -920,7 +920,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
-        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getPercentLate() * 1000));
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 9, 0);
         // End iteration 1
         storageHealthTracker.endIteration(1);

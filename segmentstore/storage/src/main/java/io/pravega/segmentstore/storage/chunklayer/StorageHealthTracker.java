@@ -29,6 +29,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.pravega.shared.MetricsNames.SLTS_HEALTH_SLOW_PERCENTAGE;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
+import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
 
 /**
@@ -36,7 +39,7 @@ import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
  */
 @Slf4j
 @RequiredArgsConstructor
-class StorageHealthTracker {
+class StorageHealthTracker implements  StatsReporter {
     private static final int PARALLEL_OP_MULTIPLIER = 1;
     private static final int EXCLUSIVE_OP_MULTIPLIER = 1;
     private static final int GC_OP_MULTIPLIER = 1;
@@ -214,7 +217,7 @@ class StorageHealthTracker {
      * Gets the percentage of late requests in last iteration.
      * @return long between 0 and 100.
      */
-    long getPercentLate() {
+    long getLatePercentage() {
         return percentageLate.intValue();
     }
 
@@ -294,16 +297,15 @@ class StorageHealthTracker {
      * @param segmentNames The names of the Segments involved in this operation.
      */
     CompletableFuture<Void> throttleParallelOperation(String... segmentNames) {
-        if (!isSystemOperation(segmentNames)) {
-            if (isStorageUnavailable.get()) {
-                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+        if (!isSystemOperation(segmentNames) && (shouldThrottle.get() || isStorageUnavailable.get())) {
+            long delay = 0;
+            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+                delay = config.getMaxLateThrottleDurationInMillis();
+            } else if (shouldThrottle.get()) {
+                delay = getParallelThrottleDelay();
             }
-            if (isStorageDegraded.get()) {
-                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
-            }
-            if (shouldThrottle.get()) {
-                return delaySupplier.apply(getParallelThrottleDelay());
-            }
+            ChunkStorageMetrics.SLTS_HEALTH_PARALLEL_THROTTLE.reportSuccessValue(delay);
+            return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -315,12 +317,14 @@ class StorageHealthTracker {
      */
     CompletableFuture<Void> throttleExclusiveOperation(String... segmentNames) {
         if (!isSystemOperation(segmentNames) && (shouldThrottle.get() || isStorageUnavailable.get())) {
+            long delay = 0;
             if (isStorageUnavailable.get() || isStorageDegraded.get()) {
-                return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
+                delay = config.getMaxLateThrottleDurationInMillis();
+            } else if (shouldThrottle.get()) {
+                delay = getExclusiveThrottleDelay();
             }
-            if (shouldThrottle.get()) {
-                return delaySupplier.apply(getExclusiveThrottleDelay());
-            }
+            ChunkStorageMetrics.SLTS_HEALTH_EXCLUSIVE_THROTTLE.reportSuccessValue(delay);
+            return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -330,11 +334,15 @@ class StorageHealthTracker {
      * @return A CompletableFuture that will complete after the throttle is applied.
      */
     CompletableFuture<Void> throttleGarbageCollectionBatch() {
-        if (isStorageUnavailable.get() || isStorageDegraded.get()) {
-            return delaySupplier.apply(Duration.ofMillis(config.getMaxLateThrottleDurationInMillis()));
-        }
-        if (shouldThrottle.get()) {
-            return delaySupplier.apply(getGarbageCollectionThrottleDelay());
+        if (shouldThrottle.get() || isStorageUnavailable.get()) {
+            long delay = 0;
+            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+                delay = config.getMaxLateThrottleDurationInMillis();
+            } else if (shouldThrottle.get()) {
+                delay = getExclusiveThrottleDelay();
+            }
+            ChunkStorageMetrics.SLTS_HEALTH_GC_THROTTLE.reportSuccessValue(delay);
+            return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -344,26 +352,26 @@ class StorageHealthTracker {
      *
      * @return Duration for throttle.
      */
-    private Duration getParallelThrottleDelay() {
-        return Duration.ofMillis(PARALLEL_OP_MULTIPLIER * getLinearlyProportionalDelay());
+    private long getParallelThrottleDelay() {
+        return PARALLEL_OP_MULTIPLIER * getLinearlyProportionalDelay();
     }
 
     /**
      *  Calculate delay for exclusive operations.
      *
-     * @return Duration for throttle.
+     * @return long Duration in milliseconds for throttle.
      */
-    private Duration getExclusiveThrottleDelay() {
-        return Duration.ofMillis(EXCLUSIVE_OP_MULTIPLIER * getLinearlyProportionalDelay());
+    private long getExclusiveThrottleDelay() {
+        return EXCLUSIVE_OP_MULTIPLIER * getLinearlyProportionalDelay();
     }
 
     /**
      *  Calculate throttle for garbage collection operations.
      *
-     * @return Duration for throttle.
+     * @return long Duration in milliseconds for throttle.
      */
-    private Duration getGarbageCollectionThrottleDelay() {
-        return Duration.ofMillis(GC_OP_MULTIPLIER * getLinearlyProportionalDelay());
+    private long getGarbageCollectionThrottleDelay() {
+        return GC_OP_MULTIPLIER * getLinearlyProportionalDelay();
     }
 
     /**
@@ -384,5 +392,14 @@ class StorageHealthTracker {
 
     private boolean isSystemOperation(String... segmentNames) {
         return segmentNames.length >= 1 && isSegmentInSystemScope(segmentNames[0]);
+    }
+
+    @Override
+    public void report() {
+        // Report storage size.
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, getStorageUsed());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, getStorageUsedPercentage());
+        // Report slowness percentage
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_HEALTH_SLOW_PERCENTAGE, getLatePercentage());
     }
 }
