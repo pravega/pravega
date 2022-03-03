@@ -32,9 +32,10 @@ public class StorageExtraConfig {
     public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("noOp.write.latency.milliseconds", 20, "storageWriteNoOpLatencyMillis");
 
     public static final Property<Boolean> STORAGE_SLOW_MODE = Property.named("slow.enable", false);
-    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_MEAN = Property.named("slow.latency.mean.ms", 500);
+    public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_MEAN = Property.named("slow.latency.mean.ms", 42);
     public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_STD_DEV = Property.named("slow.latency.std.ms", 500);
     public static final Property<String> STORAGE_SLOW_MODE_DISTRIBUTION_TYPE = Property.named("slow.type", "Normal");
+    public static final Property<Integer> STORAGE_SLOW_MODE_CYCLE_TIME = Property.named("slow.latency.cycle.ms", 300000);
     private static final String COMPONENT_CODE = "storageextra";
 
 
@@ -69,6 +70,9 @@ public class StorageExtraConfig {
     @Getter
     private final String distributionType;
 
+    @Getter
+    private final int slowModeLatencyCycleTimeMillis;
+
     /**
      * Creates a new instance of StorageExtraConfig.
      *
@@ -82,6 +86,7 @@ public class StorageExtraConfig {
         this.slowModeLatencyMeanMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_MEAN);
         this.slowModeLatencyStdDevMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_STD_DEV);
         this.distributionType = properties.get(STORAGE_SLOW_MODE_DISTRIBUTION_TYPE);
+        this.slowModeLatencyCycleTimeMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_CYCLE_TIME);
     }
 
     public static ConfigBuilder<StorageExtraConfig> builder() {

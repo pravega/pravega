@@ -55,6 +55,9 @@ public class SlowStorageTests extends StorageTestBase {
                 .build());
     }
 
+    /**
+     * Extending StorageTestBase implementation
+     */
     public static class SlowRollingTests extends RollingStorageTests {
         @Override
         protected Storage createStorage() {

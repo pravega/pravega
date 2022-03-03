@@ -34,6 +34,7 @@ public class SlowDelaySuppliersTests {
                .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Sinusoidal")
                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 100)
+               .with(StorageExtraConfig.STORAGE_SLOW_MODE_CYCLE_TIME, 90)
                .build());
 
         Assert.assertEquals(100, delaySupplier.calculateValue(0, 0, 90), 0);

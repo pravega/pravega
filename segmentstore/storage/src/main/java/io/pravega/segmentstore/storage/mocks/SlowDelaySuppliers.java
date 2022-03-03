@@ -25,6 +25,8 @@ import java.util.function.Supplier;
 
 /**
  * States different types of delays generated in the working of LTS.
+ * It can throttle when it is needed, but also that it can stop throttling when LTS works well again.
+ * Configuration properties stated in {@link StorageExtraConfig} are used to inject different types of delays (or delay generators).
  */
 public class SlowDelaySuppliers {
     static Supplier<Duration> getDurationSupplier(StorageExtraConfig config) {
@@ -35,7 +37,7 @@ public class SlowDelaySuppliers {
             return new GaussianDelaySupplier(config.getSlowModeLatencyMeanMillis(), config.getSlowModeLatencyStdDevMillis());
         }
         if (config.getDistributionType().equals("Sinusoidal")) {
-            return new SinusoidalDelaySupplier(config.getSlowModeLatencyMeanMillis(), 10);
+            return new SinusoidalDelaySupplier(config.getSlowModeLatencyMeanMillis(), config.getSlowModeLatencyCycleTimeMillis());
         }
         throw new UnsupportedOperationException();
     }
@@ -53,7 +55,12 @@ public class SlowDelaySuppliers {
             return Duration.ofMillis(calculateValue(() -> random.nextGaussian()));
         }
 
-        public long calculateValue(Supplier<Double> randomSupplier) {
+        /**
+         * Calculates value for normal distribution using random generator.
+         * @param randomSupplier generates random value
+         * @return calculated delay value
+         */
+        long calculateValue(Supplier<Double> randomSupplier) {
             return Math.max(0, Math.round(mean + randomSupplier.get() * stdDev));
         }
     }
@@ -78,6 +85,13 @@ public class SlowDelaySuppliers {
             return Duration.ofMillis(returnValue);
         }
 
+        /**
+         * Calculates the delay value for sinusoidal distribution type
+         * @param currentTime time at that instance
+         * @param startTime time at which the sin wave cycle start
+         * @param cycleTime time required to complete one cycle for the sinusoidal waveform
+         * @return calculated delay value
+         */
         long calculateValue(long currentTime, long startTime, long cycleTime) {
             val timeCal = (currentTime - startTime) % cycleTime;
             val returnValue = (1 + Math.sin(Math.toRadians(timeCal))) * mean;
