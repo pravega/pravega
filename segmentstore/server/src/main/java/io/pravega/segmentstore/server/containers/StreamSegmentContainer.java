@@ -70,6 +70,7 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.logs.operations.PinSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -204,7 +205,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private MetadataStore createMetadataStore() {
         MetadataStore.Connector connector = new MetadataStore.Connector(this.metadata, this::mapSegmentId,
-                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
+                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup, this::pinSegment);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
         return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
@@ -987,6 +988,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
+    }
+
+    private CompletableFuture<Boolean> pinSegment(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout) {
+        Preconditions.checkNotNull(segmentProperties, "SegmentProperties cannot be null.");
+        Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Segment must have a valid id.");
+        PinSegmentOperation op = new PinSegmentOperation(segmentProperties.getName(), segmentId, pin);
+
+        if (pin) {
+            op.markPinned();
+        }
+        OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
+        return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.isPinned());
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {

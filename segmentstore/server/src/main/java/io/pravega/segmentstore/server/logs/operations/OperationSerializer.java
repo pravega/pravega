@@ -37,6 +37,7 @@ public class OperationSerializer extends VersionedSerializer.MultiType<Operation
          .serializer(StreamSegmentTruncateOperation.class, 7, new StreamSegmentTruncateOperation.Serializer())
          .serializer(MetadataCheckpointOperation.class, 8, new MetadataCheckpointOperation.Serializer())
          .serializer(StorageMetadataCheckpointOperation.class, 9, new StorageMetadataCheckpointOperation.Serializer())
-         .serializer(DeleteSegmentOperation.class, 10, new DeleteSegmentOperation.Serializer());
+         .serializer(DeleteSegmentOperation.class, 10, new DeleteSegmentOperation.Serializer())
+         .serializer(PinSegmentOperation.class, 11, new PinSegmentOperation.Serializer());
     }
 }

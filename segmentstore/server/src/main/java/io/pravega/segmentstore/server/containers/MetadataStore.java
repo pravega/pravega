@@ -491,11 +491,20 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
+        log.info("{}: Found segmentId in submitAssignment {}: {}", this.traceObjectId, segmentInfo.getProperties().getName(), existingSegmentId);
         if (isValidSegmentId(existingSegmentId)) {
-            // Looks like someone else beat us to it.
-            completeAssignment(properties.getName(), existingSegmentId);
-            return CompletableFuture.completedFuture(existingSegmentId);
+            // Looks like someone else beat us to it. Still, we need to know if the Segment needs to be pinned.
+            boolean needsToBePinned = pin && !this.connector.containerMetadata.getStreamSegmentMetadata(existingSegmentId).isPinned();
+            log.info("{}: Is valid segmentId in submitAssignment {}, just returning it. Is Pinned? {} (we want it to be? {})", this.traceObjectId, existingSegmentId,
+                    this.connector.containerMetadata.getStreamSegmentMetadata(existingSegmentId).isPinned(), pin);
+            return CompletableFuture.supplyAsync(() -> needsToBePinned ? this.connector.getPinSegment().apply(existingSegmentId, properties, pin, timeout) :
+                            CompletableFuture.completedFuture(false))
+                            .thenCompose(pinned -> {
+                                completeAssignment(properties.getName(), existingSegmentId);
+                                return CompletableFuture.completedFuture(existingSegmentId);
+                            });
         } else {
+            log.info("{}: Not valid segmentId in submitAssignment {}, creating MapSegmentId operation. Pinned? {}", this.traceObjectId, existingSegmentId, pin);
             String streamSegmentName = properties.getName();
             return this.connector.getMapSegmentId()
                                  .apply(segmentInfo.getSegmentId(), properties, pin, timeout)
@@ -671,6 +680,12 @@ public abstract class MetadataStore implements AutoCloseable {
         @NonNull
         private Supplier<CompletableFuture<Void>> metadataCleanup;
 
+        /**
+         * A Function that, when invoked, updates the metadata of an existing Segment by setting the pinned flag.
+         */
+        @NonNull
+        private final PinSegment pinSegment;
+
         @FunctionalInterface
         public interface MapSegmentId {
             CompletableFuture<Long> apply(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout);
@@ -684,6 +699,11 @@ public abstract class MetadataStore implements AutoCloseable {
         @FunctionalInterface
         public interface LazyDeleteSegment {
             CompletableFuture<Void> apply(long segmentId, Duration timeout);
+        }
+
+        @FunctionalInterface
+        public interface PinSegment {
+            CompletableFuture<Boolean> apply(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout);
         }
     }
 
