@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
@@ -44,7 +43,6 @@ class WriterState {
     private final AtomicLong iterationId;
     private final AtomicReference<ForceFlushContext> forceFlushContext;
     private final AtomicReference<Queue<Operation>> lastRead;
-    private final AtomicInteger failedIterationCount;
 
     //endregion
 
@@ -61,7 +59,6 @@ class WriterState {
         this.forceFlushContext = new AtomicReference<>();
         this.iterationId = new AtomicLong();
         this.lastRead = new AtomicReference<>(null);
-        this.failedIterationCount = new AtomicInteger();
     }
 
     //endregion
@@ -77,19 +74,6 @@ class WriterState {
         this.iterationId.incrementAndGet();
         this.currentIterationStartTime.set(timer.getElapsed());
         this.lastIterationError.set(false);
-    }
-
-    /**
-     * Records the fact that an iteration ended.
-     *
-     * @param timer The reference timer.
-     */
-    void recordIterationEnded(AbstractTimer timer) {
-        if (this.lastIterationError.get()) {
-            failedIterationCount.incrementAndGet();
-        } else {
-            failedIterationCount.set(0);
-        }
     }
 
     /**
@@ -113,13 +97,6 @@ class WriterState {
      */
     boolean getLastIterationError() {
         return this.lastIterationError.get();
-    }
-
-    /**
-     * Gets a value indicating number of failed iteration since last successful iteration.
-     */
-    int getFailedIterationCount() {
-        return this.failedIterationCount.get();
     }
 
     /**

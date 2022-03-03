@@ -890,16 +890,51 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
+        checkThrottling(storageHealthTracker, delaySupplier, 3);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
+        // End iteration 1
+        storageHealthTracker.endIteration(1);
+    }
+
+    @Test
+    public void testThrottleDurationForUnavailableMultipleIterations() {
+        val delaySupplier = spy(new TestDelaySupplier());
+        val storageHealthTracker = new StorageHealthTracker(CONTAINER_ID,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .minLateThrottleDurationInMillis(100)
+                        .maxLateThrottleDurationInMillis(1100)
+                        .build(),
+                System::currentTimeMillis,
+                delaySupplier);
+
+        // Initial
+        checkState(storageHealthTracker, false, false, false, false, 0);
+
+        // Start iteration 1
+        storageHealthTracker.beginIteration(1);
+        // No throttling.
+        checkThrottling(storageHealthTracker, delaySupplier, 0);
+        verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
+        TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
         // End iteration 1
         storageHealthTracker.endIteration(1);
 
         // Start iteration 2
         storageHealthTracker.beginIteration(2);
-        // No throttling.
-        checkThrottling(storageHealthTracker, delaySupplier, 3);
-        verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
-        // End iteration 2
+        TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
         storageHealthTracker.endIteration(2);
+
+        // Start iteration 3
+        storageHealthTracker.beginIteration(3);
+        checkThrottling(storageHealthTracker, delaySupplier, 3);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(2200));
+        storageHealthTracker.endIteration(3);
+
+        // Start iteration 3
+        storageHealthTracker.beginIteration(4);
+        checkThrottling(storageHealthTracker, delaySupplier, 3);
+        verify(delaySupplier, times(3)).apply(Duration.ofMillis(2200));
+        storageHealthTracker.endIteration(4);
     }
 
     @Test

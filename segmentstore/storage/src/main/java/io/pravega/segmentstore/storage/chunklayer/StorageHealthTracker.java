@@ -25,6 +25,7 @@ import lombok.val;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -94,6 +95,11 @@ class StorageHealthTracker implements  StatsReporter {
     private final AtomicLong unavailableRequestCount = new AtomicLong();
 
     /**
+     * Tracks number of iterations experiencing unavailable requests .
+     */
+    private final AtomicInteger unavailableIterationCount = new AtomicInteger();
+
+    /**
      * Container Id.
      */
     private final long containerId;
@@ -160,15 +166,18 @@ class StorageHealthTracker implements  StatsReporter {
             isStorageDegraded.set(false);
         }
 
+        // Set unavailable status
         if (unavailableRequestCount.get() > 0) {
             if (!isStorageUnavailable.get()) {
                 log.info("StorageHealthTracker[{}]: Storage is unavailable.");
             }
+            unavailableIterationCount.incrementAndGet();
             isStorageUnavailable.set(true);
         } else {
             if (isStorageUnavailable.get()) {
                 log.info("StorageHealthTracker[{}]: Storage is available again.");
             }
+            unavailableIterationCount.set(0);
             isStorageUnavailable.set(false);
         }
 
@@ -188,6 +197,14 @@ class StorageHealthTracker implements  StatsReporter {
         }
     }
 
+    @Override
+    public void report() {
+        // Report storage size.
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, getStorageUsed());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, getStorageUsedPercentage());
+        // Report slowness percentage
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_HEALTH_SLOW_PERCENTAGE, getLatePercentage());
+    }
 
     /**
      * Method used to report a late request. Late is defined as by "storage.self.check.late" property.
@@ -299,7 +316,9 @@ class StorageHealthTracker implements  StatsReporter {
     CompletableFuture<Void> throttleParallelOperation(String... segmentNames) {
         if (!isSystemOperation(segmentNames) && (shouldThrottle.get() || isStorageUnavailable.get())) {
             long delay = 0;
-            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+            if (isStorageUnavailable.get()) {
+                delay = getUnavailableThrottleDelay();
+            } else if (isStorageDegraded.get()) {
                 delay = config.getMaxLateThrottleDurationInMillis();
             } else if (shouldThrottle.get()) {
                 delay = getParallelThrottleDelay();
@@ -318,7 +337,9 @@ class StorageHealthTracker implements  StatsReporter {
     CompletableFuture<Void> throttleExclusiveOperation(String... segmentNames) {
         if (!isSystemOperation(segmentNames) && (shouldThrottle.get() || isStorageUnavailable.get())) {
             long delay = 0;
-            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+            if (isStorageUnavailable.get()) {
+                delay = getUnavailableThrottleDelay();
+            } else if (isStorageDegraded.get()) {
                 delay = config.getMaxLateThrottleDurationInMillis();
             } else if (shouldThrottle.get()) {
                 delay = getExclusiveThrottleDelay();
@@ -336,10 +357,12 @@ class StorageHealthTracker implements  StatsReporter {
     CompletableFuture<Void> throttleGarbageCollectionBatch() {
         if (shouldThrottle.get() || isStorageUnavailable.get()) {
             long delay = 0;
-            if (isStorageUnavailable.get() || isStorageDegraded.get()) {
+            if (isStorageUnavailable.get()) {
+                delay = getUnavailableThrottleDelay();
+            } else if (isStorageDegraded.get()) {
                 delay = config.getMaxLateThrottleDurationInMillis();
             } else if (shouldThrottle.get()) {
-                delay = getExclusiveThrottleDelay();
+                delay = getGarbageCollectionThrottleDelay();
             }
             ChunkStorageMetrics.SLTS_HEALTH_GC_THROTTLE.reportSuccessValue(delay);
             return delaySupplier.apply(Duration.ofMillis(delay));
@@ -375,6 +398,16 @@ class StorageHealthTracker implements  StatsReporter {
     }
 
     /**
+     *  Calculate throttle when storage is unavailable.
+     *
+     * @return long Duration in milliseconds for throttle.
+     */
+    long getUnavailableThrottleDelay() {
+        val multiplier = Math.max(1, unavailableIterationCount.get());
+        return  multiplier * config.getMaxLateThrottleDurationInMillis();
+    }
+
+    /**
      * Get linearly proportional delay.
      * Duration is between min and max throttle delay and value is proportional to percentage late requests in most recent iterations.
      *
@@ -392,14 +425,5 @@ class StorageHealthTracker implements  StatsReporter {
 
     private boolean isSystemOperation(String... segmentNames) {
         return segmentNames.length >= 1 && isSegmentInSystemScope(segmentNames[0]);
-    }
-
-    @Override
-    public void report() {
-        // Report storage size.
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, getStorageUsed());
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, getStorageUsedPercentage());
-        // Report slowness percentage
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_HEALTH_SLOW_PERCENTAGE, getLatePercentage());
     }
 }
