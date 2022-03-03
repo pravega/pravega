@@ -29,7 +29,9 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link ExtendedS3ChunkStorage} using {@link org.mockito.Mockito}.
