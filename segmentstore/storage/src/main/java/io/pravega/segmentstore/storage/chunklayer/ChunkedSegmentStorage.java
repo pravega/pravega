@@ -220,6 +220,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      *
      * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
      * @param taskQueue  Task queue to use for garbage collection.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore, AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
 
@@ -231,6 +233,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Concludes and finalizes the boostrap.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     public CompletableFuture<Void> finishBootstrap() {
         return garbageCollector.initialize(taskQueue);
@@ -292,6 +296,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param segmentMetadata {@link SegmentMetadata} for the segment to change ownership for.
      *                        throws ChunkStorageException    In case of any chunk storage related errors.
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     private CompletableFuture<Void> claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) {
         // Get the last chunk
@@ -550,6 +556,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param defragOffset    Offest where defrag begins. It is start offset of the startChunk.
      *                        throws ChunkStorageException    In case of any chunk storage related errors.
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
