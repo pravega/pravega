@@ -29,6 +29,11 @@ import java.util.function.Supplier;
  * Configuration properties stated in {@link StorageExtraConfig} are used to inject different types of delays (or delay generators).
  */
 public class SlowDelaySuppliers {
+    /**
+     * Factory method that creates {@link Supplier<Duration>} based on {@link StorageExtraConfig}.
+     * @param config config to use.
+     * @return instance of {@link Supplier<Duration>}.
+     */
     static Supplier<Duration> getDurationSupplier(StorageExtraConfig config) {
         if (config.getDistributionType().equals("Fixed")) {
             return new FixedDelaySupplier(config.getSlowModeLatencyMeanMillis());

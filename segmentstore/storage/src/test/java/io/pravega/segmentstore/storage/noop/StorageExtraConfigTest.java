@@ -52,9 +52,15 @@ public class StorageExtraConfigTest {
     }
 
     @Test
-    public void testSlowModeLatency() {
+    public void testSlowModeProperties() {
         ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
         builder.with(Property.named("slow.latency.mean.ms"), 42);
+        builder.with(Property.named("slow.latency.std.ms"), 43);
+        builder.with(Property.named("slow.latency.cycle.ms"), 44);
+        builder.with(Property.named("slow.type"), "Fixed");
         assertEquals(42, builder.build().getSlowModeLatencyMeanMillis());
+        assertEquals(43, builder.build().getSlowModeLatencyStdDevMillis());
+        assertEquals(44, builder.build().getSlowModeLatencyCycleTimeMillis());
+        assertEquals("Fixed", builder.build().getDistributionType());
     }
 }
