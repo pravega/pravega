@@ -892,7 +892,15 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                     }
                     return CompletableFuture.completedFuture(null);
                 },
-                runCleanup);
+                runCleanup,
+                (id, sp, pin, timeout) -> {
+                    Assert.assertNotEquals("PinSegmentOperation with no segment id.", ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
+                    UpdateableSegmentMetadata sm = metadata.mapStreamSegmentId(sp.getName(), id);
+                    if (pin) {
+                        sm.markPinned();
+                    }
+                    return CompletableFuture.completedFuture(pin);
+                });
 
         return createTestContext(connector);
     }
@@ -950,8 +958,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Setter
         private LazyDeleteSegment lazyDeleteSegment;
 
-        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment, Supplier<CompletableFuture<Void>> runCleanup) {
-            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment, runCleanup);
+        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment,
+                      Supplier<CompletableFuture<Void>> runCleanup, PinSegment pinSegment) {
+            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment, runCleanup, pinSegment);
             reset();
         }
 

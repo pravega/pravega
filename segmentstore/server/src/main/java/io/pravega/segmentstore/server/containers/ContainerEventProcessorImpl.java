@@ -448,6 +448,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private CompletableFuture<Void> refreshSegment() {
             return this.segmentSupplier.apply(this.name).thenApply(segment -> {
                 this.segment = segment;
+                log.info("{}: Refreshing Segment {} (pinned = {}).", this.traceObjectId, this.segment.getInfo(), this.segment.getInfo().isPinned());
                 return null;
             });
         }
