@@ -568,29 +568,20 @@ public class SystemJournal {
                         val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, snapshotInfo.getEpoch(), snapshotInfo.getSnapshotId());
                         log.debug("SystemJournal[{}] Snapshot info read. {} pointing to {}", containerId, snapshotInfo, snapshotFileName);
 
-                        // Step 2: Validate.
-                        return checkSnapshotExists(snapshotFileName)
-                                // Step 3: Read contents.
-                                .thenComposeAsync(v -> getContents(snapshotFileName), executor)
-                                // Step 4: Deserialize and return.
-                                .thenApplyAsync(contents -> readSnapshotRecord(snapshotInfo, contents), executor);
+                        // Step 2: Validate. and Read contents.
+                        return getContents(snapshotFileName, false)
+                                // Step 3: Deserialize and return.
+                                .thenApplyAsync(contents -> readSnapshotRecord(snapshotInfo, contents), executor)
+                                .exceptionally( e -> {
+                                    throw new CompletionException(new IllegalStateException(
+                                            String.format("Chunk pointed by SnapshotInfo must exist. Missing chunk %s", snapshotFileName),
+                                            Exceptions.unwrap(e)));
+                                });
                     } else {
                         log.info("SystemJournal[{}] No Snapshot info available. This is ok if this is new installation", containerId);
                         return CompletableFuture.completedFuture(null);
                     }
                 }, executor);
-    }
-
-    /**
-     * Check whether snapshot file exists.
-     */
-    private CompletableFuture<Void> checkSnapshotExists(String snapshotFileName) {
-        if (getConfig().isSelfCheckEnabled()) {
-            return chunkStorage.exists(snapshotFileName)
-                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "Chunk pointed by SnapshotInfo must exist"), executor);
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
     }
 
     /**
@@ -742,14 +733,15 @@ public class SystemJournal {
     /**
      * Read contents from file.
      */
-    private CompletableFuture<byte[]> getContents(String chunkPath) {
-        return getContents(chunkPath, false);
+    private CompletableFuture<byte[]> getContents(String chunkPath, boolean suppressExceptionWarning) {
+        return chunkStorage.getInfo(chunkPath)
+                .thenComposeAsync(info -> getContents(chunkPath, info.getLength(), suppressExceptionWarning), executor);
     }
 
     /**
      * Read contents from file.
      */
-    private CompletableFuture<byte[]> getContents(String chunkPath, boolean supressExceptionWarning) {
+    private CompletableFuture<byte[]> getContents(String chunkPath, long length, boolean suppressExceptionWarning) {
         val isReadDone = new AtomicBoolean();
         val shouldBreak = new AtomicBoolean();
         val attempt = new AtomicInteger();
@@ -758,7 +750,7 @@ public class SystemJournal {
         // Try config.getMaxJournalReadAttempts() times.
         return Futures.loop(
                 () -> attempt.get() < config.getMaxJournalReadAttempts() && !isReadDone.get() && !shouldBreak.get(),
-                () -> readFully(chunkPath, retValue)
+                () -> readFully(chunkPath, retValue, length)
                         .handleAsync((v, e) -> {
                             attempt.incrementAndGet();
                             if (e != null) {
@@ -768,7 +760,7 @@ public class SystemJournal {
                                 boolean shouldLog = true;
                                 if (!shouldRetry(ex)) {
                                     shouldBreak.set(true);
-                                    shouldLog = !supressExceptionWarning;
+                                    shouldLog = !suppressExceptionWarning;
                                 }
                                 if (shouldLog) {
                                     log.warn("SystemJournal[{}] Error while reading journal {}. Attempt#{}", containerId, chunkPath, attempt.get(), lastException.get());
@@ -802,31 +794,28 @@ public class SystemJournal {
     /**
      * Read given chunk in its entirety.
      */
-    private CompletableFuture<Void> readFully(String chunkPath, AtomicReference<byte[]> retValue) {
-        return chunkStorage.getInfo(chunkPath)
-                .thenComposeAsync(info -> {
-                    val h = ChunkHandle.readHandle(chunkPath);
-                    // Allocate buffer to read into.
-                    retValue.set(new byte[Math.toIntExact(info.getLength())]);
-                    if (info.getLength() == 0) {
-                        log.warn("SystemJournal[{}] journal {} is empty.", containerId, chunkPath);
-                        return CompletableFuture.completedFuture(null);
-                    }
+    private CompletableFuture<Void> readFully(String chunkPath, AtomicReference<byte[]> retValue, long length) {
+        val h = ChunkHandle.readHandle(chunkPath);
+        // Allocate buffer to read into.
+        retValue.set(new byte[Math.toIntExact(length)]);
+        if (length == 0) {
+            log.warn("SystemJournal[{}] journal {} is empty.", containerId, chunkPath);
+            return CompletableFuture.completedFuture(null);
+        }
 
-                    val fromOffset = new AtomicLong();
-                    val remaining = new AtomicInteger(retValue.get().length);
+        val fromOffset = new AtomicLong();
+        val remaining = new AtomicInteger(retValue.get().length);
 
-                    // Continue until there is still data remaining to be read.
-                    return Futures.loop(
-                            () -> remaining.get() > 0,
-                            () -> chunkStorage.read(h, fromOffset.get(), remaining.get(), retValue.get(), Math.toIntExact(fromOffset.get())),
-                            bytesRead -> {
-                                Preconditions.checkState( 0 != bytesRead, "bytesRead must not be 0");
-                                remaining.addAndGet(-bytesRead);
-                                fromOffset.addAndGet(bytesRead);
-                            },
-                            executor);
-                }, executor);
+        // Continue until there is still data remaining to be read.
+        return Futures.loop(
+                () -> remaining.get() > 0,
+                () -> chunkStorage.read(h, fromOffset.get(), remaining.get(), retValue.get(), Math.toIntExact(fromOffset.get())),
+                bytesRead -> {
+                    Preconditions.checkState(0 != bytesRead, "bytesRead must not be 0");
+                    remaining.addAndGet(-bytesRead);
+                    fromOffset.addAndGet(bytesRead);
+                },
+                executor);
     }
 
     /**
@@ -1267,7 +1256,7 @@ public class SystemJournal {
                     return chunkStorage.createWithContent(snapshotFile,
                             bytes.getLength(),
                             new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()))
-                            .thenComposeAsync(v -> getContents(snapshotFile)
+                            .thenComposeAsync(v -> getContents(snapshotFile, bytes.getLength() - bytes.arrayOffset(), false)
                                             .thenAcceptAsync(contents -> {
                                                 try {
                                                     val snapshotReadback = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
