@@ -196,22 +196,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      */
     CompletableFuture<Iterator<SegmentProperties>> listSegments();
 
-    /**
-     * This method is called at the beginning of the iteration or batch of operations.
-     *
-     * @param iterationId identifier of iteration.
-     */
-    default void beginIteration(long iterationId) {
-    }
-
-    /**
-     * This method is called at the end of the iteration or batch of operations.
-     *
-     * @param iterationId identifier of iteration.
-     */
-    default void endIteration(long iterationId) {
-    }
-
     @Override
     void close();
 }

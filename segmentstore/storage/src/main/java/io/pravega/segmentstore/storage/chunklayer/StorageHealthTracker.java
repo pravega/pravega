@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.util.concurrent.AtomicDouble;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,7 +107,6 @@ class StorageHealthTracker implements  StatsReporter {
      * {@link ChunkedSegmentStorageConfig} instance to use.
      */
     @NonNull
-    @Getter
     private final ChunkedSegmentStorageConfig config;
 
     /**
@@ -124,30 +122,19 @@ class StorageHealthTracker implements  StatsReporter {
     private final Function<Duration, CompletableFuture<Void>> delaySupplier;
 
     /**
-     * Indicates a beginning of the iteration or batch of operations.
-     *
-     * @param iterationId identifier of iteration.
+     *  Calculates Health Stats.
      */
-    public void beginIteration(long iterationId) {
-        // Clear
-        lateRequestCount.set(0);
-        completedRequestCount.set(0);
-        unavailableRequestCount.set(0);
-        lateRequestCount.set(0);
-    }
-
-    /**
-     * Indicates an end of the iteration or batch of operations.
-     *
-     * @param iterationId identifier of iteration.
-     */
-    public void endIteration(long iterationId) {
+    void calculateHealthStats() {
         // Set the new percentage
         if (completedRequestCount.get() == 0) {
             percentageLate.set(0);
         } else {
             percentageLate.set((100.0 * lateRequestCount.get()) / completedRequestCount.get());
         }
+
+        log.debug("StorageHealthTracker[{}]: Calculating Health Stats. Completed={} Pending={} late={} unavailable={} unavailableIterations={}",
+                containerId, completedRequestCount.get(), pendingRequestCount.get(), lateRequestCount.get(),
+                unavailableRequestCount.get(), unavailableIterationCount.get());
 
         // set degraded status.
         if (percentageLate.intValue() >= config.getMaxLateThrottlePercentage()) {
@@ -168,14 +155,14 @@ class StorageHealthTracker implements  StatsReporter {
 
         // Set unavailable status
         if (unavailableRequestCount.get() > 0) {
-            if (!isStorageUnavailable.get()) {
-                log.info("StorageHealthTracker[{}]: Storage is unavailable.");
+            if (unavailableIterationCount.get() == 0) {
+                log.info("StorageHealthTracker[{}]: Storage is unavailable.", containerId);
             }
             unavailableIterationCount.incrementAndGet();
             isStorageUnavailable.set(true);
         } else {
             if (isStorageUnavailable.get()) {
-                log.info("StorageHealthTracker[{}]: Storage is available again.");
+                log.info("StorageHealthTracker[{}]: Storage is available again.", containerId);
             }
             unavailableIterationCount.set(0);
             isStorageUnavailable.set(false);
@@ -195,6 +182,12 @@ class StorageHealthTracker implements  StatsReporter {
             }
             shouldThrottle.set(false);
         }
+
+        //Finally, clear state
+        lateRequestCount.set(0);
+        completedRequestCount.set(0);
+        unavailableRequestCount.set(0);
+        lateRequestCount.set(0);
     }
 
     @Override

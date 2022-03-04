@@ -158,6 +158,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     private final ScheduledFuture<?> reporter;
     private ScheduledFuture<?> storageChecker;
+    private ScheduledFuture<?> storageHealthChecker;
 
     private AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue;
 
@@ -211,6 +212,12 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                 config,
                 System::currentTimeMillis,
                 duration -> Futures.delayedFuture(duration, executor));
+        if (config.isHealthCheckEnabled()) {
+            this.storageHealthChecker = executor.scheduleAtFixedRate(this::calculateHealthStats,
+                    config.getHealthCheckFrequencyInSeconds(),
+                    config.getHealthCheckFrequencyInSeconds(),
+                    TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -806,25 +813,13 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     /**
-     * This method is called at the beginning of the iteration or batch of operations.
-     *
-     * @param iterationId identifier iteration.
+     * Updates storage stats.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     *      it will contain the cause of the failure.
      */
-    @Override
-    public void beginIteration(long iterationId) {
-        log.debug("{} Iteration {} started.", logPrefix, iterationId);
-        healthTracker.beginIteration(iterationId);
-    }
-
-    /**
-     * This method is called at the end of the iteration or batch of operations.
-     *
-     * @param iterationId identifier iteration.
-     */
-    @Override
-    public void endIteration(long iterationId) {
-        healthTracker.endIteration(iterationId);
-        log.debug("{} Iteration {} ended.", logPrefix, iterationId);
+    CompletableFuture<Void> calculateHealthStats() {
+        healthTracker.calculateHealthStats();
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -836,6 +831,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         this.reporter.cancel(true);
         if (null != this.storageChecker) {
             this.storageChecker.cancel(true);
+        }
+        if (null != this.storageHealthChecker) {
+            this.storageHealthChecker.cancel(true);
         }
         this.closed.set(true);
     }

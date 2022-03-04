@@ -508,7 +508,6 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         chunkedSegmentStorage.initialize(2);
         int iteration = 1;
         // Write
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
         Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         AssertExtensions.assertFutureThrows(
                 "write succeeded when exception was expected.",
@@ -516,15 +515,13 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 ex -> clazz.equals(ex.getClass()));
         Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
         // Remove unavailable
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
 
         // Read
         doThrow(exceptionToThrow).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
 
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
         Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         AssertExtensions.assertFutureThrows(
                 "read succeeded when exception was expected.",
@@ -532,13 +529,11 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 ex -> clazz.equals(ex.getClass()));
         Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
         // Remove unavailable
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
 
         // Truncate
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
         Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         AssertExtensions.assertFutureThrows(
                 "truncate succeeded when exception was expected.",
@@ -546,13 +541,11 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 ex -> clazz.equals(ex.getClass()));
         Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
         // Remove unavailable
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
 
         // Concat
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
         Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         AssertExtensions.assertFutureThrows(
                 "concat succeeded when exception was expected.",
@@ -560,13 +553,11 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 ex -> clazz.equals(ex.getClass()));
         Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
         // Remove unavailable
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
 
         // openWrite
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
         Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         AssertExtensions.assertFutureThrows(
                 "openRead succeeded when exception was expected.",
@@ -574,10 +565,9 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 ex -> clazz.equals(ex.getClass()));
         Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
         TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
         // Remove unavailable
-        chunkedSegmentStorage.getHealthTracker().beginIteration(iteration++);
-        chunkedSegmentStorage.getHealthTracker().endIteration(iteration);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
     }
 
     @Test

@@ -34,7 +34,7 @@ import static org.mockito.Mockito.verify;
 @Slf4j
 public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
 
-    public static final int CONTAINER_ID = 10;
+    public static final int CONTAINER_ID = 42;
 
     @Test
     public void testDefault() {
@@ -46,7 +46,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration
-        storageHealthTracker.beginIteration(0);
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Call throttle
@@ -54,7 +53,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // End iteration
-        storageHealthTracker.endIteration(0);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 0);
     }
 
@@ -76,7 +75,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
         for (int n = 0; n < 3; n++) {
             // Start iteration
-            storageHealthTracker.beginIteration(n);
             checkState(storageHealthTracker, false, false, false, false, 0);
 
             // Call throttle
@@ -85,7 +83,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
             checkState(storageHealthTracker, false, false, false, false, 0);
             TestUtils.addRequestStats(storageHealthTracker, 0, 5, 0, 0);
             // End iteration
-            storageHealthTracker.endIteration(n);
+            storageHealthTracker.calculateHealthStats();
             checkState(storageHealthTracker, false, false, false, false, 0);
         }
     }
@@ -101,7 +99,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -114,11 +111,10 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
         checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Should throttle.
@@ -129,8 +125,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 3);
     }
@@ -146,7 +142,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -159,11 +154,10 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2 - still unavailable
-        storageHealthTracker.beginIteration(2);
         checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -174,11 +168,10 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
         checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Should throttle.
@@ -189,8 +182,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -206,7 +199,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -219,11 +211,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
+
         checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -234,11 +226,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 50);
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
+
         checkState(storageHealthTracker, false, false, false, false, 50);
 
         // Should throttle.
@@ -249,8 +241,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -266,7 +258,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
+
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -279,11 +271,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 40);
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
+
         checkState(storageHealthTracker, false, false, false, false, 40);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -294,11 +286,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
+
         checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Should throttle.
@@ -309,8 +301,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -326,7 +318,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
+
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -339,11 +331,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true,  false, false, 80);
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
+
         checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Should still throttle.
@@ -354,8 +346,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
-        storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 3);
     }
@@ -371,7 +363,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1 - Degraded
-        storageHealthTracker.beginIteration(1);
+
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -384,11 +376,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
+
         checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -400,11 +392,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
+
         checkState(storageHealthTracker, false, true, false, false, 90);
 
         // Should still throttle.
@@ -415,8 +407,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -432,7 +424,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
+
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -445,11 +437,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 2 - still unavailable
-        storageHealthTracker.beginIteration(2);
+
         checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -461,11 +453,11 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
+
         checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Should still throttle.
@@ -476,8 +468,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -493,7 +485,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
+
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // No throttling.
@@ -506,11 +498,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, false, true, false, false, 80);
-
-        // Start iteration 2
-        storageHealthTracker.beginIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 80);
         // Should now throttle
         checkThrottling(storageHealthTracker, delaySupplier, 3);
@@ -521,11 +509,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 6);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, true, false, false, false, 33);
-
-        // Start iteration 3
-        storageHealthTracker.beginIteration(3);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Should throttle.
@@ -536,8 +520,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 9);
     }
@@ -552,11 +536,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         // Initial
         checkState(storageHealthTracker, false, false, false, false, 0);
 
-        // Start iteration 1
-        storageHealthTracker.beginIteration(1);
-
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -566,20 +546,16 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 3);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 40);
-
-        // Start iteration 3
-        storageHealthTracker.beginIteration(2);
 
         // Should still throttle.
-        checkState(storageHealthTracker, true, false, false, false, 40);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 2
-        storageHealthTracker.endIteration(2);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
     }
 
@@ -593,11 +569,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         // Initial
         checkState(storageHealthTracker, false, false, false, false, 0);
 
-        // Start iteration 1
-        storageHealthTracker.beginIteration(1);
-
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -607,11 +579,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 3);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true, false, false, false, 40);
-
-        // Start iteration 2 - degraded
-        storageHealthTracker.beginIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 40);
 
         // still unavailable should throttle.
@@ -625,20 +593,17 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 9);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, true, false, false, 80);
 
         // Start iteration 3 - Normal
-        storageHealthTracker.beginIteration(3);
-
         // Should still throttle.
-        checkState(storageHealthTracker, false, true, false, false, 80);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
 
@@ -653,10 +618,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
-
         // At start it is normal and no throttle
-        checkState(storageHealthTracker, false, false, false, false, 0);
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
         // Make unavailable
@@ -666,11 +628,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 3);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
-        checkState(storageHealthTracker, true,  false, false, false, 40);
-
-        // Start iteration 2 - slow
-        storageHealthTracker.beginIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true,  false, false, false, 40);
 
         // still unavailable should throttle.
@@ -684,20 +642,17 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 9);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, false, false, false, false, 30);
 
         // Start iteration 3 - Normal
-        storageHealthTracker.beginIteration(3);
-
         // Should still throttle.
-        checkState(storageHealthTracker, false, false, false, false, 30);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
         // Make normal.
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
         // End iteration 3
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
 
@@ -711,10 +666,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         // Initial
         checkState(storageHealthTracker, false, false, false, false, 0);
 
-        // Start iteration 1
-        storageHealthTracker.beginIteration(1);
-        checkState(storageHealthTracker, false, false, false, false, 0);
-
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
 
@@ -725,12 +676,10 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 3);
 
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 40);
 
         // Start iteration 2 - still unavailable
-        storageHealthTracker.beginIteration(2);
-        checkState(storageHealthTracker, true, false, false, false, 40);
         checkThrottling(storageHealthTracker, delaySupplier, 6);
         checkState(storageHealthTracker, true, false, false, false, 40);
 
@@ -739,13 +688,10 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 9);
 
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
         checkState(storageHealthTracker, true, false, false, false, 33);
 
         // Start iteration 3 - Unavailable
-        storageHealthTracker.beginIteration(3);
-        checkState(storageHealthTracker, true, false, false, false, 33);
-
         // Should throttle.
         checkThrottling(storageHealthTracker, delaySupplier, 12);
         checkState(storageHealthTracker, true, false, false, false, 33);
@@ -754,8 +700,8 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         TestUtils.addRequestStats(storageHealthTracker, 0, 9, 1, 0);
 
         // End iteration 2
-        storageHealthTracker.endIteration(3);
-        checkState(storageHealthTracker, false, false, false, false, CONTAINER_ID);
+        storageHealthTracker.calculateHealthStats();
+        checkState(storageHealthTracker, false, false, false, false, 10);
         // No throttling
         checkThrottling(storageHealthTracker, delaySupplier, 12);
     }
@@ -780,7 +726,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
                 delaySupplier);
         storageHealthTracker.setStorageUsed(100);
         Assert.assertEquals(100, storageHealthTracker.getStorageUsed());
-        Assert.assertEquals(CONTAINER_ID, storageHealthTracker.getStorageUsedPercentage(), 0);
+        Assert.assertEquals(10, storageHealthTracker.getStorageUsedPercentage(), 0);
     }
 
     @Test
@@ -853,21 +799,19 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 3, 7, 0);
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 3);
         verify(delaySupplier, times(3)).apply(Duration.ofMillis(800)); // 70% throttle
         // End iteration 2
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
     }
 
     @Test
@@ -885,7 +829,6 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
@@ -893,7 +836,7 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkThrottling(storageHealthTracker, delaySupplier, 3);
         verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
     }
 
     @Test
@@ -911,30 +854,25 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 1, 1);
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(3);
         checkThrottling(storageHealthTracker, delaySupplier, 3);
         verify(delaySupplier, times(3)).apply(Duration.ofMillis(2200));
-        storageHealthTracker.endIteration(3);
+        storageHealthTracker.calculateHealthStats();
 
         // Start iteration 3
-        storageHealthTracker.beginIteration(4);
         checkThrottling(storageHealthTracker, delaySupplier, 3);
         verify(delaySupplier, times(3)).apply(Duration.ofMillis(2200));
-        storageHealthTracker.endIteration(4);
     }
 
     @Test
@@ -952,20 +890,18 @@ public class StorageHealthTrackerTests extends ThreadPooledTestSuite {
         checkState(storageHealthTracker, false, false, false, false, 0);
 
         // Start iteration 1
-        storageHealthTracker.beginIteration(1);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 0);
         verify(delaySupplier, times(0)).apply(Duration.ofMillis(100 + storageHealthTracker.getLatePercentage() * 1000));
         TestUtils.addRequestStats(storageHealthTracker, 0, 1, 9, 0);
         // End iteration 1
-        storageHealthTracker.endIteration(1);
+        storageHealthTracker.calculateHealthStats();
 
         // Start iteration 2
-        storageHealthTracker.beginIteration(2);
         // No throttling.
         checkThrottling(storageHealthTracker, delaySupplier, 3);
         verify(delaySupplier, times(3)).apply(Duration.ofMillis(1100)); // Full throttle
-        storageHealthTracker.endIteration(2);
+        storageHealthTracker.calculateHealthStats();
     }
 
     /**
