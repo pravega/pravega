@@ -996,6 +996,45 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L), TableExtensionConfig.MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
     }
 
+    @Test
+    public void testRecoveryWithBatchesAndPartialEntries() throws Exception {
+        val s = new EntrySerializer();
+
+        // Perform recoveries with multiple batch sizes that entail different number of batches.
+        for (int batchSize = 31; batchSize < 1000; batchSize++) {
+            @Cleanup
+            val context = new TestContext(TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, batchSize)
+                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS).build());
+
+            // Generate initial set of values for the same key and serialize them to the segment.
+            val key = new ByteArraySegment("TESTKEY".getBytes(StandardCharsets.UTF_8));
+            val expected = new HashMap<UUID, Long>();
+            val hash = HASHER.hash(key);
+            for (long i = 0; i < 100; i++) {
+                val k = TableKey.versioned(key, i);
+                byte[] valueData = ("value" + i).getBytes(StandardCharsets.UTF_8);
+                val entry = TableEntry.versioned(k.getKey(), new ByteArraySegment(valueData), i);
+                val update = s.serializeUpdateWithExplicitVersion(List.of(entry));
+                Assert.assertTrue(batchSize >= update.getLength());
+                expected.put(hash, context.segment.append(update, null, TIMEOUT).join());
+            }
+
+            // Create multiple parallel GET requests while Table Segment is recovering.
+            List<CompletableFuture<Map<UUID, Long>>> getFutures = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                getFutures.add(context.index.getBucketOffsets(context.segment, Collections.singleton(hash), context.timer));
+            }
+
+            // Make sure that all the requests issues during initialization get the right value.
+            for (int i = 0; i < 10; i++) {
+                AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected,
+                        getFutures.get(i).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+            }
+        }
+    }
+
     private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {
         Assert.assertEquals("Unexpected number of results found.", allHashes.size(), bucketOffsets.size());
         for (int i = 0; i < allHashes.size(); i++) {
