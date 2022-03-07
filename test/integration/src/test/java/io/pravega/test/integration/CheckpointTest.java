@@ -169,7 +169,7 @@ public class CheckpointTest {
     }
 
     /*
-    *  Initiate checkpoint with internal executor and restore back
+    *  Initiate checkpoint with internal executor and restore back.
     */
     @Test(timeout = 20000)
     public void testCheckpointInternalExecutorAndRestore() throws ReinitializationRequiredException, InterruptedException,
