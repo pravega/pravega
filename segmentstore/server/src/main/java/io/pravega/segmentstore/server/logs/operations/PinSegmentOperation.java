@@ -105,7 +105,7 @@ public class PinSegmentOperation extends MetadataOperation {
     //endregion
 
     static class Serializer extends OperationSerializer<PinSegmentOperation> {
-        private static final int STATIC_LENGTH = 4 * Long.BYTES + 2 * Byte.BYTES;
+        private static final int STATIC_LENGTH = 2 * Long.BYTES + Byte.BYTES;
 
         @Override
         protected OperationBuilder<PinSegmentOperation> newBuilder() {
@@ -129,6 +129,7 @@ public class PinSegmentOperation extends MetadataOperation {
         }
 
         private void write00(PinSegmentOperation o, RevisionDataOutput target) throws IOException {
+            target.length(STATIC_LENGTH + target.getUTFLength(o.streamSegmentName));
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.streamSegmentId);
             target.writeUTF(o.streamSegmentName);
