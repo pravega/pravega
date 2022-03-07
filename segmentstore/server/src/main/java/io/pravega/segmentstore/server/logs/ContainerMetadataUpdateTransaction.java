@@ -529,10 +529,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         metadata.refreshDerivedProperties();
     }
 
-    private void updateMetadata(PinSegmentOperation mapping, UpdateableSegmentMetadata metadata) {
-
+    private void updateMetadata(PinSegmentOperation pinSegment, UpdateableSegmentMetadata metadata) {
         // Pin this to memory if needed.
-        if (mapping.isPinned()) {
+        if (pinSegment.isPinned()) {
             metadata.markPinned();
         }
     }
@@ -553,7 +552,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     private void checkNonExistingMapping(PinSegmentOperation operation) throws MetadataUpdateException {
         long existingSegmentId = getStreamSegmentId(operation.getStreamSegmentName(), false);
-        if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID && existingSegmentId != operation.getStreamSegmentId()) {
+        if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID
+                || existingSegmentId != operation.getStreamSegmentId()) {
             throw new MetadataUpdateException(this.containerId,
                     String.format("Operation '%s' wants to update pinned flag for wrong or non-existing Segment Id = %d.",
                             operation, existingSegmentId));
