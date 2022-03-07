@@ -490,10 +490,10 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
-        long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
+        long existingSegmentId = this.connector.getContainerMetadata().getStreamSegmentId(properties.getName(), true);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it. Still, we need to know if the Segment needs to be pinned.
-            boolean needsToBePinned = pin && !this.connector.containerMetadata.getStreamSegmentMetadata(existingSegmentId).isPinned();
+            boolean needsToBePinned = pin && !this.connector.getContainerMetadata().getStreamSegmentMetadata(existingSegmentId).isPinned();
             CompletableFuture<Boolean> pinFuture = needsToBePinned ?
                     this.connector.getPinSegment().apply(existingSegmentId, properties, pin, timeout) :
                     CompletableFuture.completedFuture(false);
