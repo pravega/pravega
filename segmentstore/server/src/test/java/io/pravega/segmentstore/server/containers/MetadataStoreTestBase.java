@@ -74,6 +74,7 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for MetadataStore class.
@@ -741,6 +742,18 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         SegmentType segmentType = SegmentType.builder().system().internal().critical().build();
         long segmentId = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
         Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
+        // Register it again, now it should exercise the path of submitAssignment for already mapped segments.
+        long segmentId2 = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
+        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
+        Assert.assertEquals(segmentId2, segmentId);
+        // Now, induce the system to issue a PinSegmentOperation.
+        SegmentMetadata segmentMetadata = Mockito.spy(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId));
+        Mockito.when(segmentMetadata.isPinned()).thenReturn(false).thenCallRealMethod();
+        ContainerMetadata containerMetadata = Mockito.spy(context.connector.getContainerMetadata());
+        Mockito.when(containerMetadata.getStreamSegmentMetadata(segmentId)).thenReturn(segmentMetadata);
+        Mockito.when(context.connector.getContainerMetadata()).thenReturn(containerMetadata);
+        long segmentId3 = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
+        Assert.assertEquals(segmentId3, segmentId);
     }
 
     /**
@@ -863,7 +876,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         // Setup a connector with default, functioning callbacks.
-        TestConnector connector = new TestConnector(
+        TestConnector connector = Mockito.spy(new TestConnector(
                 metadata,
                 (id, sp, pin, timeout) -> {
                     if (id == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
@@ -895,12 +908,12 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                 runCleanup,
                 (id, sp, pin, timeout) -> {
                     Assert.assertNotEquals("PinSegmentOperation with no segment id.", ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
-                    UpdateableSegmentMetadata sm = metadata.mapStreamSegmentId(sp.getName(), id);
+                    UpdateableSegmentMetadata sm = metadata.getStreamSegmentMetadata(id);
                     if (pin) {
                         sm.markPinned();
                     }
                     return CompletableFuture.completedFuture(pin);
-                });
+                }));
 
         return createTestContext(connector);
     }
