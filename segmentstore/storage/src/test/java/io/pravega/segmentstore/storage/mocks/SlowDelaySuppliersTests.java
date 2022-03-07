@@ -32,7 +32,7 @@ public class SlowDelaySuppliersTests {
     public void testSinusoidal() {
        SlowDelaySuppliers.SinusoidalDelaySupplier delaySupplier = (SlowDelaySuppliers.SinusoidalDelaySupplier) SlowDelaySuppliers.getDurationSupplier(StorageExtraConfig.builder()
                .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
-               .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Sinusoidal")
+               .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.SINUSOIDAL_DISTRIBUTION_TYPE)
                .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 100)
                .with(StorageExtraConfig.STORAGE_SLOW_MODE_CYCLE_TIME, 90)
                .build());
@@ -51,7 +51,7 @@ public class SlowDelaySuppliersTests {
     public void testFixed() {
         SlowDelaySuppliers.FixedDelaySupplier delaySupplier = (SlowDelaySuppliers.FixedDelaySupplier) SlowDelaySuppliers.getDurationSupplier(StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
-                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Fixed")
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.FIXED_DISTRIBUTION_TYPE)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 123)
                 .build());
 
@@ -65,7 +65,7 @@ public class SlowDelaySuppliersTests {
     public void testNormal() {
         SlowDelaySuppliers.GaussianDelaySupplier delaySupplier = (SlowDelaySuppliers.GaussianDelaySupplier) SlowDelaySuppliers.getDurationSupplier(StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
-                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, "Normal")
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.NORMAL_DISTRIBUTION_TYPE)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 100)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 100)
                 .build());

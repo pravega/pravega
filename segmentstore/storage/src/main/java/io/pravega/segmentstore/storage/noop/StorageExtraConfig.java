@@ -19,6 +19,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.storage.mocks.StorageDistributionType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,11 +35,9 @@ public class StorageExtraConfig {
     public static final Property<Boolean> STORAGE_SLOW_MODE = Property.named("slow.enable", false);
     public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_MEAN = Property.named("slow.latency.mean.ms", 500);
     public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_STD_DEV = Property.named("slow.latency.std.ms", 500);
-    public static final Property<String> STORAGE_SLOW_MODE_DISTRIBUTION_TYPE = Property.named("slow.type", "Normal");
+    public static final Property<StorageDistributionType> STORAGE_SLOW_MODE_DISTRIBUTION_TYPE = Property.named("slow.type", StorageDistributionType.NORMAL_DISTRIBUTION_TYPE);
     public static final Property<Integer> STORAGE_SLOW_MODE_CYCLE_TIME = Property.named("slow.latency.cycle.ms", 300000);
     private static final String COMPONENT_CODE = "storageextra";
-
-
 
     /**
      * Latency in milliseconds applied for storage write in no-op mode
@@ -68,7 +67,7 @@ public class StorageExtraConfig {
     private final int slowModeLatencyStdDevMillis;
 
     @Getter
-    private final String distributionType;
+    private final StorageDistributionType distributionType;
 
     @Getter
     private final int slowModeLatencyCycleTimeMillis;
@@ -85,7 +84,7 @@ public class StorageExtraConfig {
         this.slowModeEnabled = properties.getBoolean(STORAGE_SLOW_MODE);
         this.slowModeLatencyMeanMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_MEAN);
         this.slowModeLatencyStdDevMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_STD_DEV);
-        this.distributionType = properties.get(STORAGE_SLOW_MODE_DISTRIBUTION_TYPE);
+        this.distributionType = properties.getEnum(STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.class);
         this.slowModeLatencyCycleTimeMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_CYCLE_TIME);
     }
 

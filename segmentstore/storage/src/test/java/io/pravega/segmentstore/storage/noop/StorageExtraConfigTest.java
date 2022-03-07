@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.noop;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
+import io.pravega.segmentstore.storage.mocks.StorageDistributionType;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -57,10 +58,10 @@ public class StorageExtraConfigTest {
         builder.with(Property.named("slow.latency.mean.ms"), 42);
         builder.with(Property.named("slow.latency.std.ms"), 43);
         builder.with(Property.named("slow.latency.cycle.ms"), 44);
-        builder.with(Property.named("slow.type"), "Fixed");
+        builder.with(Property.named("slow.type"), StorageDistributionType.FIXED_DISTRIBUTION_TYPE);
         assertEquals(42, builder.build().getSlowModeLatencyMeanMillis());
         assertEquals(43, builder.build().getSlowModeLatencyStdDevMillis());
         assertEquals(44, builder.build().getSlowModeLatencyCycleTimeMillis());
-        assertEquals("Fixed", builder.build().getDistributionType());
+        assertEquals(StorageDistributionType.FIXED_DISTRIBUTION_TYPE, builder.build().getDistributionType());
     }
 }
