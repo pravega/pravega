@@ -491,20 +491,20 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
-        log.info("{}: Found segmentId in submitAssignment {}: {}", this.traceObjectId, segmentInfo.getProperties().getName(), existingSegmentId);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it. Still, we need to know if the Segment needs to be pinned.
             boolean needsToBePinned = pin && !this.connector.containerMetadata.getStreamSegmentMetadata(existingSegmentId).isPinned();
-            log.info("{}: Is valid segmentId in submitAssignment {}, just returning it. Is Pinned? {} (we want it to be? {})", this.traceObjectId, existingSegmentId,
-                    this.connector.containerMetadata.getStreamSegmentMetadata(existingSegmentId).isPinned(), pin);
-            return CompletableFuture.supplyAsync(() -> needsToBePinned ? this.connector.getPinSegment().apply(existingSegmentId, properties, pin, timeout) :
-                            CompletableFuture.completedFuture(false))
-                            .thenCompose(pinned -> {
+            CompletableFuture<Boolean> pinFuture = needsToBePinned ?
+                    this.connector.getPinSegment().apply(existingSegmentId, properties, pin, timeout) :
+                    CompletableFuture.completedFuture(false);
+            return pinFuture.thenCompose(pinned -> {
+                                if (pinned) {
+                                    log.info("{}: Segment {} has been pinned to memory.", this.traceObjectId, existingSegmentId);
+                                }
                                 completeAssignment(properties.getName(), existingSegmentId);
                                 return CompletableFuture.completedFuture(existingSegmentId);
                             });
         } else {
-            log.info("{}: Not valid segmentId in submitAssignment {}, creating MapSegmentId operation. Pinned? {}", this.traceObjectId, existingSegmentId, pin);
             String streamSegmentName = properties.getName();
             return this.connector.getMapSegmentId()
                                  .apply(segmentInfo.getSegmentId(), properties, pin, timeout)
