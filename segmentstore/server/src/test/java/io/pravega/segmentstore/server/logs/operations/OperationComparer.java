@@ -174,6 +174,8 @@ public class OperationComparer {
             assertSame(message, (CheckpointOperationBase) expected, (CheckpointOperationBase) actual);
         } else if (expected instanceof StreamSegmentMapOperation) {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
+        } else if (expected instanceof PinSegmentOperation) {
+            assertSame(message, (PinSegmentOperation) expected, (PinSegmentOperation) actual);
         } else if (expected instanceof UpdateAttributesOperation) {
             assertSame(message, (UpdateAttributesOperation) expected, (UpdateAttributesOperation) actual);
         } else {
@@ -187,6 +189,12 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         AssertExtensions.assertMapEquals(message + "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
+        Assert.assertEquals("Unexpected Pinned.", expected.isPinned(), actual.isPinned());
+    }
+
+    private void assertSame(String message, PinSegmentOperation expected, PinSegmentOperation actual) {
+        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         Assert.assertEquals("Unexpected Pinned.", expected.isPinned(), actual.isPinned());
     }
 
