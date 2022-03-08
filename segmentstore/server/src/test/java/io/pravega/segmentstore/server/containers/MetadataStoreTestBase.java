@@ -80,7 +80,7 @@ import org.mockito.Mockito;
  * Unit tests for MetadataStore class.
  */
 public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 123;
     private static final int ATTRIBUTE_COUNT = 10;
     private static final SegmentType SEGMENT_TYPE = SegmentType.builder().internal().build();
@@ -733,27 +733,16 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
      * Checks that we can create and register a pinned Segment via {@link MetadataStore}.
      */
     @Test
-    public void testRegisterPinnedSegment() {
+    public void testPinSegmentToMemory() {
         final String segmentName = "PinnedSegment";
         @Cleanup
         TestContext context = createTestContext();
-        context.getMetadataStore().createSegment(segmentName, SEGMENT_TYPE, null, TIMEOUT).join();
-        // Let's register a pinned Segment
-        SegmentType segmentType = SegmentType.builder().system().internal().critical().build();
-        long segmentId = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
-        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
-        // Register it again, now it should exercise the path of submitAssignment for already mapped segments.
-        long segmentId2 = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
-        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
-        Assert.assertEquals(segmentId2, segmentId);
-        // Now, induce the system to issue a PinSegmentOperation.
-        SegmentMetadata segmentMetadata = Mockito.spy(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId));
-        Mockito.when(segmentMetadata.isPinned()).thenReturn(false).thenCallRealMethod();
-        ContainerMetadata containerMetadata = Mockito.spy(context.connector.getContainerMetadata());
-        Mockito.when(containerMetadata.getStreamSegmentMetadata(segmentId)).thenReturn(segmentMetadata);
-        Mockito.when(context.connector.getContainerMetadata()).thenReturn(containerMetadata);
-        long segmentId3 = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
-        Assert.assertEquals(segmentId3, segmentId);
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder().name(segmentName).build();
+        context.connector.getMapSegmentId().apply(123, segmentProperties, false, TIMEOUT).join();
+        Assert.assertFalse(context.connector.getContainerMetadata().getStreamSegmentMetadata(123).isPinned());
+        Assert.assertEquals((long) context.getMetadataStore().pinSegmentToMemory(segmentName, TIMEOUT).join(), 123);
+        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(123).isPinned());
+        AssertExtensions.assertThrows(StreamSegmentNotExistsException.class, () -> context.getMetadataStore().pinSegmentToMemory("nonExistent", TIMEOUT).join());
     }
 
     /**

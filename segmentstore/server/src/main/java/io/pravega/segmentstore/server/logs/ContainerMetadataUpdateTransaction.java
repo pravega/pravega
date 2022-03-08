@@ -41,14 +41,12 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.PinSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -366,8 +364,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             processMetadataOperation((StorageMetadataCheckpointOperation) operation);
         } else if (operation instanceof StreamSegmentMapOperation) {
             preProcessMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof PinSegmentOperation) {
-            preProcessMetadataOperation((PinSegmentOperation) operation);
         }
     }
 
@@ -415,8 +411,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             ((CheckpointOperationBase) operation).clearContents();
         } else if (operation instanceof StreamSegmentMapOperation) {
             acceptMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof PinSegmentOperation) {
-            acceptMetadataOperation((PinSegmentOperation) operation);
         }
     }
 
@@ -425,12 +419,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // segment id as the one the operation is trying to set.
         checkExistingMapping(operation);
         assignUniqueSegmentId(operation);
-    }
-
-    private void preProcessMetadataOperation(PinSegmentOperation operation) throws ContainerException {
-        // Verify that the segment does exist and is mapped to an id. If it is mapped, then it needs to have
-        // the exact same segment id as the one the operation is trying to set.
-        checkNonExistingMapping(operation);
     }
 
     private void processMetadataOperation(MetadataCheckpointOperation operation) throws MetadataUpdateException {
@@ -493,18 +481,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         updateMetadata(operation, segmentMetadata);
     }
 
-    private void acceptMetadataOperation(PinSegmentOperation operation) throws MetadataUpdateException {
-        if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            throw new MetadataUpdateException(this.containerId,
-                    "StreamSegmentMapOperation does not have a SegmentId assigned: " + operation);
-        }
-
-        // Create or reuse an existing Segment Metadata.
-        UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentUpdateTransaction(
-                operation.getStreamSegmentName(), operation.getStreamSegmentId());
-        updateMetadata(operation, segmentMetadata);
-    }
-
     private void updateMetadata(StreamSegmentMapOperation mapping, UpdateableSegmentMetadata metadata) {
         metadata.setStorageLength(mapping.getLength());
 
@@ -529,13 +505,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         metadata.refreshDerivedProperties();
     }
 
-    private void updateMetadata(PinSegmentOperation pinSegment, UpdateableSegmentMetadata metadata) {
-        // Pin this to memory if needed.
-        if (pinSegment.isPinned()) {
-            metadata.markPinned();
-        }
-    }
-
     //endregion
 
     //region Helpers
@@ -546,16 +515,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 && existingSegmentId != operation.getStreamSegmentId()) {
             throw new MetadataUpdateException(this.containerId,
                     String.format("Operation '%s' wants to map a Segment that is already mapped in the metadata. Existing Id = %d.",
-                            operation, existingSegmentId));
-        }
-    }
-
-    private void checkNonExistingMapping(PinSegmentOperation operation) throws MetadataUpdateException {
-        long existingSegmentId = getStreamSegmentId(operation.getStreamSegmentName(), false);
-        if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID
-                || existingSegmentId != operation.getStreamSegmentId()) {
-            throw new MetadataUpdateException(this.containerId,
-                    String.format("Operation '%s' wants to update pinned flag for wrong or non-existing Segment Id = %d.",
                             operation, existingSegmentId));
         }
     }

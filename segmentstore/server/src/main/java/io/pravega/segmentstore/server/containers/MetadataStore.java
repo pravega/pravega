@@ -493,17 +493,7 @@ public abstract class MetadataStore implements AutoCloseable {
         long existingSegmentId = this.connector.getContainerMetadata().getStreamSegmentId(properties.getName(), true);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it. Still, we need to know if the Segment needs to be pinned.
-            boolean needsToBePinned = pin && !this.connector.getContainerMetadata().getStreamSegmentMetadata(existingSegmentId).isPinned();
-            CompletableFuture<Boolean> pinFuture = needsToBePinned ?
-                    this.connector.getPinSegment().apply(existingSegmentId, properties, pin, timeout) :
-                    CompletableFuture.completedFuture(false);
-            return pinFuture.thenCompose(pinned -> {
-                                if (pinned) {
-                                    log.info("{}: Segment {} ({}) has been pinned to memory.", this.traceObjectId, existingSegmentId, properties.getName());
-                                }
-                                completeAssignment(properties.getName(), existingSegmentId);
-                                return CompletableFuture.completedFuture(existingSegmentId);
-                            });
+            return pinSegment(existingSegmentId, properties.getName(), pin, timeout);
         } else {
             String streamSegmentName = properties.getName();
             return this.connector.getMapSegmentId()
@@ -513,18 +503,43 @@ public abstract class MetadataStore implements AutoCloseable {
     }
 
     /**
-     * Registers a new pinned Segment with given name.
+     * Marks an existing Segment as pinned to the in-memory metadata, if needed.
+     *
+     * @param segmentId Segment id of the Segment to pin.
+     * @param segmentName Name of the Segment.
+     * @param pin Whether we should pin the Segment to memory.
+     * @param timeout Timeout for the operation.
+     * @return A {@link CompletableFuture} that, when completed normally, will return the id of the Segment pinned to memory.
+     */
+    private CompletableFuture<Long> pinSegment(long segmentId, String segmentName, boolean pin, Duration timeout) {
+        boolean needsToBePinned = pin && !this.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned();
+        CompletableFuture<Boolean> pinFuture = needsToBePinned ?
+                this.connector.getPinSegment().apply(segmentId, segmentName, pin, timeout) :
+                CompletableFuture.completedFuture(false);
+        return pinFuture.thenCompose(pinned -> {
+            if (pinned) {
+                log.info("{}: Segment {} ({}) has been pinned to memory.", this.traceObjectId, segmentId, segmentName);
+            }
+            completeAssignment(segmentName, segmentId);
+            return CompletableFuture.completedFuture(segmentId);
+        });
+    }
+
+    /**
+     * Pins an existing Segment with given name to memory, so it cannot get evicted from metadata.
      *
      * @param segmentName The case-sensitive Segment Name.
-     * @param segmentType Type of Segment.
-     * @param attributes  The initial attributes for the StreamSegment, if any.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the Segment has been registered and pinned.
-     * If the operation failed, this will contain the exception that caused the failure.
+     * @return A CompletableFuture that, when completed normally, when completed normally, will return the id of the
+     * Segment pinned to memory. If the operation failed, this will contain the exception that caused the failure.
      */
-    CompletableFuture<Long> registerPinnedSegment(String segmentName, SegmentType segmentType,
-                                                  Collection<AttributeUpdate> attributes, Duration timeout) {
-        return submitAssignment(newSegment(segmentName, segmentType, attributes), true, timeout);
+    CompletableFuture<Long> pinSegmentToMemory(String segmentName, Duration timeout) {
+        long existingSegmentId = this.connector.getContainerMetadata().getStreamSegmentId(segmentName, true);
+        if (!isValidSegmentId(existingSegmentId)) {
+            return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
+        }
+
+        return pinSegment(existingSegmentId, segmentName, true, timeout);
     }
 
     /**
@@ -703,7 +718,7 @@ public abstract class MetadataStore implements AutoCloseable {
 
         @FunctionalInterface
         public interface PinSegment {
-            CompletableFuture<Boolean> apply(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout);
+            CompletableFuture<Boolean> apply(long segmentId, String segmentName, boolean pin, Duration timeout);
         }
     }
 

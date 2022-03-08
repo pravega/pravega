@@ -50,7 +50,6 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.PinSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -1163,75 +1162,6 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.commit(metadata);
         val truncatedMetadata = metadata.getStreamSegmentMetadata(metadata.getStreamSegmentId(truncateMap.getStreamSegmentName(), false));
         Assert.assertEquals("Unexpected startOffset for over-zealously truncated segment.", truncatedMetadata.getLength(), truncatedMetadata.getStartOffset());
-    }
-
-    /**
-     * Tests the preProcessOperation and acceptOperation methods with PinSegmentOperation operations.
-     */
-    @Test
-    public void testProcessPinSegmentOperation() throws ContainerException, StreamSegmentException {
-        long mapSequenceNumber = 1234;
-        UpdateableContainerMetadata metadata = createBlankMetadata();
-
-        // Part 1: recovery mode (no-op).
-        metadata.enterRecoveryMode();
-        val txn1 = createUpdateTransaction(metadata);
-        val pinnedSegment = new PinSegmentOperation("pinSegment", SEGMENT_ID, true);
-        // The operation is related to a non-existent Segment id, so it should fail.
-        AssertExtensions.assertThrows(MetadataUpdateException.class, () -> txn1.preProcessOperation(pinnedSegment));
-        Assert.assertNull("preProcessOperation modified the current transaction.", txn1.getStreamSegmentMetadata(pinnedSegment.getStreamSegmentId()));
-        Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(pinnedSegment.getStreamSegmentId()));
-        // Now, let's create a Segment with that id.
-        StreamSegmentMapOperation mapOperation = createMap("pinSegment");
-        txn1.preProcessOperation(mapOperation);
-        // In recovery mode, the operation has already been written and has a segment id and a sequence number.
-        mapOperation.setStreamSegmentId(SEGMENT_ID);
-        mapOperation.setSequenceNumber(mapSequenceNumber);
-        // Now, it should be accepted.
-        txn1.acceptOperation(mapOperation);
-        txn1.commit(metadata);
-        Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.",
-                SEGMENT_ID, mapOperation.getStreamSegmentId());
-        // In this case, we have not set the pinned flag to the map operation.
-        Assert.assertFalse("preProcessOperation did modify pinned flag on the operation in recovery mode.", mapOperation.isPinned());
-        Assert.assertFalse(txn1.getStreamSegmentMetadata(SEGMENT_ID).isPinned());
-        // With the Segment being mapped, we can now execute the PinSegmentOperation.
-        val txn2 = createUpdateTransaction(metadata);
-        txn2.preProcessOperation(pinnedSegment);
-        txn2.acceptOperation(pinnedSegment);
-        txn2.commit(metadata);
-        // After commit, the Segment should be pinned in metadata.
-        Assert.assertTrue(txn2.getStreamSegmentMetadata(SEGMENT_ID).isPinned());
-        Assert.assertTrue(metadata.getStreamSegmentMetadata(SEGMENT_ID).isPinned());
-
-        // Now without recovery mode.
-        metadata = createBlankMetadata();
-        long generatedSegmentId = 0;
-        val pinnedSegment2 = new PinSegmentOperation("pinSegment", generatedSegmentId, true);
-        val txn3 = createUpdateTransaction(metadata);
-        // The operation is related to a non-existent Segment id, so it should fail.
-        AssertExtensions.assertThrows(MetadataUpdateException.class, () -> txn3.preProcessOperation(pinnedSegment2));
-        Assert.assertNull("preProcessOperation modified the current transaction.", txn3.getStreamSegmentMetadata(pinnedSegment2.getStreamSegmentId()));
-        Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(pinnedSegment2.getStreamSegmentId()));
-        // Now, let's create a Segment with that id.
-        mapOperation = createMap("pinSegment");
-        txn3.preProcessOperation(mapOperation);
-        // Now, it should be accepted.
-        txn3.acceptOperation(mapOperation);
-        txn3.commit(metadata);
-        Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.",
-                generatedSegmentId, mapOperation.getStreamSegmentId());
-        // In this case, we have not set the pinned flag to the map operation.
-        Assert.assertFalse("preProcessOperation did modify pinned flag on the operation in recovery mode.", mapOperation.isPinned());
-        Assert.assertFalse(txn3.getStreamSegmentMetadata(generatedSegmentId).isPinned());
-        // With the Segment being mapped, we can now execute the PinSegmentOperation.
-        val txn4 = createUpdateTransaction(metadata);
-        txn4.preProcessOperation(pinnedSegment2);
-        txn4.acceptOperation(pinnedSegment2);
-        txn4.commit(metadata);
-        // After commit, the Segment should be pinned in metadata.
-        Assert.assertTrue(txn4.getStreamSegmentMetadata(generatedSegmentId).isPinned());
-        Assert.assertTrue(metadata.getStreamSegmentMetadata(generatedSegmentId).isPinned());
     }
 
     /**

@@ -70,7 +70,6 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
-import io.pravega.segmentstore.server.logs.operations.PinSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -990,16 +989,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
     }
 
-    private CompletableFuture<Boolean> pinSegment(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout) {
-        Preconditions.checkNotNull(segmentProperties, "SegmentProperties cannot be null.");
+    private CompletableFuture<Boolean> pinSegment(long segmentId, String segmentName, boolean pin, Duration timeout) {
+        Preconditions.checkNotNull(segmentName, "SegmentName cannot be null.");
         Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Segment must have a valid id.");
-        PinSegmentOperation op = new PinSegmentOperation(segmentProperties.getName(), segmentId, pin);
 
-        if (pin) {
-            op.markPinned();
+        UpdateableSegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata != null && pin) {
+            segmentMetadata.markPinned();
         }
-        OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
-        return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.isPinned());
+        return CompletableFuture.completedFuture(false);
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
