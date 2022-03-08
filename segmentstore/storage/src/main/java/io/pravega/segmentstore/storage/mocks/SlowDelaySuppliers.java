@@ -35,13 +35,13 @@ public class SlowDelaySuppliers {
      * @return instance of {@link Supplier<Duration>}.
      */
     static Supplier<Duration> getDurationSupplier(StorageExtraConfig config) {
-        if (config.getDistributionType().equals(StorageDistributionType.FIXED_DISTRIBUTION_TYPE)) {
+        if (config.getDistributionType().equals(StorageDelayDistributionType.FIXED_DISTRIBUTION_TYPE)) {
             return new FixedDelaySupplier(config.getSlowModeLatencyMeanMillis());
         }
-        if (config.getDistributionType().equals(StorageDistributionType.NORMAL_DISTRIBUTION_TYPE)) {
+        if (config.getDistributionType().equals(StorageDelayDistributionType.NORMAL_DISTRIBUTION_TYPE)) {
             return new GaussianDelaySupplier(config.getSlowModeLatencyMeanMillis(), config.getSlowModeLatencyStdDevMillis());
         }
-        if (config.getDistributionType().equals(StorageDistributionType.SINUSOIDAL_DISTRIBUTION_TYPE)) {
+        if (config.getDistributionType().equals(StorageDelayDistributionType.SINUSOIDAL_DISTRIBUTION_TYPE)) {
             return new SinusoidalDelaySupplier(config.getSlowModeLatencyMeanMillis(), config.getSlowModeLatencyCycleTimeMillis());
         }
         throw new UnsupportedOperationException();

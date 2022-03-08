@@ -49,7 +49,7 @@ public class SlowStorageTests extends StorageTestBase {
         innerStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return new SlowStorage(innerStorage, executor, StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
-                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.NORMAL_DISTRIBUTION_TYPE)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDelayDistributionType.NORMAL_DISTRIBUTION_TYPE)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
                 .build());

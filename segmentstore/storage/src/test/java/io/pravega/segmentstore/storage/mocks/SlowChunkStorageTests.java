@@ -36,7 +36,7 @@ public class SlowChunkStorageTests extends SimpleStorageTests {
         ChunkStorage inner = new InMemoryChunkStorage(executorService);
         return new SlowChunkStorage(inner, executorService, StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
-                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDistributionType.NORMAL_DISTRIBUTION_TYPE)
+                .with(StorageExtraConfig.STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDelayDistributionType.NORMAL_DISTRIBUTION_TYPE)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
                 .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
                 .build());

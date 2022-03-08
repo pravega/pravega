@@ -18,7 +18,7 @@ package io.pravega.segmentstore.storage.mocks;
 /**
  * Type of Distribution to use for the working of LTS.
  */
-public enum StorageDistributionType {
+public enum StorageDelayDistributionType {
     /**
      * Uses {@link io.pravega.segmentstore.storage.mocks.SlowDelaySuppliers}.
      */
