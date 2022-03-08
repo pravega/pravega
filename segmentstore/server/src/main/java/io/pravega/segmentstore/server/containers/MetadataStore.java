@@ -499,7 +499,7 @@ public abstract class MetadataStore implements AutoCloseable {
                     CompletableFuture.completedFuture(false);
             return pinFuture.thenCompose(pinned -> {
                                 if (pinned) {
-                                    log.info("{}: Segment {} has been pinned to memory.", this.traceObjectId, existingSegmentId);
+                                    log.info("{}: Segment {} ({}) has been pinned to memory.", this.traceObjectId, existingSegmentId, properties.getName());
                                 }
                                 completeAssignment(properties.getName(), existingSegmentId);
                                 return CompletableFuture.completedFuture(existingSegmentId);
