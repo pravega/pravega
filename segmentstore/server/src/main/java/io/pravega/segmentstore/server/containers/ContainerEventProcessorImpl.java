@@ -134,12 +134,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                                                                         MetadataStore metadataStore,
                                                                                         Duration timeout) {
         return s -> tryCreateInternalSegment(container, s, timeout)
-                .thenCompose(v -> {
-                    System.err.println("FOR SEGMENT " + s);
-                    return container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout);
-                })
+                .thenCompose(v -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout))
                 .thenApply(directAccessSegment -> {
-                    System.err.println("PINNING SEGMENT " + directAccessSegment);
                     metadataStore.pinSegmentToMemory(getEventProcessorSegmentName(container.getId(), s), timeout); // Segment should be pinned.
                     return directAccessSegment;
                 });
@@ -147,26 +143,19 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     CompletableFuture<Void> tryCreateInternalSegment(SegmentContainer container, String eventProcessorName, Duration timeout) {
         synchronized (eventProcessorMap) {
-            System.err.println("try create " + eventProcessorName + "  " + eventProcessorMap);
-            if (!this.eventProcessorMap.containsKey(eventProcessorName)) {
-                System.err.println("DOES NOT EXIST, CREATING " + eventProcessorName);
+            if (!this.eventProcessorMap.containsKey(eventProcessorName) || !this.eventProcessorMap.get(eventProcessorName).isDone()) {
                 String segmentName = getEventProcessorSegmentName(container.getId(), eventProcessorName);
                 return container.createStreamSegment(segmentName, SYSTEM_CRITICAL_SEGMENT, null, timeout)
-                        .thenAccept(v -> {
-                            log.info("Created internal ContainerEventProcessor Segment {}.", segmentName);
-                            System.err.println("CREATED " + eventProcessorName);
-                        })
+                        .thenAccept(v -> log.info("{}: Created internal ContainerEventProcessor Segment {}.", this.traceObjectId, segmentName))
                         .exceptionally(e -> {
                             val ex = Exceptions.unwrap(e);
                             if (e.getCause() instanceof StreamSegmentExistsException) {
-                                System.err.println("ALREADY EXIST " + eventProcessorName);
-                                log.info("ContainerEventProcessor Segment {} already exists.", segmentName);
+                                log.info("{}: ContainerEventProcessor Segment {} already exists.", this.traceObjectId, segmentName);
                                 return null;
                             }
                             throw new CompletionException(ex);
                         });
             }
-            System.err.println("EXISTS, NOT CREATING " + eventProcessorName);
             return CompletableFuture.completedFuture(null);
         }
     }
