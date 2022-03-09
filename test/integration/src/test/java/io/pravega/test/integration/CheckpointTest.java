@@ -32,6 +32,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -142,6 +143,99 @@ public class CheckpointTest {
         Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint.isDone());
         assertEquals("Checkpoint", cpResult.getName());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+        assertFalse(read.isCheckpoint());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(cpResult).disableAutomaticCheckpoints().build());
+        try {
+            reader.readNextEvent(60000);
+            fail();
+        } catch (ReinitializationRequiredException e) {
+            //Expected
+        }
+        reader.close();
+        reader = clientFactory.createReader(readerName, readerGroupName, serializer, ReaderConfig.builder().build());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+        assertFalse(read.isCheckpoint());
+    }
+
+    /*
+    *  Initiate checkpoint with internal executor and restore back.
+    */
+    @Test(timeout = 20000)
+    public void testCheckpointInternalExecutorAndRestore() throws ReinitializationRequiredException, InterruptedException,
+            ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "testCPInternalExecutorAndRestore";
+        String readerName = "reader";
+        String readerGroupName = "testCPInternalExecutorAndRestore-group";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "ScopeInExecutor";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         .stream(Stream.of(scope, streamName)).build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("CheckpointInternalExcutor");
+        assertFalse(checkpoint.isDone());
+        read = reader.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointInternalExcutor", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+        Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
+        assertTrue(checkpoint.isDone());
+        assertEquals("CheckpointInternalExcutor", cpResult.getName());
         read = reader.readNextEvent(100);
         assertNull(read.getEvent());
         assertFalse(read.isCheckpoint());
