@@ -996,6 +996,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         UpdateableSegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(segmentId);
         if (segmentMetadata != null && pin) {
             segmentMetadata.markPinned();
+            return CompletableFuture.completedFuture(true);
         }
         return CompletableFuture.completedFuture(false);
     }
