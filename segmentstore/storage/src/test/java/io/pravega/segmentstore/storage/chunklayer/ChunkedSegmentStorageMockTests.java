@@ -26,7 +26,6 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutEx
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
-import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -43,8 +42,6 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.anyBoolean;
@@ -518,8 +515,5 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
 
         // Not possible to mock any other reporter except metadata store.
         verify(spyMetadataStore).report();
-
-        Assert.assertEquals(123, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_BYTES).value(), 0);
-        Assert.assertEquals(12.3, MetricRegistryUtils.getGauge(SLTS_STORAGE_USED_PERCENTAGE).value(), 0);
     }
 }
