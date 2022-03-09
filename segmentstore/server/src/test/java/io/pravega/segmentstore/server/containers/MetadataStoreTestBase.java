@@ -74,13 +74,12 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 /**
  * Unit tests for MetadataStore class.
  */
 public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int CONTAINER_ID = 123;
     private static final int ATTRIBUTE_COUNT = 10;
     private static final SegmentType SEGMENT_TYPE = SegmentType.builder().internal().build();
@@ -865,7 +864,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         // Setup a connector with default, functioning callbacks.
-        TestConnector connector = Mockito.spy(new TestConnector(
+        TestConnector connector = new TestConnector(
                 metadata,
                 (id, sp, pin, timeout) -> {
                     if (id == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
@@ -902,7 +901,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                         sm.markPinned();
                     }
                     return CompletableFuture.completedFuture(pin);
-                }));
+                });
 
         return createTestContext(connector);
     }

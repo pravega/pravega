@@ -141,7 +141,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 });
     }
 
-    CompletableFuture<Void> tryCreateInternalSegment(SegmentContainer container, String eventProcessorName, Duration timeout) {
+    private CompletableFuture<Void> tryCreateInternalSegment(SegmentContainer container, String eventProcessorName, Duration timeout) {
         synchronized (eventProcessorMap) {
             if (!this.eventProcessorMap.containsKey(eventProcessorName) || !this.eventProcessorMap.get(eventProcessorName).isDone()) {
                 String segmentName = getEventProcessorSegmentName(container.getId(), eventProcessorName);
@@ -206,8 +206,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
                 Runnable onClose = () -> eventProcessorMap.remove(name);
                 // Put the future for this EventProcessor that will be completed upon initialization. All other callers
-                // will get the same result as t
-                // hey will be waiting for the same future object.
+                // will get the same result as they will be waiting for the same future object.
                 processorFuture = new CompletableFuture<>();
                 eventProcessorMap.put(name, processorFuture);
                 createEventProcessor(name, config, onClose, handler, true, processorFuture);
