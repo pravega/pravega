@@ -224,6 +224,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return new CheckpointImpl(checkpointName, map);
     }
+
     @Override
     public void resetReaderGroup() {
         log.info("Reset ReaderGroup {} to successfully last completed checkpoint", getGroupName());
@@ -248,6 +249,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         resetReaderGroup(config);
 
     }
+
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
