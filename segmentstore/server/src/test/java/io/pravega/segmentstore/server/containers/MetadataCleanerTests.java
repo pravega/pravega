@@ -195,7 +195,8 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
                     (s, sp, pin, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
                     (s, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
                     (s, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
-                    () -> Futures.failedFuture(new UnsupportedOperationException()));
+                    () -> Futures.failedFuture(new UnsupportedOperationException()),
+                    (s, sp, pin, timeout) -> Futures.failedFuture(new UnsupportedOperationException()));
 
             this.metadataStore = new TestMetadataStore(connector);
             this.cleaner = new MetadataCleaner(CONFIG, this.metadata, this.metadataStore, this.cleanedUpMetadata::addAll, executorService(), "");

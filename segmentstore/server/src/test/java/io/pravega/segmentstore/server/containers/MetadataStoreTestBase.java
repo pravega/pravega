@@ -707,15 +707,16 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
      * Checks that we can create and register a pinned Segment via {@link MetadataStore}.
      */
     @Test
-    public void testRegisterPinnedSegment() {
+    public void testPinSegmentToMemory() {
         final String segmentName = "PinnedSegment";
         @Cleanup
         TestContext context = createTestContext();
-        context.getMetadataStore().createSegment(segmentName, SEGMENT_TYPE, null, TIMEOUT).join();
-        // Let's register a pinned Segment
-        SegmentType segmentType = SegmentType.builder().system().internal().critical().build();
-        long segmentId = context.getMetadataStore().registerPinnedSegment(segmentName, segmentType, null, TIMEOUT).join();
-        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(segmentId).isPinned());
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder().name(segmentName).build();
+        context.connector.getMapSegmentId().apply(123, segmentProperties, false, TIMEOUT).join();
+        Assert.assertFalse(context.connector.getContainerMetadata().getStreamSegmentMetadata(123).isPinned());
+        Assert.assertEquals((long) context.getMetadataStore().pinSegmentToMemory(segmentName, TIMEOUT).join(), 123);
+        Assert.assertTrue(context.connector.getContainerMetadata().getStreamSegmentMetadata(123).isPinned());
+        AssertExtensions.assertThrows(StreamSegmentNotExistsException.class, () -> context.getMetadataStore().pinSegmentToMemory("nonExistent", TIMEOUT).join());
     }
 
     private String getName(long segmentId) {
@@ -828,7 +829,15 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                     }
                     return CompletableFuture.completedFuture(null);
                 },
-                runCleanup);
+                runCleanup,
+                (id, sp, pin, timeout) -> {
+                    Assert.assertNotEquals("PinSegmentOperation with no segment id.", ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
+                    UpdateableSegmentMetadata sm = metadata.getStreamSegmentMetadata(id);
+                    if (pin) {
+                        sm.markPinned();
+                    }
+                    return CompletableFuture.completedFuture(pin);
+                });
 
         return createTestContext(connector);
     }
@@ -886,8 +895,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Setter
         private LazyDeleteSegment lazyDeleteSegment;
 
-        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment, Supplier<CompletableFuture<Void>> runCleanup) {
-            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment, runCleanup);
+        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment,
+                      Supplier<CompletableFuture<Void>> runCleanup, PinSegment pinSegment) {
+            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment, runCleanup, pinSegment);
             reset();
         }
 
