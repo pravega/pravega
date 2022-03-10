@@ -224,31 +224,34 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return new CheckpointImpl(checkpointName, map);
     }
+    @Override
+    public void resetReaderGroup() {
+        log.info("Reset ReaderGroup {} to successfully last completed checkpoint", getGroupName());
+        synchronizer.fetchUpdates();
+        //reset the reader group to last completed checkpoint, If there is no successfully completed last checkpoint then reset back to start of streamcut
+        val latestCheckpointConfig = synchronizer.getState().getConfig();
+        ReaderGroupConfig config = latestCheckpointConfig;
+        Optional<Map<Stream, Map<Segment, Long>>> lastCheckPointPositions =
+                synchronizer.getState().getPositionsForLastCompletedCheckpoint();
 
+        if (lastCheckPointPositions.isPresent()) {
+            Map<Stream, StreamCut> streamCuts = new HashMap<>();
+            for (Entry<Stream, Map<Segment, Long>> streamPosition : lastCheckPointPositions.get().entrySet()) {
+                streamCuts.put(streamPosition.getKey(), new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue()));
+            }
+            config = latestCheckpointConfig.toBuilder().startingStreamCuts(streamCuts).build();
+
+        } else {
+            log.info("Reset reader group to last completed checkpoint is not successful as there is no checkpoint available, so resetting to start of stream cut. ");
+
+        }
+        resetReaderGroup(config);
+
+    }
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
         synchronizer.fetchUpdates();
-
-        //If null passed to ReaderGroupConfig then reset the reader group to last completed checkpoint.
-        if (config == null) {
-            val latestCheckpointConfig = synchronizer.getState().getConfig();
-            Optional<Map<Stream, Map<Segment, Long>>> lastCheckPointPositions =
-                    synchronizer.getState().getPositionsForLastCompletedCheckpoint();
-
-            if (lastCheckPointPositions.isPresent()) {
-                Map<Stream, StreamCut> streamCuts = new HashMap<>();
-                for (Entry<Stream, Map<Segment, Long>> streamPosition : lastCheckPointPositions.get().entrySet()) {
-                    streamCuts.put(streamPosition.getKey(), new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue()));
-                }
-                config = latestCheckpointConfig.toBuilder().startingStreamCuts(streamCuts).build();
-
-            } else {
-                log.info("Reset reader group to last completed checkpoint is not successful as there is no checkpoint available, so resetting to start of stream cut. ");
-                config = latestCheckpointConfig;
-            }
-
-        }
         while (true) {
             val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.

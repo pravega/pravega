@@ -173,9 +173,9 @@ public class ReaderGroupImplTest {
 
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
 
-        verify(synchronizer, times(1)).fetchUpdates();
+        verify(synchronizer, times(2)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
@@ -194,9 +194,9 @@ public class ReaderGroupImplTest {
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
         when(controller.getSegmentsAtTime(any(Stream.class), anyLong())).thenReturn(CompletableFuture.completedFuture(positions));
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
 
-        verify(synchronizer, times(1)).fetchUpdates();
+        verify(synchronizer, times(2)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }

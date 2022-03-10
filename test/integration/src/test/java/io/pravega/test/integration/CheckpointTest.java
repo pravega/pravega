@@ -383,7 +383,7 @@ public class CheckpointTest {
         assertNull(reader.readNextEvent(100).getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
         try {
             reader.readNextEvent(60000);
             fail();
@@ -460,7 +460,7 @@ public class CheckpointTest {
         assertNull(reader.readNextEvent(100).getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
         try {
             reader.readNextEvent(60000);
             fail();
@@ -481,7 +481,7 @@ public class CheckpointTest {
 
     /* Scenario where application trigger a call to read data from a specific streamcut.
     * Consider scenario when there is no checkpoint created in the stream.
-    * Now when resetReaderGroup(null) call triggers, then reader group starts reading from start of streamcut not start of stream.
+    * Now when resetReaderGroup() call triggers, then reader group starts reading from start of streamcut not start of stream.
     */
     @Test(timeout = 20000)
     public void testCPAndRestoreToStreamCutNoLastCheckpoint() throws ReinitializationRequiredException, InterruptedException,
@@ -549,7 +549,7 @@ public class CheckpointTest {
         assertEquals(testString5, reader.readNextEvent(1000).getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
         try {
             reader.readNextEvent(60000);
             fail();
@@ -571,7 +571,7 @@ public class CheckpointTest {
     /*
     * Consider the scenario where reader in RG reading Stream s1 and created checkpoint CP1(say position p1 in segment).
     *  Now there is call reset readergroup by adding new stream s2 and streamcut sc1 on stream s1(say position p2(>p1) in segment
-    *  Now If there is call to resetReaderGroup(null) then It should start reading stream s1 from streamcut sc1 and s2 from head.
+    *  Now If there is call to resetReaderGroup() then It should start reading stream s1 from streamcut sc1 and s2 from head.
     */
     @Test(timeout = 20000)
     public void testCPAndRestoreWithAddDeleteStream() throws ReinitializationRequiredException, InterruptedException,
@@ -704,9 +704,9 @@ public class CheckpointTest {
         assertNotNull(reader.readNextEvent(1000).getEvent());
         assertNotNull(reader.readNextEvent(1000).getEvent());
 
-        //Reset reader group to null been called which essentially reset readergroup to streamcut sc1 of stream s1 and head of stream s2.
+        //Reset reader group without passing config been called which essentially reset readergroup to streamcut sc1 of stream s1 and head of stream s2.
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaderGroup(null);
+        readerGroup.resetReaderGroup();
         try {
             reader.readNextEvent(60000);
 
