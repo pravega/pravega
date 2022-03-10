@@ -30,6 +30,7 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -43,7 +44,9 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -82,6 +85,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     private final int containerId;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
+    @GuardedBy("eventProcessorMap")
     private final Map<String, CompletableFuture<EventProcessor>> eventProcessorMap = new ConcurrentHashMap<>();
     private final Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier;
     private final Duration iterationDelay;
@@ -95,8 +99,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     ContainerEventProcessorImpl(@NonNull SegmentContainer container, @NonNull MetadataStore metadataStore,
                                 @NonNull Duration iterationDelay, @NonNull Duration containerOperationTimeout,
                                 @NonNull ScheduledExecutorService executor) {
-        this(container.getId(), getOrCreateInternalSegment(container, metadataStore, containerOperationTimeout), iterationDelay,
-                containerOperationTimeout, executor);
+        this.containerId = container.getId();
+        this.traceObjectId = String.format("ContainerEventProcessor[%d]", containerId);
+        this.segmentSupplier = getOrCreateInternalSegment(container, metadataStore, containerOperationTimeout);
+        this.iterationDelay = iterationDelay;
+        this.containerOperationTimeout = containerOperationTimeout;
+        this.closed = new AtomicBoolean(false);
+        this.executor = executor;
     }
 
     @VisibleForTesting
@@ -123,12 +132,36 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * {@link ContainerEventProcessor.EventProcessor} based on its name.
      */
     @VisibleForTesting
-    static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
-                                                                                               MetadataStore metadataStore,
-                                                                                               Duration timeout) {
-        return s -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
-                SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
-                .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout));
+    Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
+                                                                                        MetadataStore metadataStore,
+                                                                                        Duration timeout) {
+        return s -> tryCreateAndPinInternalSegment(container, metadataStore, s, timeout)
+                .thenCompose(v -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout));
+    }
+
+    private CompletableFuture<Void> tryCreateAndPinInternalSegment(SegmentContainer container, MetadataStore metadataStore,
+                                                                   String eventProcessorName, Duration timeout) {
+        CompletableFuture<EventProcessor> eventProcessorFuture;
+        synchronized (eventProcessorMap) {
+            eventProcessorFuture = this.eventProcessorMap.get(eventProcessorName);
+        }
+        // Only instantiate and pin the Segment if the EventProcessor is not initialized. Otherwise, do nothing.
+        if (eventProcessorFuture == null || !eventProcessorFuture.isDone()) {
+            String segmentName = getEventProcessorSegmentName(container.getId(), eventProcessorName);
+            return container.createStreamSegment(segmentName, SYSTEM_CRITICAL_SEGMENT, null, timeout)
+                    .thenAccept(v -> log.info("{}: Created internal Segment {}.", this.traceObjectId, segmentName))
+                    .exceptionally(e -> {
+                        val ex = Exceptions.unwrap(e);
+                        if (e.getCause() instanceof StreamSegmentExistsException) {
+                            log.info("{}: ContainerEventProcessor Segment {} already exists.", this.traceObjectId, segmentName);
+                            return null;
+                        }
+                        log.error("{}: Unexpected problem creating internal Segment {}.", this.traceObjectId, segmentName, ex);
+                        throw new CompletionException(ex);
+                    })
+                    .thenAccept(v -> metadataStore.pinSegmentToMemory(getEventProcessorSegmentName(container.getId(), eventProcessorName), timeout)); // Pin the Segment in memory.
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     //endregion
