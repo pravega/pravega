@@ -2115,6 +2115,10 @@ public class ControllerImplTest {
         List<TransactionInfo> listUUID;
         listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).join();
         assertEquals(listUUID.size(), 1);
+        assertEquals(listUUID.get(0).getTransactionStatus(), Transaction.Status.ABORTED);
+        assertEquals(listUUID.get(0).getStream().getScope(), "scope1");
+        assertEquals(listUUID.get(0).getStream().getStreamName(), "stream1");
+        assertNotNull(listUUID.get(0).getTransactionId());
 
         listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).join();
         assertEquals(listUUID.size(), 0);

@@ -28,6 +28,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -886,6 +887,10 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         List<TransactionInfo> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream")).join();
 
         assertEquals(listTxns.size(), listResponse.keySet().size());
+        assertEquals(listTxns.get(0).getStream().getStreamName(), "stream");
+        assertEquals(listTxns.get(0).getStream().getScope(), "scope");
+        assertEquals(listTxns.get(0).getTransactionStatus(), Transaction.Status.valueOf(listResponse.values().stream().collect(Collectors.toList()).get(0).name()));
+        assertEquals(listTxns.get(0).getTransactionId(), listResponse.keySet().stream().collect(Collectors.toList()).get(0));
         Assert.assertTrue(listResponse.keySet().stream().collect(Collectors.toList()).contains(listTxns.get(0).getTransactionId()));
     }
 }
