@@ -46,6 +46,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -84,6 +85,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     private final int containerId;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
+    @GuardedBy("eventProcessorMap")
     private final Map<String, CompletableFuture<EventProcessor>> eventProcessorMap = new ConcurrentHashMap<>();
     private final Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier;
     private final Duration iterationDelay;
@@ -139,7 +141,11 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     private CompletableFuture<Void> tryCreateAndPinInternalSegment(SegmentContainer container, MetadataStore metadataStore,
                                                                    String eventProcessorName, Duration timeout) {
-        CompletableFuture<EventProcessor> eventProcessorFuture = this.eventProcessorMap.get(eventProcessorName);
+        CompletableFuture<EventProcessor> eventProcessorFuture;
+        synchronized (eventProcessorMap) {
+            eventProcessorFuture = this.eventProcessorMap.get(eventProcessorName);
+        }
+        // Only instantiate and pin the Segment if the EventProcessor is not initialized. Otherwise, do nothing.
         if (eventProcessorFuture == null || !eventProcessorFuture.isDone()) {
             String segmentName = getEventProcessorSegmentName(container.getId(), eventProcessorName);
             return container.createStreamSegment(segmentName, SYSTEM_CRITICAL_SEGMENT, null, timeout)
