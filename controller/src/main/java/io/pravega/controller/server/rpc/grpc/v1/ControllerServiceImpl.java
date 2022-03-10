@@ -907,19 +907,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(), LIST_COMPLETED_TRANSACTIONS, request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
-        log.info(requestTag.getRequestId(), "listCompletedTransactions called for stream {}/{}.", request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(), LIST_COMPLETED_TRANSACTIONS,
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+        log.info(requestTag.getRequestId(), "listCompletedTransactions called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                         authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                         AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.listCompletedTxns(request.getStreamInfo().getScope(),
-                                request.getStreamInfo().getStream(), pageLimit, request.getContinuationToken().getToken(), requestTag.getRequestId())
+                                request.getStreamInfo().getStream(), requestTag.getRequestId())
                         .thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder()
-                                .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(result.getValue()).build())
-                                .addAllResponse(result.getKey())
+                                .addAllResponse(result.entrySet().stream().map(x -> Controller.TxnResponse.newBuilder()
+                                                .setTxnId(decode(x.getKey())).setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().name())).build())
+                                        .collect(Collectors.toList()))
                                 .build()),
                 responseObserver, requestTag);
-   }
+    }
 
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {

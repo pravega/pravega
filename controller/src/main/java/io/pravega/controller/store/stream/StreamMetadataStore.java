@@ -36,7 +36,6 @@ import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -1131,13 +1130,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope Scope of stream
      * @param stream name of stream
-     * @param limit max no of record
-     * @param continuationToken continuation token
      * @param context operation context
      * @param executor caller executor
-     * @return pair having list of TxnResponse and continuationToken
+     * @return map having transactionId and transaction status
      */
-    CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final String scope, final String stream, final int limit, final String continuationToken, final OperationContext context, final Executor executor);
+    CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Adds specified resource as a child of current host's hostId node.

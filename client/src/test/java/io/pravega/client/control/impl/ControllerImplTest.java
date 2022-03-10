@@ -36,6 +36,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -1055,7 +1056,6 @@ public class ControllerImplTest {
                                     .setTxnId(decode(uuid))
                                     .setStatus(Controller.TxnResponse.Status.ABORTED)
                                     .build())
-                            .setContinuationToken(request.getContinuationToken())
                             .build());
                 } else if (request.getStreamInfo().getStream().equals("stream2")) {
                     responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
@@ -2112,12 +2112,12 @@ public class ControllerImplTest {
 
     @Test
     public void testListCompletedTransaction() throws Exception {
-        AsyncIterator<Controller.TxnResponse> listUUID;
-        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1"));
-        assertTrue(listUUID.getNext().join().hasTxnId());
+        List<TransactionInfo> listUUID;
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).join();
+        assertEquals(listUUID.size(), 1);
 
-        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2"));
-        assertFalse(listUUID.asIterator().hasNext());
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).join();
+        assertEquals(listUUID.size(), 0);
     }
 
     @Test

@@ -28,6 +28,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -37,6 +38,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -49,6 +51,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -874,14 +878,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testListCompletedTransactions() {
-        List<Controller.TxnResponse> listResponse = new ArrayList<>(2);
-        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.ABORTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
-        listResponse.add(Controller.TxnResponse.newBuilder().setStatus(Controller.TxnResponse.Status.COMMITTED).setTxnId(ModelHelper.decode(UUID.randomUUID())).build());
+        Map<UUID, TxnStatus> listResponse = new HashMap<>();
+        listResponse.put(UUID.randomUUID(), TxnStatus.ABORTED);
+        listResponse.put(UUID.randomUUID(), TxnStatus.COMMITTED);
 
-        when(this.mockControllerService.listCompletedTxns(any(), any(), anyInt(), any(), anyLong())).thenReturn(CompletableFuture.completedFuture(new ImmutablePair<>(listResponse, "")));
-        AsyncIterator<Controller.TxnResponse> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream"));
+        when(this.mockControllerService.listCompletedTxns(any(), any(), anyLong())).thenReturn(CompletableFuture.completedFuture(listResponse));
+        List<TransactionInfo> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream")).join();
 
-        assertEquals(listResponse.get(0).getTxnId(), listTxns.getNext().join().getTxnId());
-        assertEquals(listResponse.get(1).getTxnId(), listTxns.getNext().join().getTxnId());
+        assertEquals(listTxns.size(), listResponse.keySet().size());
+        Assert.assertTrue(listResponse.keySet().stream().collect(Collectors.toList()).contains(listTxns.get(0).getTransactionId()));
     }
 }

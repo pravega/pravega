@@ -24,6 +24,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -35,7 +36,6 @@ import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
-import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -366,12 +366,12 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
     /**
-     * Gets an {@link AsyncIterator} on TxnResponse in stream.
+     * Get list of TransactionInfo for the Stream.
      *
-     * @param stream The name of the stream for which to list completed transaction.
-     * @return An {@link AsyncIterator} which can be used to iterate over all TxnResponse in the stream.
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return list of TransactionInfo.
      */
-    AsyncIterator<TxnResponse> listCompletedTransactions(final Stream stream);
+    CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream);
 
     // Controller Apis that are called by readers
 

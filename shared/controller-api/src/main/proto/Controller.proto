@@ -332,11 +332,9 @@ message TxnState {
 
 message ListCompletedTxnRequest {
     StreamInfo streamInfo = 1;
-    ContinuationToken continuationToken = 2;
 }
 
 message ListCompletedTxnResponse{
-    ContinuationToken continuationToken = 1;
     repeated TxnResponse response = 2;
 }
 

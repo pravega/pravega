@@ -1158,7 +1158,6 @@ public abstract class ControllerServiceImplTest {
 
         Controller.ListCompletedTxnRequest listTxnInOpenStateRequest = Controller.ListCompletedTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
-                .setContinuationToken(Controller.ContinuationToken.newBuilder().build())
                 .build();
 
         ResultObserver<Controller.ListCompletedTxnResponse> listTxnInStateObserver = new ResultObserver<>();

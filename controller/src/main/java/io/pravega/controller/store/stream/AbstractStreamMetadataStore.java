@@ -50,7 +50,6 @@ import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -951,11 +950,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(String scope, String stream,
-                                                                                           final int limit, final String continuationToken,
-                                                                                           OperationContext context, Executor executor) {
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(String scope, String stream,
+                                                                     OperationContext context, Executor executor) {
         OperationContext operationContext = getOperationContext(context);
-        return  Futures.completeOn(getStream(scope, stream, operationContext).listCompletedTxns(limit, continuationToken, operationContext), executor);
+        return  Futures.completeOn(getStream(scope, stream, operationContext).listCompletedTxns(operationContext), executor);
     }
 
     @Override

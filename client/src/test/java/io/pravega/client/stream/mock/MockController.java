@@ -31,6 +31,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
@@ -72,7 +73,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
@@ -670,7 +670,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public AsyncIterator<TxnResponse> listCompletedTransactions(Stream stream) {
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(Stream stream) {
         throw new UnsupportedOperationException();
     }
 

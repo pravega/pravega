@@ -17,7 +17,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -36,7 +35,6 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
@@ -58,7 +56,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -1719,8 +1716,8 @@ public abstract class StreamTestBase {
         UUID txnId1 = createAndCommitTransaction(stream, 0, 0L);
         UUID txnId2 = createAndCommitTransaction(stream, 0, 1L);
 
-        Pair<List<Controller.TxnResponse>, String> list = stream.listCompletedTxns(1, "", context).join();
-        assertEquals(0, list.getKey().size());
+        Map<UUID, TxnStatus> list = stream.listCompletedTxns(context).join();
+        assertEquals(0, list.size());
 
         // start commit transactions
         VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join().getKey();
@@ -1732,16 +1729,9 @@ public abstract class StreamTestBase {
         stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
         stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
 
-        list = stream.listCompletedTxns(1, list.getValue(), context).join();
-        Controller.TxnResponse txnResponse = Controller.TxnResponse.newBuilder()
-                .setTxnId(ModelHelper.decode(txnId1))
-                .setStatus(Controller.TxnResponse.Status.COMMITTED).build();
-        assertTrue(list.getKey().contains(txnResponse));
-
-        list = stream.listCompletedTxns(1, list.getValue(), context).join();
-        txnResponse = Controller.TxnResponse.newBuilder()
-                .setTxnId(ModelHelper.decode(txnId2))
-                .setStatus(Controller.TxnResponse.Status.COMMITTED).build();
-        assertTrue(list.getKey().contains(txnResponse));
+        list = stream.listCompletedTxns(context).join();
+        assertEquals(list.size(), 2);
+        assertTrue(list.keySet().contains(txnId1));
+        assertTrue(list.keySet().contains(txnId2));
     }
 }

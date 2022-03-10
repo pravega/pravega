@@ -17,11 +17,9 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
@@ -41,11 +39,8 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
@@ -762,33 +757,10 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context) {
-        String newContinuationToken;
-        List<Controller.TxnResponse> listTxns;
-        int lastPos = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
-
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
         synchronized (txnsLock) {
-
-            if (Strings.isNullOrEmpty(continuationToken)) {
-                listTxns = completedTxns.asMap().entrySet().stream().limit(limit).map(x -> Controller.TxnResponse.newBuilder()
-                                .setTxnId(ModelHelper.decode(x.getKey()))
-                                .setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().getObject().getCompletionStatus().name())).build())
-                        .collect(Collectors.toList());
-            } else {
-                List listIds = completedTxns.asMap().keySet().stream().collect(Collectors.toList()).subList(lastPos, completedTxns.asMap().size());
-                listTxns = completedTxns.asMap().entrySet().stream().filter(x -> listIds.contains(x.getKey()))
-                        .limit(limit).map(x -> Controller.TxnResponse.newBuilder()
-                                .setTxnId(ModelHelper.decode(x.getKey()))
-                                .setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().getObject().getCompletionStatus().name())).build())
-                        .collect(Collectors.toList());
-            }
-
-            if (listTxns.isEmpty()) {
-                newContinuationToken = continuationToken;
-            } else {
-                newContinuationToken = String.valueOf(lastPos + listTxns.size());
-            }
-            return CompletableFuture.completedFuture(new ImmutablePair<>(listTxns, newContinuationToken));
+            return CompletableFuture.completedFuture(completedTxns.asMap().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject().getCompletionStatus())));
         }
     }
 

@@ -33,8 +33,6 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -527,12 +525,10 @@ interface Stream {
     /**
      * Api to List transaction in completed(COMMITTED/ABORTED) state.
      *
-     * @param limit max no of transaction to get
-     * @param continuationToken continuationToken
      * @param context operational context
-     * @return pair having list of TxnResponse and continuationToken
+     * @return map having transactionId and transaction status
      */
-    CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context);
+    CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context);
 
     /**
      * Returns the currently active stream epoch.

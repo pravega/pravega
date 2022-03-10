@@ -926,8 +926,8 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        Pair<List<Controller.TxnResponse>, String> listTxn = store.listCompletedTxns(scope, stream, 10, "", null, executor).join();
-        assertEquals(0, listTxn.getKey().size());
+        Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(0, listTxn.size());
 
         UUID txnId1 = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId1,
@@ -944,8 +944,8 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
 
-        listTxn = store.listCompletedTxns(scope, stream, 2, listTxn.getValue(), null, executor).join();
-        assertEquals(2, listTxn.getKey().size());
+        listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(2, listTxn.size());
 
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }

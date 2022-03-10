@@ -39,12 +39,14 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -121,7 +123,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.Credentials;
 import org.slf4j.LoggerFactory;
-import io.pravega.controller.stream.api.grpc.v1.Controller.TxnResponse;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
@@ -1513,25 +1514,25 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<TxnResponse> listCompletedTransactions(final Stream stream) {
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, LIST_COMPLETED_TRANSACTIONS, stream, requestId);
 
         try {
-            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<TxnResponse>>>> function =
-                    token -> this.retryConfig.runAsync(() -> {
-                        RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, LIST_COMPLETED_TRANSACTIONS, stream);
+            final CompletableFuture<ListCompletedTxnResponse> listCompletedTxnResponse = this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, LIST_COMPLETED_TRANSACTIONS, stream);
 
-                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
-                                .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
-                                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                        .setContinuationToken(token)
-                                        .build(), callback);
-                        return callback.getFuture().thenApplyAsync(listCompletedTxnResponse -> new AbstractMap.SimpleEntry<>(listCompletedTxnResponse.getContinuationToken(), listCompletedTxnResponse.getResponseList()), this.executor);
-                    }, this.executor);
-            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+                new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
+                        .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .build(), callback);
+                return callback.getFuture();
+            }, this.executor);
+            return listCompletedTxnResponse.thenApplyAsync(txnResponse -> txnResponse.getResponseList().stream().map(transactionResponse ->
+                            new TransactionInfoImpl(stream, encode(transactionResponse.getTxnId()),
+                                    Transaction.Status.valueOf(transactionResponse.getStatus().name()))).collect(Collectors.toList()));
         } finally {
             LoggerHelpers.traceLeave(log, LIST_COMPLETED_TRANSACTIONS, traceId);
         }

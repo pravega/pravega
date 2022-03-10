@@ -18,7 +18,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -41,12 +40,9 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
 import java.nio.ByteBuffer;
@@ -543,18 +539,18 @@ class ZKStream extends PersistentStreamBase {
 
 
     @Override
-    public CompletableFuture<Pair<List<Controller.TxnResponse>, String>> listCompletedTxns(final int limit, final String continuationToken, final OperationContext context) {
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
-                .thenCompose(children -> {
-                    if (children.size() == 0) {
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), continuationToken));
-                    } else {
-                        return getTxnInBatch(children.get(children.size() - 1), limit, continuationToken, context);
-                    }
-                });
+                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(batch -> getTxnInBatch(batch, context))
+                                .collect(Collectors.toList()))
+                        .thenApply(list -> {
+                            Map<UUID, TxnStatus> txnMap = new HashMap<>();
+                            list.forEach(txnMap::putAll);
+                            return txnMap;
+                        }));
     }
 
-    private CompletableFuture<Pair<List<Controller.TxnResponse>, String>> getTxnInBatch(final String children, final int limit, final String continuationToken, final OperationContext context) {
+    private CompletableFuture<Map<UUID, TxnStatus>> getTxnInBatch(final String children, final OperationContext context) {
         VersionedMetadata<CompletedTxnRecord> empty = getEmptyData();
         String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(children), getScope(), getName());
         return Futures.exceptionallyExpecting(store.getChildren(root),
@@ -563,14 +559,8 @@ class ZKStream extends PersistentStreamBase {
                         Collectors.toMap(txId -> txId,
                                 txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
                                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
-                ).thenApply(txnMap -> {
-                            List<Controller.TxnResponse> listTxns = txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
-                                    .map(x -> Controller.TxnResponse.newBuilder()
-                                            .setTxnId(ModelHelper.decode(UUID.fromString(x.getKey())))
-                                            .setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().getObject().getCompletionStatus().name())).build()).collect(Collectors.toList());
-                            return new ImmutablePair<>(listTxns, continuationToken);
-                        }
-
+                ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
+                        .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), x -> x.getValue().getObject().getCompletionStatus()))
                 ));
     }
 

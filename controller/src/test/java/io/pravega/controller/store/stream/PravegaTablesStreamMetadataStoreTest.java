@@ -288,9 +288,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
             testStore.createStream(scope, stream, configuration, start, null, executor).get();
             testStore.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-            Pair<List<Controller.TxnResponse>, String> listTxn = store.listCompletedTxns(scope, stream, 10,
-                    "", null, executor).join();
-            assertEquals(0, listTxn.getKey().size());
+            Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(0, listTxn.size());
 
             UUID txnId1 = testStore.generateTransactionId(scope, stream, null, executor).join();
             VersionedTransactionData tx1 = testStore.createTransaction(scope, stream, txnId1,
@@ -310,11 +309,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
             testStore.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
             testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
 
-            listTxn = testStore.listCompletedTxns(scope, stream, 1, listTxn.getValue(), null, executor).join();
-            assertEquals(1, listTxn.getKey().size());
-
-            listTxn = testStore.listCompletedTxns(scope, stream, 1, listTxn.getValue(), null, executor).join();
-            assertEquals(1, listTxn.getKey().size());
+            listTxn = testStore.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(2, listTxn.size());
 
             testStore.setState(scope, stream, State.ACTIVE, null, executor).join();
         }
