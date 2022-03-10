@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.Before;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
@@ -109,8 +110,18 @@ public class ReaderGroupImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
+        when(connectionPool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionPool);
+    }
+
+    @After
+    public void shutDown() {
+        readerGroup.close();
+        controller.close();
+        clientFactory.close();
+        connectionPool.close();
+        scheduledThreadPoolExecutor.shutdownNow();
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -411,6 +422,15 @@ public class ReaderGroupImplTest {
         assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    public void initiateCheckpointInternalExecutorSuccess() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        when(connectionPool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("internalExecutor");
+        assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
+    }
+
     @Test(timeout = 10000)
     public void generateStreamCutSuccess() {
         when(synchronizer.getState()).thenReturn(state);
@@ -462,7 +482,7 @@ public class ReaderGroupImplTest {
 
         return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
     }
-    
+
     @SuppressWarnings("unchecked")
     @Test
     public void testFutureCancelation() throws Exception {
@@ -496,9 +516,9 @@ public class ReaderGroupImplTest {
         SegmentWithRange segment = mock(SegmentWithRange.class);
         Map<SegmentWithRange, Long> map = Collections.singletonMap(segment, 0L);
         when(state.getAssignedSegments(anyString())).thenReturn(map);
-        
+
         when(state.getNumberOfUnassignedSegments()).thenReturn(2);
-        
+
         ReaderSegmentDistribution readerSegmentDistribution = readerGroup.getReaderSegmentDistribution();
 
         Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
