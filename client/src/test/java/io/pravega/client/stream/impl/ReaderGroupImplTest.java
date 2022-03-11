@@ -70,6 +70,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -154,6 +155,48 @@ public class ReaderGroupImplTest {
         readerGroup.resetReaderGroup(config);
 
         verify(synchronizer, times(1)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void resetRGToLastCheckpoint() {
+        final UUID readerGroupId = UUID.randomUUID();
+        final StreamCut startStreamCut = getStreamCut("s1", 10L, 1, 2);
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                                                    .startFromStreamCuts(ImmutableMap.of(Stream.of(SCOPE, "s1"), startStreamCut))
+                                                    .build();
+        config = ReaderGroupConfig.cloneConfig(config, readerGroupId, 0L);
+        when(state.getPositionsForLastCompletedCheckpoint())
+                .thenReturn(Optional.of(ImmutableMap.of(Stream.of(SCOPE, "s1"), startStreamCut.asImpl().getPositions())));
+
+        when(synchronizer.getState().getConfig()).thenReturn(config);
+        when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
+        readerGroup.resetReaderGroup();
+
+        verify(synchronizer, times(2)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void resetRGToLastCheckpointNOcheckPoint() {
+        final UUID readerGroupId = UUID.randomUUID();
+        Map<Segment, Long> positions = new HashMap<>();
+        IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 0L));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                                                    .stream(Stream.of("scope", "s1"))
+                                                    .build();
+        config = ReaderGroupConfig.cloneConfig(config, readerGroupId, 0L);
+
+        when(synchronizer.getState().getConfig()).thenReturn(config);
+        when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
+        when(controller.getSegmentsAtTime(any(Stream.class), anyLong())).thenReturn(CompletableFuture.completedFuture(positions));
+        readerGroup.resetReaderGroup();
+
+        verify(synchronizer, times(2)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
