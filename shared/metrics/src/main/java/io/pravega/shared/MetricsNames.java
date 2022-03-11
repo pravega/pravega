@@ -105,6 +105,8 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_GET_INFO = PREFIX + "segmentstore.tablesegment.get_info";                     // Counter and Per-segment Counter
 
+    public static final String TABLE_SEGMENT_USED_CREDITS = PREFIX + "segmentstore.tablesegment.used_credits";  // Gauge
+
     // Storage stats
     public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
     public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms";   // Histogram
