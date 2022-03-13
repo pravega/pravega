@@ -136,9 +136,22 @@ public class ReaderGroupStateTest {
         chkPointState.readerCheckpointed("chk1", "r2", getOffsetMap(singletonList("S2"), 2L));
 
         Optional<Map<Stream, Map<Segment, Long>>> latestPosition = readerState.getPositionsForLastCompletedCheckpoint();
+
         assertTrue(latestPosition.isPresent());
         assertEquals(1L, latestPosition.get().get(getStream("S1")).get(getSegment("S1")).longValue());
         assertEquals(2L, latestPosition.get().get(getStream("S2")).get(getSegment("S2")).longValue());
+
+        //add new checkpoint and verify for last checkpoint
+        chkPointState.beginNewCheckpoint("chk2",
+                ImmutableSet.of("r1", "r2"), getOffsetMap(asList("S1", "S2"), 4L));
+        chkPointState.readerCheckpointed("chk2", "r1", getOffsetMap(singletonList("S1"), 5L));
+        chkPointState.readerCheckpointed("chk2", "r2", getOffsetMap(singletonList("S2"), 6L));
+        Optional<Map<Stream, Map<Segment, Long>>> latestPosition2 = readerState.getPositionsForLastCompletedCheckpoint();
+
+        assertTrue(latestPosition2.isPresent());
+        assertEquals(5L, latestPosition2.get().get(getStream("S1")).get(getSegment("S1")).longValue());
+        assertEquals(6L, latestPosition2.get().get(getStream("S2")).get(getSegment("S2")).longValue());
+
     }
 
     @Test
