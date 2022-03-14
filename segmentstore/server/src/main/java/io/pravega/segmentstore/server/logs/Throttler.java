@@ -171,6 +171,11 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // may find it and act on it.
             val result = new InterruptibleDelay(delayFuture, delay.getDurationMillis(), delay.getThrottlerName());
             this.currentDelay.set(result);
+            //check if we have throtle-exempt operations after calculating a interruptible delay
+            //and just before throttling.
+            if (this.isSuspended.get()) {
+                notifyThrottleSourceChanged();
+            }
             return Futures
                     .exceptionallyComposeExpecting(
                             result.delayFuture,
