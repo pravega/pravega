@@ -291,7 +291,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     /**
-     * Determines whether the Segment with given metadata can be evicted, based on the the given Sequence Number Threshold.
+     * Determines whether the Segment with given metadata can be evicted, based on the given Sequence Number Threshold.
      * A Segment will not be chosen for eviction if {@link SegmentMetadata#isPinned()} is true.
      *
      * @param metadata             The Metadata for the Segment that is considered for eviction.
