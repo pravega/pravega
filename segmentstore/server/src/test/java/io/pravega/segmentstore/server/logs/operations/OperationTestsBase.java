@@ -75,6 +75,7 @@ public abstract class OperationTestsBase<T extends Operation> {
         T op = createOperation(random);
         op.resetSequenceNumber(1234);
         Assert.assertEquals(1234, op.getSequenceNumber());
+        Assert.assertNotNull(op.toString());
     }
 
     /**
