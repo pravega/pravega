@@ -22,10 +22,12 @@ import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TransactionInfo;
 
 import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -201,6 +203,15 @@ public interface StreamManager extends AutoCloseable {
      * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
      */
     boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException;
+
+    /**
+     * List most recent completed(COMMITTED/ABORTED) transactions.
+     * It will return transactionId as well as transaction status.
+     *
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return list of TransactionInfo.
+     */
+    List<TransactionInfo> listCompletedTransactions(Stream stream);
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
