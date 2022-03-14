@@ -1099,7 +1099,7 @@ project('test:system') {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "true"
         }
-        maxParallelForks = 1
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
@@ -1236,7 +1236,7 @@ project('test:system') {
         if (System.getProperty("configFile") != null) {
             systemProperty "configs", new File(System.getProperty("configFile")).text
         }
-        maxParallelForks = 1
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 
         if (System.getProperty("failFast", "false") == "true") {
             failFast = true
@@ -1325,7 +1325,7 @@ project('test:system') {
         if (System.getProperty("awsExec") == null) {
             systemProperty "awsExec", "false"
         }
-        maxParallelForks = 1
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "log.level", System.getProperty("log.level", "DEBUG")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
