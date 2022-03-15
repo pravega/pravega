@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -39,10 +40,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.CompletableFuture.completedStage;
 
 /**
  * This class contains various utils methods useful for administration of LTS.
@@ -259,34 +262,34 @@ public class UtilsWrapper {
                 chunkedSegmentStorage.getExecutor()), streamSegmentName);
     }
 
-    public CompletableFuture<Void> checkChunkSegmentStorageSanity () {
-        final String chunkName = "TestChunk";
-        byte[] testData = new byte[bufferSize];
-        byte[] readData = new byte[bufferSize];
+    public CompletableFuture<Void> checkChunkSegmentStorageSanity (String chunkName, int dataSize) {
+        byte[] testData = new byte[dataSize];
+        byte[] readData = new byte[dataSize];
         InputStream inputStream = new ByteArrayInputStream(testData);
         Preconditions.checkNotNull(chunkName, "chunkName");
         AtomicBoolean isCreated = new AtomicBoolean();
+        CompletableFuture<Void> result = new CompletableFuture<>();
 
-        return chunkedSegmentStorage.getChunkStorage().createWithContent("TestChunk", testData.length, inputStream)
+        return chunkedSegmentStorage.getChunkStorage().createWithContent(chunkName, testData.length, inputStream)
                 .thenComposeAsync(v -> {
                     isCreated.set(true);
-                    return chunkedSegmentStorage.getChunkStorage().getInfo("TestChunk");
+                    return chunkedSegmentStorage.getChunkStorage().getInfo(chunkName);
                 }, chunkedSegmentStorage.getExecutor())
-                .thenComposeAsync(chunkInfo -> {
-                        return chunkedSegmentStorage.getChunkStorage().openWrite("TestChunk")
-                                .thenComposeAsync(chunkHandle -> chunkedSegmentStorage.getChunkStorage().exists("TestChunk"))
-                                .thenAcceptAsync(doesExists -> Preconditions.checkArgument(doesExists, "The given chunk doesn't exist!"))
-                                .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle("TestChunk"), 0, readData.length, readData, 0))
-                                .thenAcceptAsync(bytesRead -> {
-                                    Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are equal.");
-                                })
-                                .thenRunAsync(() -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle("TestChunk")), chunkedSegmentStorage.getExecutor());
-                },chunkedSegmentStorage.getExecutor())
-                .exceptionally(e -> {
-                    val ex = Exceptions.unwrap(e);
-                    return null;
-                }).whenCompleteAsync((v, e) -> {
-                    return;
-                });
+                .thenComposeAsync(chunkInfo -> chunkedSegmentStorage.getChunkStorage().openWrite(chunkName)
+                        .thenComposeAsync(chunkHandle -> chunkedSegmentStorage.getChunkStorage().exists(chunkName))
+                        .thenAcceptAsync(doesExists -> Preconditions.checkArgument(doesExists, "The given chunk doesn't exist!"))
+                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0))
+                        .thenAcceptAsync(bytesRead -> {
+                            Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are equal.");
+                        })
+                        .thenRunAsync(() -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName)), chunkedSegmentStorage.getExecutor()),chunkedSegmentStorage.getExecutor())
+                .whenCompleteAsync((v, e) -> {
+                    if(isCreated.get()){
+                     chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName));
+                    }
+                    if(e != null){
+                        throw new CompletionException(Exceptions.unwrap(e));
+                    }
+                }, chunkedSegmentStorage.getExecutor());
     }
 }
