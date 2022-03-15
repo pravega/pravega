@@ -204,7 +204,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private MetadataStore createMetadataStore() {
         MetadataStore.Connector connector = new MetadataStore.Connector(this.metadata, this::mapSegmentId,
-                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
+                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup, this::pinSegment);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
         return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
@@ -987,6 +987,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
+    }
+
+    private CompletableFuture<Boolean> pinSegment(long segmentId, String segmentName, boolean pin, Duration timeout) {
+        Preconditions.checkNotNull(segmentName, "SegmentName cannot be null.");
+        Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Segment must have a valid id.");
+
+        UpdateableSegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata != null && pin) {
+            segmentMetadata.markPinned();
+            return CompletableFuture.completedFuture(true);
+        }
+        return CompletableFuture.completedFuture(false);
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
