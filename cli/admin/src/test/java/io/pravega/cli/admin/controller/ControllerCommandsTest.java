@@ -130,44 +130,6 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
     }
 
-    @Test
-    @SneakyThrows
-    public void testDescribeStreamCommand() {
-        String scope = "testScope";
-        String testStream = "testStream";
-
-        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, cliConfig());
-        Assert.assertTrue(commandResult.contains("stream_config"));
-        Assert.assertTrue(commandResult.contains("stream_state"));
-        Assert.assertTrue(commandResult.contains("segment_count"));
-        Assert.assertTrue(commandResult.contains("is_sealed"));
-        Assert.assertTrue(commandResult.contains("active_epoch"));
-        Assert.assertTrue(commandResult.contains("truncation_record"));
-        Assert.assertTrue(commandResult.contains("scaling_info"));
-
-        // Exercise actual instantiateSegmentHelper
-        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
-        @Cleanup
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(CLUSTER.zookeeperConnectString(),
-                new RetryOneTime(5000));
-        curatorFramework.start();
-        @Cleanup
-        ConnectionPool pool = new ConnectionPoolImpl(CLIENT_CONFIG, new SocketConnectionFactoryImpl(CLIENT_CONFIG));
-        @Cleanup
-        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework, pool);
-        Assert.assertNotNull(sh);
-
-        // Try the Zookeeper backend, which is expected to fail and be handled by the command.
-        Properties properties = new Properties();
-        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.ZOOKEEPER.name());
-        cliConfig().getConfigBuilder().include(properties);
-        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        new ControllerDescribeStreamCommand(commandArgs).execute();
-        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.SEGMENTSTORE.name());
-        cliConfig().getConfigBuilder().include(properties);
-    }
-
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {
         Parser.Command pc = Parser.parse(inputCommand);
         Assert.assertNotNull(pc.toString());
