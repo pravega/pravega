@@ -370,7 +370,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     public void testThrottleOnceWhenNotSuspended() throws Exception {
         val delays = new ArrayList<>();
         val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
-        int delayMillis = 5000;
+        int delayMillis = 500;
         calculator.setDelayMillis(delayMillis);
         val suspended = new AtomicBoolean(false);
         TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
