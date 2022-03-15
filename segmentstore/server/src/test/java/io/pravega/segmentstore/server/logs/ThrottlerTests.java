@@ -350,6 +350,37 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test the throttleOnce method to check its behavior when throttler is suspended
+     */
+    @Test
+    public void testThrottleOnceWhenSuspended() {
+        val delays = new ArrayList<>();
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        calculator.setDelayMillis(10000);
+        val suspended = new AtomicBoolean(true);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
+        t.throttleOnce(wrap(calculator).getThrottlingDelay());
+        Assert.assertTrue("Error: Throttler has continued to throttle inspite of there being System-Critical to process", t.lastDelayFuture.get().isCompletedExceptionally());
+    }
+
+    /**
+     * Test the throttleOnce method to check its behavior when throttler is not suspended
+     */
+    @Test
+    public void testThrottleOnceWhenNotSuspended() throws Exception {
+        val delays = new ArrayList<>();
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        int delayMillis = 5000;
+        calculator.setDelayMillis(delayMillis);
+        val suspended = new AtomicBoolean(false);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
+        CompletableFuture<Void> throt = t.throttleOnce(wrap(calculator).getThrottlingDelay());
+        TestUtils.await(throt::isDone, 5, TIMEOUT_MILLIS);
+        Assert.assertFalse("Error: Throttler has not throttled accoriding to expected delay.", t.lastDelayFuture.get().isCompletedExceptionally());
+    }
+
+
+    /**
      * Tests the throttler when it is temporarily disabled.
      */
     @Test
