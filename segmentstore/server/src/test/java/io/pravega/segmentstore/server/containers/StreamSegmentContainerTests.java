@@ -2602,8 +2602,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
+        @Cleanup
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier =
-                ContainerEventProcessorImpl.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
+                containerEventProcessor.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
         long segmentId = segmentSupplier.apply("dummySegment").join().getSegmentId();
         for (int i = 0; i < 10; i++) {
             DirectSegmentAccess segment = segmentSupplier.apply("dummySegment").join();

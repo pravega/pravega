@@ -53,6 +53,7 @@ import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import java.time.Duration;
@@ -92,6 +93,10 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final SegmentMetadataClientFactory metaFactory;
     private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final NotifierFactory notifierFactory;
+    @VisibleForTesting
+    private final ConnectionPool connectionPool;
+    @VisibleForTesting
+    private final SequentialProcessor sequentialProcessor;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
@@ -100,7 +105,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Preconditions.checkNotNull(initSerializer);
         Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
-        Preconditions.checkNotNull(connectionPool);
+        this.connectionPool = Preconditions.checkNotNull(connectionPool);
+        this.sequentialProcessor = new SequentialProcessor(connectionPool.getInternalExecutor());
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
@@ -178,6 +184,11 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 .thenApply(checkpoint -> checkpoint); //Added to prevent users from canceling completeCheckpoint
     }
 
+    @Override
+    public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName) {
+        return initiateCheckpoint(checkpointName, connectionPool.getInternalExecutor());
+    }
+
     /**
      * Periodically check the state synchronizer if the given Checkpoint is complete.
      * @param checkpointName Checkpoint name.
@@ -190,12 +201,15 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         return Futures.loop(checkpointPending::get, () -> {
             return Futures.delayedTask(() -> {
-                synchronizer.fetchUpdates();
-                checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
-                if (checkpointPending.get()) {
-                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
-                }
-                return null;
+                sequentialProcessor.add(() -> {
+                    synchronizer.fetchUpdates();
+                    checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
+                    if (checkpointPending.get()) {
+                        log.info("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
+                    }
+                    return CompletableFuture.completedFuture(null);
+               });
+               return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor);
     }
@@ -209,6 +223,31 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
         }
         return new CheckpointImpl(checkpointName, map);
+    }
+
+    @Override
+    public void resetReaderGroup() {
+        log.info("Reset ReaderGroup {} to successfully last completed checkpoint", getGroupName());
+        synchronizer.fetchUpdates();
+        //reset the reader group to last completed checkpoint, If there is no successfully completed last checkpoint then reset back to start of streamcut
+        val latestCheckpointConfig = synchronizer.getState().getConfig();
+        ReaderGroupConfig config = latestCheckpointConfig;
+        Optional<Map<Stream, Map<Segment, Long>>> lastCheckPointPositions =
+                synchronizer.getState().getPositionsForLastCompletedCheckpoint();
+
+        if (lastCheckPointPositions.isPresent()) {
+            Map<Stream, StreamCut> streamCuts = new HashMap<>();
+            for (Entry<Stream, Map<Segment, Long>> streamPosition : lastCheckPointPositions.get().entrySet()) {
+                streamCuts.put(streamPosition.getKey(), new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue()));
+            }
+            config = latestCheckpointConfig.toBuilder().startingStreamCuts(streamCuts).build();
+
+        } else {
+            log.info("Reset reader group to last completed checkpoint is not successful as there is no checkpoint available, so resetting to start of stream cut. ");
+
+        }
+        resetReaderGroup(config);
+
     }
 
     @Override
@@ -252,6 +291,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return;
             }
         }
+
     }
 
     private void updateConfigInStateSynchronizer(ReaderGroupConfig config, long newGen) {
@@ -499,5 +539,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void close() {
         synchronizer.close();
+        sequentialProcessor.close();
     }
 }
