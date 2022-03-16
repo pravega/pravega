@@ -147,7 +147,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         }
 
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} read - late op={}, segment={}, offset={}, bytesRead={}, latency={}.",
+            log.warn("{} read - finished late op={}, segment={}, offset={}, bytesRead={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead, elapsed.toMillis());
         } else {
             log.debug("{} read - finished op={}, segment={}, offset={}, bytesRead={}, latency={}.",
