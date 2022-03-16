@@ -18,29 +18,15 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionInfo;
-import lombok.AllArgsConstructor;
+import lombok.Data;
 
 import java.util.UUID;
 
-@AllArgsConstructor
-public class TransactionInfoImpl implements TransactionInfo {
+@Data
+public final class TransactionInfoImpl implements TransactionInfo {
 
     private final Stream stream;
     private final UUID transactionId;
     private final Transaction.Status transactionStatus;
 
-    @Override
-    public Stream getStream() {
-        return stream;
-    }
-
-    @Override
-    public UUID getTransactionId() {
-        return transactionId;
-    }
-
-    @Override
-    public Transaction.Status getTransactionStatus() {
-        return transactionStatus;
-    }
 }
