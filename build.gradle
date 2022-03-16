@@ -107,7 +107,7 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
-            force "com.google.guava:guava:" + guavaVersion
+            //force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
             force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
