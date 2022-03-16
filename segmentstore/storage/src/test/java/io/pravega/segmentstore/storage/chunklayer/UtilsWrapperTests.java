@@ -28,11 +28,17 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
  * Tests for {@link UtilsWrapper}.
@@ -274,5 +280,79 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows("Should not allow null outputStream",
                 () -> wrapper.getExtendedChunkInfoList(null, false),
                 ex -> ex instanceof NullPointerException);
+    }
+
+    @Test
+    public void testCheckChunkSegmentStorageSanity() throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doCreateWithContent(any(), anyInt(), any());
+
+        testSanity(spyChunkStorage, "");
+    }
+
+    private void testSanity(BaseChunkStorage spyChunkStorage, String message) {
+        @Cleanup
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(123);
+
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+
+        AssertExtensions.assertThrows(message,
+                () -> wrapper.checkChunkSegmentStorageSanity("TestChunk", 100),
+                ex -> ex instanceof ChunkStorageException);
+    }
+
+    @Test
+    public void testCheckChunkSegmentStorageSanity1 () throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doGetInfo(any());
+
+        testSanity(spyChunkStorage, "");
+    }
+
+    @Test
+    public void testCheckChunkSegmentStorageSanity2 () throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doOpenWrite(any());
+
+        testSanity(spyChunkStorage, "");
+    }
+
+    @Test
+    public void testCheckChunkSegmentStorageSanity3 () throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
+
+        testSanity(spyChunkStorage, "");
+    }
+
+    @Test
+    public void testCheckChunkSegmentStorageSanity4 () throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
+
+        testSanity(spyChunkStorage, "");
     }
 }
