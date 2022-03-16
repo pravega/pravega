@@ -176,12 +176,20 @@ class RecoveryProcessor {
 
             // Now continue with the recovery from here.
             while (dataFrameRecord != null) {
-                recordTruncationMarker(dataFrameRecord);
-                recoverOperation(dataFrameRecord, metadataUpdater);
-                recoveredItemCount++;
+                try {
+                    recordTruncationMarker(dataFrameRecord);
+                    recoverOperation(dataFrameRecord, metadataUpdater);
+                    recoveredItemCount++;
 
-                // Fetch the next operation.
-                dataFrameRecord = reader.getNext();
+                    // Fetch the next operation.
+                    dataFrameRecord = reader.getNext();
+                } catch (DataCorruptionException e) {
+                    if (alertDataCorruption) {
+                        throw e;
+                    } else {
+                        log.warn("{}: DataCorruptionException found while performing recovery.", this.traceObjectId);
+                    }
+                }
             }
         }
 
