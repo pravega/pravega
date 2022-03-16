@@ -824,11 +824,12 @@ class PravegaTablesStream extends PersistentStreamBase {
         Map<String, VersionedMetadata<CompletedTxnRecord>> result = new ConcurrentHashMap<>();
         String tableName = getCompletedTransactionsBatchTableName(batch);
         return storeHelper.expectingDataNotFound(storeHelper.getAllEntries(
-                tableName, CompletedTxnRecord::fromBytes, context.getRequestId()).collectRemaining(x -> {
-            result.put(x.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""), x.getValue());
+                tableName, CompletedTxnRecord::fromBytes, context.getRequestId()).collectRemaining(completedTxnMetadataMap -> {
+            result.put(completedTxnMetadataMap.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""),
+                    completedTxnMetadataMap.getValue());
             return true;
-        }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
-                x -> x.getValue().getObject().getCompletionStatus()))), Collections.emptyMap());
+        }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
+                completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus()))), Collections.emptyMap());
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {

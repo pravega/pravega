@@ -206,7 +206,7 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * List most recent completed(COMMITTED/ABORTED) transactions.
-     * It will return transactionId as well as transaction status.
+     * It will return transactionId, transaction status and stream.
      *
      * @param stream The name of the stream for which to list transactionInfo.
      * @return list of TransactionInfo.

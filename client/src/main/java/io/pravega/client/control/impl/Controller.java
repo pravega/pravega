@@ -367,7 +367,7 @@ public interface Controller extends AutoCloseable {
 
     /**
      * Get list of TransactionInfo for the Stream having status COMMITTED/ABORTED from most recent batch.
-     * TransactionInfo contains unique transactionId as well as status of transactions.
+     * TransactionInfo contains unique transactionId, status of transaction and stream.
      * This api can return maximum 200 records.
      *
      * @param stream The name of the stream for which to list transactionInfo.
