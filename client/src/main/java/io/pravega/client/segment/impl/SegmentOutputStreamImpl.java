@@ -657,12 +657,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                               state.failConnection(e1);
                               throw Exceptions.sneakyThrow(e1);
                           }
-                          //add timeout and call fail and throw.
-                          //a late timeout if fine it will just cause a spurious connection close.
-                          //a late success may be a problem because it causes retransmits of the wrong messages.
-                          //In theory the server should guard against this, but that's not ideal to depend on for client correctness.
-                          //instead the local future and connection can be used.
-                          // If the timeout occurs failing the future and 
+                          // A timeout is added to the future before the call, and it triggers a TimeoutException.
+                          // A late timeout if fine it will just cause a spurious connection close.
+                          // A late success may be a problem because it causes retransmits of the wrong messages.
+                          // In theory the server should guard against this, but that's not ideal to depend on for client correctness.
+                          // Instead the local future and connection is used and connectionSetupComplete takes a connection object.
                           return connectionSetupFuture.exceptionally(t1 -> {
                               Throwable exception = Exceptions.unwrap(t1);
                               if (exception instanceof TimeoutException) {
