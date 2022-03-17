@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
@@ -291,10 +292,10 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doCreateWithContent(any(), anyInt(), any());
 
-        testSanity(spyChunkStorage, "");
+        testSanity(spyChunkStorage, "Test Exception", ChunkStorageException.class);
     }
 
-    private void testSanity(BaseChunkStorage spyChunkStorage, String message) {
+    private void testSanity(BaseChunkStorage spyChunkStorage, String message, Class classType) {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
@@ -303,9 +304,13 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
 
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
 
-        AssertExtensions.assertThrows(message,
-                () -> wrapper.checkChunkSegmentStorageSanity("TestChunk", 100),
-                ex -> ex instanceof ChunkStorageException);
+        val result = wrapper.checkChunkSegmentStorageSanity("TestChunk", 100);
+        AssertExtensions.assertFutureThrows("Should throw an exception",
+                result,
+                ex -> {
+                    val e = Exceptions.unwrap(ex);
+                    return e.getClass().equals(classType) && e.getMessage().contains(message);
+                });
     }
 
     @Test
@@ -317,7 +322,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doGetInfo(any());
 
-        testSanity(spyChunkStorage, "");
+        testSanity(spyChunkStorage, "", Exception.class);
     }
 
     @Test
@@ -329,7 +334,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doOpenWrite(any());
 
-        testSanity(spyChunkStorage, "");
+        testSanity(spyChunkStorage, "", Exception.class);
     }
 
     @Test
@@ -341,7 +346,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
 
-        testSanity(spyChunkStorage, "");
+        testSanity(spyChunkStorage, "", Exception.class);
     }
 
     @Test
@@ -353,6 +358,6 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
 
-        testSanity(spyChunkStorage, "");
+        testSanity(spyChunkStorage, "", Exception.class);
     }
 }

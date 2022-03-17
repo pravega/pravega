@@ -283,13 +283,14 @@ public class UtilsWrapper {
                             Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are equal.");
                         })
                         .thenRunAsync(() -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName)), chunkedSegmentStorage.getExecutor()),chunkedSegmentStorage.getExecutor())
-                .whenCompleteAsync((v, e) -> {
+                .handleAsync((v, e) -> {
                     if(isCreated.get()){
                      chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName));
                     }
                     if(e != null){
                         throw new CompletionException(Exceptions.unwrap(e));
                     }
+                    return v;
                 }, chunkedSegmentStorage.getExecutor());
     }
 }
