@@ -155,7 +155,8 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
         }
     }
 
-    private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
+    @VisibleForTesting
+    protected CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         if (delay.isMaximum()
                 || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
@@ -171,6 +172,10 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // may find it and act on it.
             val result = new InterruptibleDelay(delayFuture, delay.getDurationMillis(), delay.getThrottlerName());
             this.currentDelay.set(result);
+            // Check if we have throttle-exempt operations after calculating a interruptible delay and just before throttling.
+            if (this.isSuspended.get()) {
+                notifyThrottleSourceChanged();
+            }
             return Futures
                     .exceptionallyComposeExpecting(
                             result.delayFuture,
