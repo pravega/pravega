@@ -26,20 +26,16 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdat
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.*;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
@@ -48,12 +44,14 @@ import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
@@ -69,6 +67,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
+   @Getter
+    private final MockSegmentStreamFactory inputStreamFactory;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
@@ -76,6 +76,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         this.connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
         this.controller = new MockController(endpoint, port, connectionPool, true);
         this.clientFactory = new MockClientFactory(scope, controller, connectionPool);
+        this.inputStreamFactory = new MockSegmentStreamFactory();
     }
 
     @Override
@@ -256,6 +257,26 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public Iterator<String> listScopes() {
         AsyncIterator<String> asyncIterator = controller.listScopes();
         return asyncIterator.asIterator();
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer){
+        Preconditions.checkNotNull(pointer);
+
+        CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
+            @Cleanup
+            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());
+            inputStream.setOffset(pointer.asImpl().getEventStartOffset());
+            try {
+                ByteBuffer buffer = inputStream.read();
+                return  serializer.deserialize(buffer);
+            } catch (EndOfSegmentException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException(e.getMessage()));
+            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
+            }
+        });
+        return completableFuture;
     }
 
     @Override

@@ -50,17 +50,17 @@ public final class EventPointerImpl extends EventPointerInternal {
     }
 
     @Override
-    Segment getSegment() {
+    public Segment getSegment() {
         return segment;
     }
 
     @Override
-    long getEventStartOffset() {
+    public long getEventStartOffset() {
         return eventStartOffset;
     }
 
     @Override
-    int getEventLength() {
+    public int getEventLength() {
         return eventLength;
     }
 
@@ -89,13 +89,13 @@ public final class EventPointerImpl extends EventPointerInternal {
         return sb.toString();
     }
 
-    private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
+    public static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
     }
 
-    private static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
+    public static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
 
         @Override
-        protected EventPointerBuilder newBuilder() {
+        public EventPointerBuilder newBuilder() {
             return builder();
         }
 

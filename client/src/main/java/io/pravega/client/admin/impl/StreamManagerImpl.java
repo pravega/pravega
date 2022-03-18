@@ -28,12 +28,8 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.DeleteScopeFailedException;
-import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.ReaderGroupNotFoundException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
+import io.pravega.client.segment.impl.*;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -42,6 +38,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -50,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
 
 import lombok.Getter;
 import lombok.AccessLevel;
+import lombok.Cleanup;
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
@@ -64,6 +62,7 @@ public class StreamManagerImpl implements StreamManager {
     @Getter(AccessLevel.PACKAGE)
     private final ConnectionPool connectionPool;
     private final StreamCutHelper streamCutHelper;
+    private final SegmentInputStreamFactory inputStreamFactory;
 
     public StreamManagerImpl(ClientConfig clientConfig) {
         this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
@@ -83,6 +82,7 @@ public class StreamManagerImpl implements StreamManager {
         this.connectionPool = connectionPool;
         this.controller = controller;
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
     }
 
     @Override
@@ -287,6 +287,26 @@ public class StreamManagerImpl implements StreamManager {
                                     return new StreamInfo(stream.getScope(), stream.getStreamName(), streamConfiguration.join(),
                                                           currentTailStreamCut.join(), currentHeadStreamCut.join(), isSealed);
                                 });
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer){
+        Preconditions.checkNotNull(pointer);
+
+        CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
+            @Cleanup
+            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());
+            inputStream.setOffset(pointer.asImpl().getEventStartOffset());
+            try {
+                ByteBuffer buffer = inputStream.read();
+                return  serializer.deserialize(buffer);
+            } catch (EndOfSegmentException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException(e.getMessage()));
+            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
+            }
+        });
+        return completableFuture;
     }
 
     @Override

@@ -34,21 +34,21 @@ public abstract class EventPointerInternal implements EventPointer {
      *
      * @return a segment object
      */
-    abstract Segment getSegment();
+    public abstract Segment getSegment();
 
     /**
      * Get the start offset of the event.
      *
      * @return the start offset for this event
      */
-    abstract long getEventStartOffset();
+    public abstract long getEventStartOffset();
 
     /**
      * Get the length of the event.
      *
      * @return the event length.
      */
-    abstract int getEventLength();
+    public abstract int getEventLength();
     
     public static EventPointer fromBytes(ByteBuffer eventPointer) {
         return EventPointerImpl.fromBytes(eventPointer);

@@ -23,16 +23,15 @@ import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
-import io.pravega.client.stream.DeleteScopeFailedException;
-import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReaderGroupNotFoundException;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.segment.impl.*;
+import io.pravega.client.stream.*;
+import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.impl.EventPointerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -44,11 +43,13 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -57,6 +58,8 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Assert;
@@ -71,11 +74,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 public class StreamManagerImplTest {
 
@@ -84,10 +84,11 @@ public class StreamManagerImplTest {
     private StreamManager streamManager;
     private Controller controller = null;
     private MockConnectionFactoryImpl connectionFactory;
+    private PravegaNodeUri uri  = null;
 
     @Before
     public void setUp() {
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         connectionFactory = new MockConnectionFactoryImpl();
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), connectionFactory, true);
         this.streamManager = new StreamManagerImpl(controller, connectionFactory);
@@ -129,6 +130,33 @@ public class StreamManagerImplTest {
 
         // This call should actually fail
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
+    }
+
+    @Test
+    public void testFetchEvent() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
+        //Setup Mocks
+        SegmentInputStreamFactory inputStreamFactory = mock(SegmentInputStreamFactory.class);
+        EventSegmentReader reader = Mockito.mock(EventSegmentReader.class);
+        SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
+        ConnectionPool pool = mock(ConnectionPool.class);
+        ClientConnection connection = mock(ClientConnection.class);
+
+        connectionFactory.provideConnection(uri, connection);
+        when(pool.getClientConnection(any(Flow.class), any(PravegaNodeUri.class), any(ReplyProcessor.class)))
+                .thenReturn(CompletableFuture.completedFuture(connection));
+        when(segmentInputStream.read(any(ByteBuffer.class), anyLong())).thenReturn(5);
+        when(segmentInputStream.read(any(ByteBuffer.class), eq(TimeUnit.SECONDS.toMillis(30)))).thenReturn(0);
+        when(segmentInputStream.getSegmentId()).thenReturn(new Segment("scope", "stream", 0L));
+
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyInt(), any(Semaphore.class), anyLong())).thenReturn(reader);
+        when(reader.read(anyLong())).thenReturn(null);
+        ByteArraySerializer serializer = new ByteArraySerializer();
+        Segment segment = new Segment("scope", "stream", 0L);
+        when(reader.getSegmentId()).thenReturn(segment);
+        EventPointer pointer = EventPointerImpl.builder().eventStartOffset(0).eventLength(1).segment(segment).build();
+        CompletableFuture<byte[]> future1 = streamManager.fetchEvent(pointer, serializer);
+        Thread.sleep(1000);
+        assertFalse("not expecting a fetchEvent failure", future1.isCompletedExceptionally());
     }
 
     @Test(timeout = 15000)
