@@ -276,16 +276,17 @@ public class UtilsWrapper {
                     return chunkedSegmentStorage.getChunkStorage().getInfo(chunkName);
                 }, chunkedSegmentStorage.getExecutor())
                 .thenComposeAsync(chunkInfo -> chunkedSegmentStorage.getChunkStorage().openWrite(chunkName)
-                        .thenComposeAsync(chunkHandle -> chunkedSegmentStorage.getChunkStorage().exists(chunkName))
-                        .thenAcceptAsync(doesExists -> Preconditions.checkArgument(doesExists, "The given chunk doesn't exist!"))
-                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0))
+                        .thenComposeAsync(chunkHandle -> chunkedSegmentStorage.getChunkStorage().exists(chunkName), chunkedSegmentStorage.getExecutor())
+                        .thenAcceptAsync(doesExists -> Preconditions.checkState(doesExists, "The given chunk doesn't exist!"), chunkedSegmentStorage.getExecutor())
+                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0), chunkedSegmentStorage.getExecutor())
                         .thenAcceptAsync(bytesRead -> {
                             Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are equal.");
-                        })
-                        .thenRunAsync(() -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName)), chunkedSegmentStorage.getExecutor()),chunkedSegmentStorage.getExecutor())
+                        }, chunkedSegmentStorage.getExecutor())
+                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName)), chunkedSegmentStorage.getExecutor()),
+                chunkedSegmentStorage.getExecutor())
                 .handleAsync((v, e) -> {
                     if(isCreated.get()){
-                     chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.readHandle(chunkName));
+                     chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName));
                     }
                     if(e != null){
                         throw new CompletionException(Exceptions.unwrap(e));
