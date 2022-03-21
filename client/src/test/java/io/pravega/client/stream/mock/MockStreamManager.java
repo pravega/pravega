@@ -26,10 +26,22 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdat
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.segment.impl.*;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.Position;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -260,9 +272,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer){
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer) {
         Preconditions.checkNotNull(pointer);
-
+        Preconditions.checkNotNull(serializer);
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
             EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());

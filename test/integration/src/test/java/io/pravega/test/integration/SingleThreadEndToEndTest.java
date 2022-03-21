@@ -22,11 +22,23 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.SegmentSealedException;
-import io.pravega.client.stream.*;
-import io.pravega.client.stream.impl.*;
-import io.pravega.client.stream.mock.*;
+import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -117,7 +129,7 @@ public class SingleThreadEndToEndTest {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,SERVICE_BUILDER.getLowPriorityExecutor() );
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
@@ -136,7 +148,7 @@ public class SingleThreadEndToEndTest {
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        readerGroupManager.createReaderGroup(readerGroup,ReaderGroupConfig
+        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig
                 .builder()
                 .stream(Stream.of(scope, streamName))
                 .automaticCheckpointIntervalMillis(2000)
@@ -146,8 +158,8 @@ public class SingleThreadEndToEndTest {
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
-        int writeCount = 0 ;
-        for(int eventNumber = 1 ; eventNumber <= 100 ; eventNumber++ ) {
+        int writeCount = 0;
+        for ( int eventNumber = 1; eventNumber <= 100; eventNumber++ ) {
             producer.writeEvent(testString);
             writeCount++;
         }
@@ -156,7 +168,7 @@ public class SingleThreadEndToEndTest {
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
         EventPointer pointer = reader.readNextEvent(100).getEventPointer();
         AtomicInteger counter = new AtomicInteger(0);
-        while(pointer != null) {
+        while ( pointer != null ) {
             counter.incrementAndGet();
             CompletableFuture<String> cf = streamManager.fetchEvent(pointer, serializer);
             cf.thenAccept(s -> {
@@ -164,6 +176,6 @@ public class SingleThreadEndToEndTest {
             });
             pointer = reader.readNextEvent(10).getEventPointer();
         }
-        assertEquals(writeCount , counter.get());
+        assertEquals(writeCount, counter.get());
     }
 }

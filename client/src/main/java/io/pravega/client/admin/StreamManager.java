@@ -18,11 +18,15 @@ package io.pravega.client.admin;
 import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.segment.impl.NoSuchEventException;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.EventPointer;
 
 import java.net.URI;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -209,10 +213,13 @@ public interface StreamManager extends AutoCloseable {
      * <p>
      * This is a non-blocking call. Passing invalid offsets will throw exception.
      * @param pointer The pointer object to enable a random read of the event.
+     * @param deserializer The Serializer
+     * @param <T> The type of the Event
      * @return The CompletableFuture<T> of the event at the position specified by the provided pointer or null if the event has
-     *         been deleted.
+     * been deleted.
      */
-     <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> deserializer);
+    <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> deserializer);
+
     /**
      * Get information about a given Stream, {@link StreamInfo}.
      * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current

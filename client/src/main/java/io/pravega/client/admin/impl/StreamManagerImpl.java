@@ -28,8 +28,21 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.segment.impl.*;
-import io.pravega.client.stream.*;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -290,8 +303,9 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer){
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer) {
         Preconditions.checkNotNull(pointer);
+        Preconditions.checkNotNull(serializer);
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
             EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());
