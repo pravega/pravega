@@ -292,7 +292,6 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer){
         Preconditions.checkNotNull(pointer);
-
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
             EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());

@@ -106,7 +106,7 @@ public class SingleThreadEndToEndTest {
     }
 
     @Test(timeout = 10000)
-    public void testFetchEvent() throws ReinitializationRequiredException, NoSuchEventException, InterruptedException {
+    public void testFetchEvent() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "testEventPointer";
         String readerName = "reader";
