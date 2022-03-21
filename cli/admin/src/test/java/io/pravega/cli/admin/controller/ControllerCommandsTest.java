@@ -19,16 +19,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
-import io.pravega.cli.admin.utils.CLIConfig;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.SegmentHelper;
@@ -38,12 +34,11 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,12 +47,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -128,44 +121,6 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", cliConfig());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
-    }
-
-    @Test
-    @SneakyThrows
-    public void testDescribeStreamCommand() {
-        String scope = "testScope";
-        String testStream = "testStream";
-
-        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, cliConfig());
-        Assert.assertTrue(commandResult.contains("stream_config"));
-        Assert.assertTrue(commandResult.contains("stream_state"));
-        Assert.assertTrue(commandResult.contains("segment_count"));
-        Assert.assertTrue(commandResult.contains("is_sealed"));
-        Assert.assertTrue(commandResult.contains("active_epoch"));
-        Assert.assertTrue(commandResult.contains("truncation_record"));
-        Assert.assertTrue(commandResult.contains("scaling_info"));
-
-        // Exercise actual instantiateSegmentHelper
-        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
-        @Cleanup
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(CLUSTER.zookeeperConnectString(),
-                new RetryOneTime(5000));
-        curatorFramework.start();
-        @Cleanup
-        ConnectionPool pool = new ConnectionPoolImpl(CLIENT_CONFIG, new SocketConnectionFactoryImpl(CLIENT_CONFIG));
-        @Cleanup
-        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework, pool);
-        Assert.assertNotNull(sh);
-
-        // Try the Zookeeper backend, which is expected to fail and be handled by the command.
-        Properties properties = new Properties();
-        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.ZOOKEEPER.name());
-        cliConfig().getConfigBuilder().include(properties);
-        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        new ControllerDescribeStreamCommand(commandArgs).execute();
-        properties.setProperty("cli.store.metadata.backend", CLIConfig.MetadataBackends.SEGMENTSTORE.name());
-        cliConfig().getConfigBuilder().include(properties);
     }
 
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {
