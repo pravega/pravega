@@ -523,7 +523,8 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context);
 
     /**
-     * Api to List transaction in completed(COMMITTED/ABORTED) state.
+     * Api to retrieve List transaction in completed(COMMITTED/ABORTED) state
+     * from most recent batch.
      *
      * @param context operational context
      * @return map having transactionId and transaction status

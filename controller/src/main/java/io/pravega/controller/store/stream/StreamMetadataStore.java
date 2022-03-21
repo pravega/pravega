@@ -1126,7 +1126,8 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
-     * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state.
+     * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state
+     * from most recent batch.
      *
      * @param scope Scope of stream
      * @param stream name of stream
