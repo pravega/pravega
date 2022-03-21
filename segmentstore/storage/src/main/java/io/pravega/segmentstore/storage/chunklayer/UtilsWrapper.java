@@ -267,8 +267,8 @@ public class UtilsWrapper {
         byte[] readData = new byte[dataSize];
         InputStream inputStream = new ByteArrayInputStream(testData);
         Preconditions.checkNotNull(chunkName, "chunkName");
+        Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
         AtomicBoolean isCreated = new AtomicBoolean();
-        CompletableFuture<Void> result = new CompletableFuture<>();
 
         return chunkedSegmentStorage.getChunkStorage().createWithContent(chunkName, testData.length, inputStream)
                 .thenComposeAsync(v -> {
@@ -280,7 +280,7 @@ public class UtilsWrapper {
                         .thenAcceptAsync(doesExists -> Preconditions.checkState(doesExists, "The given chunk doesn't exist!"), chunkedSegmentStorage.getExecutor())
                         .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0), chunkedSegmentStorage.getExecutor())
                         .thenAcceptAsync(bytesRead -> {
-                            Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are equal.");
+                            Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are not equal.");
                         }, chunkedSegmentStorage.getExecutor())
                         .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName)), chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
