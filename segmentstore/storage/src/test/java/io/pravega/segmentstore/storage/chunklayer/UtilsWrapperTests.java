@@ -26,16 +26,15 @@ import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -292,7 +291,6 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
         Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
-        val clazz = ChunkStorageException.class;
         doThrow(exceptionToThrow).when(spyChunkStorage).doCreateWithContent(any(), anyInt(), any());
 
         testSanity(spyChunkStorage, "Test Exception", ChunkStorageException.class);

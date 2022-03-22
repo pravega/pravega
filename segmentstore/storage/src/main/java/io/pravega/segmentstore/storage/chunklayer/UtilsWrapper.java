@@ -22,7 +22,6 @@ import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -33,7 +32,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +43,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
-import static java.util.concurrent.CompletableFuture.completedStage;
 
 /**
  * This class contains various utils methods useful for administration of LTS.
@@ -271,7 +268,7 @@ public class UtilsWrapper {
      * If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    public CompletableFuture<Void> checkChunkSegmentStorageSanity (String chunkName, int dataSize) {
+    public CompletableFuture<Void> checkChunkSegmentStorageSanity(String chunkName, int dataSize) {
         Preconditions.checkNotNull(chunkName, "chunkName");
         Preconditions.checkArgument(chunkName.length() > 0, "chunkName");
         Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
@@ -296,10 +293,10 @@ public class UtilsWrapper {
                         .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName)), chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
                 .handleAsync((v, e) -> {
-                    if(isCreated.get()){
+                    if (isCreated.get()) {
                      chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName));
                     }
-                    if(e != null){
+                    if (e != null) {
                         throw new CompletionException(Exceptions.unwrap(e));
                     }
                     return v;
