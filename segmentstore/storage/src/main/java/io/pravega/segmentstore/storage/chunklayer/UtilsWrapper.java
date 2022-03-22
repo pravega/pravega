@@ -262,12 +262,22 @@ public class UtilsWrapper {
                 chunkedSegmentStorage.getExecutor()), streamSegmentName);
     }
 
+    /**
+     * Performs sanity operations on chunk like create chunk, write to the chunk, check if the chunk exists, read back contents to the chunk and delete the chunk.
+     *
+     * @param chunkName Name of the chunk.
+     * @param dataSize dataSize of the bytes to read.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link ChunkStorageException} In case of I/O related exceptions.
+     */
     public CompletableFuture<Void> checkChunkSegmentStorageSanity (String chunkName, int dataSize) {
+        Preconditions.checkNotNull(chunkName, "chunkName");
+        Preconditions.checkArgument(chunkName.length() > 0, "chunkName");
+        Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
         byte[] testData = new byte[dataSize];
         byte[] readData = new byte[dataSize];
         InputStream inputStream = new ByteArrayInputStream(testData);
-        Preconditions.checkNotNull(chunkName, "chunkName");
-        Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
         AtomicBoolean isCreated = new AtomicBoolean();
 
         return chunkedSegmentStorage.getChunkStorage().createWithContent(chunkName, testData.length, inputStream)
@@ -280,7 +290,8 @@ public class UtilsWrapper {
                         .thenAcceptAsync(doesExists -> Preconditions.checkState(doesExists, "The given chunk doesn't exist!"), chunkedSegmentStorage.getExecutor())
                         .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0), chunkedSegmentStorage.getExecutor())
                         .thenAcceptAsync(bytesRead -> {
-                            Preconditions.checkArgument(Arrays.equals(testData, readData), "The arrays after reading the bytes are not equal.");
+                            Preconditions.checkState(bytesRead == dataSize, "Bytes read are not equal to dataSize.");
+                            Preconditions.checkState(Arrays.equals(testData, readData), "The arrays after reading the bytes are not equal.");
                         }, chunkedSegmentStorage.getExecutor())
                         .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName)), chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
