@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 /**
  * {@link Storage} implementation for introducing delays/slowness to inner Storage instance.
  */
-public class SlowStorage implements Storage {
+public class SlowStorage implements StorageWrapper {
     @Getter
     final protected Storage inner;
 
