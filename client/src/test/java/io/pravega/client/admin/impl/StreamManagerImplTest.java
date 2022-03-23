@@ -30,6 +30,8 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -44,6 +46,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.EventPointerImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -82,6 +85,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -152,7 +156,7 @@ public class StreamManagerImplTest {
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testFetchEvent() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
         //Setup Mocks
         SegmentInputStreamFactory inputStreamFactory = mock(SegmentInputStreamFactory.class);
@@ -177,6 +181,48 @@ public class StreamManagerImplTest {
         CompletableFuture<byte[]> future1 = streamManager.fetchEvent(pointer, serializer);
         Thread.sleep(1000);
         assertFalse("not expecting a fetchEvent failure", future1.isCompletedExceptionally());
+    }
+
+    @Test(timeout = 10000)
+    public  void testFetchEventThrowingException() throws EndOfSegmentException, SegmentTruncatedException {
+        SegmentInputStreamFactory inputStreamFactory =  mock(SegmentInputStreamFactory.class);
+        SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
+        ConnectionPool pool = mock(ConnectionPool.class);
+        ClientConnection connection = mock(ClientConnection.class);
+        connectionFactory.provideConnection(uri, connection);
+        when(pool.getClientConnection(any(Flow.class), any(PravegaNodeUri.class), any(ReplyProcessor.class)))
+                .thenReturn(CompletableFuture.completedFuture(connection));
+        when(segmentInputStream.getSegmentId()).thenReturn(new Segment("scope", "stream", 0L));
+        EventSegmentReader reader1 = mock(EventSegmentReader.class);
+        EventSegmentReader reader2 = mock(EventSegmentReader.class);
+        Segment segment = new Segment("scope", "stream", 0L);
+        EventPointer pointer1 = EventPointerImpl.builder().eventStartOffset(0).eventLength(1).segment(segment).build();
+        EventPointer pointer2 = EventPointerImpl.builder().eventStartOffset(3).eventLength(2).segment(segment).build();
+        JavaSerializer<Integer> serializer1 = new JavaSerializer<>();
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer1.asImpl().getSegment(), pointer1.asImpl().getEventLength())).thenReturn(reader1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer2.asImpl().getSegment(), pointer2.asImpl().getEventLength())).thenReturn(reader2);
+
+        doAnswer(invocation -> {
+            throw Exceptions.sneakyThrow(new NoSuchEventException("No Such Event Exception") );
+        }).when(reader1).read();
+
+        doAnswer(invocation -> {
+            throw Exceptions.sneakyThrow(new NoSuchSegmentException("No Such Segment Exception") );
+        }).when(reader2).read();
+        StreamManager  streamManager = mock(StreamManager.class);
+
+        doAnswer(invocation -> {
+            throw Exceptions.sneakyThrow(new NullPointerException("Null Pointer Exception"));
+        }).when(streamManager).fetchEvent(eq(pointer2), eq(null));
+
+        doAnswer(invocation -> {
+            throw Exceptions.sneakyThrow(new NullPointerException("Null Pointer Exception"));
+        }).when(streamManager).fetchEvent(eq(null), eq(serializer1));
+
+        assertThrows(NullPointerException.class, () -> streamManager.fetchEvent(pointer2, null));
+        assertThrows(NullPointerException.class, () -> streamManager.fetchEvent(null, serializer1));
+        assertThrows(NoSuchEventException.class, () -> reader1.read());
+        assertThrows(NoSuchSegmentException.class, () -> reader2.read());
     }
 
     @Test(timeout = 15000)
