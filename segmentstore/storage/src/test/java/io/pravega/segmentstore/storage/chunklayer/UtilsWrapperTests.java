@@ -45,6 +45,9 @@ import static org.mockito.Mockito.*;
  */
 public class UtilsWrapperTests extends ThreadPooledTestSuite {
 
+    public static final int CONTAINER_ID = 42;
+    public static final int CONTAINER_EPOCH = 123;
+    public static final int BUFFER_SIZE = 128;
     Random random = new Random();
 
     @Test
@@ -82,11 +85,11 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         BaseMetadataStore metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
         // Insert metadata
-        TestUtils.insertMetadata(segmentName, 25, 123, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage);
         val chunkMetadataList = TestUtils.getChunkList(metadataStore, segmentName);
 
         // Delete few chunks
@@ -98,7 +101,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         }
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         // check the output
         checkExtendedChunkInfoList(wrapper, segmentName, shouldCheckStorage, lengthsInStorage, deletedChunkNames, chunkMetadataList);
@@ -144,14 +147,14 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         BaseMetadataStore metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        TestUtils.insertMetadata(segmentName, 25, 123, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
         val chunkMetadataList = TestUtils.getChunkList(chunkedSegmentStorage.getMetadataStore(), segmentName);
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         byte[][] expected = new byte[chunkMetadataList.size()][];
         int sum = 0;
@@ -198,17 +201,17 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
         val chunkSizes = new long[] {1};
 
         // Insert metadata
-        TestUtils.insertMetadata("a", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("b", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("c", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("a", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("b", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("c", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         wrapper.evictMetadataCache().join();
 
@@ -240,8 +243,8 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
         AssertExtensions.assertThrows("Should not allow null chunkStorage",
                 () -> new UtilsWrapper(null, 10, Duration.ZERO),
@@ -354,11 +357,11 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
-        doReturn(123).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
+        doReturn(CONTAINER_EPOCH).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
 
         testSanity(spyChunkStorage, "Bytes read are not equal to dataSize.", clazz);
     }
@@ -375,10 +378,10 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         AssertExtensions.assertThrows("Null argument should throw an exception.",
                 () -> wrapper.checkChunkSegmentStorageSanity(null, 10),
@@ -440,10 +443,10 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         wrapper.checkChunkSegmentStorageSanity(chunkName, 10).get();
         verify(spyChunkStorage).doCreateWithContent(anyString(), anyInt(), any());
@@ -454,10 +457,10 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         // Inject fault
         val result = wrapper.checkChunkSegmentStorageSanity("TestChunk", 100);
