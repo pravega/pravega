@@ -207,7 +207,7 @@ public class StreamManagerImplTest {
         }).when(reader1).read();
 
         doAnswer(invocation -> {
-            throw Exceptions.sneakyThrow(new NoSuchSegmentException("No Such Segment Exception") );
+            throw Exceptions.sneakyThrow(new NoSuchSegmentException("Event no longer exists.") );
         }).when(reader2).read();
         StreamManager  streamManager = mock(StreamManager.class);
 
