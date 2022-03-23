@@ -178,10 +178,15 @@ public class StorageLoaderTest {
     public void testSlowModeWithInMemoryStorage() throws Exception {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+
+        // Case 1
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(StorageExtraConfig.builder()
-                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true))
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY, false))
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
@@ -197,6 +202,30 @@ public class StorageLoaderTest {
         assertTrue(((SlowStorageFactory) expectedFactory).getInner() instanceof InMemorySimpleStorageFactory);
         builder.close();
 
+        // Case 2
+        configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY, true))
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
+
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof SlowStorageFactory);
+        assertTrue(((SlowStorageFactory) expectedFactory).getInner() instanceof InMemorySimpleStorageFactory);
+        builder.close();
+
+        // Case 3
         configBuilder
                 .include(StorageExtraConfig.builder()
                         .with(StorageExtraConfig.STORAGE_SLOW_MODE, false));

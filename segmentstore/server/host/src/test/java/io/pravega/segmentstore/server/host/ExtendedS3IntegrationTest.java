@@ -24,6 +24,7 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -140,17 +141,8 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
         @Override
         public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-            URI uri = URI.create(s3ConfigUri);
-            S3Config s3Config = new S3Config(uri);
-
-            s3Config = s3Config
-                    .withRetryEnabled(false)
-                    .withInitialRetryDelay(1)
-                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
-
-            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
             return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false),
+                    createChunkStorage(),
                     metadataStore,
                     this.executor,
                     this.chunkedSegmentStorageConfig);
@@ -162,6 +154,21 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         @Override
         public Storage createStorageAdapter() {
             throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+        }
+
+        @Override
+        public ChunkStorage createChunkStorage() {
+            URI uri = URI.create(s3ConfigUri);
+            S3Config s3Config = new S3Config(uri);
+
+            s3Config = s3Config
+                    .withRetryEnabled(false)
+                    .withInitialRetryDelay(1)
+                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
+
+            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
+
+            return new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false);
         }
     }
     //endregion
