@@ -70,7 +70,7 @@ public class SecureControllerCommandsTest {
         boolean isStreamCreated = streamManager.createStream(scope, testStream, StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-
+        
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
     }
@@ -151,9 +151,12 @@ public class SecureControllerCommandsTest {
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
     }
 
-    // TODO: Test controller describe-stream command in the secure scenario (auth+TLS).
-    // Cannot at this point due to the following issue:
-    // Issue 3821: Create describeStream REST call in Controller
-    // https://github.com/pravega/pravega/issues/3821
+    @Test
+    @SneakyThrows
+    public void testDescribeStreamCommand() {
+        String commandResult = TestUtils.executeCommand("controller describe-stream testScope testStream", cliConfig());
+        Assert.assertTrue(commandResult.contains("testStream"));
+    }
+
 }
 
