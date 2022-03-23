@@ -1129,11 +1129,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state
      * from most recent batch.
      *
-     * @param scope Scope of stream
-     * @param stream name of stream
-     * @param context operation context
-     * @param executor caller executor
-     * @return map having transactionId and transaction status
+     * @param scope Scope of stream.
+     * @param stream Name of stream.
+     * @param context Operation context.
+     * @param executor Caller executor.
+     * @return Map having transactionId and transaction status.
      */
     CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 

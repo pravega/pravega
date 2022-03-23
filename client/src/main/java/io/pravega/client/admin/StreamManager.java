@@ -205,11 +205,11 @@ public interface StreamManager extends AutoCloseable {
     boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException;
 
     /**
-     * List most recent completed(COMMITTED/ABORTED) transactions.
+     * List most recent completed (COMMITTED/ABORTED) transactions.
      * It will return transactionId, transaction status and stream.
      *
      * @param stream The name of the stream for which to list transactionInfo.
-     * @return list of TransactionInfo.
+     * @return List of TransactionInfo.
      */
     List<TransactionInfo> listCompletedTransactions(Stream stream);
 

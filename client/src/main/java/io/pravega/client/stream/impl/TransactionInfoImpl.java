@@ -21,7 +21,9 @@ import io.pravega.client.stream.TransactionInfo;
 import lombok.Data;
 
 import java.util.UUID;
-
+/**
+ * This class provides basic information like stream, unique transactionId and transaction status for a transaction.
+ */
 @Data
 public final class TransactionInfoImpl implements TransactionInfo {
 

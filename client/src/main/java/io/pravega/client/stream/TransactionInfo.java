@@ -16,36 +16,31 @@
 package io.pravega.client.stream;
 
 import java.util.UUID;
-
 /**
  * TransactionInfo holds the information of transaction.
- *  It contains streamName, transactionId and transactionStatus
+ * It contains streamName, transactionId and transactionStatus
  *
  */
 public interface TransactionInfo {
 
     /**
-     * get the stream in which transaction happens.
+     * Get the stream in which transaction happens.
      *
-     * @return stream
+     * @return Stream.
      */
     Stream getStream();
 
-
     /**
-     * get unique transaction Id.
+     * Get unique transaction Id.
      *
-     * @return unique transactionId
+     * @return Unique transactionId.
      */
     UUID getTransactionId();
 
-
     /**
-     * get status of transaction.
+     * Get status of transaction.
      *
-     * @return transactionStatus
+     * @return TransactionStatus.
      */
     Transaction.Status getTransactionStatus();
-
-
 }
