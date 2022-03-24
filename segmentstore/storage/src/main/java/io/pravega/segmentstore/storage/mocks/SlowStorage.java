@@ -64,67 +64,67 @@ public class SlowStorage implements StorageWrapper {
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.openRead(streamSegmentName));
+                thenComposeAsync(v -> inner.openRead(streamSegmentName), executorService);
     }
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.read(handle, offset, buffer, bufferOffset, length, timeout));
+                thenComposeAsync(v -> inner.read(handle, offset, buffer, bufferOffset, length, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.getStreamSegmentInfo(streamSegmentName, timeout));
+                thenComposeAsync(v -> inner.getStreamSegmentInfo(streamSegmentName, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.exists(streamSegmentName, timeout));
+                thenComposeAsync(v -> inner.exists(streamSegmentName, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.openWrite(streamSegmentName));
+                thenComposeAsync(v -> inner.openWrite(streamSegmentName), executorService);
     }
 
     @Override
     public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.create(streamSegmentName, rollingPolicy, timeout));
+                thenComposeAsync(v -> inner.create(streamSegmentName, rollingPolicy, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.write(handle, offset, data, length, timeout));
+                thenComposeAsync(v -> inner.write(handle, offset, data, length, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.seal(handle, timeout));
+                thenComposeAsync(v -> inner.seal(handle, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.concat(targetHandle, offset, sourceSegment, timeout));
+                thenComposeAsync(v -> inner.concat(targetHandle, offset, sourceSegment, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.delete(handle, timeout));
+                thenComposeAsync(v -> inner.delete(handle, timeout), executorService);
     }
 
     @Override
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.truncate(handle, offset, timeout));
+                thenComposeAsync(v -> inner.truncate(handle, offset, timeout), executorService);
     }
 
     @Override
@@ -140,7 +140,7 @@ public class SlowStorage implements StorageWrapper {
     @Override
     public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
         return Futures.delayedFuture(durationSupplier.get(), executorService).
-                thenComposeAsync(v -> inner.listSegments());
+                thenComposeAsync(v -> inner.listSegments(), executorService);
     }
 
     @Override
