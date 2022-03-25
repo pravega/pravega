@@ -91,7 +91,8 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction1.commit();
 
         assertEventuallyEquals(Transaction.Status.COMMITTED, () -> transaction1.checkStatus(), 5000);
-        
+        assertEquals(1, controller.listCompletedTransactions(Stream.of("test", "testTxnWithScale")).join().size());
+
         // scale
         Stream stream = new StreamImpl("test", streamName);
         Map<Double, Double> map = new HashMap<>();
@@ -232,7 +233,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         // commit the transaction
         txn1.commit();
         assertEventuallyEquals(Transaction.Status.COMMITTED, txn1::checkStatus, 5000);
-
+        assertEquals(1, controller.listCompletedTransactions(Stream.of("test", "testGetTxnWithScale")).join().size());
         String group = "testGetTxnWithScale-group";
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);

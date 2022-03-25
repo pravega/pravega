@@ -829,7 +829,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                     completedTxnMetadataMap.getValue());
             return true;
         }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
-                completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus()))), Collections.emptyMap());
+                completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus())))
+                .exceptionally(v -> Collections.emptyMap()), Collections.emptyMap());
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {

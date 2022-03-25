@@ -43,6 +43,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import java.util.List;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
@@ -195,15 +196,23 @@ public class ControllerStreamMetadataTest {
     }
 
     @Test
-    public void testListCompletedTxns() {
+    public void testListCompletedTxns() throws Exception {
         // Create test scope. This operation should succeed.
         assertTrue(controller.createScope(SCOPE).join());
 
         assertTrue(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
 
         TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+        TxnSegments txnSegments2 = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
 
         List<TransactionInfo> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join();
         assertEquals(0, listUUID.size());
+
+        controller.commitTransaction(Stream.of(SCOPE, STREAM), "", 0L, txnSegments.getTxnId());
+        controller.abortTransaction(Stream.of(SCOPE, STREAM), txnSegments2.getTxnId());
+
+        assertEventuallyEquals(2, () -> controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().size(), 10000);
+        assertEquals(txnSegments.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(0).getTransactionId());
+        assertEquals(txnSegments2.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(1).getTransactionId());
     }
 }
