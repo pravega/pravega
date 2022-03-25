@@ -568,13 +568,13 @@ public class SystemJournal {
                         val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, snapshotInfo.getEpoch(), snapshotInfo.getSnapshotId());
                         log.debug("SystemJournal[{}] Snapshot info read. {} pointing to {}", containerId, snapshotInfo, snapshotFileName);
 
-                        // Step 2: Validate. and Read contents.
+                        // Step 2: Validate and Read contents.
                         return getContents(snapshotFileName, false)
                                 // Step 3: Deserialize and return.
                                 .thenApplyAsync(contents -> readSnapshotRecord(snapshotInfo, contents), executor)
-                                .exceptionally( e -> {
+                                .exceptionally(e -> {
                                     throw new CompletionException(new IllegalStateException(
-                                            String.format("Chunk pointed by SnapshotInfo must exist. Missing chunk %s", snapshotFileName),
+                                            String.format("Chunk pointed by SnapshotInfo could not be read. chunk name = %s", snapshotFileName),
                                             Exceptions.unwrap(e)));
                                 });
                     } else {
