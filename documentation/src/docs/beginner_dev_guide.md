@@ -124,8 +124,6 @@ Add the below snippet to dependencies section of build.gradle in the app directo
 // https://mvnrepository.com/artifact/io.pravega/pravega-client
 implementation group: 'io.pravega', name: 'pravega-client', version: '0.9.0'
 ```
-**Note:** The version of Pravega standalone should be same as the client version used above
-
 Invoke `gradle run` to run the project.
 
 
