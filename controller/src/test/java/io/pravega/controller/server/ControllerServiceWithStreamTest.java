@@ -189,6 +189,7 @@ public abstract class ControllerServiceWithStreamTest {
     @Test(timeout = 5000)
     public void createStreamTest() throws Exception {
         String stream = "create";
+        String createStream = "_readerGroupStream";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                                                                       .scalingPolicy(policy1).build();
@@ -207,14 +208,18 @@ public abstract class ControllerServiceWithStreamTest {
         Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
-        // there will be two invocations because we also create internal mark stream
-        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        // create stream starting with underscore
+        Controller.CreateStreamStatus createStreamStatus = consumer.createStream(SCOPE, createStream, configuration1, start, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // there will be two invocations per call because we also create internal mark stream
+        verify(streamStore, times(4)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
         streamStatus = consumer.createInternalStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again
-        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        verify(streamStore, times(4)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
     }
 
     @Test(timeout = 5000)
