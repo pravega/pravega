@@ -91,7 +91,6 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction1.commit();
 
         assertEventuallyEquals(Transaction.Status.COMMITTED, () -> transaction1.checkStatus(), 5000);
-        assertEquals(1, controller.listCompletedTransactions(Stream.of("test", "testTxnWithScale")).join().size());
 
         // scale
         Stream stream = new StreamImpl("test", streamName);
@@ -148,6 +147,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controller.abortTransaction(Stream.of(scope, stream), transaction.getTxnId()).join();
         //check the status of the transaction.
         assertEventuallyEquals(Transaction.Status.ABORTED, () -> controller.checkTransactionStatus(Stream.of(scope, stream), transaction.getTxnId()).join(), 10000);
+        assertEquals(1, controller.listCompletedTransactions(Stream.of(scope, stream)).join().size());
         transaction.writeEvent("0", "txntest2");
         //verify that commit fails with TxnFailedException.
         assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
@@ -233,7 +233,6 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         // commit the transaction
         txn1.commit();
         assertEventuallyEquals(Transaction.Status.COMMITTED, txn1::checkStatus, 5000);
-        assertEquals(1, controller.listCompletedTransactions(Stream.of("test", "testGetTxnWithScale")).join().size());
         String group = "testGetTxnWithScale-group";
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
