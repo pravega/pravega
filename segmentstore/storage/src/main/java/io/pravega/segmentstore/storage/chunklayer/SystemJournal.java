@@ -311,7 +311,7 @@ public class SystemJournal {
         this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "snapshotInfoStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
 
-        log.debug("SystemJournal[{}] BOOT started.", containerId);
+        log.info("SystemJournal[{}] BOOT started.", containerId);
         Timer t = new Timer();
 
         // Start a transaction
@@ -358,11 +358,15 @@ public class SystemJournal {
                 }, executor)
                 .whenCompleteAsync((v, e) -> {
                     txn.close();
-                    log.info("SystemJournal[{}] BOOT complete - applied {} records in {} journals. Total time = {} ms.",
-                            containerId,
-                            state.recordsProcessedCount.get(),
-                            state.filesProcessedCount.get(),
-                            t.getElapsedMillis());
+                    if (e == null) {
+                        log.info("SystemJournal[{}] BOOT complete - applied {} records in {} journals. Total time = {} ms.",
+                                containerId,
+                                state.recordsProcessedCount.get(),
+                                state.filesProcessedCount.get(),
+                                t.getElapsedMillis());
+                    } else {
+                        log.error("SystemJournal[{}] BOOT failed. Total time = {} ms.", containerId, t.getElapsedMillis(), e);
+                    }
                 }, executor);
     }
 
