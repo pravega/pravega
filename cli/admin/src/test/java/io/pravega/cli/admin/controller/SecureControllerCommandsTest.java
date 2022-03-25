@@ -70,7 +70,6 @@ public class SecureControllerCommandsTest {
         boolean isStreamCreated = streamManager.createStream(scope, testStream, StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
     }
