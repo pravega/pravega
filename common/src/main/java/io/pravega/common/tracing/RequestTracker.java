@@ -38,6 +38,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class RequestTracker {
 
+    @VisibleForTesting
+    static final int MAX_PARALLEL_REQUESTS = 10;
+    // If there are multiple parallel requests for the same descriptor, the first one will be the primary (i.e., the one
+    // used to log the lifecycle of the request).
+    private static final int PRIMARY_REQUEST_ID_INDEX = 0;
     private static final String INTER_FIELD_DELIMITER = "-";
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int EVICTION_PERIOD_MINUTES = 10;
@@ -107,7 +112,7 @@ public final class RequestTracker {
         List<Long> descriptorIds;
         synchronized (lock) {
             descriptorIds = ongoingRequests.getIfPresent(requestDescriptor);
-            requestId = (descriptorIds == null || descriptorIds.size() == 0) ? RequestTag.NON_EXISTENT_ID : descriptorIds.get(0);
+            requestId = (descriptorIds == null || descriptorIds.size() == 0) ? RequestTag.NON_EXISTENT_ID : descriptorIds.get(PRIMARY_REQUEST_ID_INDEX);
             if (descriptorIds == null) {
                 log.debug("Attempting to get a non-existing tag: {}.", requestDescriptor);
             } else if (descriptorIds.size() > 1) {
@@ -170,6 +175,10 @@ public final class RequestTracker {
             }
 
             requestIds.add(requestId);
+            if (requestIds.size() > MAX_PARALLEL_REQUESTS) {
+                requestIds.remove(1); // Delete the oldest parallel request id to bound the size of this list.
+                Preconditions.checkState(requestIds.size() <= MAX_PARALLEL_REQUESTS);
+            }
             ongoingRequests.put(requestDescriptor, requestIds);
         }
 
@@ -218,7 +227,7 @@ public final class RequestTracker {
                 ongoingRequests.put(requestDescriptor, requestIds);
             } else {
                 ongoingRequests.invalidate(requestDescriptor);
-                removedRequestId = requestIds.get(0);
+                removedRequestId = requestIds.get(PRIMARY_REQUEST_ID_INDEX);
             }
         }
 
