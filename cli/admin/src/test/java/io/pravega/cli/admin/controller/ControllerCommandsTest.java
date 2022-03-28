@@ -28,7 +28,11 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.cli.admin.utils.TestUtils.*;
+import static io.pravega.cli.admin.utils.TestUtils.createAdminCLIConfig;
+import static io.pravega.cli.admin.utils.TestUtils.createPravegaCluster;
+import static io.pravega.cli.admin.utils.TestUtils.getCLIControllerRestUri;
+import static io.pravega.cli.admin.utils.TestUtils.getCLIControllerUri;
+import static io.pravega.cli.admin.utils.TestUtils.prepareValidClientConfig;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
