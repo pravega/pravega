@@ -16,7 +16,6 @@
 package io.pravega.cli.admin.controller;
 
 import io.pravega.cli.admin.CommandArgs;
-import lombok.Cleanup;
 import lombok.val;
 
 /**
@@ -39,7 +38,7 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
         final String scope = getArg(0);
         final String stream = getArg(1);
 
-        try (val context = createContext()){
+        try (val context = createContext()) {
             prettyJSONOutput(executeRESTCall(context, "/v1/scopes/" + scope + "/streams/" + stream));
         }
     }
