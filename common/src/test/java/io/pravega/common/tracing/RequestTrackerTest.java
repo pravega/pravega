@@ -68,7 +68,7 @@ public class RequestTrackerTest {
      * concurrent requests performing actual changes on the system's state (e.g., createStream, deleteStream). Therefore,
      * the policy adopted is that in the case of concurrent operations with the same request descriptor, the first id
      * in the descriptor's associated list will represent all the side effects of that operation; this includes the
-     * activity of the requests tha perform changes in the system, as well as the other requests that are rejected.
+     * activity of the requests that perform changes in the system, as well as the other requests that are rejected.
      * Note that from a debugging perspective, we log the requests ids that are represented by the first one on the list.
      */
     @Test
