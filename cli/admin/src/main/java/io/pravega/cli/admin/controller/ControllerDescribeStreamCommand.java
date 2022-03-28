@@ -39,10 +39,9 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
         final String scope = getArg(0);
         final String stream = getArg(1);
 
-        @Cleanup
-        val context = createContext();
-        // Print the response sent by the Controller.
-        prettyJSONOutput(executeRESTCall(context, "/v1/scopes/" + scope + "/streams/" + stream));
+        try (val context = createContext()){
+            prettyJSONOutput(executeRESTCall(context, "/v1/scopes/" + scope + "/streams/" + stream));
+        }
     }
 
     public static CommandDescriptor descriptor() {
