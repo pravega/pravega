@@ -177,7 +177,6 @@ public final class RequestTracker {
             requestIds.add(requestId);
             if (requestIds.size() > MAX_PARALLEL_REQUESTS) {
                 requestIds.remove(1); // Delete the oldest parallel request id to bound the size of this list.
-                Preconditions.checkState(requestIds.size() <= MAX_PARALLEL_REQUESTS);
             }
             ongoingRequests.put(requestDescriptor, requestIds);
         }
