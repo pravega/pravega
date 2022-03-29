@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
@@ -269,7 +270,7 @@ public class UtilsWrapper {
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
     public CompletableFuture<Void> checkChunkSegmentStorageSanity(String chunkName, int dataSize) {
-        Preconditions.checkNotNull(chunkName, "chunkName");
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(chunkName), "chunk name must not be null or empty");
         Preconditions.checkArgument(chunkName.length() > 0, "chunkName");
         Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
         byte[] testData = new byte[dataSize];
