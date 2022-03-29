@@ -18,7 +18,7 @@ limitations under the License.
 This document provides guidelines to right-sizing the storage capacity of a Pravega cluster (tier-1 and long-term
 storage).
 
-# Right-Sizing Long-Term Storage
+## Right-Sizing Long-Term Storage
 
 Pravega's design enables users to store stream data virtually without bounds. However, in practical terms, we need
 to understand what will be the storage capacity required in Long-Term Storage, either to provision such a system or
@@ -112,7 +112,7 @@ Limiting the size of chunks in LTS poses a trade-off: if the value is low, the s
 (good) but extra metadata overhead (not so good). On the contrary, a high value in this parameter induces coarse retention 
 granularity with less metadata overhead. Limiting chunk sizes between 1GB-16GB seems reasonable in many scenarios.
 
-# Right-Sizing Tier-1 Storage (Bookkeeper)
+## Right-Sizing Tier-1 Storage (Bookkeeper)
 
 Pravega makes use of tier-1 storage to store durably and with low latency events until they are moved to long-term storage. 
 Thus, we need guidelines to right-sizing the storage capacity required in tier-1 (i.e., Bookkeeper).
