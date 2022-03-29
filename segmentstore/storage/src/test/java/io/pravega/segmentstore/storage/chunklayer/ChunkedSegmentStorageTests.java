@@ -27,8 +27,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
@@ -62,6 +64,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
@@ -3123,6 +3128,27 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         testContext.chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle("segment"), TIMEOUT).get();
         testContext.chunkedSegmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 20, "segment", TIMEOUT).get();
+    }
+
+    @Test
+    public void testGetReference() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Null when not ChunkedSegmentStorage
+        Assert.assertNull(ChunkedSegmentStorage.getReference(mock(Storage.class)));
+
+        // Null when inner is not ChunkedSegmentStorage
+        val wrapper1 = mock(StorageWrapper.class);
+        doReturn(mock(Storage.class)).when(wrapper1).getInner();
+        Assert.assertNull(ChunkedSegmentStorage.getReference(wrapper1));
+
+        // Matches when ChunkedSegmentStorage
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(testContext.chunkedSegmentStorage));
+
+        // Matches when inner is ChunkedSegmentStorage
+        val wrapper2 = mock(StorageWrapper.class);
+        doReturn(testContext.chunkedSegmentStorage).when(wrapper2).getInner();
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(wrapper2));
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
