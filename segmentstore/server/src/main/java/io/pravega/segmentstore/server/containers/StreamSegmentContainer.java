@@ -230,9 +230,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
-
-        if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage chunkedSegmentStorage = (ChunkedSegmentStorage) this.storage;
+        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
             StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
@@ -315,8 +314,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
         delayedStart.thenComposeAsync(v -> {
-                    if (this.storage instanceof ChunkedSegmentStorage) {
-                        return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
+                    val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+                    if (null != chunkedSegmentStorage) {
+                        return chunkedSegmentStorage.finishBootstrap();
                     }
                     return CompletableFuture.completedFuture(null);
                 }, this.executor)
