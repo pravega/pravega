@@ -48,6 +48,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_LENGTH = 3 * ReadOnlySegmentContainer.MAX_READ_AT_ONCE_BYTES;
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final String SEGMENT_NAME = "Segment";
+    private static final String CHUNK_NAME = "Chunk";
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
 
@@ -135,6 +136,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT));
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, new AttributeUpdateCollection(), TIMEOUT));
         assertUnsupported("getExtendedChunkInfo", () -> context.container.getExtendedChunkInfo(SEGMENT_NAME, TIMEOUT));
+        assertUnsupported("getCheckSanity", () -> context.container.getCheckSanity(CHUNK_NAME, 10));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

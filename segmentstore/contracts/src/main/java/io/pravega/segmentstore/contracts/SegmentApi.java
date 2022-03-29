@@ -250,4 +250,6 @@ public interface SegmentApi {
      * {@link ExtendedChunkInfo} objects. If the operation failed, the future will fail with the causing exception.
      */
     CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
+
+    CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize);
 }

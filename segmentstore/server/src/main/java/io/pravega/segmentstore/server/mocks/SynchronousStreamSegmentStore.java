@@ -89,6 +89,13 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize) {
+        CompletableFuture<Void> result = impl.getCheckSanity(chunkName, dataSize);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         CompletableFuture<ReadResult> result = impl.read(streamSegmentName, offset, maxLength, timeout);
         Futures.await(result);

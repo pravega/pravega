@@ -736,6 +736,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
 
+    @Override
+    public CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize) {
+        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
+        return wrapper.checkChunkSegmentStorageSanity(chunkName, 10);
+    }
+
     //endregion
 
     //region Helpers
