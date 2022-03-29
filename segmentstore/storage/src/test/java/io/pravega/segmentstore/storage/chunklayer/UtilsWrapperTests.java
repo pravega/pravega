@@ -384,7 +384,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertThrows("Null argument should throw an exception.",
                 () -> wrapper.checkChunkSegmentStorageSanity(null, 10),
-                ex -> ex instanceof NullPointerException);
+                ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows("Null argument should throw an exception.",
                 () -> wrapper.checkChunkSegmentStorageSanity(emptyChunkName, 10),

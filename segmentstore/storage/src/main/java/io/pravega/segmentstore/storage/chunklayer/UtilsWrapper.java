@@ -271,7 +271,6 @@ public class UtilsWrapper {
      */
     public CompletableFuture<Void> checkChunkSegmentStorageSanity(String chunkName, int dataSize) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(chunkName), "chunk name must not be null or empty");
-        Preconditions.checkArgument(chunkName.length() > 0, "chunkName");
         Preconditions.checkArgument(dataSize >= 0, "dataSize is not null!");
         byte[] testData = new byte[dataSize];
         byte[] readData = new byte[dataSize];
