@@ -81,6 +81,7 @@ public class RequestTrackerTest {
             requestTracker.trackRequest(requestDescriptor, i);
             Assert.assertEquals(0, requestTracker.getRequestIdFor(requestDescriptor));
         }
+        Assert.assertEquals(1, requestTracker.getNumDescriptors());
 
         // When untracking requests ids from the descriptor, the most recent ones should be removed first.
         for (int i = RequestTracker.MAX_PARALLEL_REQUESTS - 1; i >= 0; i--) {
@@ -89,6 +90,8 @@ public class RequestTrackerTest {
 
         // Getting a non-existing key, so a default value is retrieved.
         Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.getRequestIdFor(requestDescriptor));
+        Assert.assertEquals(0, requestTracker.getNumDescriptors());
+        Assert.assertNotNull(requestTracker.initializeAndTrackRequestTag(123L, "createStream", "scope", "stream"));
     }
 
     /**
@@ -115,5 +118,17 @@ public class RequestTrackerTest {
 
         // Getting a non-existing key, so a default value is retrieved.
         Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.getRequestIdFor(requestDescriptor));
+    }
+
+    @Test
+    public void testDisabledRequestTracking() {
+        RequestTracker requestTracker = new RequestTracker(false);
+        final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
+        requestTracker.trackRequest(requestDescriptor, 123L);
+        Assert.assertFalse(requestTracker.isTracingEnabled());
+        Assert.assertEquals(requestTracker.getRequestIdFor(requestDescriptor), RequestTag.NON_EXISTENT_ID);
+        Assert.assertEquals(requestTracker.getRequestIdFor("createStream", "scope", "stream"), RequestTag.NON_EXISTENT_ID);
+        Assert.assertEquals(requestTracker.untrackRequest(requestTracker.getRequestTagFor("createStream", "scope", "stream")), RequestTag.NON_EXISTENT_ID);
+        Assert.assertNotNull(requestTracker.initializeAndTrackRequestTag(123L, "createStream", "scope", "stream"));
     }
 }
