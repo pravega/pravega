@@ -1062,11 +1062,15 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         });
         inOrder.verify(connection).send(append);
+        inOrder.verify(connection).close();
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        inOrder.verify(connection).close();
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
         inOrder.verify(connection).send(append2);
         assertEquals(false, acked.isDone());
         assertEquals(false, acked2.isDone());
+        Mockito.verifyNoMoreInteractions(connection);
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -1425,7 +1429,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 // sending a KeepAlive.
                 // enable a response for AppendSetup only after the connection dropped is dropped.
                 connectionDroppedLatch.await();
-                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1));
+                ReplyProcessor processor = cf.getProcessor(uri);
+                if (processor != null) {
+                    processor.appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1));
+                }
                 return null;
             }
         }).when(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
