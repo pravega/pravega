@@ -23,7 +23,9 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
@@ -170,6 +172,44 @@ public class StorageLoaderTest {
 
         val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
+    }
+
+    @Test
+    public void testSlowModeWithInMemoryStorage() throws Exception {
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true))
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
+
+        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof SlowStorageFactory);
+        assertTrue(((SlowStorageFactory) expectedFactory).getInner() instanceof InMemorySimpleStorageFactory);
+        builder.close();
+
+        configBuilder
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, false));
+
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof InMemorySimpleStorageFactory);
+        builder.close();
     }
 
     private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) {

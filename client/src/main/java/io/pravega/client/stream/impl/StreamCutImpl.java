@@ -53,7 +53,7 @@ import static io.pravega.common.util.ToStringUtils.stringToList;
  * used as in intermediate class to make StreamCut instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-public class StreamCutImpl extends StreamCutInternal {
+public final class StreamCutImpl extends StreamCutInternal {
 
     static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
     private static final int TO_STRING_VERSION = 0;

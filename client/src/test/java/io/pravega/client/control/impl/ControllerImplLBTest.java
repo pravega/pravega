@@ -16,7 +16,7 @@
 package io.pravega.client.control.impl;
 
 import io.grpc.Server;
-import io.grpc.netty.NettyServerBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;

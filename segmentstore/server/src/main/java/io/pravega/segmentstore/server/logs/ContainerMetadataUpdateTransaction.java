@@ -826,7 +826,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                         // This segment existed in our Update Transaction/Base Metadata, however this checkpoint no longer has it.
                         // This means that the segment has been evicted at one point between the last checkpoint and this one,
                         // so it should be safe to remove it from our list (if possible).
-                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id '%s' because it is no longer present in a MetadataCheckpoint.", t.containerId);
+                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id {} because it is no longer present in a MetadataCheckpoint.", t.containerId, segmentId);
                         t.removeNewSegment(segmentId);
                     }
                 } else {

@@ -39,7 +39,7 @@ import lombok.SneakyThrows;
 
 import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
 
-public class PositionImpl extends PositionInternal {
+public final class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
     private Map<Segment, Long> ownedSegments;

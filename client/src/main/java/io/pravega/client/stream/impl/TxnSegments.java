@@ -19,7 +19,7 @@ import java.util.UUID;
 import lombok.Data;
 
 @Data
-public class TxnSegments {
+public final class TxnSegments {
 
     private final StreamSegments streamSegments;
     private final UUID txnId;

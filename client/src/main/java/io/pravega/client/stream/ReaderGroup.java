@@ -78,6 +78,29 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor);
 
     /**
+     * Initiate a checkpoint. This causes all readers in the group to receive a special
+     * {@link EventRead} that contains the provided checkpoint name. This can be used to provide an
+     * indication to them that they should persist their state. Once all of the readers have
+     * received the notification and resumed reading the future will return a {@link Checkpoint}
+     * object which contains the StreamCut of the reader group at the time they received the
+     * checkpoint. This can be used to reset the group to this point in the stream by calling
+     * {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} if the checkpoint fails or the result cannot be
+     * obtained an exception will be set on the future.
+     *
+     * This method can be called and a new checkpoint can be initiated while another is still in
+     * progress if they have different names. If this method is called again before the
+     * checkpoint has completed with the same name the future returned to the second caller will
+     * refer to the same checkpoint object as the first.
+     *
+     * Client internal thread pool executor is used to poll for the completion of the checkpoint
+     *
+     * @param checkpointName The name of the checkpoint (For identification purposes)
+     * @return A future Checkpoint object that can be used to restore the reader group to this
+     *         position.
+     */
+    CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName);
+
+    /**
      * Reset a reader group with the provided {@link ReaderGroupConfig}.
      *
      * <p>- The stream(s) that are part of the reader group
@@ -91,12 +114,20 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      *
      * All existing readers will have to call
      * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
-     * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
+     * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException}.
      *
      * @param config The new configuration for the ReaderGroup.
+     * To use a different checkpoint, set the `startingStreamCuts` on the `ReaderGroupConfig` from a streamcut obtained from a {@link Checkpoint} or {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}.
      */
     void resetReaderGroup(ReaderGroupConfig config);
-    
+
+    /**
+     * Reset a reader group to successfully completed last checkpoint.
+     * Successfully completed last checkpoint can be the last checkpoint created when automatic checkpointing is enabled as a part of {@link ReaderGroupConfig} or manually created by calling {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}
+     * If there is no successfully completed Last checkpoint present then this call reset the reader group to the original streamcut from `ReaderGroupConfig`.
+     */
+    void resetReaderGroup();
+
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
      * cause the events that were going to that reader to be redistributed among the other
