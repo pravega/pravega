@@ -99,6 +99,9 @@ allprojects {
     repositories {
         mavenCentral()
         mavenLocal()
+        maven {
+           url "https://repository.apache.org/content/repositories/orgapachebookkeeper-1063/"
+        }
     }
 
     version = getProjectVersion()
