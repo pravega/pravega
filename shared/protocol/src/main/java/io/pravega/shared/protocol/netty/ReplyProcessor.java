@@ -52,6 +52,8 @@ public interface ReplyProcessor {
 
     void storageChunksListed(WireCommands.StorageChunksListed storageChunksListed);
 
+    void chunkSanityChecked(WireCommands.ChunkSanityChecked chunkSanityChecked);
+
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
     void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);

@@ -39,7 +39,7 @@ public enum WireCommandType {
     STORAGE_CHUNKS_LISTED(-6, WireCommands.StorageChunksListed::readFrom),
 
     CHECK_CHUNK_SANITY(-10, WireCommands.CheckChunkSanity::readFrom),
-    //CHUNK_SANITY_CHECKED(-11, WireCommands.ChunkSanityChecked::readFrom),
+    CHUNK_SANITY_CHECKED(-11, WireCommands.ChunkSanityChecked::readFrom),
 
     EVENT(0, null), // Is read manually.
 

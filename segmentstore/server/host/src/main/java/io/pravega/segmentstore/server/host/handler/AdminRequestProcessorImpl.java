@@ -151,6 +151,16 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         final String operation = "CheckChunkSanity";
         final String chunkName = chunkSanity.getChunkName();
 
+        if (!verifyToken(chunkName, chunkSanity.getRequestId(), chunkSanity.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, chunkSanity);
+        getSegmentStore().getCheckSanity(chunkName, chunkSanity.getDataSize())
+                .thenAccept(chunks -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                getConnection().send(new WireCommands.ChunkSanityChecked(chunkSanity.getRequestId()));})
+                .exceptionally(ex -> handleException(chunkSanity.getRequestId(), chunkName, operation, ex));
     }
     //endregion
 

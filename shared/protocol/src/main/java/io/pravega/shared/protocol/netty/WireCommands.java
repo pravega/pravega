@@ -934,6 +934,25 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class ChunkSanityChecked implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.CHUNK_SANITY_CHECKED;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {cp.chunkSanityChecked(this);}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            return new ChunkSanityChecked(requestId);
+        }
+    }
+
+    @Data
     public static final class ChunkInfo {
         final long lengthInMetadata;
         final long lengthInStorage;
