@@ -124,7 +124,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                       .build())
                            .put("requests", ImmutableMap.builder()
                                                         .put("cpu", "200m")
-                                                        .put("memory", "1Gi")
+                                                        .put("memory", "1.5Gi")
                                                         .build())
                            .build();
     }
