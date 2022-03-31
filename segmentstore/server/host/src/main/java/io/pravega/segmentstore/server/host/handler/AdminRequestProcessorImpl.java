@@ -146,6 +146,12 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
                 .exceptionally(ex -> handleException(listStorageChunks.getRequestId(), segment, operation, ex));
     }
 
+    @Override
+    public void chunkSanity(WireCommands.CheckChunkSanity chunkSanity) {
+        final String operation = "CheckChunkSanity";
+        final String chunkName = chunkSanity.getChunkName();
+
+    }
     //endregion
 
     private WireCommands.ChunkInfo convertToChunkInfo(ExtendedChunkInfo extendedChunkInfo) {

@@ -33,4 +33,6 @@ public interface AdminRequestProcessor extends RequestProcessor {
      * @param listStorageChunks {@link WireCommand} call to list storage chunks for the given segment.
      */
     void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks);
+
+    void chunkSanity(WireCommands.CheckChunkSanity chunkSanity);
 }
