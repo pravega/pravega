@@ -76,7 +76,7 @@ public class SlowChunkStorage implements ChunkStorage {
     @Override
     public CompletableFuture<Boolean> exists(String chunkName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                        .thenComposeAsync(v -> inner.exists(chunkName));
+                        .thenComposeAsync(v -> inner.exists(chunkName), executorService);
     }
 
     /**
@@ -87,73 +87,73 @@ public class SlowChunkStorage implements ChunkStorage {
     @Override
     public CompletableFuture<ChunkHandle> create(String chunkName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.create(chunkName));
+                .thenComposeAsync(v -> inner.create(chunkName), executorService);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> createWithContent(String chunkName, int length, InputStream data) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.createWithContent(chunkName, length, data));
+                .thenComposeAsync(v -> inner.createWithContent(chunkName, length, data), executorService);
     }
 
     @Override
     public CompletableFuture<Void> delete(ChunkHandle handle) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.delete(handle));
+                .thenComposeAsync(v -> inner.delete(handle), executorService);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> openRead(String chunkName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.openRead(chunkName));
+                .thenComposeAsync(v -> inner.openRead(chunkName), executorService);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> openWrite(String chunkName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.openWrite(chunkName));
+                .thenComposeAsync(v -> inner.openWrite(chunkName), executorService);
     }
 
     @Override
     public CompletableFuture<ChunkInfo> getInfo(String chunkName) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.getInfo(chunkName));
+                .thenComposeAsync(v -> inner.getInfo(chunkName), executorService);
     }
 
     @Override
     public CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.read(handle, fromOffset, length, buffer, bufferOffset));
+                .thenComposeAsync(v -> inner.read(handle, fromOffset, length, buffer, bufferOffset), executorService);
     }
 
     @Override
     public CompletableFuture<Integer> write(ChunkHandle handle, long offset, int length, InputStream data) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.write(handle, offset, length, data));
+                .thenComposeAsync(v -> inner.write(handle, offset, length, data), executorService);
     }
 
     @Override
     public CompletableFuture<Integer> concat(ConcatArgument[] chunks) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.concat(chunks));
+                .thenComposeAsync(v -> inner.concat(chunks), executorService);
     }
 
     @Override
     public CompletableFuture<Boolean> truncate(ChunkHandle handle, long offset) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.truncate(handle, offset));
+                .thenComposeAsync(v -> inner.truncate(handle, offset), executorService);
     }
 
     @Override
     public CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly) {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.setReadOnly(handle, isReadonly));
+                .thenComposeAsync(v -> inner.setReadOnly(handle, isReadonly), executorService);
     }
 
     @Override
     public CompletableFuture<Long> getUsedSpace() {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.getUsedSpace());
+                .thenComposeAsync(v -> inner.getUsedSpace(), executorService);
     }
 
     @Override
