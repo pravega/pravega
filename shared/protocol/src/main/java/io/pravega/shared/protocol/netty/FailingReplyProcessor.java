@@ -127,6 +127,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void chunkSanityChecked(WireCommands.ChunkSanityChecked chunkSanityChecked) {
+        throw new IllegalStateException("Unexpected operation: " + chunkSanityChecked);
+    }
+
+    @Override
     public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
         throw new IllegalStateException("Unexpected operation: " + segmentAttribute);
     }
