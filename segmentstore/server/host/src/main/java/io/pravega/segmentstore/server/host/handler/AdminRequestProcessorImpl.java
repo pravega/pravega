@@ -157,10 +157,10 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
 
         long trace = LoggerHelpers.traceEnter(log, operation, chunkSanity);
         getSegmentStore().getCheckSanity(chunkName, chunkSanity.getDataSize())
-                .thenAccept(chunks -> {
+                .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
-                getConnection().send(new WireCommands.ChunkSanityChecked(chunkSanity.getRequestId()));})
-                .exceptionally(ex -> handleException(chunkSanity.getRequestId(), chunkName, operation, ex));
+                    getConnection().send(new WireCommands.ChunkSanityChecked(chunkSanity.getRequestId()));
+                }).exceptionally(ex -> handleException(chunkSanity.getRequestId(), chunkName, operation, ex));
     }
     //endregion
 
