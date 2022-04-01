@@ -104,6 +104,7 @@ public class ReaderGroupState implements Revisioned {
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments, boolean updatingConfig) {
+
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
@@ -120,7 +121,8 @@ public class ReaderGroupState implements Revisioned {
         this.endSegments = ImmutableMap.copyOf(endSegments);
         this.updatingConfig = updatingConfig;
     }
-    
+
+
     /**
      * @return A map from Reader to a relative measure of how much data they have to process. The
      *         scale is calibrated to where 1.0 is equal to the largest segment.
@@ -509,6 +511,7 @@ public class ReaderGroupState implements Revisioned {
                                                                                     longDeserializer)));
                 builder.unassignedSegments(revisionDataInput.readMap(segmentWithRangeDeserializer, longDeserializer));
                 builder.endSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+
             }
 
             private void read01(RevisionDataInput revisionDataInput,

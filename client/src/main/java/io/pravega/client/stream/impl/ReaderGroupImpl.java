@@ -223,7 +223,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
         }
         if (map.isEmpty()) {
-            throw new CheckpointFailedException("None of the  segments are acquired by readers as all the events between start and end of stream cuts are read");
+            log.info("All the events between start and end of stream cuts are already read, nothing more to read");
         }
         return new CheckpointImpl(checkpointName, map);
     }
