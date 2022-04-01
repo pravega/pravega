@@ -138,7 +138,7 @@ deleting the Ledgers whose last entry is lower than the last truncation point. O
 Bookkeeper can delete them when running garbage collection, thus freeing up space to continue writing data.
 
 With the above context, the question to answer is what is the minimum amount of storage space that is needed
-for preventing Pravega getting rid of storage space in Bookkeeper in regular operation? We suggest provisioning storage 
+for preventing Pravega from exhausting storage space in Bookkeeper during normal operation? We suggest provisioning storage 
 space for at least 2 full-length ledgers per container (so one Ledger can be garbage collected by Bookkeeper while the Segment
 Container continues to write to the new one). Therefore, we could estimate the storage space in Bookkeeper as follows:
 
@@ -150,7 +150,7 @@ default values, we would need `2 * 4 Segment Containers * 1GB = 8GB` of storage 
 case of having 3 Bookies (as `bookkeeper.write.quorum.size = 3`). If we had 6 Bookies instead, the minimum storage space
 to be allocated in Bookie volumes would be 4GB. 
 
-As an important point, note that this is the storage space to allocated _individually to each journal and ledger volumes of Bookies_.
+As an important point, note that this is the storage space to be allocated _individually to each journal and ledger volumes of Bookies_.
 Also, this is a _lower bound estimation_: there might be situations in which Pravega could still hit Bookies getting rid of
 storage space (e.g., if long-term storage is unavailable for very long while Pravega keeps ingesting data). For this reason,
 we recommend using this calculation as a bare minimum estimation and always provision Bookie volumes with higher storage capacity.
