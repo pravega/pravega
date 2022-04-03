@@ -49,7 +49,7 @@ public abstract class EventPointerInternal implements EventPointer {
      * @return the event length.
      */
     abstract int getEventLength();
-
+    
     public static EventPointer fromBytes(ByteBuffer eventPointer) {
         return EventPointerImpl.fromBytes(eventPointer);
     }

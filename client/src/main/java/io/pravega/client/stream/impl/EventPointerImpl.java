@@ -50,17 +50,17 @@ public final class EventPointerImpl extends EventPointerInternal {
     }
 
     @Override
-    public Segment getSegment() {
+    Segment getSegment() {
         return segment;
     }
 
     @Override
-    public long getEventStartOffset() {
+    long getEventStartOffset() {
         return eventStartOffset;
     }
 
     @Override
-    public int getEventLength() {
+    int getEventLength() {
         return eventLength;
     }
 
