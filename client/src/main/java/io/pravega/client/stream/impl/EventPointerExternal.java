@@ -16,8 +16,6 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventPointer;
-import java.nio.ByteBuffer;
 
 /**
  * Pravega provides to a reader the ability to read an isolated event. This feature
@@ -27,30 +25,29 @@ import java.nio.ByteBuffer;
  *
  * Event pointers are opaque objects. Internally, they map to a segment, start offset
  * pair. It also includes the length for efficient buffering.
- */
-public abstract class EventPointerInternal implements EventPointer {
+ *
+ * This Interface allows to get properties of an EventPointer to other classes which are
+ * out of this package.
+ * */
+public interface EventPointerExternal {
     /**
      * Get the segment object to fetch the event from.
      *
      * @return a segment object
      */
-    abstract Segment getSegment();
+    Segment getSegment();
 
     /**
      * Get the start offset of the event.
      *
      * @return the start offset for this event
      */
-    abstract long getEventStartOffset();
+    long getEventStartOffset();
 
     /**
      * Get the length of the event.
      *
      * @return the event length.
      */
-    abstract int getEventLength();
-
-    public static EventPointer fromBytes(ByteBuffer eventPointer) {
-        return EventPointerImpl.fromBytes(eventPointer);
-    }
+    int getEventLength();
 }

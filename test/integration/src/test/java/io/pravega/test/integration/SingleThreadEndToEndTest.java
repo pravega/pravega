@@ -159,7 +159,7 @@ public class SingleThreadEndToEndTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         int writeCount = 0;
-        for ( int eventNumber = 1; eventNumber <= 100; eventNumber++ ) {
+        for ( int eventNumber = 1; eventNumber <= 10; eventNumber++ ) {
             producer.writeEvent(testString);
             writeCount++;
         }

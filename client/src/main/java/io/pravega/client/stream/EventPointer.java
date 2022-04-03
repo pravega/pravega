@@ -15,6 +15,7 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.client.stream.impl.EventPointerExternal;
 import io.pravega.client.stream.impl.EventPointerInternal;
 import java.nio.ByteBuffer;
 
@@ -29,6 +30,13 @@ public interface EventPointer {
      * @return Implementation of EventPointer interface
      */
     EventPointerInternal asImpl();
+
+    /**
+     * This can be Used Externally.
+     *
+     * @return Implementation of EventPointer interface
+     */
+    EventPointerExternal asExternalImpl();
     
     /**
      * Serializes the Event pointer to a compact binary form.

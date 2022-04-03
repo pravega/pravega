@@ -308,8 +308,7 @@ public class StreamManagerImpl implements StreamManager {
         Preconditions.checkNotNull(serializer);
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
-            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventLength());
-            inputStream.setOffset(pointer.asImpl().getEventStartOffset());
+            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asExternalImpl().getSegment(), pointer.asExternalImpl().getEventStartOffset(), pointer.asExternalImpl().getEventLength());
             try {
                 ByteBuffer buffer = inputStream.read();
                 return  serializer.deserialize(buffer);

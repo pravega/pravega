@@ -72,7 +72,6 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import lombok.Cleanup;
@@ -172,7 +171,7 @@ public class StreamManagerImplTest {
         when(segmentInputStream.read(any(ByteBuffer.class), eq(TimeUnit.SECONDS.toMillis(30)))).thenReturn(0);
         when(segmentInputStream.getSegmentId()).thenReturn(new Segment("scope", "stream", 0L));
 
-        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyInt(), any(Semaphore.class), anyLong())).thenReturn(reader);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
         when(reader.read(anyLong())).thenReturn(null);
         ByteArraySerializer serializer = new ByteArraySerializer();
         Segment segment = new Segment("scope", "stream", 0L);
@@ -198,8 +197,8 @@ public class StreamManagerImplTest {
         EventPointer pointer1 = EventPointerImpl.builder().eventStartOffset(0).eventLength(1).segment(segment).build();
         EventPointer pointer2 = EventPointerImpl.builder().eventStartOffset(3).eventLength(2).segment(segment).build();
         JavaSerializer<Integer> serializer1 = new JavaSerializer<>();
-        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer1.asImpl().getSegment(), pointer1.asImpl().getEventLength())).thenReturn(reader1);
-        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer2.asImpl().getSegment(), pointer2.asImpl().getEventLength())).thenReturn(reader2);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer1.asExternalImpl().getSegment(), pointer1.asExternalImpl().getEventStartOffset(), pointer1.asExternalImpl().getEventLength())).thenReturn(reader1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(pointer2.asExternalImpl().getSegment(), pointer2.asExternalImpl().getEventStartOffset(), pointer2.asExternalImpl().getEventLength())).thenReturn(reader2);
 
         when(reader1.read()).thenThrow(new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OFFSET_REACHED));
         when(reader2.read()).thenThrow(new NoSuchSegmentException(segment.getScopedName()));

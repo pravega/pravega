@@ -69,6 +69,11 @@ public final class EventPointerImpl extends EventPointerInternal {
         return this;
     }
 
+    @Override
+    public EventPointerExternal asExternalImpl() {
+        return new EventPointerExternalImpl(this);
+    }
+
     public static EventPointer fromString(String eventPointer) {
         int i = eventPointer.lastIndexOf(":");
         Preconditions.checkArgument(i > 0, "Invalid event pointer: %s", eventPointer);

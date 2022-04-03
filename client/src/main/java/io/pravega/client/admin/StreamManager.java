@@ -209,14 +209,14 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Re-read an event that was previously read, by passing the pointer returned from
      * {@link EventRead#getEventPointer()}.
-     * This does not affect the current position of the reader.
+     * This does not affect the current position of any reader.
      * <p>
-     * This is a non-blocking call. Passing invalid offsets will throw exception.
-     * @param pointer The pointer object to enable a random read of the event.
+     * This is a non-blocking call. Passing an EventPointer of a stream that has been deleted or data truncated away it will throw exception.
+     * @param pointer It is an EventPointer obtained from the result of a previous readNextEvent call.
      * @param deserializer The Serializer
      * @param <T> The type of the Event
-     * @return The CompletableFuture<T> of the event at the position specified by the provided pointer or null if the event has
-     * been deleted.
+     * @return A future for the provided EventPointer of the fetch call. If an exception occurred, it will be completed with the causing exception.
+     * Notable exception is {@link io.pravega.client.segment.impl.NoSuchEventException}
      */
     <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> deserializer);
 
