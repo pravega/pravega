@@ -114,15 +114,16 @@ granularity with less metadata overhead. Limiting chunk sizes between 1GB-16GB s
 
 ## Right-Sizing Tier-1 Storage (Bookkeeper)
 
-Pravega makes use of tier-1 storage to store durably and with low latency events until they are moved to long-term storage. 
+Pravega uses tier-1 storage for durable, low-latency persistence until data can be moved to long-term storage.
 Thus, we need guidelines to right-sizing the storage capacity required in tier-1 (i.e., Bookkeeper).
 
 To this end, there are three variables that we need to take into account:
 - _Max ledger size (`bookkeeper.ledger.size.max`)_: Maximum Ledger size (bytes) in BookKeeper. Once a Ledger reaches this size, 
-it will be closed and another one open. _Type_: `Long`. _Default_: `1073741824`. _Update-mode_: `per-server`.
+it will be closed and another one opened. _Type_: `Long`. _Default_: `1073741824` (1 GB). _Update-mode_: `per-server`.
 
 - _Number of Segment Containers (`pravegaservice.container.count`, `controller.container.count`)_: Number of Segment Containers in the system. 
-This value must be the same across all Segment Store instances in this cluster. This value cannot be changed dynamically. See documentation for details.
+This value must be the same across all Segment Store instances in this cluster. This value cannot be changed dynamically. 
+See [documentation for details](https://cncf.pravega.io/docs/nightly/segment-store-service/#segment-containers).
 _Type_: `Integer`. _Default_: `4`. _Update-mode_: `read-only`.
 
 - _Replication degree (`bookkeeper.write.quorum.size`)_: Write Quorum size for BookKeeper ledgers.
