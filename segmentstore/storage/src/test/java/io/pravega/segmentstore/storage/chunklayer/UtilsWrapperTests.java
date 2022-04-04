@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
@@ -28,17 +29,25 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 /**
  * Tests for {@link UtilsWrapper}.
  */
 public class UtilsWrapperTests extends ThreadPooledTestSuite {
 
+    public static final int CONTAINER_ID = 42;
+    public static final int CONTAINER_EPOCH = 123;
+    public static final int BUFFER_SIZE = 128;
     Random random = new Random();
 
     @Test
@@ -76,11 +85,11 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         BaseMetadataStore metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
         // Insert metadata
-        TestUtils.insertMetadata(segmentName, 25, 123, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage);
         val chunkMetadataList = TestUtils.getChunkList(metadataStore, segmentName);
 
         // Delete few chunks
@@ -92,7 +101,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         }
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         // check the output
         checkExtendedChunkInfoList(wrapper, segmentName, shouldCheckStorage, lengthsInStorage, deletedChunkNames, chunkMetadataList);
@@ -138,14 +147,14 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         BaseMetadataStore metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        TestUtils.insertMetadata(segmentName, 25, 123, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
         val chunkMetadataList = TestUtils.getChunkList(chunkedSegmentStorage.getMetadataStore(), segmentName);
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         byte[][] expected = new byte[chunkMetadataList.size()][];
         int sum = 0;
@@ -192,17 +201,17 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(config, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), config);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
         val chunkSizes = new long[] {1};
 
         // Insert metadata
-        TestUtils.insertMetadata("a", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("b", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("c", 42, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("a", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("b", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("c", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
 
         // Test
-        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, 128, Duration.ZERO);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
 
         wrapper.evictMetadataCache().join();
 
@@ -234,8 +243,8 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         @Cleanup
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        chunkedSegmentStorage.initialize(123);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
         AssertExtensions.assertThrows("Should not allow null chunkStorage",
                 () -> new UtilsWrapper(null, 10, Duration.ZERO),
@@ -274,5 +283,197 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows("Should not allow null outputStream",
                 () -> wrapper.getExtendedChunkInfoList(null, false),
                 ex -> ex instanceof NullPointerException);
+    }
+
+    /**
+     * Sanity test to check if a new chunk was created with the provided content.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenCreateChunkThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        doThrow(exceptionToThrow).when(spyChunkStorage).doCreateWithContent(any(), anyInt(), any());
+
+        testSanity(spyChunkStorage, "Test Exception", ChunkStorageException.class);
+    }
+
+    /**
+     * Sanity test to verify if the chunk info was correctly retrieved for given chunk.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenGetChunkInfoThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doGetInfo(any());
+
+        testSanity(spyChunkStorage, "Test Exception", clazz);
+    }
+
+    /**
+     * Sanity test to open chunk to write/ make modifications.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenWriteIntoChunkThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doOpenWrite(any());
+
+        testSanity(spyChunkStorage, "Test Exception", clazz);
+    }
+
+    /**
+     * Sanity test to check if the chunk exists.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenCheckChunkExistsThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        val clazz = IllegalStateException.class;
+
+        doReturn(false).when(spyChunkStorage).checkExists(any());
+
+        testSanity(spyChunkStorage, "The given chunk doesn't exist!", clazz);
+    }
+
+    /**
+     * Test to verify if the bytes read are equal to the dataSize of the test data.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityDataEqualityFails() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        val clazz = IllegalStateException.class;
+        @Cleanup
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
+
+        doReturn(CONTAINER_EPOCH).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
+
+        testSanity(spyChunkStorage, "Bytes read are not equal to dataSize.", clazz);
+    }
+
+    /**
+     * Test to check if the dataSize and the chunkName is not null.
+     */
+    @Test
+    public void testSanityWhenInValidChunkNameThrows() {
+        val emptyChunkName = "";
+        @Cleanup
+        BaseChunkStorage chunkStorage = new InMemoryChunkStorage(executorService());
+
+        @Cleanup
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
+
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
+
+        AssertExtensions.assertThrows("Null argument should throw an exception.",
+                () -> wrapper.checkChunkSegmentStorageSanity(null, 10),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("Null argument should throw an exception.",
+                () -> wrapper.checkChunkSegmentStorageSanity(emptyChunkName, 10),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("Null argument should throw an exception.",
+                () -> wrapper.checkChunkSegmentStorageSanity("test", -1),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("Null argument should throw an exception.",
+                () -> wrapper.checkChunkSegmentStorageSanity("test", 0),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+
+    /**
+     * Sanity test to read contents appropriately from the chunk.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenReadChunkThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
+
+        testSanity(spyChunkStorage, "Test Exception", clazz);
+    }
+
+    /**
+     * Sanity test to verify chunk delete operation.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenDeleteChunkThrows() throws Exception {
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        Exception exceptionToThrow = new ChunkStorageException("test", "Test Exception", new IOException("Test Exception"));
+        val clazz = ChunkStorageException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
+
+        testSanity(spyChunkStorage, "Test Exception", clazz);
+    }
+
+    /**
+     * Test to verify everything should pass without any exceptions.
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSanityWhenCheckPassThrows() throws Exception {
+        val chunkName = "TestChunk";
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new InMemoryChunkStorage(executorService()));
+        @Cleanup
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
+
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
+
+        wrapper.checkChunkSegmentStorageSanity(chunkName, 10).get();
+        verify(spyChunkStorage).doCreateWithContent(anyString(), anyInt(), any());
+    }
+
+    /**
+     * To injecting fault to check the chunkSegmentStorage sanity.
+     * @param spyChunkStorage spy for {@link BaseChunkStorage}.
+     * @param message message thrown by the test exception.
+     * @param classType class type of the exception thrown.
+     */
+    private void testSanity(BaseChunkStorage spyChunkStorage, String message, Class classType) {
+        // Set up
+        @Cleanup
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
+
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);
+
+        // Inject fault
+        val result = wrapper.checkChunkSegmentStorageSanity("TestChunk", 100);
+        AssertExtensions.assertFutureThrows(message,
+                result,
+                ex -> {
+                    val e = Exceptions.unwrap(ex);
+                    return e.getClass().equals(classType) && e.getMessage().contains(message);
+                });
     }
 }
