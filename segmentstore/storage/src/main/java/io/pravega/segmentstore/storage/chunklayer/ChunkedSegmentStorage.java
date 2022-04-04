@@ -33,6 +33,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -277,6 +278,25 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                         return v;
                     }, executor);
         }, streamSegmentName);
+    }
+
+    /**
+     * Extracts and returns instance of {@link ChunkedSegmentStorage} for given {@link Storage} instance.
+     * @param storage Storage to use.
+     * @return Instance of {@link ChunkedSegmentStorage} or null.
+     */
+    public static ChunkedSegmentStorage getReference(Storage storage) {
+        ChunkedSegmentStorage chunkedSegmentStorage = null;
+        if (storage instanceof ChunkedSegmentStorage) {
+            chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        }
+        if (storage instanceof StorageWrapper) {
+            val inner = ((StorageWrapper) storage).getInner();
+            if (inner instanceof ChunkedSegmentStorage) {
+                chunkedSegmentStorage = (ChunkedSegmentStorage) inner;
+            }
+        }
+        return chunkedSegmentStorage;
     }
 
     /**
