@@ -173,6 +173,9 @@ public class StreamManagerImplTest {
 
         Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
         when(reader.read(anyLong())).thenReturn(null);
+        assertEquals(reader, inputStreamFactory.createEventReaderForSegment(new Segment("scope", "stream",0L),10L, 10));
+        when(reader.read()).thenReturn(ByteBuffer.allocate(4).putInt(5));
+        assertEquals(ByteBuffer.allocate(4).putInt(5), reader.read());
         ByteArraySerializer serializer = new ByteArraySerializer();
         Segment segment = new Segment("scope", "stream", 0L);
         when(reader.getSegmentId()).thenReturn(segment);
