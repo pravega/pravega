@@ -16,6 +16,8 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
@@ -27,14 +29,18 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -252,5 +258,48 @@ public class UtilsWrapper {
                                 }, chunkedSegmentStorage.getExecutor())
                             .thenApplyAsync(vv -> infoList, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor()), streamSegmentName);
+    }
+
+    /**
+     * Performs sanity operations on chunk like create chunk, write to the chunk, check if the chunk exists, read back contents to the chunk and delete the chunk.
+     *
+     * @param chunkName Name of the chunk.
+     * @param dataSize dataSize of the bytes to read.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    public CompletableFuture<Void> checkChunkSegmentStorageSanity(String chunkName, int dataSize) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(chunkName), "chunk name must not be null or empty");
+        Preconditions.checkArgument(dataSize >= 0, "dataSize should be positive integer");
+        byte[] testData = new byte[dataSize];
+        byte[] readData = new byte[dataSize];
+        InputStream inputStream = new ByteArrayInputStream(testData);
+        AtomicBoolean isCreated = new AtomicBoolean();
+
+        return chunkedSegmentStorage.getChunkStorage().createWithContent(chunkName, testData.length, inputStream)
+                .thenComposeAsync(v -> {
+                    isCreated.set(true);
+                    return chunkedSegmentStorage.getChunkStorage().getInfo(chunkName);
+                }, chunkedSegmentStorage.getExecutor())
+                .thenComposeAsync(chunkInfo -> chunkedSegmentStorage.getChunkStorage().openWrite(chunkName)
+                        .thenComposeAsync(chunkHandle -> chunkedSegmentStorage.getChunkStorage().exists(chunkName), chunkedSegmentStorage.getExecutor())
+                        .thenAcceptAsync(doesExists -> Preconditions.checkState(doesExists, "The given chunk doesn't exist!"), chunkedSegmentStorage.getExecutor())
+                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunkName), 0, readData.length, readData, 0), chunkedSegmentStorage.getExecutor())
+                        .thenAcceptAsync(bytesRead -> {
+                            Preconditions.checkState(bytesRead == dataSize, "Bytes read are not equal to dataSize.");
+                            Preconditions.checkState(Arrays.equals(testData, readData), "The arrays after reading the bytes are not equal.");
+                        }, chunkedSegmentStorage.getExecutor())
+                        .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName)), chunkedSegmentStorage.getExecutor()),
+                chunkedSegmentStorage.getExecutor())
+                .handleAsync((v, e) -> {
+                    if (isCreated.get()) {
+                     chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunkName));
+                    }
+                    if (e != null) {
+                        throw new CompletionException(Exceptions.unwrap(e));
+                    }
+                    return v;
+                }, chunkedSegmentStorage.getExecutor());
     }
 }
