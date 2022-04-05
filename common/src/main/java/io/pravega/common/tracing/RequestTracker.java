@@ -170,13 +170,14 @@ public final class RequestTracker {
             List<Long> requestIds = ongoingRequests.get(requestDescriptor);
             if (requestIds == null) {
                 requestIds = Collections.synchronizedList(new ArrayList<>());
+                ongoingRequests.put(requestDescriptor, requestIds);
             }
 
             requestIds.add(requestId);
             if (requestIds.size() > MAX_PARALLEL_REQUESTS) {
-                requestIds.remove(1); // Delete the oldest parallel request id to bound the size of this list.
+                // Delete the oldest parallel that is not the primary (first) one request id to bound the size of this list.
+                requestIds.remove(1);
             }
-            ongoingRequests.put(requestDescriptor, requestIds);
         }
 
         log.debug("Tracking request {} with id {}.", requestDescriptor, requestId);
