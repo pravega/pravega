@@ -147,20 +147,20 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
     }
 
     @Override
-    public void chunkSanity(WireCommands.CheckChunkSanity chunkSanity) {
+    public void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity) {
         final String operation = "CheckChunkSanity";
-        final String chunkName = chunkSanity.getChunkName();
+        final String chunkName = checkChunkSanity.getChunkName();
 
-        if (!verifyToken(chunkName, chunkSanity.getRequestId(), chunkSanity.getDelegationToken(), operation)) {
+        if (!verifyToken(chunkName, checkChunkSanity.getRequestId(), checkChunkSanity.getDelegationToken(), operation)) {
             return;
         }
 
-        long trace = LoggerHelpers.traceEnter(log, operation, chunkSanity);
-        getSegmentStore().getCheckSanity(chunkName, chunkSanity.getDataSize())
+        long trace = LoggerHelpers.traceEnter(log, operation, checkChunkSanity);
+        getSegmentStore().getCheckSanity(checkChunkSanity.getContainerId(), chunkName, checkChunkSanity.getDataSize())
                 .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
-                    getConnection().send(new WireCommands.ChunkSanityChecked(chunkSanity.getRequestId()));
-                }).exceptionally(ex -> handleException(chunkSanity.getRequestId(), chunkName, operation, ex));
+                    getConnection().send(new WireCommands.ChunkSanityChecked(checkChunkSanity.getRequestId()));
+                }).exceptionally(ex -> handleException(checkChunkSanity.getRequestId(), chunkName, operation, ex));
     }
     //endregion
 

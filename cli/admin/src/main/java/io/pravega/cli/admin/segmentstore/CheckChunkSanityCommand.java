@@ -15,6 +15,44 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
-public class CheckChunkSanityCommand {
+import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.Cleanup;
+import org.apache.curator.framework.CuratorFramework;
 
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+public class CheckChunkSanityCommand extends SegmentStoreCommand{
+
+    public CheckChunkSanityCommand(CommandArgs args) {
+        super(args);
+    }
+
+    @Override
+    public void execute() throws Exception {
+        ensureArgCount(4);
+
+        final int containerId = getIntArg(0);
+        final String fullyQualifiedChunkName = UUID.randomUUID().toString();
+        final int dataSize = getIntArg(2);
+        final String segmentStoreHost = getArg(3);
+        @Cleanup
+        CuratorFramework zkClient = createZKClient();
+        @Cleanup
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+
+        CompletableFuture<WireCommands.ChunkSanityChecked> reply = adminSegmentHelper.checkChunkSanity(containerId, fullyQualifiedChunkName, dataSize,
+                    new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+        output("Chunk sanity checked for the Segment Container with containerId %d to Storage.", containerId);
+
+
+    }
 }

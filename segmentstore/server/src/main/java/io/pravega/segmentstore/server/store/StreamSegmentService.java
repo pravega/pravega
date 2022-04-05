@@ -105,11 +105,11 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize) {
+    public CompletableFuture<Void> getCheckSanity(int containerId, String chunkName, int dataSize) {
         return invoke(
-                chunkName,
-                container -> container.getCheckSanity(chunkName, dataSize),
-                "getChunkSanity", chunkName);
+                containerId,
+                container -> container.getCheckSanity(containerId, chunkName, dataSize),
+                "getCheckSanity", chunkName);
     }
 
     @Override

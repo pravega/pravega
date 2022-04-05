@@ -34,5 +34,5 @@ public interface AdminRequestProcessor extends RequestProcessor {
      */
     void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks);
 
-    void chunkSanity(WireCommands.CheckChunkSanity chunkSanity);
+    void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity);
 }

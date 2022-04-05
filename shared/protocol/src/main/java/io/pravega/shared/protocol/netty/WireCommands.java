@@ -897,6 +897,7 @@ public final class WireCommands {
     @Data
     public static final class CheckChunkSanity implements Request, WireCommand{
         final WireCommandType type = WireCommandType.CHECK_CHUNK_SANITY;
+        final int containerId;
         final String chunkName;
         final int dataSize;
         @ToString.Exclude
@@ -904,7 +905,7 @@ public final class WireCommands {
         final long requestId;
 
         @Override
-        public void process(RequestProcessor cp) { ((AdminRequestProcessor) cp).chunkSanity(this); }
+        public void process(RequestProcessor cp) { ((AdminRequestProcessor) cp).checkChunkSanity(this); }
 
         @Override
         public WireCommandType getType() {
@@ -919,11 +920,12 @@ public final class WireCommands {
         }
 
         public static CheckChunkSanity readFrom(ByteBufInputStream in, int length) throws IOException {
+            int containerId = in.readInt();
             String chunkName = in.readUTF();
             int dataSize = in.readInt();
             String delegationToken = in.readUTF();
             long requestId = in.readLong();
-            return new CheckChunkSanity(chunkName, dataSize, delegationToken, requestId);
+            return new CheckChunkSanity(containerId, chunkName, dataSize, delegationToken, requestId);
         }
 
         @Override

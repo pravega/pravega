@@ -89,8 +89,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize) {
-        CompletableFuture<Void> result = impl.getCheckSanity(chunkName, dataSize);
+    public CompletableFuture<Void> getCheckSanity(int containerId, String chunkName, int dataSize) {
+        CompletableFuture<Void> result = impl.getCheckSanity(containerId, chunkName, dataSize);
         Futures.await(result);
         return result;
     }

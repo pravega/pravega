@@ -251,5 +251,5 @@ public interface SegmentApi {
      */
     CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
 
-    CompletableFuture<Void> getCheckSanity(String chunkName, int dataSize);
+    CompletableFuture<Void> getCheckSanity(int containerId, String chunkName, int dataSize);
 }

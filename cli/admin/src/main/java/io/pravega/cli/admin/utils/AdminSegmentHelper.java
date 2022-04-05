@@ -28,6 +28,7 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.SneakyThrows;
+import org.apache.http.impl.conn.Wire;
 
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +45,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                     .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.StorageFlushed.class))
                     .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.TableSegmentInfo.class))
                     .put(WireCommands.ListStorageChunks.class, ImmutableSet.of(WireCommands.StorageChunksListed.class))
+                    .put(WireCommands.CheckChunkSanity.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
                     .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
@@ -80,6 +82,19 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    public CompletableFuture<WireCommands.ChunkSanityChecked> checkChunkSanity(int containerId, String chunkName, int dataSize, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.CHECK_CHUNK_SANITY;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.CheckChunkSanity request = new WireCommands.CheckChunkSanity(containerId, chunkName, dataSize, delegationToken, requestId);
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, chunkName, WireCommands.CheckChunkSanity.class, type);
+                    assert r instanceof WireCommands.ChunkSanityChecked;
+                    return (WireCommands.ChunkSanityChecked) r;
+                });
+    }
     /**
      * This method sends a WireCommand to get table segment info for the given table segment name.
      *
