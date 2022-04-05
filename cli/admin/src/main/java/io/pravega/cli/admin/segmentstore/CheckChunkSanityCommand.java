@@ -17,18 +17,17 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class CheckChunkSanityCommand extends SegmentStoreCommand{
+
+    private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     public CheckChunkSanityCommand(CommandArgs args) {
         super(args);
@@ -39,20 +38,27 @@ public class CheckChunkSanityCommand extends SegmentStoreCommand{
         ensureArgCount(4);
 
         final int containerId = getIntArg(0);
-        final String fullyQualifiedChunkName = UUID.randomUUID().toString();
+        final String fullyQualifiedChunkName = getArg(1);
         final int dataSize = getIntArg(2);
         final String segmentStoreHost = getArg(3);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
 
         CompletableFuture<WireCommands.ChunkSanityChecked> reply = adminSegmentHelper.checkChunkSanity(containerId, fullyQualifiedChunkName, dataSize,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+        reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Chunk sanity checked for the Segment Container with containerId %d to Storage.", containerId);
 
+    }
 
+    public static CommandDescriptor descriptor() {
+        return new CommandDescriptor(COMPONENT, "check-chunk-sanity", "Check sanity of the given chunk with range of operations performed on it.",
+                new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
+                                                   "if given as \"all\" all the containers will be persisted."),
+                new ArgDescriptor("qualified-chunk-name", "Fully qualified name of the Chunk to perform sanity operations like (e.g., create, check if exists, write, read, delete)."),
+                new ArgDescriptor("data-size", "Data size of the bytes to be read."),
+                new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

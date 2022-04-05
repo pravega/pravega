@@ -77,4 +77,10 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));
     }
+
+    @Test(timeout = 60000)
+    public void testCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+    }
 }
