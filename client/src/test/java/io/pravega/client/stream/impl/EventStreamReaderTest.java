@@ -1107,7 +1107,53 @@ public class EventStreamReaderTest {
         assertTrue(eventRead.isEndOfStream());
         reader.close();
     }
-    
+
+    @Test(timeout = 10000)
+    public void testReleaseCompletedSegment() throws SegmentSealedException, ReaderNotInReaderGroupException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
+                new ByteArraySerializer(), groupState,
+                orderer, clock::get,
+                ReaderConfig.builder().build(),
+                createWatermarkReaders(),
+                Mockito.mock(Controller.class));
+        Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
+        Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any()))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment1, 0, 0.5), 0L, new SegmentWithRange(segment2, 0, 0.5), 0L))
+               .thenReturn(Collections.emptyMap());
+        Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(12L);
+        @Cleanup
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        @Cleanup
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        writeInt(stream1, 1);
+        writeInt(stream2, 2);
+        reader.readNextEvent(0);
+        List<EventSegmentReader> readers = reader.getReaders();
+        assertEquals(2, readers.size());
+        Assert.assertEquals(segment1, readers.get(0).getSegmentId());
+        Assert.assertEquals(segment2, readers.get(1).getSegmentId());
+
+        //Checkpoint is required to release a segment.
+        Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint");
+        assertTrue(reader.readNextEvent(0).isCheckpoint());
+        Mockito.when(groupState.getCheckpoint()).thenReturn(null);
+        Mockito.when(groupState.findSegmentToReleaseIfRequired()).thenReturn(segment1);
+        Mockito.when(groupState.releaseSegment(Mockito.eq(segment1), anyLong(), anyLong(), any())).thenReturn(true);
+        assertFalse(reader.readNextEvent(0).isCheckpoint());
+        Mockito.verify(groupState).releaseSegment(Mockito.eq(segment1), anyLong(), anyLong(), any());
+        readers = reader.getReaders();
+        assertEquals(0, readers.size());
+        reader.close();
+    }
+
     private int readInt(EventRead<byte[]> eventRead) {
         byte[] event = eventRead.getEvent();
         assertNotNull(event);
