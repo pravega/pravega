@@ -175,6 +175,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
+    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize) {
+        throw new UnsupportedOperationException("checkChunkStorageSanity is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
     public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return unsupported("append");
     }

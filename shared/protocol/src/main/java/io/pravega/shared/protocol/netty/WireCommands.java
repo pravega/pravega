@@ -913,6 +913,7 @@ public final class WireCommands {
         }
 
         public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(containerId);
             out.writeUTF(chunkName);
             out.writeInt(dataSize);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -927,12 +928,6 @@ public final class WireCommands {
             long requestId = in.readLong();
             return new CheckChunkSanity(containerId, chunkName, dataSize, delegationToken, requestId);
         }
-
-        @Override
-        public long getRequestId() {
-            return 0;
-        }
-
     }
 
     @Data
@@ -2052,7 +2047,8 @@ public final class WireCommands {
 
         public enum ErrorCode {
             UNSPECIFIED(-1, RuntimeException.class),                       // indicates un-specified (for backward compatibility
-            ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class); // indicates an IllegalArgumentException
+            ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class), // indicates an IllegalArgumentException
+            ILLEGAL_STATE_EXCEPTION(1, IllegalStateException.class);       // indicates an IllegalStateException
 
             private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
             private static final Map<Class, ErrorCode> OBJECTS_BY_CLASS = new HashMap<>();

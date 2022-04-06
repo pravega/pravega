@@ -468,6 +468,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
             return null;
         }
 
+        @Override
+        public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize) {
+            return null;
+        }
+
         //endregion
     }
 

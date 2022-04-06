@@ -34,5 +34,5 @@ public interface StreamSegmentStore extends SegmentApi {
      */
     CompletableFuture<Void> flushToStorage(int containerId, Duration timeout);
 
-    CompletableFuture<Void> getCheckSanity(int containerId, String chunkName, int dataSize);
+    CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize);
 }

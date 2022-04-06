@@ -227,6 +227,11 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
+        public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize) {
+            throw new UnsupportedOperationException("Not Expected");
+        }
+
+        @Override
         public Service startAsync() {
             throw new UnsupportedOperationException("Not Expected");
         }

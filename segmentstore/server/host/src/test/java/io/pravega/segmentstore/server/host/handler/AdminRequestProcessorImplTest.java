@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.TIMEOUT;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -82,5 +84,45 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
     public void testCheckChunkSanity() {
         String chunkName = "testChunk";
 
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.completedFuture(null));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ChunkSanityChecked(123));
     }
+
+    @Test(timeout = 60000)
+    public void testFailedArgumentCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("test")));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION));
+    }
+
+    @Test(timeout = 60000)
+    public void testFailedStateCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.failedFuture(new IllegalStateException("test")));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_STATE_EXCEPTION));
+    }
+
 }

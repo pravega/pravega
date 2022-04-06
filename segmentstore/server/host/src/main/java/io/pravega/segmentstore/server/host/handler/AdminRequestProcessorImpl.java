@@ -156,7 +156,7 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         }
 
         long trace = LoggerHelpers.traceEnter(log, operation, checkChunkSanity);
-        getSegmentStore().getCheckSanity(checkChunkSanity.getContainerId(), chunkName, checkChunkSanity.getDataSize())
+        getSegmentStore().checkChunkStorageSanity(checkChunkSanity.getContainerId(), chunkName, checkChunkSanity.getDataSize())
                 .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
                     getConnection().send(new WireCommands.ChunkSanityChecked(checkChunkSanity.getRequestId()));
