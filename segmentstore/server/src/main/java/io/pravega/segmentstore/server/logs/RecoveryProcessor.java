@@ -30,6 +30,8 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,7 +41,9 @@ import lombok.extern.slf4j.Slf4j;
 class RecoveryProcessor {
     //region Members
 
+    @Getter (AccessLevel.PROTECTED)
     private final UpdateableContainerMetadata metadata;
+    @Getter (AccessLevel.PROTECTED)
     private final DurableDataLog durableDataLog;
     private final MemoryStateUpdater stateUpdater;
     private final String traceObjectId;
@@ -127,7 +131,7 @@ class RecoveryProcessor {
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
      * @return The number of Operations recovered.
      */
-    private int recoverAllOperations(OperationMetadataUpdater metadataUpdater) throws Exception {
+    protected int recoverAllOperations(OperationMetadataUpdater metadataUpdater) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverAllOperations");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -203,7 +207,7 @@ class RecoveryProcessor {
         }
     }
 
-    private void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
+    protected void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
         // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
         // to do this.
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames

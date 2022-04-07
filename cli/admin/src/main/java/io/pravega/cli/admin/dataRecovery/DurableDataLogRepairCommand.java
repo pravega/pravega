@@ -595,7 +595,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
         @Cleanup
         val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
-                containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks);
+                containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks, false);
         int operationsRead = rp.performRecovery();
         output("Number of operations read from DurableLog: " + operationsRead);
         return operationsRead;
