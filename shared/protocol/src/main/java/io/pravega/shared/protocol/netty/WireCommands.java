@@ -2035,6 +2035,8 @@ public final class WireCommands {
             switch (errorCode) {
                 case ILLEGAL_ARGUMENT_EXCEPTION:
                     return new IllegalArgumentException(message);
+                case ILLEGAL_STATE_EXCEPTION:
+                    return new IllegalStateException(message);
                 default:
                     return new RuntimeException(message);
             }

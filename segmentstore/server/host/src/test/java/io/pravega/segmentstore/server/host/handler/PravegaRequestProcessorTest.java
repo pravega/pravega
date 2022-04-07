@@ -356,7 +356,7 @@ public class PravegaRequestProcessorTest {
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         
-        entry1.fail(new RuntimeException());
+        entry1.fail(new IllegalStateException());
         verify(connection, Mockito.atLeastOnce()).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);

@@ -283,6 +283,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize) {
+            throw new UnsupportedOperationException("checkChunkStorageSanity");
+        }
+
+        @Override
         public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("getExtendedChunkInfo");
         }

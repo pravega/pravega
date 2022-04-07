@@ -1132,7 +1132,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
      */
-    private static class ReadCancellationException extends RuntimeException {
+    private static class ReadCancellationException extends IllegalStateException {
         ReadCancellationException(Throwable wrappedException) {
             super("CancellationException during operation Read segment", wrappedException);
         }
