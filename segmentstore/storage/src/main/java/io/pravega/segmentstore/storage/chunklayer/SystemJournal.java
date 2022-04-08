@@ -1166,10 +1166,10 @@ public class SystemJournal {
         val systemSnapshot = SystemSnapshotRecord.builder()
                 .epoch(epoch)
                 .fileIndex(currentFileIndex.get())
-                .segmentSnapshotRecords(new ArrayList<>())
+                .segmentSnapshotRecords(Collections.synchronizedList(new ArrayList<>()))
                 .build();
 
-        val futures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        val futures = new ArrayList<CompletableFuture<Void>>();
         for (val systemSegment : systemSegments) {
             // Find segment metadata.
             val future = txn.get(systemSegment)
@@ -1179,7 +1179,7 @@ public class SystemJournal {
 
                         val segmentSnapshot = SegmentSnapshotRecord.builder()
                                 .segmentMetadata(segmentMetadata)
-                                .chunkMetadataCollection(new ArrayList<>())
+                                .chunkMetadataCollection(Collections.synchronizedList(new ArrayList<>()))
                                 .build();
 
                         // Enumerate all chunks.
@@ -1452,7 +1452,7 @@ public class SystemJournal {
             }
 
             private void read00(RevisionDataInput input, SystemJournalRecordBatchBuilder b) throws IOException {
-                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER));
+                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
             }
 
             private void write00(SystemJournalRecordBatch object, RevisionDataOutput output) throws IOException {
@@ -1694,7 +1694,7 @@ public class SystemJournal {
 
             private void read00(RevisionDataInput input, SegmentSnapshotRecord.SegmentSnapshotRecordBuilder b) throws IOException {
                 b.segmentMetadata((SegmentMetadata) SEGMENT_METADATA_SERIALIZER.deserialize(input.getBaseStream()));
-                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER));
+                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
             }
         }
     }
@@ -1769,7 +1769,7 @@ public class SystemJournal {
             private void read00(RevisionDataInput input, SystemSnapshotRecord.SystemSnapshotRecordBuilder b) throws IOException {
                 b.epoch(input.readCompactLong());
                 b.fileIndex(input.readCompactInt());
-                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER));
+                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
             }
         }
     }
