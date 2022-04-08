@@ -895,7 +895,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CheckChunkSanity implements Request, WireCommand{
+    public static final class CheckChunkSanity implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CHECK_CHUNK_SANITY;
         final int containerId;
         final String chunkName;
@@ -905,7 +905,8 @@ public final class WireCommands {
         final long requestId;
 
         @Override
-        public void process(RequestProcessor cp) { ((AdminRequestProcessor) cp).checkChunkSanity(this); }
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).checkChunkSanity(this); }
 
         @Override
         public WireCommandType getType() {
@@ -936,7 +937,9 @@ public final class WireCommands {
         final long requestId;
 
         @Override
-        public void process(ReplyProcessor cp) {cp.chunkSanityChecked(this);}
+        public void process(ReplyProcessor cp) {
+            cp.chunkSanityChecked(this);
+        }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {

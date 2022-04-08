@@ -25,7 +25,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class CheckChunkSanityCommand extends SegmentStoreCommand{
+public class CheckChunkSanityCommand extends SegmentStoreCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 

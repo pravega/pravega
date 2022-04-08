@@ -576,6 +576,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testCheckChunkSanity() throws IOException {
+        testCommand(new WireCommands.CheckChunkSanity(i, testString1, i, "", l));
+    }
+
+    @Test
+    public void testChunkSanityChecked() throws IOException {
+        testCommand(new WireCommands.ChunkSanityChecked(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }

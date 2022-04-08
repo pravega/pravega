@@ -266,7 +266,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 SetupAppend request = invocation.getArgument(0, SetupAppend.class);
                 ErrorMessage reply = Mockito.mock(ErrorMessage.class);
                 Mockito.when(reply.getThrowableException()).thenReturn(new TimeoutException("Mock timeout"));
-                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.UNSPECIFIED);
+                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.ILLEGAL_STATE_EXCEPTION);
                 Mockito.when(reply.getSegment()).thenReturn(request.getSegment());
                 cf.getProcessor(uri).errorMessage(reply);
                 return null;
@@ -314,7 +314,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 SetupAppend request = invocation.getArgument(0, SetupAppend.class);
                 ErrorMessage reply = Mockito.mock(ErrorMessage.class);
                 Mockito.when(reply.getThrowableException()).thenReturn(new TimeoutException("Mock timeout"));
-                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.UNSPECIFIED);
+                Mockito.when(reply.getErrorCode()).thenReturn(ErrorCode.ILLEGAL_STATE_EXCEPTION);
                 Mockito.when(reply.getSegment()).thenReturn(request.getSegment());
                 cf.getProcessor(uri).errorMessage(reply);
                 return null;

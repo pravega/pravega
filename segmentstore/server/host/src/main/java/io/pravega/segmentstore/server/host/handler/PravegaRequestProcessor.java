@@ -1102,7 +1102,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private boolean errorCodeExists(Throwable e) {
         ErrorCode errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
-        return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
+        return errorCode != ErrorCode.ILLEGAL_STATE_EXCEPTION;
     }
 
     private void logError(long requestId, String segment, String operation, Throwable u) {
@@ -1132,7 +1132,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
      */
-    private static class ReadCancellationException extends IllegalStateException {
+    private static class ReadCancellationException extends RuntimeException {
         ReadCancellationException(Throwable wrappedException) {
             super("CancellationException during operation Read segment", wrappedException);
         }

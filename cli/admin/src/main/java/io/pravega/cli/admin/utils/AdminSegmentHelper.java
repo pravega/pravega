@@ -28,7 +28,6 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.SneakyThrows;
-import org.apache.http.impl.conn.Wire;
 
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +94,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                     return (WireCommands.ChunkSanityChecked) r;
                 });
     }
+
     /**
      * This method sends a WireCommand to get table segment info for the given table segment name.
      *
