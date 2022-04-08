@@ -25,10 +25,17 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Executes a request to checkChunkSanity for the chosen Segment Store instance.
+ */
 public class CheckChunkSanityCommand extends SegmentStoreCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
+    /**
+     * Creates new instance of the CheckChunkSanityCommand.
+     * @param args The arguments for the command.
+     */
     public CheckChunkSanityCommand(CommandArgs args) {
         super(args);
     }

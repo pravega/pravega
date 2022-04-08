@@ -34,10 +34,7 @@ import java.util.concurrent.CompletableFuture;
 import static io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.TIMEOUT;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @Slf4j
 @RunWith(SerializedClassRunner.class)
@@ -115,8 +112,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         String chunkName = "testChunk";
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.failedFuture(new IllegalStateException("test")));
-
+        doReturn(CompletableFuture.failedFuture(new IllegalStateException("test"))).when(store).checkChunkStorageSanity(anyInt(), anyString(), anyInt());
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);

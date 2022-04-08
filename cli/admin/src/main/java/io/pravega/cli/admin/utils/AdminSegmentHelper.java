@@ -81,6 +81,18 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    /**
+     * This method sends a WireCommand to check the sanity of the container corresponding to the given containerId.
+     *
+     * @param containerId The Id of the container that needs to be persisted to storage.
+     * @param chunkName Name of the chunk.
+     * @param dataSize DataSize of the bytes to read.
+     * @param uri The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return A CompletableFuture that will complete normally by checking the sanity of the chunk.
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be
+     * retried then the future will be failed.
+     */
     public CompletableFuture<WireCommands.ChunkSanityChecked> checkChunkSanity(int containerId, String chunkName, int dataSize, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.CHECK_CHUNK_SANITY;
         RawClient connection = new RawClient(uri, connectionPool);
