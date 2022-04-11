@@ -275,7 +275,7 @@ public class ReaderGroupStateManager {
     }
 
     boolean reachedEndOfStream() {
-        sync.fetchUpdates();
+        fetchUpdatesIfNeeded();
         return sync.getState().isEndOfData();
     }
 

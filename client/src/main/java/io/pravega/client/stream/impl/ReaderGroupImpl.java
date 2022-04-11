@@ -154,7 +154,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
 
         String rejectMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit";
-
         boolean canPerformCheckpoint = synchronizer.updateState((state, updates) -> {
             ReaderGroupConfig config = state.getConfig();
             CheckpointState checkpointState = state.getCheckpointState();
@@ -174,7 +173,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             }
 
         });
-
         if (!canPerformCheckpoint) {
             return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
         }
@@ -198,7 +196,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private CompletableFuture<Void> waitForCheckpointComplete(String checkpointName,
                                                               ScheduledExecutorService backgroundExecutor) {
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
-
         return Futures.loop(checkpointPending::get, () -> {
             return Futures.delayedTask(() -> {
                 sequentialProcessor.add(() -> {
@@ -223,7 +220,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
         }
         if (map.isEmpty()) {
-            log.info("All the events between start and end of stream cuts are already read, nothing more to read");
+            log.info("All the events between start and end of stream cuts are already read by {}, nothing more to read", getGroupName());
         }
         return new CheckpointImpl(checkpointName, map);
     }

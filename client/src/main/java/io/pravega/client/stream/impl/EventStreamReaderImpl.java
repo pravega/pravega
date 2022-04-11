@@ -149,12 +149,13 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                 // return checkpoint event to user
                 return createEmptyEvent(checkpoint);
             }
-            if (groupState.reachedEndOfStream()) {
-                    return createEmptyEventEndOfStream(true);
-            }
 
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
+                if (groupState.reachedEndOfStream()) {
+                    log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
+                    return createEmptyEventEndOfStream(true);
+                }
                 blockFor(firstByteTimeoutMillis);
                 segmentsWithData.drainPermits();
                 buffer = null;
@@ -331,28 +332,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                 }
             }
         }
-        releaseCompletedSegmentsIfRequired();
 
-    }
-
-    /**
-     * Add the segments to sealed Segments map if reader reached end of streamcut.
-     */
-    private void releaseCompletedSegmentsIfRequired() {
-        //check for the segment end of stream
-        for (Map.Entry<Segment, Long> entry : ownedSegments.entrySet()) {
-            long endOffset = groupState.getEndOffsetForSegment(entry.getKey());
-            if (entry.getValue() < 0 || (entry.getValue() == endOffset && endOffset != Long.MAX_VALUE)) {
-                log.info("{} releasing segment as it reached end of streamCut {}", this, entry.getKey());
-                EventSegmentReader reader = readers.stream().filter(r -> r.getSegmentId().equals(entry.getKey())).findAny().orElse(null);
-                if (reader != null) {
-                    sealedSegments.put(entry.getKey(), entry.getValue());
-                    readers.remove(reader);
-                    ranges.remove(reader.getSegmentId());
-                    reader.close();
-                }
-            }
-        }
     }
 
     /**

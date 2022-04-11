@@ -50,6 +50,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -420,6 +421,25 @@ public class ReaderGroupImplTest {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
         assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
+    }
+
+    @Test
+    public void initiateCheckpointSuccessWithEmptyPositionMap() throws Exception {
+        AtomicBoolean completed = new AtomicBoolean(false);
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        when(state.isCheckpointComplete("test")).thenReturn(false).thenReturn(true);
+        Mockito.doAnswer(invocation -> {
+            completed.set(true);
+            return null;
+        }).when(synchronizer).updateStateUnconditionally(eq(new ClearCheckpointsBefore("test")));
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", executor);
+        assertFalse(result.isDone());
+        Checkpoint cp = result.get(5, TimeUnit.SECONDS);
+        assertTrue(result.isDone());
+        assertEquals("test" , cp.asImpl().getName());
+        assertEquals(Collections.EMPTY_MAP, cp.asImpl().getPositions());
     }
 
     @Test
