@@ -954,7 +954,7 @@ public class CheckpointTest {
     }
 
 
-    @Test
+    @Test(timeout = 20000)
     public void testCPEndOfStream1RBeforeEOS() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
         String endpoint = "localhost";
@@ -1011,7 +1011,7 @@ public class CheckpointTest {
                 ReaderConfig.builder().build(), clock::get,
                 clock::get);
 
-        assertNotNull(reader.readNextEvent(5000).getEvent());
+        assertNotNull(reader.readNextEvent(1000).getEvent());
         assertNotNull(reader.readNextEvent(500).getEvent());
         assertNull(reader.readNextEvent(100).getEvent());
         assertFalse(reader.readNextEvent(100).isEndOfStream());
