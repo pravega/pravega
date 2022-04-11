@@ -1011,7 +1011,6 @@ public class CheckpointTest {
                 ReaderConfig.builder().build(), clock::get,
                 clock::get);
 
-
         assertNotNull(reader.readNextEvent(5000).getEvent());
         assertNotNull(reader.readNextEvent(500).getEvent());
         assertNull(reader.readNextEvent(100).getEvent());
