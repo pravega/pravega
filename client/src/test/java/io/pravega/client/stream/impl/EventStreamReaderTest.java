@@ -1083,7 +1083,7 @@ public class EventStreamReaderTest {
     public void testEndOfStream() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
-        Orderer orderer = new Orderer();
+        Orderer orderer = Mockito.mock(Orderer.class);
         ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
         @Cleanup
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
@@ -1100,6 +1100,7 @@ public class EventStreamReaderTest {
         @Cleanup
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
                 writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(null);
         Mockito.when(groupState.getCheckpoint()).thenReturn(null);
         Mockito.when(groupState.reachedEndOfStream()).thenReturn(true);
         EventRead<byte[]> eventRead = reader.readNextEvent(0);

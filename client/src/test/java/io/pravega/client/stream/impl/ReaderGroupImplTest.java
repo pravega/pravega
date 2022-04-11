@@ -438,7 +438,7 @@ public class ReaderGroupImplTest {
         assertFalse(result.isDone());
         Checkpoint cp = result.get(5, TimeUnit.SECONDS);
         assertTrue(result.isDone());
-        assertEquals("test" , cp.asImpl().getName());
+        assertEquals("test", cp.asImpl().getName());
         assertEquals(Collections.EMPTY_MAP, cp.asImpl().getPositions());
     }
 
