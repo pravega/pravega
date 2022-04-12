@@ -62,7 +62,7 @@ public interface EventRead<T> {
 
     /**
      * A boolean indicating if end of stream is reached.
-     * This is true when the streams are sealed and all events in the streams have already been read
+     * This is true when the streams are sealed and all events in the streams have already been read.
      *
      * @return true if end of stream is reached.
      */
