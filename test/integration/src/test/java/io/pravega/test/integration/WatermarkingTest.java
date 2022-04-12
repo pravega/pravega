@@ -464,7 +464,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     
     @Test(timeout = 60000)
     public void progressingWatermarkWithTimestampAggregationTimeout() throws Exception {
-        String scope = "Timeout";
+        String scope = "Timeout"; 
         String streamName = "progressingWatermarkWithTimestampAggregationTimeout";
         int numSegments = 1;
 
