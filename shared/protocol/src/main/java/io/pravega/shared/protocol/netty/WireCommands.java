@@ -910,7 +910,7 @@ public final class WireCommands {
 
         @Override
         public WireCommandType getType() {
-            return null;
+            return WireCommandType.CHECK_CHUNK_SANITY;
         }
 
         public void writeFields(DataOutput out) throws IOException {
