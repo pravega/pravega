@@ -2996,6 +2996,42 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 new long[]{3L * Integer.MAX_VALUE + 3L});
     }
 
+    // This is a time-consuming test and should be eventually made optional
+    @Test
+    public void testRelocateHugeChunks() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .relocateOnTruncateEnabled(true)
+                .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
+                .build();
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
+
+        testContext.insertMetadata(testSegmentName, 10L * Integer.MAX_VALUE, 1, new long[]{
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE
+        });
+
+        // Truncate inside the 1st chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                9L * Integer.MAX_VALUE - 1,
+                3,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
+
+        // Truncate inside the 3rd chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                29L * Integer.MAX_VALUE - 1,
+                1,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
+    }
+
     @Test
     public void testWritesWithFlakyMetadataStore() throws Exception {
         val primes = new int[] { 2, 3, 5, 7, 11};
