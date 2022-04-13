@@ -42,6 +42,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -80,7 +81,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Getter
     private final MockClientFactory clientFactory;
     @Getter
-    private final MockSegmentStreamFactory inputStreamFactory;
+    private final EventSegmentReaderUtility eventSegmentReaderUtility;
+    @Getter
+    private final MockSegmentStreamFactory inFactory;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
@@ -88,7 +91,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         this.connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
         this.controller = new MockController(endpoint, port, connectionPool, true);
         this.clientFactory = new MockClientFactory(scope, controller, connectionPool);
-        this.inputStreamFactory = new MockSegmentStreamFactory();
+        this.inFactory = new MockSegmentStreamFactory();
+        this.eventSegmentReaderUtility = new EventSegmentReaderUtility(inFactory);
     }
 
     @Override
@@ -277,7 +281,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         Preconditions.checkNotNull(serializer);
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
-            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asExternalImpl().getSegment(), pointer.asExternalImpl().getEventStartOffset(), pointer.asExternalImpl().getEventLength());
+            EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
             try {
                 ByteBuffer buffer = inputStream.read();
                 return  serializer.deserialize(buffer);

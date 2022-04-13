@@ -43,6 +43,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -76,6 +77,7 @@ public class StreamManagerImpl implements StreamManager {
     private final ConnectionPool connectionPool;
     private final StreamCutHelper streamCutHelper;
     private final SegmentInputStreamFactory inputStreamFactory;
+    private final  EventSegmentReaderUtility eventSegmentReaderUtility;
 
     public StreamManagerImpl(ClientConfig clientConfig) {
         this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
@@ -92,10 +94,16 @@ public class StreamManagerImpl implements StreamManager {
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
+      this(controller, connectionPool, new SegmentInputStreamFactoryImpl(controller, connectionPool));
+    }
+
+    @VisibleForTesting
+    public StreamManagerImpl(Controller controller, ConnectionPool connectionPool, SegmentInputStreamFactory inputStreamFactory) {
         this.connectionPool = connectionPool;
         this.controller = controller;
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
-        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
+        this.inputStreamFactory = inputStreamFactory;
+        this.eventSegmentReaderUtility = new EventSegmentReaderUtility(inputStreamFactory);
     }
 
     @Override
@@ -308,7 +316,7 @@ public class StreamManagerImpl implements StreamManager {
         Preconditions.checkNotNull(serializer);
         CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             @Cleanup
-            EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asExternalImpl().getSegment(), pointer.asExternalImpl().getEventStartOffset(), pointer.asExternalImpl().getEventLength());
+            EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
             try {
                 ByteBuffer buffer = inputStream.read();
                 return  serializer.deserialize(buffer);

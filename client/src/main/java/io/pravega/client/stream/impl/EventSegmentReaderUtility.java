@@ -15,31 +15,20 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.stream.EventPointer;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-/**
- * Implementation of the EventPointerExternal interface. This Implementation
- * of methods uses the Implementation of EventPointerInternal methods.
- */
+@Slf4j
 @AllArgsConstructor
-public class EventPointerExternalImpl implements EventPointerExternal {
-    private  final EventPointer eventPointer;
+public class EventSegmentReaderUtility {
+    private final SegmentInputStreamFactory inFactory;
 
-    @Override
-    public Segment getSegment() {
-        return eventPointer.asImpl().getSegment();
-    }
+    public EventSegmentReader createEventSegmentReader(EventPointer pointer) {
 
-    @Override
-    public long getEventStartOffset() {
-        return  eventPointer.asImpl().getEventStartOffset();
-    }
-
-    @Override
-    public  int getEventLength() {
-        return eventPointer.asImpl().getEventLength();
+        return inFactory.createEventReaderForSegment(pointer.asImpl().getSegment(), pointer.asImpl().getEventStartOffset(), pointer.asImpl().getEventLength());
     }
 
 }

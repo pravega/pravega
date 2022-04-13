@@ -69,11 +69,6 @@ public final class EventPointerImpl extends EventPointerInternal {
         return this;
     }
 
-    @Override
-    public EventPointerExternal asExternalImpl() {
-        return new EventPointerExternalImpl(this);
-    }
-
     public static EventPointer fromString(String eventPointer) {
         int i = eventPointer.lastIndexOf(":");
         Preconditions.checkArgument(i > 0, "Invalid event pointer: %s", eventPointer);
@@ -94,13 +89,13 @@ public final class EventPointerImpl extends EventPointerInternal {
         return sb.toString();
     }
 
-    public static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
+    private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
     }
 
-    public static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
+    private static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
 
         @Override
-        public EventPointerBuilder newBuilder() {
+        protected EventPointerBuilder newBuilder() {
             return builder();
         }
 
