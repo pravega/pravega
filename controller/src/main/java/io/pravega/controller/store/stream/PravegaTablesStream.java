@@ -114,6 +114,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
+    private static final int MAX_RECORD_BY_LIST_TXN_API = 500;
     
     // non existent records
     private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
@@ -828,7 +829,9 @@ class PravegaTablesStream extends PersistentStreamBase {
             result.put(completedTxnMetadataMap.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""),
                     completedTxnMetadataMap.getValue());
             return true;
-        }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
+        }).thenApply(v -> result.entrySet().stream().skip(result.size() > MAX_RECORD_BY_LIST_TXN_API ?
+                                result.size() - MAX_RECORD_BY_LIST_TXN_API : 0)
+                        .collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
                 completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus())))
                 .exceptionally(v -> Collections.emptyMap()), Collections.emptyMap());
     }

@@ -96,6 +96,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String ID_PATH = STREAM_PATH + "/id";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
+    private static final int MAX_RECORD_BY_LIST_TXN_API = 500;
 
     private final ZKStoreHelper store;
     @Getter(AccessLevel.PACKAGE)
@@ -546,6 +547,9 @@ class ZKStream extends PersistentStreamBase {
                         .thenApply(list -> {
                             Map<UUID, TxnStatus> txnMap = new HashMap<>();
                             list.forEach(txnMap::putAll);
+                            txnMap = txnMap.size() > MAX_RECORD_BY_LIST_TXN_API
+                                    ? txnMap.entrySet().stream().skip(txnMap.size() - MAX_RECORD_BY_LIST_TXN_API)
+                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue )) : txnMap;
                             return txnMap;
                         }));
     }

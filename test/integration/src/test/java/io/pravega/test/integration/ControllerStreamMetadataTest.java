@@ -214,5 +214,14 @@ public class ControllerStreamMetadataTest {
         assertEventuallyEquals(2, () -> controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().size(), 10000);
         assertEquals(txnSegments.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(0).getTransactionId());
         assertEquals(txnSegments2.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(1).getTransactionId());
+
+        for (int i = 0; i < 300; i++) {
+            txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+            txnSegments2 = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+            controller.commitTransaction(Stream.of(SCOPE, STREAM), "", 0L, txnSegments.getTxnId());
+            controller.abortTransaction(Stream.of(SCOPE, STREAM), txnSegments2.getTxnId());
+        }
+
+        assertEquals(500, controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().size());
     }
 }

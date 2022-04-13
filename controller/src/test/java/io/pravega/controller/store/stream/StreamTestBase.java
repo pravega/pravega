@@ -1713,14 +1713,16 @@ public abstract class StreamTestBase {
         OperationContext context = getContext();
         createScope("listCompletedScope", context);
         PersistentStreamBase stream = createStream("listCompletedScope", "listCompletedStream", System.currentTimeMillis(), 5, new Random().nextInt(2000), 2, 2);
-        UUID txnId1 = createAndCommitTransaction(stream, 0, 0L);
-        UUID txnId2 = createAndCommitTransaction(stream, 0, 1L);
+        UUID txnId1 = null;
+        for (int i = 0; i < 600; i++) {
+            txnId1 = createAndCommitTransaction(stream, 0, Long.valueOf(i));
+        }
 
         Map<UUID, TxnStatus> list = stream.listCompletedTxns(context).join();
         assertEquals(0, list.size());
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100, context).join().getKey();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(600, context).join().getKey();
         stream.getVersionedState(context).thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN, context)).join();
 
         // start rolling transaction
@@ -1730,8 +1732,10 @@ public abstract class StreamTestBase {
         stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
 
         list = stream.listCompletedTxns(context).join();
-        assertEquals(list.size(), 2);
+        //verify no of record returned by api
+        assertEquals(500, list.size());
+
+        //verify api contains recent record
         assertTrue(list.keySet().contains(txnId1));
-        assertTrue(list.keySet().contains(txnId2));
     }
 }

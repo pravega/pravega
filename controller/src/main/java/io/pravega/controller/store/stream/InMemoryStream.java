@@ -69,6 +69,7 @@ public class InMemoryStream extends PersistentStreamBase {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
+    private final int maxRecordByListTxnApi = 500;
     @GuardedBy("lock")
     private VersionedMetadata<StreamConfigurationRecord> configuration;
     @GuardedBy("lock")
@@ -760,6 +761,8 @@ public class InMemoryStream extends PersistentStreamBase {
     public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(completedTxns.asMap().entrySet().stream()
+                    .skip(completedTxns.size() > maxRecordByListTxnApi
+                            ? completedTxns.size() - maxRecordByListTxnApi : 0)
                     .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject().getCompletionStatus())));
         }
     }
