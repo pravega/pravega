@@ -42,12 +42,10 @@ public class ZKHelper implements AutoCloseable {
 
     // region constants
 
-    private static final String BASE_NAMESPACE = "pravega";
     private static final String BK_PATH = "/bookkeeper/ledgers/available";
     private static final String CONTROLLER_PATH = "/cluster/controllers";
     private static final String SEGMENTSTORE_PATH = "/cluster/hosts";
     private static final String HOST_MAP_PATH = "/cluster/segmentContainerHostMapping";
-    private static final String SEPARATOR = "/";
 
     // endregion
 
@@ -194,7 +192,7 @@ public class ZKHelper implements AutoCloseable {
         zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(zkURL)
-                .namespace(BASE_NAMESPACE + SEPARATOR + clusterName)
+                .namespace(clusterName)
                 .retryPolicy(new ExponentialBackoffRetry(2000, 2))
                 .build();
 
