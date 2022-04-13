@@ -144,7 +144,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             String oldChunkName = segmentMetadata.getFirstChunk();
             String newChunkName = chunkedSegmentStorage.getNewChunkName(handle.getSegmentName(), segmentMetadata.getStartOffset());
             val startOffsetInChunk = segmentMetadata.getStartOffset() - segmentMetadata.getFirstChunkStartOffset();
-            val newLength = Math.toIntExact(currentMetadata.getLength() - startOffsetInChunk);
+            val newLength = currentMetadata.getLength() - startOffsetInChunk;
             log.debug("{} truncate - relocating first chunk op={}, segment={}, offset={} old={} new={} relocatedBytes={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
                     offset, oldChunkName, newChunkName, newLength);
@@ -192,7 +192,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         return CompletableFuture.completedFuture(null);
     }
 
-    private CompletableFuture<Void> copyBytes(ChunkHandle writeHandle, ChunkHandle readHandle, long startOffset, int length) {
+    private CompletableFuture<Void> copyBytes(ChunkHandle writeHandle, ChunkHandle readHandle, long startOffset, long length) {
         val bytesToRead = new AtomicLong(length);
         val readAtOffset = new AtomicLong(startOffset);
         val writeAtOffset = new AtomicLong(0);
