@@ -158,7 +158,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public List<TransactionInfo> listCompletedTransactions(Stream stream) {
-        log.info("Listing completed transaction for stream : {}", stream.getStreamName());
+        log.info("Listing completed transactions for stream : {}", stream.getStreamName());
         return Futures.getThrowingException(controller.listCompletedTransactions(stream));
     }
 
