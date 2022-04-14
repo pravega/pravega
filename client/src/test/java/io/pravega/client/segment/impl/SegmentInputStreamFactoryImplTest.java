@@ -85,8 +85,7 @@ public class SegmentInputStreamFactoryImplTest {
         MockController mockController = new MockController("localhost", -1, connectionFactory, false);
         SegmentInputStreamFactoryImpl streamFactory = new SegmentInputStreamFactoryImpl(mockController, connectionFactory);
         @Cleanup
-        EventSegmentReader reader = streamFactory.createEventReaderForSegment(Segment
-                .fromScopedName("scope/stream/0"), 100L, 10);
+        EventSegmentReader reader = streamFactory.createEventReaderForSegment(Segment.fromScopedName("scope/stream/0"), 100L, 10);
         assertEquals(100, reader.getOffset());
         assertEquals(Segment.fromScopedName("scope/stream/0"), reader.getSegmentId());
 
