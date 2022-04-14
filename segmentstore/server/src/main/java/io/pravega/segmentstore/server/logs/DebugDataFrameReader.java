@@ -53,10 +53,10 @@ public class DebugDataFrameReader<T extends SequencedElement> extends DataFrameR
                     if (seqNo <= this.getLastReadSequenceNumber()) {
                         log.error("Invalid Operation Sequence Number. Expected: larger than {}, found: {}.",
                                 this.getLastReadSequenceNumber(), seqNo);
+                    } else {
+                        this.setLastReadSequenceNumber(seqNo);
+                        return new DataFrameRecord<>(logItem, recordInfo);
                     }
-
-                    this.setLastReadSequenceNumber(seqNo);
-                    return new DataFrameRecord<>(logItem, recordInfo);
                 } catch (DataFrameInputStream.RecordResetException | DataFrameInputStream.NoMoreRecordsException ex) {
                     // We partially "deserialized" a record, but realized it was garbage (a product of a failed, partial
                     // serialization). Discard whatever we have and try again.

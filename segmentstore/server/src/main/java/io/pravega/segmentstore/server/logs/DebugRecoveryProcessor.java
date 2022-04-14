@@ -142,7 +142,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     }
 
     /**
-     * The ovverridden behaviour in this method is to choose between  using a DebugDataFrameReader and the regular DataFrameReader.
+     * The overridden behaviour in this method is to choose between  using a DebugDataFrameReader and the regular DataFrameReader.
      * The DebugDataFrameReader does not throw exception on finding duplicate entries in the DurableDataLog, which could be used by
      * repair commands in Admin CLI to fix corrupted log with duplicate entries.
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
@@ -159,7 +159,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         // Also update metadata along the way.
         DataFrameReader<Operation> reader = this.errorOnDataCorruption.get() ? new DataFrameReader<>(this.getDurableDataLog(), OperationSerializer.DEFAULT, this.getMetadata().getContainerId())
                 : new DebugDataFrameReader<>(this.getDurableDataLog(), OperationSerializer.DEFAULT, this.getMetadata().getContainerId());
-        try ( reader ) {
+        try (reader) {
             DataFrameRecord<Operation> dataFrameRecord;
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.
             while (true) {

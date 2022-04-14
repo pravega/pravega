@@ -65,11 +65,11 @@ public class DebugRecoveryProcessorTests extends ThreadPooledTestSuite {
         ArrayList<Operation> records = new ArrayList<>();
         StreamSegmentTruncateOperation tro = new StreamSegmentTruncateOperation(12, 12345);
         tro.setSequenceNumber(2);
-        //insert duplicates
+        // Insert duplicates
         records.add(tro);
         records.add(tro);
 
-        //append the duplicate reocrds to the DurableDataLog
+        // Append the duplicate records to the DurableDataLog
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
@@ -87,15 +87,15 @@ public class DebugRecoveryProcessorTests extends ThreadPooledTestSuite {
                     null,
                     null);
 
-            //use the DebugRecoveryProcessor to recover the operations
+            // Use the DebugRecoveryProcessor to recover the operations
             DebugRecoveryProcessor drp = DebugRecoveryProcessor.create(CONTAINER_ID, dataLog,  ContainerConfig.builder().build(),
                     ReadIndexConfig.builder().build(), executorService(), callbacks, false);
-            // must not throw exception, errorOnDataCorruption is false
+            // Must not throw exception, errorOnDataCorruption is false
             drp.performRecovery();
 
             final DebugRecoveryProcessor drp2 = DebugRecoveryProcessor.create(CONTAINER_ID, dataLog,  ContainerConfig.builder().build(),
                     ReadIndexConfig.builder().build(), executorService(), callbacks, true);
-            //must throw datacorruption exception, errorOnDataCorruption is true
+            // Must throw data-corruption exception, errorOnDataCorruption is true
             AssertExtensions.assertThrows("Should have thrown DataCorruptionException for duplicate entries", () -> drp2.performRecovery(), ex -> ex instanceof DataCorruptionException);
         }
     }
