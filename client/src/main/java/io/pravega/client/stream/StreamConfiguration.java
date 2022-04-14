@@ -61,16 +61,20 @@ public class StreamConfiguration implements Serializable {
     private final RetentionPolicy retentionPolicy;
     
     /**
-     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
-     * timestamp should be considered valid before it is forgotten. Meaning that after this long of
-     * not calling {@link EventStreamWriter#noteTime(long)} the writer will be forgotten.
+     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} until which the
+     * writer would be considered valid. Meaning that after this long of not calling
+     * {@link EventStreamWriter#noteTime(long)} a writer would be considered invalid
+     * and would not be waited upon before generating subsequent watermarks.
+     * However, this does not mean that after the timestampAggregationTimeout getting
+     * elapsed, the same writer cannot resume writing data again.
+     *
      * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
      *
      * @param timestampAggregationTimeout The duration after the last call to {@link EventStreamWriter#noteTime(long)}
-     *                                    which the timestamp should be considered valid before it is forgotten.
-     * @return The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the timestamp should
-     * be considered valid before it is forgotten.
+     *                                    until which the writer would be considered valid.
+     * @return The duration after the last call to {@link EventStreamWriter#noteTime(long)}
+     * until which the writer is going to be considered valid.
      */
     private final long timestampAggregationTimeout;
 

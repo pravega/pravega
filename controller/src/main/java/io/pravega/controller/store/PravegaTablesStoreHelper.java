@@ -582,6 +582,7 @@ public class PravegaTablesStoreHelper {
      * It ignores DataNotFound exception. 
      */
     public CompletableFuture<Void> removeEntry(String tableName, String key, Version ver, long requestId) {
+        System.out.println("$$$ Inside remove entry $$$ "+ key);
         log.trace(requestId, "remove entry called for : {} key : {}", tableName, key);
         TableSegmentKey tableKey = ver == null
                 ? TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8))
