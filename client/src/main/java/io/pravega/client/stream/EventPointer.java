@@ -29,7 +29,7 @@ public interface EventPointer {
      * @return Implementation of EventPointer interface
      */
     EventPointerInternal asImpl();
-
+    
     /**
      * Serializes the Event pointer to a compact binary form.
      * @return A binary representation of the event pointer.

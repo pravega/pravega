@@ -100,11 +100,10 @@ public class StreamManagerImplTest {
     private StreamManager streamManager;
     private Controller controller = null;
     private MockConnectionFactoryImpl connectionFactory;
-    private PravegaNodeUri uri  = null;
 
     @Before
     public void setUp() {
-        uri = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         connectionFactory = new MockConnectionFactoryImpl();
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), connectionFactory, true);
         this.streamManager = new StreamManagerImpl(controller, connectionFactory);

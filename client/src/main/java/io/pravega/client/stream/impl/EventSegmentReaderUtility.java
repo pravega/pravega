@@ -19,9 +19,7 @@ import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.stream.EventPointer;
 import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @AllArgsConstructor
 public class EventSegmentReaderUtility {
     private final SegmentInputStreamFactory inFactory;
