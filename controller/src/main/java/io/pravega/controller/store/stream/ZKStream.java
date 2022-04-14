@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -96,7 +97,6 @@ class ZKStream extends PersistentStreamBase {
     private static final String ID_PATH = STREAM_PATH + "/id";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
-    private static final int MAX_RECORD_BY_LIST_TXN_API = 500;
 
     private final ZKStoreHelper store;
     @Getter(AccessLevel.PACKAGE)
@@ -545,16 +545,15 @@ class ZKStream extends PersistentStreamBase {
                 .thenCompose(children -> Futures.allOfWithResults(children.stream().map(batch -> getTxnInBatch(batch, context))
                                 .collect(Collectors.toList()))
                         .thenApply(list -> {
-                            Map<UUID, TxnStatus> txnMap = new HashMap<>();
+                            Map<UUID, CompletedTxnRecord> txnMap = new HashMap<>();
                             list.forEach(txnMap::putAll);
-                            txnMap = txnMap.size() > MAX_RECORD_BY_LIST_TXN_API
-                                    ? txnMap.entrySet().stream().skip(txnMap.size() - MAX_RECORD_BY_LIST_TXN_API)
-                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue )) : txnMap;
-                            return txnMap;
+                            return txnMap.entrySet().stream().sorted((r1, r2) -> Long.compare(r2.getValue().getCompleteTime(),
+                                            r1.getValue().getCompleteTime())).limit(Config.LIST_COMPLETED_TXN_MAX_RECORDS)
+                                    .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getCompletionStatus()));
                         }));
     }
 
-    private CompletableFuture<Map<UUID, TxnStatus>> getTxnInBatch(final String children, final OperationContext context) {
+    private CompletableFuture<Map<UUID, CompletedTxnRecord>> getTxnInBatch(final String children, final OperationContext context) {
         VersionedMetadata<CompletedTxnRecord> empty = getEmptyData();
         String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(children), getScope(), getName());
         return Futures.exceptionallyExpecting(store.getChildren(root),
@@ -564,7 +563,7 @@ class ZKStream extends PersistentStreamBase {
                                 txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
                                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
                 ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
-                        .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), x -> x.getValue().getObject().getCompletionStatus()))
+                        .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), x -> x.getValue().getObject()))
                 ));
     }
 
