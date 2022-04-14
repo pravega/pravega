@@ -147,14 +147,6 @@ public class StreamManagerImplTest {
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
     }
 
-    @Test
-    public void testCreatEventSegmentReader() {
-        SegmentInputStreamFactory inputStreamFactory = mock(SegmentInputStreamFactory.class);
-        EventSegmentReader reader = Mockito.mock(EventSegmentReader.class);
-        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
-        assertEquals(reader, inputStreamFactory.createEventReaderForSegment(new Segment("scope", "stream", 0L), 10L, 10));
-    }
-
     @Test(timeout = 10000)
     public  void testFetchEvent() throws InterruptedException, EndOfSegmentException, SegmentTruncatedException {
         Segment segment = new Segment("scope", "stream", 0L);
