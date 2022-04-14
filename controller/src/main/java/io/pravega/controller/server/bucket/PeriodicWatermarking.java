@@ -199,9 +199,6 @@ public class PeriodicWatermarking implements AutoCloseable {
             }
         });
 
-        System.out.println("!!! Active Writers !!! " + activeWriters);
-        System.out.println("!!! Inactive Writers !!! " + inactiveWriters);
-
         // Stop all inactive writers that have been shutdown.
         CompletableFuture<List<Void>> removeInactiveWriters = 
                 Futures.allOfWithResults(inactiveWriters.stream().map(x ->
@@ -226,7 +223,6 @@ public class PeriodicWatermarking implements AutoCloseable {
             // until they either report or become inactive. So we will complete this iteration without 
             // emitting any watermark (null) and in subsequent iterations if these writers have made progress
             // we will emit watermark or evict writers from watermark computation.
-            System.out.println("### Not emitting watermark because of wait on active writers ###");
             watermarkFuture = CompletableFuture.completedFuture(null);
         } else {
             // compute new mark

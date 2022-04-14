@@ -526,7 +526,6 @@ public class SegmentHelper implements AutoCloseable {
                                                    final List<TableSegmentKey> keys,
                                                    String delegationToken,
                                                    final long clientRequestId) {
-        System.out.println("$$$ Removing table keys $$$ "+ keys);
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         List<WireCommands.TableKey> keyList = keys.stream().map(x -> {

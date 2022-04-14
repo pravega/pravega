@@ -2079,7 +2079,6 @@ public abstract class PersistentStreamBase implements Stream {
                               return CompletableFuture.completedFuture(null);
                           } else {
                               if (writerMark.equals(record.getObject())) {
-                                  System.out.println("****** Attempting to remove record for writer ****** " + writer);
                                   return removeWriterRecord(writer, record.getVersion(), context);
                               } else {
                                   throw StoreException.create(StoreException.Type.WRITE_CONFLICT, 
