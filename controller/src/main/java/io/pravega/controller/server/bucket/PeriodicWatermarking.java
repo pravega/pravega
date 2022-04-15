@@ -222,7 +222,7 @@ public class PeriodicWatermarking implements AutoCloseable {
             // there are active writers that have not reported their marks. We should wait 
             // until they either report or become inactive. So we will complete this iteration without 
             // emitting any watermark (null) and in subsequent iterations if these writers have made progress
-            // we will emit watermark or evict writers from watermark computation.
+            // we will emit watermark or evict writers from watermark computation. 
             watermarkFuture = CompletableFuture.completedFuture(null);
         } else {
             // compute new mark

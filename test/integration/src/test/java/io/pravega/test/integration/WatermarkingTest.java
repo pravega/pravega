@@ -543,12 +543,12 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()).equals(x.getValue())));
 
         // bring back writer1 and post an event with note time smaller than current watermark
-        writer0.writeEvent("3").get();
-        writer0.noteTime(200L);
+        writer1.writeEvent("3").get();
+        writer1.noteTime(90L);
 
         // no watermark should be emitted.
-//        Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
-//        assertNull(nullMark);
+        Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
+        assertNull(nullMark);
     }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {

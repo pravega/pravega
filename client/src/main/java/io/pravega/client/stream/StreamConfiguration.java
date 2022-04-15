@@ -62,19 +62,21 @@ public class StreamConfiguration implements Serializable {
     
     /**
      * The duration after the last call to {@link EventStreamWriter#noteTime(long)} until which the
-     * writer would be considered valid. Meaning that after this long of not calling
-     * {@link EventStreamWriter#noteTime(long)} a writer would be considered invalid
-     * and would not be waited upon before generating subsequent watermarks.
+     * writer would be considered active. Meaning that after this long of not calling
+     * {@link EventStreamWriter#noteTime(long)} a writer would be considered inactive
+     * i.e. it would not be waited upon before generating subsequent watermarks.
      * However, this does not mean that after the timestampAggregationTimeout getting
      * elapsed, the same writer cannot resume writing data again.
+     * An active writer is one which is waited upon to report its mark or till it becomes inactive
+     * before any subsequent watermarks can be generated.
      *
      * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
      *
      * @param timestampAggregationTimeout The duration after the last call to {@link EventStreamWriter#noteTime(long)}
-     *                                    until which the writer would be considered valid.
+     *                                    until which the writer would be considered active.
      * @return The duration after the last call to {@link EventStreamWriter#noteTime(long)}
-     * until which the writer is going to be considered valid.
+     * until which the writer is going to be considered active.
      */
     private final long timestampAggregationTimeout;
 
