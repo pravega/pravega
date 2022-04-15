@@ -64,7 +64,7 @@ public class StreamConfiguration implements Serializable {
      * The duration after the last call to {@link EventStreamWriter#noteTime(long)} until which the
      * writer would be considered for computing {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * Meaning that after this long of not calling {@link EventStreamWriter#noteTime(long)} 
-     * a writer's time would be considered for computing the time window.
+     * a writer's previously reported time would be ignored for computing the time window.
      *
      * However, after the timestampAggregationTimeout elapses the same writer may resume noting time
      * at any time.
