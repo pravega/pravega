@@ -1038,7 +1038,7 @@ public class CheckpointTest {
         assertTrue(reader.readNextEvent(100).isReadCompleted());
 
         //Initiating 2 more checkpoints and verified its completion.
-        //Initiating 2nd checkpoint
+        //Initiating 2nd checkpoint.
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         CompletableFuture<Checkpoint> cpreader2 = readerGroup.initiateCheckpoint("CheckpointReader2", backgroundExecutor);
         assertFalse(cpreader2.isDone());
