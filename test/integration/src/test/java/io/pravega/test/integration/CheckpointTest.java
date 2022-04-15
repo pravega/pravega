@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -954,6 +955,10 @@ public class CheckpointTest {
     }
 
 
+    /*
+     *  Test for check isReadCompleted() immediate after checkpoint event, post reading all data till end of streamCut
+     * Multiple checkpoint initiate successfully post reaching isReadCompleted
+     */
     @Test(timeout = 20000)
     public void testCPEndOfStream1RBeforeEOS() throws ReinitializationRequiredException, InterruptedException,
             ExecutionException, TimeoutException {
@@ -978,11 +983,11 @@ public class CheckpointTest {
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         Map<Segment, Long> positions = new HashMap<>();
+        //StreamCut position is decided depending on event length, here below as end streamcut is 64L that means only 2 events are read from stream
         IntStream.of(0).forEach(segNum -> positions.put(new Segment(scope, streamName, segNum), 64L));
         StreamCut streamCut = new StreamCutImpl(Stream.of(scope, streamName), positions);
         Map<Stream, StreamCut> streamcuts = new HashMap<Stream, StreamCut>();
         streamcuts.put(Stream.of(scope, streamName), streamCut);
-        //readerGroup pointing to new streamcut for s1 and head of newly added stream s2
         ReaderGroupConfig groupConfigSC = ReaderGroupConfig.builder()
                                                            .disableAutomaticCheckpoints()
                                                            .stream(Stream.of(scope, streamName), StreamCut.UNBOUNDED, streamCut)
@@ -1014,7 +1019,7 @@ public class CheckpointTest {
         assertNotNull(reader.readNextEvent(1000).getEvent());
         assertNotNull(reader.readNextEvent(500).getEvent());
         assertNull(reader.readNextEvent(100).getEvent());
-        assertFalse(reader.readNextEvent(100).isEndOfStream());
+        assertFalse(reader.readNextEvent(100).isReadCompleted());
         //Initiating 1st checkpoint
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         final InlineExecutor backgroundExecutor = new InlineExecutor();
@@ -1030,7 +1035,42 @@ public class CheckpointTest {
 
         Checkpoint cpResultReader1 = cpreader1.get(5, TimeUnit.SECONDS);
         assertTrue(cpreader1.isDone());
-        assertTrue(reader.readNextEvent(100).isEndOfStream());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
+
+        //Initiating 2 more checkpoints and verified its completion.
+        //Initiating 2nd checkpoint
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> cpreader2 = readerGroup.initiateCheckpoint("CheckpointReader2", backgroundExecutor);
+        assertFalse(cpreader2.isDone());
+        // reader read next event at checkpoint
+        read = reader.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointReader2", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+
+        Checkpoint cpResultReader2 = cpreader2.get(5, TimeUnit.SECONDS);
+        assertTrue(cpreader2.isDone());
+        assertEquals(Collections.emptyMap(), cpResultReader2.asImpl().getPositions());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
+
+        //Initiating 3rd checkpoint
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> cpreader3 = readerGroup.initiateCheckpoint("CheckpointReader3", backgroundExecutor);
+        assertFalse(cpreader3.isDone());
+        // reader read next event at checkpoint
+        read = reader.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointReader3", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+
+        Checkpoint cpResultReader3 = cpreader3.get(5, TimeUnit.SECONDS);
+        assertTrue(cpreader3.isDone());
+        assertEquals(Collections.emptyMap(), cpResultReader3.asImpl().getPositions());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
     }
 
 }

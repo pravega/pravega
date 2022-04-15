@@ -154,7 +154,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             if (segmentReader == null) {
                 if (groupState.reachedEndOfStream()) {
                     log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
-                    return createEmptyEventEndOfStream(true);
+                    return createEmptyEventEndOfStream();
                 }
                 blockFor(firstByteTimeoutMillis);
                 segmentsWithData.drainPermits();
@@ -209,8 +209,8 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         return new EventReadImpl<>(null, refreshAndGetPosition(), null, checkpoint);
     }
 
-    private EventRead<Type> createEmptyEventEndOfStream(Boolean isEndOfStream) {
-        return new EventReadImpl<>(null, refreshAndGetPosition(), null, null, isEndOfStream);
+    private EventRead<Type> createEmptyEventEndOfStream() {
+        return new EventReadImpl<>(null, refreshAndGetPosition(), null, null, true);
     }
 
     /**

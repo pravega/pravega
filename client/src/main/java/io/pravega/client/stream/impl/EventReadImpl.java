@@ -26,22 +26,22 @@ public class EventReadImpl<T> implements EventRead<T> {
     private final Position position;
     private final EventPointer eventPointer;
     private final String checkpointName;
-    private final boolean isEndOfStream;
+    private final boolean isReadCompleted;
 
     public EventReadImpl(T event, Position position, EventPointer eventPointer, String checkpointName) {
         this.event = event;
         this.position = position;
         this.eventPointer = eventPointer;
         this.checkpointName = checkpointName;
-        this.isEndOfStream = false;
+        this.isReadCompleted = false;
     }
 
-    public EventReadImpl(T event, Position position, EventPointer eventPointer, String checkpointName, boolean isEndOfStream) {
+    public EventReadImpl(T event, Position position, EventPointer eventPointer, String checkpointName, boolean isReadCompleted) {
         this.event = event;
         this.position = position;
         this.eventPointer = eventPointer;
         this.checkpointName = checkpointName;
-        this.isEndOfStream = isEndOfStream;
+        this.isReadCompleted = isReadCompleted;
     }
 
     @Override

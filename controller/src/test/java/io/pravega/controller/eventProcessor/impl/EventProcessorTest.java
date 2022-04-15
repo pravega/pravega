@@ -230,7 +230,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        public boolean isEndOfStream() {
+        public boolean isReadCompleted() {
             return false;
         }
 

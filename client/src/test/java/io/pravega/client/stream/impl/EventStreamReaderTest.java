@@ -1105,7 +1105,7 @@ public class EventStreamReaderTest {
         Mockito.when(groupState.reachedEndOfStream()).thenReturn(true);
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
         assertNull(eventRead.getEvent());
-        assertTrue(eventRead.isEndOfStream());
+        assertTrue(eventRead.isReadCompleted());
         reader.close();
     }
 
