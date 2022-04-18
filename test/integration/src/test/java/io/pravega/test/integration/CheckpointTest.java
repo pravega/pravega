@@ -1055,7 +1055,7 @@ public class CheckpointTest {
         assertEquals(Collections.emptyMap(), cpResultReader2.asImpl().getPositions());
         assertTrue(reader.readNextEvent(100).isReadCompleted());
 
-        //Initiating 3rd checkpoint
+        //Initiating 3rd checkpoint.
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         CompletableFuture<Checkpoint> cpreader3 = readerGroup.initiateCheckpoint("CheckpointReader3", backgroundExecutor);
         assertFalse(cpreader3.isDone());
