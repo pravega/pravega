@@ -104,7 +104,6 @@ public class ReaderGroupState implements Revisioned {
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments, boolean updatingConfig) {
-
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
@@ -510,7 +509,6 @@ public class ReaderGroupState implements Revisioned {
                                                                                     longDeserializer)));
                 builder.unassignedSegments(revisionDataInput.readMap(segmentWithRangeDeserializer, longDeserializer));
                 builder.endSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
-
             }
 
             private void read01(RevisionDataInput revisionDataInput,
