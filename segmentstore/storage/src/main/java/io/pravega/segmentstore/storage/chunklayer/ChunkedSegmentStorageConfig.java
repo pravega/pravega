@@ -72,6 +72,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> RELOCATE_ON_TRUNCATE_ENABLED = Property.named("truncate.relocate.enable", true);
     public static final Property<Long> MIN_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.min", 64 * 1024 * 1024L);
+    public static final Property<Long> MAX_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.max", 1 * 1024 * 1024 * 1024L);
+
     public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
 
     /**
@@ -108,6 +110,7 @@ public class ChunkedSegmentStorageConfig {
             .safeStorageSizeCheckFrequencyInSeconds(60)
             .relocateOnTruncateEnabled(true)
             .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
+            .maxSizeForTruncateRelocationInbytes(1 * 1024 * 1024 * 1024L)
             .minPercentForTruncateRelocation(80)
             .build();
 
@@ -195,6 +198,12 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private long minSizeForTruncateRelocationInbytes;
+
+    /**
+     * Maximum size of chunk after which it is not eligible for relocation.
+     */
+    @Getter
+    final private long maxSizeForTruncateRelocationInbytes;
 
     /**
      * Minimum percentage of wasted space required for it to be eligible for relocation.
@@ -341,6 +350,7 @@ public class ChunkedSegmentStorageConfig {
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
         this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
         this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
+        this.maxSizeForTruncateRelocationInbytes = properties.getPositiveLong(MAX_TRUNCATE_RELOCATION_SIZE_BYTES);
         this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
     }
 
