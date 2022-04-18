@@ -157,7 +157,7 @@ public final class Config {
             "zk.connect.retries.count.max", 5, "maxRetries");
 
     public static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named(
-            "zk.connect.session.timeout.milliseconds", 10000, "sessionTimeoutMillis");
+            "zk.connect.session.timeout.milliseconds", 30000, "sessionTimeoutMillis");
 
     public static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named(
             "zk.connect.security.enable", false, "secureConnection");
