@@ -2267,6 +2267,24 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testRelocatingTruncateWithMaxSize() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .maxSizeForTruncateRelocationInbytes(10)
+                .minPercentForTruncateRelocation(1)
+                .build();
+
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        val h1 = populateSegment(testContext, "test1", 11, 1);
+        val h2 = populateSegment(testContext, "test2", 10, 1);
+        testTruncate(testContext, "test1", 11, 10, 1, 11, 11);
+        testTruncate(testContext, "test2", 10, 9, 1, 10, 1);
+    }
+
     private void testRelocatingTruncate(ChunkedSegmentStorageConfig config, int numberOfChunks, long maxChunkSize, int threshold) throws Exception {
         for (int i = 0; i < numberOfChunks; i++) {
             testTruncate(config, maxChunkSize, i * maxChunkSize, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
@@ -2332,7 +2350,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val chunkCount = Math.toIntExact(length / maxChunkLength - startOffset / maxChunkLength); // Note two independent int divisions.
         long[] expectedLengths = new long[chunkCount];
         Arrays.fill(expectedLengths, maxChunkLength);
-        if (config.isRelocateOnTruncateEnabled() && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()) {
+        if (config.isRelocateOnTruncateEnabled()
+                && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()
+                && maxChunkLength <= config.getMaxSizeForTruncateRelocationInbytes()) {
             val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
             val offset = startOffset % maxChunkLength;
             expectedLengths[0] = offset >= threshold ? maxChunkLength - threshold : maxChunkLength;
@@ -3002,6 +3022,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .relocateOnTruncateEnabled(true)
                 .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
+                .maxSizeForTruncateRelocationInbytes(10L * Integer.MAX_VALUE)
                 .build();
         @Cleanup
         TestContext testContext = getTestContext(config);
