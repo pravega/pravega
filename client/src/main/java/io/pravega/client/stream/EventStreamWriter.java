@@ -112,7 +112,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * {@link EventWriterConfigBuilder#automaticallyNoteTime(boolean)} to true when creating a
      * writer.
      * 
-     * @param timestamp a timestamp that represents the current location in the stream.
+     * @param timestamp a timestamp (in milliseconds) that represents the current location in the stream.
      */
     void noteTime(long timestamp);
 

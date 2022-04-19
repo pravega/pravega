@@ -228,6 +228,12 @@ public class EventProcessorTest {
         public String getCheckpointName() {
             return null;
         }
+
+        @Override
+        public boolean isReadCompleted() {
+            return false;
+        }
+
     }
 
     private ScheduledExecutorService executor;

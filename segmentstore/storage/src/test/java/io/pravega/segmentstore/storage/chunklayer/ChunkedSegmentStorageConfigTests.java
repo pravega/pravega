@@ -57,6 +57,7 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.RELOCATE_ON_TRUNCATE_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "20");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "21");
+        props.setProperty(ChunkedSegmentStorageConfig.MAX_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "22");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -86,6 +87,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertFalse(config.isRelocateOnTruncateEnabled());
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), 20);
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), 21);
+        Assert.assertEquals(config.getMaxSizeForTruncateRelocationInbytes(), 22);
     }
 
     @Test
@@ -123,6 +125,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getSafeStorageSizeCheckFrequencyInSeconds(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getSafeStorageSizeCheckFrequencyInSeconds());
         Assert.assertEquals(config.isRelocateOnTruncateEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isRelocateOnTruncateEnabled());
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeForTruncateRelocationInbytes());
+        Assert.assertEquals(config.getMaxSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSizeForTruncateRelocationInbytes());
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
     }
 
