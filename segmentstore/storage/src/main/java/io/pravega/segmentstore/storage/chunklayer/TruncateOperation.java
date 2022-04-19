@@ -141,6 +141,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> relocateFirstChunkIfRequired(MetadataTransaction txn) {
         if (shouldRelocate()) {
+            val timer = new Timer();
             String oldChunkName = segmentMetadata.getFirstChunk();
             String newChunkName = chunkedSegmentStorage.getNewChunkName(handle.getSegmentName(), segmentMetadata.getStartOffset());
             val startOffsetInChunk = segmentMetadata.getStartOffset() - segmentMetadata.getFirstChunkStartOffset();
@@ -187,12 +188,20 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                         isFirstChunkRelocated = true;
                         currentMetadata = newFirstChunkMetadata;
                         currentChunkName = newChunkName;
+
+                        log.debug("{} truncate - relocated first chunk op={}, segment={}, offset={} old={} new={} relocatedBytes={} time={}.",
+                                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
+                                offset, oldChunkName, newChunkName, newLength, timer.getElapsedMillis());
+
                     }, chunkedSegmentStorage.getExecutor());
         }
         return CompletableFuture.completedFuture(null);
     }
 
     private CompletableFuture<Void> copyBytes(ChunkHandle writeHandle, ChunkHandle readHandle, long startOffset, long length) {
+        Preconditions.checkArgument(length <= chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes(),
+                "size of data exceeds max size allowed for relocation. length={}, max={} ",
+                length, chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes());
         val bytesToRead = new AtomicLong(length);
         val readAtOffset = new AtomicLong(startOffset);
         val writeAtOffset = new AtomicLong(0);
@@ -217,6 +226,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             && chunkedSegmentStorage.shouldAppend()
             && !chunkedSegmentStorage.isSegmentInSystemScope(handle)
             && currentMetadata.getLength() >  chunkedSegmentStorage.getConfig().getMinSizeForTruncateRelocationInbytes()
+            && currentMetadata.getLength() <=  chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes()
             && getWastedSpacePercentage() >= chunkedSegmentStorage.getConfig().getMinPercentForTruncateRelocation();
     }
 
