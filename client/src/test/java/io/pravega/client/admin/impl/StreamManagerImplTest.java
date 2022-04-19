@@ -28,6 +28,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -59,6 +60,7 @@ import io.pravega.test.common.TestUtils;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -78,7 +80,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -147,8 +148,8 @@ public class StreamManagerImplTest {
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
     }
 
-    @Test(timeout = 10000)
-    public  void testFetchEvent() throws InterruptedException, EndOfSegmentException, SegmentTruncatedException {
+    @Test
+    public  void testFetchEvent() throws EndOfSegmentException, SegmentTruncatedException {
         Segment segment = new Segment("scope", "stream", 0L);
         StringBuilder sb = new StringBuilder();
         sb.append(segment.getScopedName());
@@ -160,22 +161,19 @@ public class StreamManagerImplTest {
         //Setting Up the Mocks
         EventSegmentReader reader = mock(EventSegmentReader.class);
         SegmentInputStreamFactory segmentInputStreamFactory = mock(SegmentInputStreamFactory.class);
-
         StreamManagerImpl streamManagerLocal = new StreamManagerImpl(controller, connectionFactory, segmentInputStreamFactory);
         when(segmentInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
-        when(reader.read()).thenReturn(ByteBuffer.allocate(4).putInt(5));
+        when(reader.read()).thenReturn(ByteBuffer.wrap("Test-Fetch-Event".getBytes(StandardCharsets.UTF_8)));
 
         EventPointer pointer = EventPointerImpl.fromString(sb.toString());
         assertNotNull(pointer);
         UTF8StringSerializer serializer = new UTF8StringSerializer();
         CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
-        Thread.sleep(100);
-        assertFalse("not expecting a fetchEvent failure", future.isCompletedExceptionally());
-
+       assertEquals("Test-Fetch-Event", future.join());
     }
 
-    @Test(timeout = 10000)
-    public  void testFetchEventThrowingNoSuchEventException() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
+    @Test
+    public  void testFetchEventThrowingNoSuchSegmentException() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
         Segment segment = new Segment("scope", "stream", 0L);
         StringBuilder sb = new StringBuilder();
         sb.append(segment.getScopedName());
@@ -194,12 +192,12 @@ public class StreamManagerImplTest {
         EventPointer pointer = EventPointerImpl.fromString(sb.toString());
         assertNotNull(pointer);
         UTF8StringSerializer serializer = new UTF8StringSerializer();
-        streamManagerLocal.fetchEvent(pointer, serializer);
-        Thread.sleep(1000);
-        assertThrows(NoSuchSegmentException.class, () -> reader.read());
+        CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
+        AssertExtensions.assertFutureThrows("Should throw Exception", future, throwable -> throwable instanceof NoSuchEventException);
+
     }
 
-    @Test(timeout = 10000)
+    @Test
     public  void testFetchEventThrowingEndOfSegmentException() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
         Segment segment = new Segment("scope", "stream", 0L);
         StringBuilder sb = new StringBuilder();
@@ -219,9 +217,9 @@ public class StreamManagerImplTest {
         EventPointer pointer = EventPointerImpl.fromString(sb.toString());
         assertNotNull(pointer);
         UTF8StringSerializer serializer = new UTF8StringSerializer();
-        streamManagerLocal.fetchEvent(pointer, serializer);
-        Thread.sleep(1000);
-        assertThrows(EndOfSegmentException.class, () -> reader.read());
+        CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
+        AssertExtensions.assertFutureThrows("Should throw Exception", future, throwable -> throwable instanceof NoSuchEventException);
+
     }
 
     @Test(timeout = 15000)

@@ -39,6 +39,7 @@ import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -54,9 +55,15 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -166,16 +173,19 @@ public class SingleThreadEndToEndTest {
         producer.flush();
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
-        EventPointer pointer = reader.readNextEvent(100).getEventPointer();
-        AtomicInteger counter = new AtomicInteger(0);
+        EventPointer pointer = reader.readNextEvent(1000).getEventPointer();
+        assertNotNull(pointer);
+        List<CompletableFuture<String>> futureList = new ArrayList();
         while ( pointer != null ) {
-            counter.incrementAndGet();
             CompletableFuture<String> cf = streamManager.fetchEvent(pointer, serializer);
-            cf.thenAccept(s -> {
-                assertEquals(s, testString);
-            });
-            pointer = reader.readNextEvent(10).getEventPointer();
+            futureList.add(cf);
+            pointer = reader.readNextEvent(1000).getEventPointer();
         }
-        assertEquals(writeCount, counter.get());
+        int readCount = 0;
+        for (CompletableFuture<String> future : futureList){
+            readCount++;
+            assertEquals(testString, future.join());
+        }
+        assertEquals(writeCount, readCount);
     }
 }
