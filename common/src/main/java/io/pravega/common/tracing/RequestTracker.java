@@ -17,16 +17,15 @@ package io.pravega.common.tracing;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
-import java.time.Duration;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
-
-import io.pravega.common.util.SimpleCache;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,7 +46,7 @@ public final class RequestTracker {
 
     private final Object lock = new Object();
     @GuardedBy("lock")
-    private final SimpleCache<String, List<Long>> ongoingRequests;
+    private final Cache<String, List<Long>> ongoingRequests;
     @Getter
     private final boolean tracingEnabled;
 
@@ -56,8 +55,10 @@ public final class RequestTracker {
 
         // Clean request tags after a certain amount of time.
         if (tracingEnabled) {
-            ongoingRequests = new SimpleCache<>(MAX_CACHE_SIZE, Duration.ofMinutes(EVICTION_PERIOD_MINUTES),
-                    (k, v) -> log.debug("Evicting requestId {} : {}", k, v));
+            ongoingRequests = CacheBuilder.newBuilder()
+                                          .maximumSize(MAX_CACHE_SIZE)
+                                          .expireAfterWrite(EVICTION_PERIOD_MINUTES, TimeUnit.MINUTES)
+                                          .build();
         } else {
             ongoingRequests = null;
         }
@@ -107,7 +108,7 @@ public final class RequestTracker {
         long requestId;
         List<Long> descriptorIds;
         synchronized (lock) {
-            descriptorIds = ongoingRequests.get(requestDescriptor);
+            descriptorIds = ongoingRequests.getIfPresent(requestDescriptor);
             // If there are multiple parallel requests for the same descriptor, the first one will be the primary (i.e., the one
             // used to log the lifecycle of the request).
             requestId = (descriptorIds == null || descriptorIds.size() == 0) ? RequestTag.NON_EXISTENT_ID : descriptorIds.get(0);
@@ -167,7 +168,7 @@ public final class RequestTracker {
         }
 
         synchronized (lock) {
-            List<Long> requestIds = ongoingRequests.get(requestDescriptor);
+            List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
             if (requestIds == null) {
                 requestIds = Collections.synchronizedList(new ArrayList<>());
                 ongoingRequests.put(requestDescriptor, requestIds);
@@ -212,7 +213,7 @@ public final class RequestTracker {
         long removedRequestId;
         List<Long> requestIds;
         synchronized (lock) {
-            requestIds = ongoingRequests.get(requestDescriptor);
+            requestIds = ongoingRequests.getIfPresent(requestDescriptor);
             if (requestIds == null || requestIds.size() == 0) {
                 log.debug("Attempting to untrack a non-existing key: {}.", requestDescriptor);
                 return RequestTag.NON_EXISTENT_ID;
@@ -224,7 +225,7 @@ public final class RequestTracker {
                         requestDescriptor, removedRequestId);
                 ongoingRequests.put(requestDescriptor, requestIds);
             } else {
-                ongoingRequests.remove(requestDescriptor);
+                ongoingRequests.invalidate(requestDescriptor);
                 removedRequestId = requestIds.get(0);
             }
         }
