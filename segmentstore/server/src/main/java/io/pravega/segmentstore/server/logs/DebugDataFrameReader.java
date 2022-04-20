@@ -23,12 +23,16 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class DebugDataFrameReader<T extends SequencedElement> extends DataFrameReader<T> {
 
-    DebugDataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId) throws DurableDataLogException {
+    private final AtomicBoolean errorOnDataCorruption;
+
+    DebugDataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId, boolean errorOnDataCorruption) throws DurableDataLogException {
        super(log, serializer, containerId);
+       this.errorOnDataCorruption = new AtomicBoolean(errorOnDataCorruption);
     }
 
     /**
@@ -51,8 +55,13 @@ public class DebugDataFrameReader<T extends SequencedElement> extends DataFrameR
                     DataFrameRecord.RecordInfo recordInfo = this.getDataFrameInputStream().endRecord();
                     long seqNo = logItem.getSequenceNumber();
                     if (seqNo <= this.getLastReadSequenceNumber()) {
-                        log.error("Invalid Operation Sequence Number. Expected: larger than {}, found: {}.",
-                                this.getLastReadSequenceNumber(), seqNo);
+                        if (errorOnDataCorruption.get()) {
+                            throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.",
+                                    this.getLastReadSequenceNumber(), seqNo));
+                        } else {
+                            log.error("Invalid Operation Sequence Number. Expected: larger than {}, found: {}.",
+                                    this.getLastReadSequenceNumber(), seqNo);
+                        }
                     } else {
                         this.setLastReadSequenceNumber(seqNo);
                         return new DataFrameRecord<>(logItem, recordInfo);

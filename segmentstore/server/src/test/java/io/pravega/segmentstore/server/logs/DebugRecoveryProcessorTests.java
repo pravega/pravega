@@ -119,6 +119,8 @@ public class DebugRecoveryProcessorTests extends ThreadPooledTestSuite {
                     ReadIndexConfig.builder().build(), executorService(), callbacks, true);
             // Must throw data-corruption exception, errorOnDataCorruption is true
             AssertExtensions.assertThrows("Should have thrown DataCorruptionException for duplicate entries", () -> drp2.performRecovery(), ex -> ex instanceof DataCorruptionException);
+            drp.close();
+            drp2.close();
         }
     }
 
@@ -168,7 +170,7 @@ public class DebugRecoveryProcessorTests extends ThreadPooledTestSuite {
     }
 
     private void testReadWithException(DurableDataLog dataLog, Serializer<TestLogItem> serializer, Predicate<Throwable> exceptionVerifier) throws Exception {
-        try (DataFrameReader<TestLogItem> reader = new DebugDataFrameReader<>(dataLog, serializer, CONTAINER_ID)) {
+        try (DataFrameReader<TestLogItem> reader = new DebugDataFrameReader<>(dataLog, serializer, CONTAINER_ID, false)) {
             boolean encounteredException = false;
             while (true) {
                 DataFrameRecord<TestLogItem> dataFrameRecord;
