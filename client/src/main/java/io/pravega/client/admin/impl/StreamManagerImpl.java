@@ -34,6 +34,7 @@ import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -153,6 +154,12 @@ public class StreamManagerImpl implements StreamManager {
     public boolean checkScopeExists(String scopeName) {
         log.info("Checking if scope {} exists", scopeName);
         return  Futures.getThrowingException(controller.checkScopeExists(scopeName));
+    }
+
+    @Override
+    public List<TransactionInfo> listCompletedTransactions(Stream stream) {
+        log.info("Listing completed transactions for stream : {}", stream.getStreamName());
+        return Futures.getThrowingException(controller.listCompletedTransactions(stream));
     }
 
     @Override
