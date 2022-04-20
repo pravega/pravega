@@ -31,11 +31,13 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -57,7 +59,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -563,6 +564,14 @@ public class LocalController implements Controller {
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
         return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId, requestIdGenerator.nextLong())
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
+    }
+
+    @Override
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(Stream stream) {
+               return controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong())
+                        .thenApply(result -> result.entrySet().stream().map(txnInfo ->
+                                new TransactionInfoImpl(stream, txnInfo.getKey(),
+                                        Transaction.Status.valueOf(txnInfo.getValue().name()))).collect(Collectors.toList()));
     }
 
     @Override
