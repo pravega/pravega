@@ -1126,6 +1126,18 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
+     * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state
+     * from most recent batch.
+     *
+     * @param scope Scope of stream.
+     * @param stream Name of stream.
+     * @param context Operation context.
+     * @param executor Caller executor.
+     * @return Map having transactionId and transaction status.
+     */
+    CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+
+    /**
      * Adds specified resource as a child of current host's hostId node.
      * This is idempotent operation.
      *

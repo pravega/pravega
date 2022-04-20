@@ -24,6 +24,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -363,6 +364,16 @@ public interface Controller extends AutoCloseable {
      * @return Transaction status.
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
+
+    /**
+     * Get list of TransactionInfo for the Stream having status COMMITTED/ABORTED from most recent batch.
+     * TransactionInfo contains unique transactionId, status of transaction and stream.
+     * This API can return maximum 500 records.
+     *
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return List of TransactionInfo.
+     */
+    CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream);
 
     // Controller Apis that are called by readers
 
