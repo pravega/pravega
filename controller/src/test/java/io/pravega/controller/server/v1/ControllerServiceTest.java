@@ -45,6 +45,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -57,6 +58,7 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,6 +73,7 @@ import org.junit.Test;
 import org.junit.ClassRule;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -277,6 +280,21 @@ public class ControllerServiceTest {
         status = consumer.abortTransaction(SCOPE, stream1, txnId, 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
+    }
+
+    @Test
+    public void testListCompletedTransactions() {
+        TransactionMetrics.initialize();
+        OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
+        Map<UUID, TxnStatus> listResponse = new HashMap<>();
+        listResponse.put(UUID.randomUUID(), TxnStatus.ABORTED);
+        listResponse.put(UUID.randomUUID(), TxnStatus.COMMITTED);
+
+        doAnswer(x -> CompletableFuture.completedFuture(listResponse)).when(streamStore).listCompletedTxns(any(), any(), any(), any());
+
+        Map<UUID, TxnStatus> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 0L).join();
+        assertEquals(listResponse.size(), listTxns.size());
+        assertTrue(listTxns.keySet().stream().collect(Collectors.toList()).contains(listResponse.keySet().stream().collect(Collectors.toList()).get(0)));
     }
     
     @Test(timeout = 10000L)

@@ -46,6 +46,7 @@ public final class RPCTracingTags {
     public static final String CREATE_TRANSACTION = "createTransaction";
     public static final String PING_TRANSACTION = "pingTransaction";
     public static final String CHECK_TRANSACTION_STATE = "checkTransactionState";
+    public static final String LIST_COMPLETED_TRANSACTIONS = "listCompletedTransactions";
     public static final String NOTE_TIMESTAMP_FROM_WRITER = "noteTimestampFromWriter";
     public static final String REMOVE_WRITER = "removeWriter";
     public static final String CREATE_KEY_VALUE_TABLE = "createKeyValueTable";
