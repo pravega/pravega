@@ -217,7 +217,7 @@ class RecoveryProcessor {
         }
     }
 
-    protected void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
+    private void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
         // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
         // to do this.
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
