@@ -29,7 +29,10 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,7 +42,9 @@ import lombok.extern.slf4j.Slf4j;
 class RecoveryProcessor {
     //region Members
 
+    @Getter (AccessLevel.PROTECTED)
     private final UpdateableContainerMetadata metadata;
+    @Getter (AccessLevel.PROTECTED)
     private final DurableDataLog durableDataLog;
     private final MemoryStateUpdater stateUpdater;
     private final String traceObjectId;
@@ -127,7 +132,7 @@ class RecoveryProcessor {
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
      * @return The number of Operations recovered.
      */
-    private int recoverAllOperations(OperationMetadataUpdater metadataUpdater) throws Exception {
+    protected int recoverAllOperations(OperationMetadataUpdater metadataUpdater) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverAllOperations");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -135,7 +140,7 @@ class RecoveryProcessor {
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, OperationSerializer.DEFAULT, this.metadata.getContainerId())) {
+        try (DataFrameReader<Operation> reader = createDataFrameReader()) {
             DataFrameRecord<Operation> dataFrameRecord;
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.
@@ -177,6 +182,15 @@ class RecoveryProcessor {
         metadataUpdater.commitAll();
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverAllOperations", traceId, recoveredItemCount);
         return recoveredItemCount;
+    }
+
+    /**
+     * Returns the DataFrameReader instance.
+     * @return the instantiated DataFrameReader
+     * @throws DurableDataLogException If the given log threw an exception while initializing a Reader
+     */
+    protected DataFrameReader<Operation> createDataFrameReader() throws DurableDataLogException {
+       return new DataFrameReader<>(this.durableDataLog, OperationSerializer.DEFAULT, this.metadata.getContainerId());
     }
 
     protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws ServiceHaltException {
