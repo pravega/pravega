@@ -19,14 +19,18 @@ import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.TransactionInfo;
 
 import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.List;
 
 /**
@@ -203,6 +207,20 @@ public interface StreamManager extends AutoCloseable {
      * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
      */
     boolean deleteScopeRecursive(String scopeName) throws DeleteScopeFailedException;
+
+    /**
+     * Re-read an event that was previously read, by passing the pointer returned from
+     * {@link EventRead#getEventPointer()}.
+     * This does not affect the current position of any reader.
+     * <p>
+     * This is a non-blocking call. Passing an EventPointer of a stream that has been deleted or data truncated away it will throw exception.
+     * @param pointer It is an EventPointer obtained from the result of a previous readNextEvent call.
+     * @param deserializer The Serializer
+     * @param <T> The type of the Event
+     * @return A future for the provided EventPointer of the fetch call. If an exception occurred, it will be completed with the causing exception.
+     * Notable exception is {@link io.pravega.client.segment.impl.NoSuchEventException}
+     */
+    <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> deserializer);
 
     /**
      * List most recent completed (COMMITTED/ABORTED) transactions.
