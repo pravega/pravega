@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -934,6 +935,7 @@ public class CheckpointTest {
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
                                                                       ReaderConfig.builder().build(), clock::get,
                                                                       clock::get);
+
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         EventRead<String> read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
@@ -951,4 +953,124 @@ public class CheckpointTest {
         read = reader.readNextEvent(60000);
         assertEquals(testString, read.getEvent());
     }
+
+
+    /*
+     *  Test for check isReadCompleted() immediate after checkpoint event, post reading all data till end of streamCut
+     * Multiple checkpoint initiate successfully post reaching isReadCompleted
+     */
+    @Test(timeout = 20000)
+    public void testCPEndOfStream1RBeforeEOS() throws ReinitializationRequiredException, InterruptedException,
+            ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "testCP2RBeforeEOS";
+        String readerName = "reader";
+        String readerGroupName = "testCheckpoint2R-groupBefEOS";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String testString1 = "Hello world 1\n";
+        String testString2 = "Hello world 2\n";
+        String testString3 = "Hello world 3\n";
+
+        String scope = "Scope2RBeforeEOS";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        Map<Segment, Long> positions = new HashMap<>();
+        //StreamCut position is decided depending on event length, here below as end streamcut is 64L that means only 2 events are read from stream
+        IntStream.of(0).forEach(segNum -> positions.put(new Segment(scope, streamName, segNum), 64L));
+        StreamCut streamCut = new StreamCutImpl(Stream.of(scope, streamName), positions);
+        Map<Stream, StreamCut> streamcuts = new HashMap<Stream, StreamCut>();
+        streamcuts.put(Stream.of(scope, streamName), streamCut);
+        ReaderGroupConfig groupConfigSC = ReaderGroupConfig.builder()
+                                                           .disableAutomaticCheckpoints()
+                                                           .stream(Stream.of(scope, streamName), StreamCut.UNBOUNDED, streamCut)
+                                                           .build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+
+        streamManager.createReaderGroup(readerGroupName, groupConfigSC);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        producer.writeEvent("seg0", testString);
+        producer.writeEvent("seg0", testString1);
+        producer.writeEvent("seg0", testString2);
+        producer.writeEvent("seg0", testString3);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+
+        assertNotNull(reader.readNextEvent(1000).getEvent());
+        assertNotNull(reader.readNextEvent(500).getEvent());
+        assertNull(reader.readNextEvent(100).getEvent());
+        assertFalse(reader.readNextEvent(100).isReadCompleted());
+        //Initiating 1st checkpoint
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        final InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Checkpoint> cpreader1 = readerGroup.initiateCheckpoint("CheckpointReader1", backgroundExecutor);
+        assertFalse(cpreader1.isDone());
+        // reader read next event at checkpoint
+        EventRead<String> read = reader.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointReader1", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+
+        Checkpoint cpResultReader1 = cpreader1.get(5, TimeUnit.SECONDS);
+        assertTrue(cpreader1.isDone());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
+
+        //Initiating 2 more checkpoints and verified its completion.
+        //Initiating 2nd checkpoint.
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> cpreader2 = readerGroup.initiateCheckpoint("CheckpointReader2", backgroundExecutor);
+        assertFalse(cpreader2.isDone());
+        // reader read next event at checkpoint
+        read = reader.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointReader2", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+
+        Checkpoint cpResultReader2 = cpreader2.get(5, TimeUnit.SECONDS);
+        assertTrue(cpreader2.isDone());
+        assertEquals(Collections.emptyMap(), cpResultReader2.asImpl().getPositions());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
+
+        //Initiating 3rd checkpoint.
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        CompletableFuture<Checkpoint> cpreader3 = readerGroup.initiateCheckpoint("CheckpointReader3", backgroundExecutor);
+        assertFalse(cpreader3.isDone());
+        // reader read next event at checkpoint
+        read = reader.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("CheckpointReader3", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(100);
+        assertNull(read.getEvent());
+
+        Checkpoint cpResultReader3 = cpreader3.get(5, TimeUnit.SECONDS);
+        assertTrue(cpreader3.isDone());
+        assertEquals(Collections.emptyMap(), cpResultReader3.asImpl().getPositions());
+        assertTrue(reader.readNextEvent(100).isReadCompleted());
+    }
+
 }
