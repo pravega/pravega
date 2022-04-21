@@ -52,6 +52,11 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
         return getEventSegmentReader(segment, hasData, 0, endOffset, bufferSize);
     }
 
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int bufferSize) {
+        return getEventSegmentReader(segment, null, startOffset, Long.MAX_VALUE, bufferSize);
+    }
+
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long startOffset, long endOffset, int bufferSize) {
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller, segment, AccessOperation.READ);
         tokenProvider.retrieveToken();
