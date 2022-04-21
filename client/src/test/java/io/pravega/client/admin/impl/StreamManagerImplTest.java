@@ -26,7 +26,15 @@ import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
@@ -35,9 +43,11 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionInfo;
+import io.pravega.client.stream.impl.EventPointerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TransactionInfoImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -52,6 +62,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Arrays;
@@ -62,6 +74,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Assert;
@@ -76,11 +89,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.reset;
 
 public class StreamManagerImplTest {
 
@@ -134,6 +151,80 @@ public class StreamManagerImplTest {
 
         // This call should actually fail
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
+    }
+
+    @Test
+    public  void testFetchEvent() throws EndOfSegmentException, SegmentTruncatedException {
+        Segment segment = new Segment("scope", "stream", 0L);
+        StringBuilder sb = new StringBuilder();
+        sb.append(segment.getScopedName());
+        sb.append(':');
+        sb.append(123L);
+        sb.append('-');
+        sb.append(27);
+
+        //Setting Up the Mocks
+        EventSegmentReader reader = mock(EventSegmentReader.class);
+        SegmentInputStreamFactory segmentInputStreamFactory = mock(SegmentInputStreamFactory.class);
+        StreamManagerImpl streamManagerLocal = new StreamManagerImpl(controller, connectionFactory, segmentInputStreamFactory);
+        when(segmentInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
+        when(reader.read()).thenReturn(ByteBuffer.wrap("Test-Fetch-Event".getBytes(StandardCharsets.UTF_8)));
+
+        EventPointer pointer = EventPointerImpl.fromString(sb.toString());
+        assertNotNull(pointer);
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
+        CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
+       assertEquals("Test-Fetch-Event", future.join());
+    }
+
+    @Test
+    public  void testFetchEventThrowingNoSuchSegmentException() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
+        Segment segment = new Segment("scope", "stream", 0L);
+        StringBuilder sb = new StringBuilder();
+        sb.append(segment.getScopedName());
+        sb.append(':');
+        sb.append(123L);
+        sb.append('-');
+        sb.append(27);
+
+        EventSegmentReader reader = mock(EventSegmentReader.class);
+        SegmentInputStreamFactory segmentInputStreamFactory = mock(SegmentInputStreamFactory.class);
+        StreamManagerImpl streamManagerLocal = new StreamManagerImpl(controller, connectionFactory, segmentInputStreamFactory);
+        when(segmentInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
+
+        when(reader.read()).thenThrow(new NoSuchSegmentException("Event no longer exists."));
+
+        EventPointer pointer = EventPointerImpl.fromString(sb.toString());
+        assertNotNull(pointer);
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
+        CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
+        AssertExtensions.assertFutureThrows("Should throw Exception", future, throwable -> throwable instanceof NoSuchEventException);
+
+    }
+
+    @Test
+    public  void testFetchEventThrowingEndOfSegmentException() throws EndOfSegmentException, SegmentTruncatedException, InterruptedException {
+        Segment segment = new Segment("scope", "stream", 0L);
+        StringBuilder sb = new StringBuilder();
+        sb.append(segment.getScopedName());
+        sb.append(':');
+        sb.append(123L);
+        sb.append('-');
+        sb.append(27);
+
+        EventSegmentReader reader = mock(EventSegmentReader.class);
+        SegmentInputStreamFactory segmentInputStreamFactory = mock(SegmentInputStreamFactory.class);
+        StreamManagerImpl streamManagerLocal = new StreamManagerImpl(controller, connectionFactory, segmentInputStreamFactory);
+        when(segmentInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong(), anyInt())).thenReturn(reader);
+
+        when(reader.read()).thenThrow(new EndOfSegmentException());
+
+        EventPointer pointer = EventPointerImpl.fromString(sb.toString());
+        assertNotNull(pointer);
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
+        CompletableFuture<String> future = streamManagerLocal.fetchEvent(pointer, serializer);
+        AssertExtensions.assertFutureThrows("Should throw Exception", future, throwable -> throwable instanceof NoSuchEventException);
+
     }
 
     @Test(timeout = 15000)

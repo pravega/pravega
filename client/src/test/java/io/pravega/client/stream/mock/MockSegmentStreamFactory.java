@@ -86,6 +86,13 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int bufferSize) {
+        val reader = getMockStream(segment);
+        reader.setOffset(startOffset);
+        return  reader;
+    }
+
+    @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment, hasData);
         segments.putIfAbsent(segment, streams);
