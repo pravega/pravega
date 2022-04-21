@@ -161,27 +161,24 @@ public class SingleThreadEndToEndTest {
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
-        int writeCount = 0;
         for ( int eventNumber = 1; eventNumber <= 10; eventNumber++ ) {
             producer.writeEvent(testString);
-            writeCount++;
         }
         producer.flush();
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
-        EventPointer pointer = reader.readNextEvent(1000).getEventPointer();
-        assertNotNull(pointer);
+        EventPointer pointer = reader.readNextEvent(50000).getEventPointer();
         List<CompletableFuture<String>> futureList = new ArrayList();
         while ( pointer != null ) {
             CompletableFuture<String> cf = streamManager.fetchEvent(pointer, serializer);
             futureList.add(cf);
-            pointer = reader.readNextEvent(1000).getEventPointer();
+            pointer = reader.readNextEvent(50000).getEventPointer();
         }
         int readCount = 0;
         for (CompletableFuture<String> future : futureList) {
             readCount++;
             assertEquals(testString, future.join());
         }
-        assertEquals(writeCount, readCount);
+        assertEquals(readCount, futureList.size());
     }
 }
