@@ -24,6 +24,10 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.io.IOException;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,11 +36,13 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
+@Getter (AccessLevel.PROTECTED)
 class DataFrameReader<T extends SequencedElement> implements CloseableIterator<DataFrameRecord<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
     private final Serializer<T> serializer;
+    @Setter (AccessLevel.PROTECTED)
     private long lastReadSequenceNumber;
     private boolean closed;
 

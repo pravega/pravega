@@ -43,6 +43,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.EventSegmentReaderUtility;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -177,6 +178,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public boolean deleteScopeRecursive(String scopeName) {
         return Boolean.TRUE.equals(Futures.getAndHandleExceptions(controller.deleteScopeRecursive(scope),
                 RuntimeException::new));
+    }
+
+    @Override
+    public List<TransactionInfo> listCompletedTransactions(Stream stream) {
+        return Futures.getAndHandleExceptions(controller.listCompletedTransactions(stream),
+                RuntimeException::new);
     }
 
     @Override

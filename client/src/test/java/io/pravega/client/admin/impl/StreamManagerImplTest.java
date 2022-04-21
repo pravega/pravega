@@ -41,9 +41,12 @@ import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.EventPointerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -66,8 +69,10 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
@@ -819,5 +824,45 @@ public class StreamManagerImplTest {
             }
         }).when(mockController).listStreams(scope);
         assertTrue(streamManager.deleteScope(scope, true));
+    }
+
+    @Test
+    public void testListCompletedTransactions() throws ConnectionFailedException {
+        // Setup Mocks
+        ClientConnection connection = mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            WireCommands.CreateSegment request = invocation.getArgument(0);
+            connectionFactory.getProcessor(location)
+                    .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+            return null;
+        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
+            connectionFactory.getProcessor(location)
+                    .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                            false, false, 0, 0, 0));
+            return null;
+        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        connectionFactory.provideConnection(location, connection);
+
+        String scope = "scope";
+        String stream = "stream";
+        Stream stream1 = new StreamImpl(scope, stream);
+
+        Controller mockController = mock(Controller.class);
+        List<TransactionInfo> transactionInfoList = new ArrayList<>();
+        transactionInfoList.add(new TransactionInfoImpl(stream1, UUID.randomUUID(), Transaction.Status.ABORTED));
+        transactionInfoList.add(new TransactionInfoImpl(stream1, UUID.randomUUID(), Transaction.Status.COMMITTED));
+
+        doAnswer(x -> CompletableFuture.completedFuture(transactionInfoList)).when(mockController).listCompletedTransactions(new StreamImpl(scope, stream));
+
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        @Cleanup final StreamManager streamManagerImpl = new StreamManagerImpl(mockController, pool);
+
+        List<TransactionInfo> listTransactions = streamManagerImpl.listCompletedTransactions(new StreamImpl(scope, stream));
+        assertEquals(2, listTransactions.size());
+        AssertExtensions.assertThrows(Exception.class, () -> streamManager.listCompletedTransactions(new StreamImpl(scope, stream)));
     }
 }

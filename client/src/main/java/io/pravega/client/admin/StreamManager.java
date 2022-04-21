@@ -25,11 +25,13 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.TransactionInfo;
 
 import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
+import java.util.List;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -219,6 +221,15 @@ public interface StreamManager extends AutoCloseable {
      * Notable exception is {@link io.pravega.client.segment.impl.NoSuchEventException}
      */
     <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> deserializer);
+
+    /**
+     * List most recent completed (COMMITTED/ABORTED) transactions.
+     * It will return transactionId, transaction status and stream.
+     *
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return List of TransactionInfo.
+     */
+    List<TransactionInfo> listCompletedTransactions(Stream stream);
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
