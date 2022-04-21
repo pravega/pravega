@@ -689,28 +689,32 @@ public class SystemJournal {
         if (null == systemSnapshot) {
             return CompletableFuture.completedFuture(null);
         }
-
+        val iterator = systemSnapshot.getSegmentSnapshotRecords().iterator();
         // For each segment in snapshot
         return Futures.loop(
-                systemSnapshot.getSegmentSnapshotRecords(),
-                segmentSnapshot ->
-                    txn.get(segmentSnapshot.segmentMetadata.getKey())
-                        .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
-                        .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor)
-                        .thenApplyAsync(v -> true, executor),
-                executor);
+                () -> iterator.hasNext(),
+                () -> {
+                        synchronized (systemSnapshot.getSegmentSnapshotRecords()) {
+                            val segmentSnapshot = iterator.next();
+                            return txn.get(segmentSnapshot.segmentMetadata.getKey())
+                                    .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
+                                    .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor);
+                        }
+                    }, executor);
     }
 
     private CompletableFuture<Void> validateChunksInSegmentSnapshot(MetadataTransaction txn, SegmentSnapshotRecord segmentSnapshot) {
+        val iterator = segmentSnapshot.getChunkMetadataCollection().iterator();
         // For each chunk in the segment
         return Futures.loop(
-                segmentSnapshot.getChunkMetadataCollection(),
-                m -> txn.get(m.getKey())
-                        .thenApplyAsync(mm -> {
-                            Preconditions.checkState(null != mm, "Chunk metadata must not be null.");
-                            return true;
-                        }, executor),
-                executor);
+                () -> iterator.hasNext(),
+                () -> {
+                    synchronized (segmentSnapshot.getChunkMetadataCollection()) {
+                        val m = iterator.next();
+                        return txn.get(m.getKey())
+                                .thenAcceptAsync(mm -> Preconditions.checkState(null != mm, "Chunk metadata must not be null."), executor);
+                    }
+                }, executor);
     }
 
     /**
@@ -909,11 +913,15 @@ public class SystemJournal {
                     try {
                         log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
                         val batch = BATCH_SERIALIZER.deserialize(input);
-
+                        val iterator = batch.getSystemJournalRecords().iterator();
                         return Futures.loop(
-                                batch.getSystemJournalRecords(),
-                                record -> applyRecord(txn, state, record)
-                                        .thenApply(r -> true),
+                                () -> iterator.hasNext(),
+                                () -> {
+                                    synchronized (batch.getSystemJournalRecords()) {
+                                        val record = iterator.next();
+                                        return applyRecord(txn, state, record);
+                                    }
+                                },
                                 executor);
                     } catch (EOFException e) {
                         log.debug("SystemJournal[{}] Done processing journal {}.", containerId, systemLogName);
@@ -940,7 +948,7 @@ public class SystemJournal {
         }
         state.visitedRecords.add(record);
         state.recordsProcessedCount.incrementAndGet();
-        CompletableFuture<Void> retValue = null;
+        final CompletableFuture<Void> retValue;
         // ChunkAddedRecord.
         if (record instanceof ChunkAddedRecord) {
             val chunkAddedRecord = (ChunkAddedRecord) record;
@@ -958,8 +966,7 @@ public class SystemJournal {
         } else if (record instanceof SystemSnapshotRecord) {
             val snapshotRecord = (SystemSnapshotRecord) record;
             retValue = Futures.toVoid(applySystemSnapshotRecord(txn, state, snapshotRecord));
-        }
-        if (null == retValue) {
+        } else {
             // Unknown record.
             retValue = CompletableFuture.failedFuture(new IllegalStateException(String.format("Unknown record type encountered. record = %s", record)));
         }
@@ -1034,11 +1041,11 @@ public class SystemJournal {
         Preconditions.checkState(null != oldChunkName, "oldChunkName must not be null");
         Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty(), "newChunkName must not be null or empty");
 
-        return txn.get(segmentName)
+        return validateSegment(txn, segmentName)
+                .thenComposeAsync(v -> txn.get(segmentName), executor)
                 .thenComposeAsync(m -> {
                     val segmentMetadata = (SegmentMetadata) m;
                     segmentMetadata.checkInvariants();
-                    validateSegment(txn, segmentName);
                     // set length.
                     segmentMetadata.setLength(offset);
 
