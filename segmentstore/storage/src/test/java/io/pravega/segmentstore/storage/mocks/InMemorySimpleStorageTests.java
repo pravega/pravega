@@ -102,6 +102,12 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
             // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
         }
 
+        @Override
+        public void testRelocateHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
         public class InMemorySimpleStorageTestContext extends ChunkedSegmentStorageTests.TestContext {
             InMemorySimpleStorageTestContext(ScheduledExecutorService executorService) throws Exception {
                 super(executorService);
