@@ -231,7 +231,6 @@ public class ThreadPoolScheduledExecutorServiceTest {
     @Test(timeout = 10000)
     public void testCancelRecurring() throws Exception {
         ThreadPoolScheduledExecutorService pool = createPool(1);
-       // ReusableLatch latch = new ReusableLatch(false);
         AtomicInteger count = new AtomicInteger(0);
         AtomicReference<Exception> error = new AtomicReference<>();
         ScheduledFuture<?> future = pool.scheduleAtFixedRate(() -> {
