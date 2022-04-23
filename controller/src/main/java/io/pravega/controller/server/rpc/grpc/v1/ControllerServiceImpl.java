@@ -148,6 +148,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREA
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
 
 /**
  * gRPC Service API implementation for the Controller.
@@ -901,6 +902,25 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         txnId, requestTag.getRequestId()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(controllerService.nextRequestId(), LIST_COMPLETED_TRANSACTIONS,
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+        log.info(requestTag.getRequestId(), "listCompletedTransactions called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                        authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                        AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.listCompletedTxns(request.getStreamInfo().getScope(),
+                                request.getStreamInfo().getStream(), requestTag.getRequestId())
+                        .thenApply(result -> Controller.ListCompletedTxnResponse.newBuilder()
+                                .addAllResponse(result.entrySet().stream().map(x -> Controller.TxnResponse.newBuilder()
+                                                .setTxnId(decode(x.getKey())).setStatus(Controller.TxnResponse.Status.valueOf(x.getValue().name())).build())
+                                        .collect(Collectors.toList()))
+                                .build()),
                 responseObserver, requestTag);
     }
 

@@ -135,7 +135,7 @@ public class SegmentIteratorTest {
     @Test(timeout = 5000)
     public void testTimeoutError() throws SegmentTruncatedException, EndOfSegmentException {
         Segment segment = new Segment("Scope", "Stream", 1);
-        int endOffset = 10;
+        long endOffset = 10;
         SegmentInputStreamFactory factory = mock(SegmentInputStreamFactory.class);
         EventSegmentReader input = mock(EventSegmentReader.class);
         when(factory.createEventReaderForSegment(segment, 0, endOffset)).thenReturn(input);

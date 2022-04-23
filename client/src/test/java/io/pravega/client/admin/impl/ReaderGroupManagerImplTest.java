@@ -37,6 +37,7 @@ import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.shared.NameUtils;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -74,6 +75,8 @@ public class ReaderGroupManagerImplTest {
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(30);
 
+    @Mock
+    ScheduledThreadPoolExecutor scheduledThreadPoolExecutor;
     private ReaderGroupManagerImpl readerGroupManager;
 
     @Mock
@@ -148,7 +151,7 @@ public class ReaderGroupManagerImplTest {
 
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenThrow(new InvalidStreamException("invalid RG stream"));
-
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
         readerGroupManager.getReaderGroup(GROUP_NAME);
     }
 

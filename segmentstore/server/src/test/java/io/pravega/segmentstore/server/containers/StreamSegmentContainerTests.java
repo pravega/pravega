@@ -2602,8 +2602,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
+        @Cleanup
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier =
-                ContainerEventProcessorImpl.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
+                containerEventProcessor.getOrCreateInternalSegment(container, container.metadataStore, TIMEOUT_EVENT_PROCESSOR_ITERATION);
         long segmentId = segmentSupplier.apply("dummySegment").join().getSegmentId();
         for (int i = 0; i < 10; i++) {
             DirectSegmentAccess segment = segmentSupplier.apply("dummySegment").join();
@@ -2809,7 +2812,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertTrue("At least one append buffer has never been retained.",
                 appends.stream().allMatch(RefCountByteArraySegment::wasRetained));
 
-        AssertExtensions.assertEventuallyEquals(0, () -> (int) appends.stream().mapToInt(RefCountByteArraySegment::getRefCount).sum(), 10);
+        AssertExtensions.assertEventuallyEquals(0, () -> (int) appends.stream().mapToInt(RefCountByteArraySegment::getRefCount).sum(), 1000);
     }
 
     private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {

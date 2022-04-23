@@ -204,7 +204,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private MetadataStore createMetadataStore() {
         MetadataStore.Connector connector = new MetadataStore.Connector(this.metadata, this::mapSegmentId,
-                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
+                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup, this::pinSegment);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
         return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
@@ -230,9 +230,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
-
-        if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage chunkedSegmentStorage = (ChunkedSegmentStorage) this.storage;
+        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
             StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
@@ -315,8 +314,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
         delayedStart.thenComposeAsync(v -> {
-                    if (this.storage instanceof ChunkedSegmentStorage) {
-                        return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
+                    val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+                    if (null != chunkedSegmentStorage) {
+                        return chunkedSegmentStorage.finishBootstrap();
                     }
                     return CompletableFuture.completedFuture(null);
                 }, this.executor)
@@ -987,6 +987,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
+    }
+
+    private CompletableFuture<Boolean> pinSegment(long segmentId, String segmentName, boolean pin, Duration timeout) {
+        Preconditions.checkNotNull(segmentName, "SegmentName cannot be null.");
+        Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Segment must have a valid id.");
+
+        UpdateableSegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata != null && pin) {
+            segmentMetadata.markPinned();
+            return CompletableFuture.completedFuture(true);
+        }
+        return CompletableFuture.completedFuture(false);
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {

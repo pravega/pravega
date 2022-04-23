@@ -27,8 +27,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
@@ -62,6 +64,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
@@ -2267,6 +2272,24 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testRelocatingTruncateWithMaxSize() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .maxSizeForTruncateRelocationInbytes(10)
+                .minPercentForTruncateRelocation(1)
+                .build();
+
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        val h1 = populateSegment(testContext, "test1", 11, 1);
+        val h2 = populateSegment(testContext, "test2", 10, 1);
+        testTruncate(testContext, "test1", 11, 10, 1, 11, 11);
+        testTruncate(testContext, "test2", 10, 9, 1, 10, 1);
+    }
+
     private void testRelocatingTruncate(ChunkedSegmentStorageConfig config, int numberOfChunks, long maxChunkSize, int threshold) throws Exception {
         for (int i = 0; i < numberOfChunks; i++) {
             testTruncate(config, maxChunkSize, i * maxChunkSize, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
@@ -2332,7 +2355,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val chunkCount = Math.toIntExact(length / maxChunkLength - startOffset / maxChunkLength); // Note two independent int divisions.
         long[] expectedLengths = new long[chunkCount];
         Arrays.fill(expectedLengths, maxChunkLength);
-        if (config.isRelocateOnTruncateEnabled() && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()) {
+        if (config.isRelocateOnTruncateEnabled()
+                && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()
+                && maxChunkLength <= config.getMaxSizeForTruncateRelocationInbytes()) {
             val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
             val offset = startOffset % maxChunkLength;
             expectedLengths[0] = offset >= threshold ? maxChunkLength - threshold : maxChunkLength;
@@ -2996,6 +3021,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 new long[]{3L * Integer.MAX_VALUE + 3L});
     }
 
+    // This is a time-consuming test and should be eventually made optional
+    @Test
+    public void testRelocateHugeChunks() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .relocateOnTruncateEnabled(true)
+                .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
+                .maxSizeForTruncateRelocationInbytes(10L * Integer.MAX_VALUE)
+                .build();
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
+
+        testContext.insertMetadata(testSegmentName, 10L * Integer.MAX_VALUE, 1, new long[]{
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE
+        });
+
+        // Truncate inside the 1st chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                9L * Integer.MAX_VALUE - 1,
+                3,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
+
+        // Truncate inside the 3rd chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                29L * Integer.MAX_VALUE - 1,
+                1,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
+    }
+
     @Test
     public void testWritesWithFlakyMetadataStore() throws Exception {
         val primes = new int[] { 2, 3, 5, 7, 11};
@@ -3123,6 +3185,27 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         testContext.chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle("segment"), TIMEOUT).get();
         testContext.chunkedSegmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 20, "segment", TIMEOUT).get();
+    }
+
+    @Test
+    public void testGetReference() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Null when not ChunkedSegmentStorage
+        Assert.assertNull(ChunkedSegmentStorage.getReference(mock(Storage.class)));
+
+        // Null when inner is not ChunkedSegmentStorage
+        val wrapper1 = mock(StorageWrapper.class);
+        doReturn(mock(Storage.class)).when(wrapper1).getInner();
+        Assert.assertNull(ChunkedSegmentStorage.getReference(wrapper1));
+
+        // Matches when ChunkedSegmentStorage
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(testContext.chunkedSegmentStorage));
+
+        // Matches when inner is ChunkedSegmentStorage
+        val wrapper2 = mock(StorageWrapper.class);
+        doReturn(testContext.chunkedSegmentStorage).when(wrapper2).getInner();
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(wrapper2));
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {

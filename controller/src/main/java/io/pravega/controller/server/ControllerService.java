@@ -378,7 +378,7 @@ public class ControllerService {
             final long createTimestamp, long requestId) {
         validate(streamConfig, createTimestamp);
         try {
-            NameUtils.validateUserStreamName(stream);
+            NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
             log.error(requestId, "Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
@@ -814,6 +814,22 @@ public class ControllerService {
         return streamStore.transactionStatus(scope, stream, txnId, context, executor)
                 .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
     }
+
+    /**
+     * List transaction in completed(COMMITTED/ABORTED) state.
+     * @param scope scope name
+     * @param stream stream name
+     * @param requestId request id
+     * @return map having transactionId and transaction status
+     */
+    public CompletableFuture<Map<UUID, io.pravega.controller.store.stream.TxnStatus>> listCompletedTxns(final String scope, final String stream,
+                                                                                                        final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
+        return streamStore.listCompletedTxns(scope, stream, context, executor);
+    }
+
 
     /**
      * Controller Service API to create scope.

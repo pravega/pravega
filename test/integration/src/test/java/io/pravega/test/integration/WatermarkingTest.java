@@ -461,6 +461,95 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
         assertNull(nullMark);
     }
+    
+    @Test(timeout = 60000)
+    public void progressingWatermarkWithTimestampAggregationTimeout() throws Exception {
+        String scope = "Timeout"; 
+        String streamName = "progressingWatermarkWithTimestampAggregationTimeout";
+        int numSegments = 1;
+
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
+
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertNotNull(streamManager);
+
+        streamManager.createScope(scope);
+
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                .timestampAggregationTimeout(100L)
+                .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                .build());
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        @Cleanup
+        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
+
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+        @Cleanup
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(),
+                SynchronizerConfig.builder().build());
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+        // create two writers and write two sevent and call note time for each writer.
+        @Cleanup
+        EventStreamWriter<String> writer0 = clientFactory.createEventWriter(streamName,
+                new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        writer0.writeEvent("0").get();
+        writer0.noteTime(50L);
+
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(streamName,
+                new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        writer1.writeEvent("1").get();
+        writer1.noteTime(100L);
+
+        @Cleanup
+        EventStreamWriter<String> writer2 = clientFactory.createEventWriter(streamName,
+                new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        writer2.writeEvent("2").get();
+        writer2.noteTime(102L);
+
+        // writer0, writer1 and writer2 should result in the first watermark with following time:
+        // 1: 50L-102L
+        // then writer0 should time out and be discarded. The remaining two writers should continue to be active
+        // which should result in the second watermark with the time:
+        // 2: 100L-102L
+        // then writer1 should timeout and be discarded. But writer2 should continue to be active as its time
+        // is higher than first watermark. This should result in a third watermark to be emitted.
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() == 2, 100000);
+
+        Watermark watermark1 = watermarks.poll();
+        Watermark watermark2 = watermarks.poll();
+        Watermark watermark3 = watermarks.poll(10, TimeUnit.SECONDS);
+
+        assertEquals(50L, watermark1.getLowerTimeBound());
+        assertEquals(102L, watermark1.getUpperTimeBound());
+
+        assertEquals(100L, watermark2.getLowerTimeBound());
+        assertEquals(102L, watermark2.getUpperTimeBound());
+
+        assertEquals(102L, watermark3.getLowerTimeBound());
+        assertEquals(102L, watermark3.getUpperTimeBound());
+
+        // stream cut should be same
+        assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()).equals(x.getValue())));
+
+        // bring back writer1 and post an event with note time smaller than current watermark
+        writer1.writeEvent("3").get();
+        writer1.noteTime(90L);
+
+        // no watermark should be emitted.
+        Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
+        assertNull(nullMark);
+    }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {
         // perform several scales

@@ -73,7 +73,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
                 recoveryState::operationComplete);
 
         @Cleanup
-        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), callbacks);
+        val rp = DebugRecoveryProcessor.create(containerId, bkLog, context.containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), callbacks, true);
         try {
             rp.performRecovery();
             output("Recovery complete: %d DataFrame(s) containing %d Operation(s).",
