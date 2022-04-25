@@ -33,9 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -63,8 +62,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
-    private final List<SystemJournal.SystemJournalRecord> systemLogRecords = Collections.synchronizedList(new ArrayList<>());
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
+    private final List<SystemJournal.SystemJournalRecord> systemLogRecords = new Vector<>();
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
 
     private volatile boolean isCommitted = false;

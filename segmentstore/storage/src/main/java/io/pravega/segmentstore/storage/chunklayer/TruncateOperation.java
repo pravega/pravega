@@ -31,8 +31,8 @@ import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -48,7 +48,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentHandle handle;
     private final long offset;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> chunksToDelete = new Vector<>();
     private final long traceId;
     private final Timer timer;
     private volatile String currentChunkName;

@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -186,7 +187,7 @@ public class SystemJournal {
     /**
      * List of chunks (journals & snapshots) to delete after snapshot.
      */
-    final private List<String> pendingGarbageChunks = Collections.synchronizedList(new ArrayList<>());
+    final private List<String> pendingGarbageChunks = new Vector<>();
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -835,7 +836,7 @@ public class SystemJournal {
 
         val epochToStartScanning = new AtomicLong();
         val fileIndexToRecover = new AtomicInteger(1);
-        val journalsProcessed = Collections.synchronizedList(new ArrayList<String>());
+        val journalsProcessed = new Vector<String>();
         // Starting with journal file after last snapshot,
         if (null != systemSnapshotRecord) {
             epochToStartScanning.set(systemSnapshotRecord.epoch);
@@ -1173,7 +1174,7 @@ public class SystemJournal {
         val systemSnapshot = SystemSnapshotRecord.builder()
                 .epoch(epoch)
                 .fileIndex(currentFileIndex.get())
-                .segmentSnapshotRecords(Collections.synchronizedList(new ArrayList<>()))
+                .segmentSnapshotRecords(new Vector<>())
                 .build();
 
         val futures = new ArrayList<CompletableFuture<Void>>();
@@ -1186,7 +1187,7 @@ public class SystemJournal {
 
                         val segmentSnapshot = SegmentSnapshotRecord.builder()
                                 .segmentMetadata(segmentMetadata)
-                                .chunkMetadataCollection(Collections.synchronizedList(new ArrayList<>()))
+                                .chunkMetadataCollection(new Vector<>())
                                 .build();
 
                         // Enumerate all chunks.
@@ -1459,7 +1460,7 @@ public class SystemJournal {
             }
 
             private void read00(RevisionDataInput input, SystemJournalRecordBatchBuilder b) throws IOException {
-                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
+                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
 
             private void write00(SystemJournalRecordBatch object, RevisionDataOutput output) throws IOException {
@@ -1701,7 +1702,7 @@ public class SystemJournal {
 
             private void read00(RevisionDataInput input, SegmentSnapshotRecord.SegmentSnapshotRecordBuilder b) throws IOException {
                 b.segmentMetadata((SegmentMetadata) SEGMENT_METADATA_SERIALIZER.deserialize(input.getBaseStream()));
-                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
+                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
         }
     }
@@ -1776,7 +1777,7 @@ public class SystemJournal {
             private void read00(RevisionDataInput input, SystemSnapshotRecord.SystemSnapshotRecordBuilder b) throws IOException {
                 b.epoch(input.readCompactLong());
                 b.fileIndex(input.readCompactInt());
-                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> Collections.synchronizedList(new ArrayList<>())));
+                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
         }
     }
