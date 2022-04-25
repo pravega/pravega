@@ -20,6 +20,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -133,10 +134,8 @@ public class S3IntegrationTest extends BookKeeperIntegrationTestBase {
 
         @Override
         public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-            URI uri = URI.create(s3ConfigUri);
-            S3ClientMock client = new S3ClientMock(s3Mock);
             return new ChunkedSegmentStorage(containerId,
-                    new S3ChunkStorage(client, this.config, executorService(), true),
+                    createChunkStorage(),
                     metadataStore,
                     this.executor,
                     this.chunkedSegmentStorageConfig);
@@ -148,6 +147,13 @@ public class S3IntegrationTest extends BookKeeperIntegrationTestBase {
         @Override
         public Storage createStorageAdapter() {
             throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+        }
+
+        @Override
+        public ChunkStorage createChunkStorage() {
+            URI uri = URI.create(s3ConfigUri);
+            S3ClientMock client = new S3ClientMock(s3Mock);
+            return new S3ChunkStorage(client, this.config, executorService(), true);
         }
     }
 }
