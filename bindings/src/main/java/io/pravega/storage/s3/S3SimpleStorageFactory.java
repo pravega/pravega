@@ -15,6 +15,7 @@
  */
 package io.pravega.storage.s3;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -59,9 +60,8 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        S3Client s3Client = createS3Client(this.config);
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new S3ChunkStorage(s3Client, this.config, this.executor, true),
+                createChunkStorage(),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
@@ -74,6 +74,12 @@ public class S3SimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter() {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+    }
+
+    @Override
+    public ChunkStorage createChunkStorage() {
+        S3Client s3Client = createS3Client(this.config);
+        return new S3ChunkStorage(s3Client, this.config, this.executor, true);
     }
 
     /**

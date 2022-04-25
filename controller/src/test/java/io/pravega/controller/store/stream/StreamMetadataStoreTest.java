@@ -912,6 +912,45 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
+
+    @Test
+    public void testListCompletedTransactions() throws Exception {
+        final String scope = "ScopeListTxn";
+        final String stream = "StreamListTxn";
+        final ScalingPolicy policy = ScalingPolicy.fixed(4);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope, null, executor).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(0, listTxn.size());
+
+        UUID txnId1 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId1,
+                100, 100, null, executor).get();
+
+        UUID txnId2 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId2,
+                100, 100, null, executor).get();
+
+        store.sealTransaction(scope, stream, txnId1, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+        store.sealTransaction(scope, stream, txnId2, true, Optional.of(tx2.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 2, null, executor).join().getKey();
+        store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
+
+        listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(2, listTxn.size());
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+    }
+
+
     @Test(timeout = 30000)
     public void scaleWithTxnForInconsistentScanerios() throws Exception {
         final String scope = "ScopeScaleWithTx";

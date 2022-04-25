@@ -757,6 +757,16 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
+        synchronized (txnsLock) {
+            return CompletableFuture.completedFuture(completedTxns.asMap().entrySet().stream().sorted((r1, r2)
+                            -> Long.compare(r2.getValue().getObject().getCompleteTime(), r1.getValue().getObject().getCompleteTime()))
+                    .limit(Config.LIST_COMPLETED_TXN_MAX_RECORDS).collect(Collectors.toMap(Map.Entry::getKey,
+                            x -> x.getValue().getObject().getCompletionStatus())));
+        }
+    }
+
+    @Override
     CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(int limit, OperationContext context) {
         List<Long> toPurge = new ArrayList<>();
         ConcurrentSkipListSet<VersionedTransactionData> committing = new ConcurrentSkipListSet<>(Comparator.comparingLong(VersionedTransactionData::getCommitOrder));

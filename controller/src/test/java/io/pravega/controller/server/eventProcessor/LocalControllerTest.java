@@ -28,6 +28,8 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -37,6 +39,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -49,6 +52,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -870,5 +875,22 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals(3, currentSegments.getSegments().size());
         assertEquals(new Segment("scope", "stream", 1), currentSegments.getSegmentForKey(0.2));
         assertEquals(new Segment("scope", "stream", 3), currentSegments.getSegmentForKey(0.9));
+    }
+
+    @Test
+    public void testListCompletedTransactions() {
+        Map<UUID, TxnStatus> listResponse = new HashMap<>();
+        listResponse.put(UUID.randomUUID(), TxnStatus.ABORTED);
+        listResponse.put(UUID.randomUUID(), TxnStatus.COMMITTED);
+
+        when(this.mockControllerService.listCompletedTxns(any(), any(), anyLong())).thenReturn(CompletableFuture.completedFuture(listResponse));
+        List<TransactionInfo> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream")).join();
+
+        assertEquals(listTxns.size(), listResponse.keySet().size());
+        assertEquals(listTxns.get(0).getStream().getStreamName(), "stream");
+        assertEquals(listTxns.get(0).getStream().getScope(), "scope");
+        assertEquals(listTxns.get(0).getTransactionStatus(), Transaction.Status.valueOf(listResponse.values().stream().collect(Collectors.toList()).get(0).name()));
+        assertEquals(listTxns.get(0).getTransactionId(), listResponse.keySet().stream().collect(Collectors.toList()).get(0));
+        Assert.assertTrue(listResponse.keySet().stream().collect(Collectors.toList()).contains(listTxns.get(0).getTransactionId()));
     }
 }
