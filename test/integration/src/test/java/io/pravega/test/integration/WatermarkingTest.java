@@ -535,7 +535,10 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         assertEquals(80L, watermark2.getLowerTimeBound());
         assertEquals(150L, watermark2.getUpperTimeBound());
 
-        AssertExtensions.assertEventuallyEquals(true, () -> { Watermark w = watermarks.poll(20, TimeUnit.SECONDS); return w.getLowerTimeBound()==150 && w.getUpperTimeBound() == 150; }, 100000);
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+                Watermark w = watermarks.poll(20, TimeUnit.SECONDS);
+                return w.getLowerTimeBound() == 150 && w.getUpperTimeBound() == 150;
+            }, 100000);
 
         // stream cut should be same
         assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()).equals(x.getValue())));
