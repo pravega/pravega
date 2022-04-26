@@ -41,7 +41,7 @@ public final class RequestTracker {
     @VisibleForTesting
     static final int MAX_PARALLEL_REQUESTS = 10;
     private static final String INTER_FIELD_DELIMITER = "-";
-    private static final int MAX_CACHE_SIZE = 1000000;
+    private static final int MAX_CACHE_SIZE = 100000;
     private static final int EVICTION_PERIOD_MINUTES = 10;
 
     private final Object lock = new Object();
