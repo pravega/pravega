@@ -39,12 +39,14 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -107,6 +109,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListCompletedTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListCompletedTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
@@ -190,6 +194,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREA
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -1509,6 +1514,31 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(stream, "stream");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, LIST_COMPLETED_TRANSACTIONS, stream, requestId);
+
+        try {
+            final CompletableFuture<ListCompletedTxnResponse> listCompletedTxnResponse = this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, LIST_COMPLETED_TRANSACTIONS, stream);
+
+                new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
+                        .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .build(), callback);
+                return callback.getFuture();
+            }, this.executor);
+            return listCompletedTxnResponse.thenApplyAsync(txnResponse -> txnResponse.getResponseList().stream().map(transactionResponse ->
+                            new TransactionInfoImpl(stream, encode(transactionResponse.getTxnId()),
+                                    Transaction.Status.valueOf(transactionResponse.getStatus().name()))).collect(Collectors.toList()));
+        } finally {
+            LoggerHelpers.traceLeave(log, LIST_COMPLETED_TRANSACTIONS, traceId);
+        }
+    }
+
+    @Override
     public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, 
                                                            WriterPosition lastWrittenPosition) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -2225,6 +2255,10 @@ public class ControllerImpl implements Controller {
 
         public void checkTransactionState(TxnRequest request, RPCAsyncCallback<TxnState> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(request, callback);
+        }
+
+        public void listCompletedTransactions(ListCompletedTxnRequest request, RPCAsyncCallback<ListCompletedTxnResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).listCompletedTransactions(request, callback);
         }
 
         public void noteTimestampFromWriter(TimestampFromWriter request, RPCAsyncCallback<TimestampResponse> callback) {

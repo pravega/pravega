@@ -41,6 +41,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.util.Config;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
@@ -114,7 +115,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
-    
+
     // non existent records
     private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
             new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
@@ -810,6 +811,29 @@ class PravegaTablesStream extends PersistentStreamBase {
             list.forEach(map::putAll);
             return map;
         });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+        return getTxnInBatch(0, context);
+    }
+
+    private CompletableFuture<Map<UUID, TxnStatus>> getTxnInBatch(final Integer batch, final OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        Map<String, VersionedMetadata<CompletedTxnRecord>> result = new ConcurrentHashMap<>();
+        String tableName = getCompletedTransactionsBatchTableName(batch);
+        return storeHelper.expectingDataNotFound(storeHelper.getAllEntries(
+                tableName, CompletedTxnRecord::fromBytes, context.getRequestId()).collectRemaining(completedTxnMetadataMap -> {
+            result.put(completedTxnMetadataMap.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""),
+                    completedTxnMetadataMap.getValue());
+            return true;
+        }).thenApply(v -> result.entrySet().stream().sorted((r1, r2) -> Long.compare(r2.getValue().getObject().getCompleteTime(),
+                                r1.getValue().getObject().getCompleteTime())).limit( Config.LIST_COMPLETED_TXN_MAX_RECORDS )
+                        .collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
+                completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus())))
+                .exceptionally(v -> Collections.emptyMap()), Collections.emptyMap());
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {

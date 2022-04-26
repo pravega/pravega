@@ -300,10 +300,6 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     @Override
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         try {
-            // check whether the chunk exists
-            if (!checkExists(handle.getChunkName())) {
-                throw new ChunkNotFoundException(handle.getChunkName(), "doDelete");
-            }
             client.deleteObject(config.getBucket(), getObjectPath(handle.getChunkName()));
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);

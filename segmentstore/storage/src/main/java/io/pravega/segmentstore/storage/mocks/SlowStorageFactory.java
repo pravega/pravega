@@ -19,6 +19,8 @@ import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
@@ -51,8 +53,17 @@ public class SlowStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         if (inner instanceof SimpleStorageFactory) {
-            val innerStorage = ((SimpleStorageFactory) inner).createStorageAdapter(containerId, metadataStore);
-            return new SlowStorage(innerStorage, executor, config);
+            if (config.isSlowModeInjectChunkStorageOnly()) {
+                ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+                        createChunkStorage(),
+                        metadataStore,
+                        this.executor,
+                        getChunkedSegmentStorageConfig());
+                return chunkedSegmentStorage;
+            } else {
+                val innerStorage = ((SimpleStorageFactory) inner).createStorageAdapter(containerId, metadataStore);
+                return new SlowStorage(innerStorage, executor, config);
+            }
         } else {
             throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
         }
@@ -67,6 +78,16 @@ public class SlowStorageFactory implements SimpleStorageFactory {
     public ChunkedSegmentStorageConfig getChunkedSegmentStorageConfig() {
         if (inner instanceof SimpleStorageFactory) {
             return ((SimpleStorageFactory) inner).getChunkedSegmentStorageConfig();
+        } else {
+            throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
+        }
+    }
+
+    @Override
+    public ChunkStorage createChunkStorage() {
+        if (inner instanceof SimpleStorageFactory && config.isSlowModeInjectChunkStorageOnly()) {
+            val innerChunkStorage = ((SimpleStorageFactory) inner).createChunkStorage();
+            return new SlowChunkStorage(innerChunkStorage, executor, config);
         } else {
             throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
         }

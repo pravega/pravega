@@ -36,6 +36,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -1044,6 +1045,23 @@ public class ControllerImplTest {
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
+            }
+
+            @Override
+            public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
+                UUID uuid = UUID.randomUUID();
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
+                            .addResponse(Controller.TxnResponse.newBuilder()
+                                    .setTxnId(decode(uuid))
+                                    .setStatus(Controller.TxnResponse.Status.ABORTED)
+                                    .build())
+                            .build());
+                } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
+                            .build());
+                }
+                responseObserver.onCompleted();
             }
 
             @Override
@@ -2090,6 +2108,20 @@ public class ControllerImplTest {
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream7"), UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+    }
+
+    @Test
+    public void testListCompletedTransaction() throws Exception {
+        List<TransactionInfo> listUUID;
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).join();
+        assertEquals(listUUID.size(), 1);
+        assertEquals(listUUID.get(0).getTransactionStatus(), Transaction.Status.ABORTED);
+        assertEquals(listUUID.get(0).getStream().getScope(), "scope1");
+        assertEquals(listUUID.get(0).getStream().getStreamName(), "stream1");
+        assertNotNull(listUUID.get(0).getTransactionId());
+
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).join();
+        assertEquals(listUUID.size(), 0);
     }
 
     @Test

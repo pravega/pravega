@@ -274,6 +274,11 @@ public class ReaderGroupStateManager {
         return Optional.ofNullable(sync.getState().getEndSegments().get(segment)).orElse(Long.MAX_VALUE);
     }
 
+    boolean reachedEndOfStream() {
+        fetchUpdatesIfNeeded();
+        return sync.getState().isEndOfData();
+    }
+
     /**
      * Releases a segment to another reader. This reader should no longer read from the segment. 
      * 

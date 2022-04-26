@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.Property;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -40,13 +41,42 @@ public class SlowStorageFactoryTests {
         val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         SimpleStorageFactory innerFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executor, false);
-        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder().build());
+        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder()
+                .with(Property.named("slow.inject.chunk.storage"), false)
+                .build());
 
         @Cleanup
         SlowStorage storage1 = (SlowStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         Assert.assertTrue(storage1.getInner() instanceof ChunkedSegmentStorage);
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage1.getInner();
         Assert.assertTrue(chunkedSegmentStorage.getChunkStorage() instanceof InMemoryChunkStorage);
+        Assert.assertEquals(factory.getChunkedSegmentStorageConfig(), innerFactory.getChunkedSegmentStorageConfig());
+
+        AssertExtensions.assertThrows(
+                "factory.createStorageAdapter should not succeed.",
+                () -> factory.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
+
+        AssertExtensions.assertThrows(
+                "factory.createSyncStorage should not succeed.",
+                () -> factory.createSyncStorage(),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testSlowStorageFactoryWithChunkedSegmentStorageWithChunkStorageOnly() {
+
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        SimpleStorageFactory innerFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executor, false);
+        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder().build());
+
+        @Cleanup
+        ChunkedSegmentStorage storage1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
+        Assert.assertTrue(storage1.getChunkStorage() instanceof SlowChunkStorage);
+        val chunkStorage = (SlowChunkStorage) storage1.getChunkStorage();
+        Assert.assertTrue(chunkStorage.getInner() instanceof InMemoryChunkStorage);
         Assert.assertEquals(factory.getChunkedSegmentStorageConfig(), innerFactory.getChunkedSegmentStorageConfig());
 
         AssertExtensions.assertThrows(
