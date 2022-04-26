@@ -695,12 +695,11 @@ public class SystemJournal {
         return Futures.loop(
                 () -> iterator.hasNext(),
                 () -> {
-                        synchronized (systemSnapshot.getSegmentSnapshotRecords()) {
-                            val segmentSnapshot = iterator.next();
-                            return txn.get(segmentSnapshot.segmentMetadata.getKey())
-                                    .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
-                                    .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor);
-                        }
+                        val segmentSnapshot = iterator.next();
+                        return txn.get(segmentSnapshot.segmentMetadata.getKey())
+                                .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
+                                .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor);
+
                     }, executor);
     }
 
@@ -710,11 +709,9 @@ public class SystemJournal {
         return Futures.loop(
                 () -> iterator.hasNext(),
                 () -> {
-                    synchronized (segmentSnapshot.getChunkMetadataCollection()) {
-                        val m = iterator.next();
-                        return txn.get(m.getKey())
-                                .thenAcceptAsync(mm -> Preconditions.checkState(null != mm, "Chunk metadata must not be null."), executor);
-                    }
+                    val m = iterator.next();
+                    return txn.get(m.getKey())
+                            .thenAcceptAsync(mm -> Preconditions.checkState(null != mm, "Chunk metadata must not be null."), executor);
                 }, executor);
     }
 
@@ -918,10 +915,8 @@ public class SystemJournal {
                         return Futures.loop(
                                 () -> iterator.hasNext(),
                                 () -> {
-                                    synchronized (batch.getSystemJournalRecords()) {
-                                        val record = iterator.next();
-                                        return applyRecord(txn, state, record);
-                                    }
+                                    val record = iterator.next();
+                                    return applyRecord(txn, state, record);
                                 },
                                 executor);
                     } catch (EOFException e) {
@@ -1231,9 +1226,7 @@ public class SystemJournal {
                                     }
 
                                     // Add to the system snapshot.
-                                    synchronized (systemSnapshot) {
-                                        systemSnapshot.segmentSnapshotRecords.add(segmentSnapshot);
-                                    }
+                                    systemSnapshot.segmentSnapshotRecords.add(segmentSnapshot);
                                 }, executor);
                     }, executor);
             futures.add(future);
