@@ -54,6 +54,8 @@ public interface ReplyProcessor {
 
     void chunkSanityChecked(WireCommands.ChunkSanityChecked chunkSanityChecked);
 
+    void metaDataCacheEvicted(WireCommands.MetaDataCacheEvicted metaDataCacheEvicted);
+
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
     void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);

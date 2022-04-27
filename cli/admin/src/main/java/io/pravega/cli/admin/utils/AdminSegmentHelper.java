@@ -107,6 +107,20 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, String chunkName, int chunkSize, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.EvictMetaDataCache request = new WireCommands.EvictMetaDataCache(containerId, chunkName, chunkSize, delegationToken, requestId);
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, chunkName, WireCommands.EvictMetaDataCache.class, type);
+                    assert r instanceof WireCommands.MetaDataCacheEvicted;
+                    return (WireCommands.MetaDataCacheEvicted) r;
+                });
+    }
+
     /**
      * This method sends a WireCommand to get table segment info for the given table segment name.
      *

@@ -41,6 +41,9 @@ public enum WireCommandType {
     CHECK_CHUNK_SANITY(-10, WireCommands.CheckChunkSanity::readFrom),
     CHUNK_SANITY_CHECKED(-11, WireCommands.ChunkSanityChecked::readFrom),
 
+    EVICT_METADATA_CACHE(-12, WireCommands.EvictMetaDataCache::readFrom),
+    METADATA_CACHE_EVICTED(-13, WireCommands.MetaDataCacheEvicted::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),

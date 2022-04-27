@@ -953,6 +953,62 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class EvictMetaDataCache implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
+        final int containerId;
+        final String chunkName;
+        final int chunkSize;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).evictMetaDataCache(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(containerId);
+            out.writeUTF(chunkName);
+            out.writeInt(chunkSize);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static EvictMetaDataCache readFrom(ByteBufInputStream in, int length) throws IOException {
+            int containerId = in.readInt();
+            String chunkName = in.readUTF();
+            int chunkSize = in.readInt();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new EvictMetaDataCache(containerId, chunkName, chunkSize, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class MetaDataCacheEvicted implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.METADATA_CACHE_EVICTED;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.metaDataCacheEvicted(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            return new MetaDataCacheEvicted(requestId);
+        }
+    }
+
+
+    @Data
     public static final class ChunkInfo {
         final long lengthInMetadata;
         final long lengthInStorage;

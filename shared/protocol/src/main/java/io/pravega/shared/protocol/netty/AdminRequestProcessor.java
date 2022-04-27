@@ -40,4 +40,6 @@ public interface AdminRequestProcessor extends RequestProcessor {
      * @param checkChunkSanity {@link WireCommand} call to list storage chunks for the given segment.
      */
     void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity);
+
+    void evictMetaDataCache(WireCommands.EvictMetaDataCache evictMetaDataCache);
 }
