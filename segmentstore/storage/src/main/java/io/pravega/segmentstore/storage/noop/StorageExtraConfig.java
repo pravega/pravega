@@ -33,6 +33,7 @@ public class StorageExtraConfig {
     public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("noOp.write.latency.milliseconds", 20, "storageWriteNoOpLatencyMillis");
 
     public static final Property<Boolean> STORAGE_SLOW_MODE = Property.named("slow.enable", false);
+    public static final Property<Boolean> STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY = Property.named("slow.inject.chunk.storage", true);
     public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_MEAN = Property.named("slow.latency.mean.ms", 500);
     public static final Property<Integer> STORAGE_SLOW_MODE_LATENCY_STD_DEV = Property.named("slow.latency.std.ms", 500);
     public static final Property<StorageDelayDistributionType> STORAGE_SLOW_MODE_DISTRIBUTION_TYPE = Property.named("slow.type", StorageDelayDistributionType.NORMAL_DISTRIBUTION_TYPE);
@@ -56,6 +57,12 @@ public class StorageExtraConfig {
      */
     @Getter
     private final boolean slowModeEnabled;
+
+    /**
+     * Flag to enable only the slow chunk storage mode.
+     */
+    @Getter
+    private final boolean slowModeInjectChunkStorageOnly;
 
     /**
      * Latency in milliseconds applied for slow storage mode.
@@ -82,6 +89,7 @@ public class StorageExtraConfig {
         this.storageNoOpMode = properties.getBoolean(STORAGE_NO_OP_MODE);
         this.storageWriteNoOpLatencyMillis = properties.getNonNegativeInt(STORAGE_WRITE_NO_OP_LATENCY);
         this.slowModeEnabled = properties.getBoolean(STORAGE_SLOW_MODE);
+        this.slowModeInjectChunkStorageOnly = properties.getBoolean(STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY);
         this.slowModeLatencyMeanMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_MEAN);
         this.slowModeLatencyStdDevMillis = properties.getNonNegativeInt(STORAGE_SLOW_MODE_LATENCY_STD_DEV);
         this.distributionType = properties.getEnum(STORAGE_SLOW_MODE_DISTRIBUTION_TYPE, StorageDelayDistributionType.class);

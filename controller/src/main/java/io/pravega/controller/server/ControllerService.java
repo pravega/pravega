@@ -816,6 +816,22 @@ public class ControllerService {
     }
 
     /**
+     * List transaction in completed(COMMITTED/ABORTED) state.
+     * @param scope scope name
+     * @param stream stream name
+     * @param requestId request id
+     * @return map having transactionId and transaction status
+     */
+    public CompletableFuture<Map<UUID, io.pravega.controller.store.stream.TxnStatus>> listCompletedTxns(final String scope, final String stream,
+                                                                                                        final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
+        return streamStore.listCompletedTxns(scope, stream, context, executor);
+    }
+
+
+    /**
      * Controller Service API to create scope.
      *
      * @param scope Name of scope to be created.

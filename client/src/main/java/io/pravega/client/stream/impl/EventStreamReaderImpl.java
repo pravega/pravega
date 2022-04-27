@@ -149,8 +149,13 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                 // return checkpoint event to user
                 return createEmptyEvent(checkpoint);
             }
+
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
+                if (groupState.reachedEndOfStream()) {
+                    log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
+                    return createEmptyEventEndOfStream();
+                }
                 blockFor(firstByteTimeoutMillis);
                 segmentsWithData.drainPermits();
                 buffer = null;
@@ -202,6 +207,10 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
     
     private EventRead<Type> createEmptyEvent(String checkpoint) {
         return new EventReadImpl<>(null, refreshAndGetPosition(), null, checkpoint);
+    }
+
+    private EventRead<Type> createEmptyEventEndOfStream() {
+        return new EventReadImpl<>(null, refreshAndGetPosition(), null, null, true);
     }
 
     /**
@@ -323,8 +332,9 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                 }
             }
         }
+
     }
-    
+
     /**
      * Releases all sealed segments, unless there is a checkpoint pending for this reader.
      */
@@ -339,7 +349,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             } else {
                 break;
             }
-        }    
+        }
     }
 
     @GuardedBy("readers")
