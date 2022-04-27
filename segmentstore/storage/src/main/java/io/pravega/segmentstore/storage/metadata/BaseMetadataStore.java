@@ -602,7 +602,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         val txnData = txn.getData();
 
         // Record is found in transaction data itself.
-        val data = txnData.get(key);
+        TransactionData data = txnData.get(key);
         if (null != data) {
             GET_LATENCY.reportSuccessEvent(t.getElapsed());
             METADATA_FOUND_IN_TXN.inc();
