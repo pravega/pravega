@@ -197,7 +197,6 @@ public class K8SequentialExecutor implements TestExecutor {
                 "imageVersion",
                 "securityEnabled",
                 "tlsEnabled",
-                "configs",
                 "failFast",
                 "log.level"
         };
