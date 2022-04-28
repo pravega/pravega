@@ -1238,7 +1238,7 @@ project('test:system') {
         if (System.getProperty("configFile") != null) {
             systemProperty "configs", new File(System.getProperty("configFile")).text
         }
-        println "Shwetha  config file  after : " + configs
+        println "Shwetha  config file  after : " + System.getProperty("configs")
         maxParallelForks = 1
 
         if (System.getProperty("failFast", "false") == "true") {
