@@ -120,6 +120,7 @@ public class Utils {
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
+        log.info("shwetha createPravegaSegmentStoreService -- > {} {}", PRAVEGA_PROPERTIES, EXECUTOR_TYPE);
         URI hdfsUri = null;
         if (DOCKER_BASED) {
             Service hdfsService = new HDFSDockerService("hdfs");
@@ -142,6 +143,7 @@ public class Utils {
     }
 
     private static ImmutableMap<String, String> getPravegaProperties() {
+        log.error("Print prvega properties {}", PRAVEGA_PROPERTIES);
         return PRAVEGA_PROPERTIES;
     }
 
