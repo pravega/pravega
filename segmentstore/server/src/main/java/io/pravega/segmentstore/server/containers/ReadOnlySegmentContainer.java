@@ -175,10 +175,24 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
-    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize) {
+    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
         throw new UnsupportedOperationException("checkChunkStorageSanity is not supported on " + getClass().getSimpleName());
     }
 
+    @Override
+    public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
+        throw  new UnsupportedOperationException("evictMetaDataCache is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
+    public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
+        throw new UnsupportedOperationException("evictReadIndexCache is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
+    public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        throw new UnsupportedOperationException("evictReadIndexCacheForSegment is not supported on " + getClass().getSimpleName());
+    }
     @Override
     public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return unsupported("append");

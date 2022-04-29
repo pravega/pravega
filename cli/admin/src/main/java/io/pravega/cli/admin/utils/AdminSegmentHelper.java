@@ -107,19 +107,48 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
-    public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, String chunkName, int chunkSize, PravegaNodeUri uri, String delegationToken) {
+    public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.EvictMetaDataCache request = new WireCommands.EvictMetaDataCache(containerId, chunkName, chunkSize, delegationToken, requestId);
+        WireCommands.EvictMetaDataCache request = new WireCommands.EvictMetaDataCache(containerId, delegationToken, requestId);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, chunkName, WireCommands.EvictMetaDataCache.class, type);
+                    handleReply(requestId, r, connection, null, WireCommands.EvictMetaDataCache.class, type);
                     assert r instanceof WireCommands.MetaDataCacheEvicted;
                     return (WireCommands.MetaDataCacheEvicted) r;
                 });
     }
+
+    public CompletableFuture<WireCommands.ReadIndexCacheEvicted> evictReadIndexCache(int containerId, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.EvictReadIndexCache request = new WireCommands.EvictReadIndexCache(containerId, delegationToken, requestId);
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, null, WireCommands.EvictReadIndexCache.class, type);
+                    assert r instanceof WireCommands.ReadIndexCacheEvicted;
+                    return (WireCommands.ReadIndexCacheEvicted) r;
+                });
+    }
+
+    public CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> evictReadIndexCacheForSegment(int containerId, String segmentName, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.EvictReadIndexCacheForSegment request = new WireCommands.EvictReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, null, WireCommands.EvictReadIndexCacheForSegment.class, type);
+                    assert r instanceof WireCommands.ReadIndexCacheEvictedForSegment;
+                    return (WireCommands.ReadIndexCacheEvictedForSegment) r;
+                });
+    }
+
 
     /**
      * This method sends a WireCommand to get table segment info for the given table segment name.

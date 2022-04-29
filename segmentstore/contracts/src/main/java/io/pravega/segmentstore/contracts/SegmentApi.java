@@ -251,5 +251,11 @@ public interface SegmentApi {
      */
     CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
 
-    CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize);
+    CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout);
+
+    CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout);
+
+    CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout);
+
+    CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout);
 }

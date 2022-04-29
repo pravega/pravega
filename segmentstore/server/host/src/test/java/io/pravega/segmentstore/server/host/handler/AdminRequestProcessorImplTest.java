@@ -82,7 +82,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         String chunkName = "testChunk";
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt(), TIMEOUT)).thenReturn(CompletableFuture.completedFuture(null));
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
@@ -97,7 +97,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         String chunkName = "testChunk";
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt())).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("test")));
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt(), TIMEOUT)).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("test")));
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
@@ -112,7 +112,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         String chunkName = "testChunk";
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        doReturn(CompletableFuture.failedFuture(new IllegalStateException("test"))).when(store).checkChunkStorageSanity(anyInt(), anyString(), anyInt());
+        doReturn(CompletableFuture.failedFuture(new IllegalStateException("test"))).when(store).checkChunkStorageSanity(anyInt(), anyString(), anyInt(), TIMEOUT);
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
