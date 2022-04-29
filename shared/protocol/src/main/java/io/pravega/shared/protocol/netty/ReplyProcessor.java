@@ -56,6 +56,10 @@ public interface ReplyProcessor {
 
     void metaDataCacheEvicted(WireCommands.MetaDataCacheEvicted metaDataCacheEvicted);
 
+    void readIndexCacheEvicted(WireCommands.ReadIndexCacheEvicted readIndexCacheEvicted);
+
+    void readIndexCacheEvictedForSegment(WireCommands.ReadIndexCacheEvictedForSegment readIndexCacheEvictedForSegment);
+
     void segmentRead(WireCommands.SegmentRead segmentRead);
     
     void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated);

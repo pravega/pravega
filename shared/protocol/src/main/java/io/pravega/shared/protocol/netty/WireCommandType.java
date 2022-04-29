@@ -44,6 +44,12 @@ public enum WireCommandType {
     EVICT_METADATA_CACHE(-12, WireCommands.EvictMetaDataCache::readFrom),
     METADATA_CACHE_EVICTED(-13, WireCommands.MetaDataCacheEvicted::readFrom),
 
+    EVICT_READINDEX_CACHE(-14, WireCommands.EvictReadIndexCache::readFrom),
+    READINDEX_CACHE_EVICTED(-15, WireCommands.ReadIndexCacheEvicted::readFrom),
+
+    EVICT_READINDEX_CACHE_SEGMENT(-7, WireCommands.EvictReadIndexCacheForSegment::readFrom),
+    READINDEX_CACHE_EVICTED_SEGMENT(-8, WireCommands.ReadIndexCacheEvictedForSegment::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),

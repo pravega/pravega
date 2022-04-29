@@ -42,4 +42,8 @@ public interface AdminRequestProcessor extends RequestProcessor {
     void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity);
 
     void evictMetaDataCache(WireCommands.EvictMetaDataCache evictMetaDataCache);
+
+    void evictReadIndexCache(WireCommands.EvictReadIndexCache evictReadIndexCache);
+
+    void evictReadIndexCacheForSegment(WireCommands.EvictReadIndexCacheForSegment evictReadIndexCacheForSegment);
 }

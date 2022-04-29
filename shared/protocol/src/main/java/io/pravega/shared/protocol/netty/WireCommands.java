@@ -956,8 +956,6 @@ public final class WireCommands {
     public static final class EvictMetaDataCache implements Request, WireCommand {
         final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
         final int containerId;
-        final String chunkName;
-        final int chunkSize;
         @ToString.Exclude
         final String delegationToken;
         final long requestId;
@@ -970,19 +968,15 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(containerId);
-            out.writeUTF(chunkName);
-            out.writeInt(chunkSize);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(requestId);
         }
 
         public static EvictMetaDataCache readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
-            String chunkName = in.readUTF();
-            int chunkSize = in.readInt();
             String delegationToken = in.readUTF();
             long requestId = in.readLong();
-            return new EvictMetaDataCache(containerId, chunkName, chunkSize, delegationToken, requestId);
+            return new EvictMetaDataCache(containerId, delegationToken, requestId);
         }
     }
 
@@ -994,6 +988,107 @@ public final class WireCommands {
         @Override
         public void process(ReplyProcessor cp) {
             cp.metaDataCacheEvicted(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            return new MetaDataCacheEvicted(requestId);
+        }
+    }
+
+    @Data
+    public static final class EvictReadIndexCache implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
+        final int containerId;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).evictReadIndexCache(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(containerId);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static EvictReadIndexCache readFrom(ByteBufInputStream in, int length) throws IOException {
+            int containerId = in.readInt();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new EvictReadIndexCache(containerId, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class ReadIndexCacheEvicted implements  Reply, WireCommand {
+        final WireCommandType type = WireCommandType.READINDEX_CACHE_EVICTED;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.readIndexCacheEvicted(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            return new MetaDataCacheEvicted(requestId);
+        }
+    }
+
+    @Data
+    public static final class EvictReadIndexCacheForSegment implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+        final int containerId;
+        final String segmentName;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).evictReadIndexCacheForSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(containerId);
+            out.writeUTF(segmentName);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static EvictReadIndexCacheForSegment readFrom(ByteBufInputStream in, int length) throws IOException {
+            int containerId = in.readInt();
+            String segmentName  = in.readUTF();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new EvictReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class ReadIndexCacheEvictedForSegment implements  Reply, WireCommand {
+        final WireCommandType type = WireCommandType.READINDEX_CACHE_EVICTED_SEGMENT;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.readIndexCacheEvictedForSegment(this);
         }
 
         @Override
