@@ -167,10 +167,7 @@ public class Utils {
             log.error("Error reading properties file.", e);
         }
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        props.forEach((key, value) -> {
-            log.info(" one by one  props {} {}", key.toString(), value.toString());
-            builder.put(key.toString(), value.toString());
-        });
+        props.forEach((key, value) -> builder.put(key.toString(), value.toString()));
         return builder.build();
     }
 
