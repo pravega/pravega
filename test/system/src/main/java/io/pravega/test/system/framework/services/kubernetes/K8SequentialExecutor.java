@@ -118,7 +118,6 @@ public class K8SequentialExecutor implements TestExecutor {
                 .filter(e -> !podStatusBeforeTest.containsKey(e.getKey()) ||
                         podStatusBeforeTest.get(e.getKey()).getRestartCount() < e.getValue().getRestartCount())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        log.info ("shwetha  -- verifyPravegaPodRestart: {}", restartMapFinal);
         if (restartMapFinal.size() != 0) {
             log.error("Pravega pods have restarted, Details: {}", restartMapFinal);
             throw new AssertionError("Failing test due to Pravega pod restart.\n" + restartMapFinal);
@@ -203,10 +202,8 @@ public class K8SequentialExecutor implements TestExecutor {
 
         StringBuilder builder = new StringBuilder();
         for (String arg : args) {
-            log.info(" shwetha args are {} and value {} ", arg, Utils.getConfig(arg, ""));
             builder.append(String.format(" -D%s=%s", arg, Utils.getConfig(arg, "")));
         }
-        log.info(" shwetha builder info {}",builder.toString());
         return builder.toString();
     }
 

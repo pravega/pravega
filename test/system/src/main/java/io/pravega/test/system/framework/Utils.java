@@ -120,7 +120,6 @@ public class Utils {
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
-        log.info("shwetha createPravegaSegmentStoreService -- > {} {}", PRAVEGA_PROPERTIES, EXECUTOR_TYPE);
         URI hdfsUri = null;
         if (DOCKER_BASED) {
             Service hdfsService = new HDFSDockerService("hdfs");
@@ -143,7 +142,6 @@ public class Utils {
     }
 
     private static ImmutableMap<String, String> getPravegaProperties() {
-        log.error("Print prvega properties {}", PRAVEGA_PROPERTIES);
         return PRAVEGA_PROPERTIES;
     }
 
@@ -158,8 +156,6 @@ public class Utils {
         Properties props = new Properties();
         if (System.getProperty(CONFIGS) != null) {
             try {
-                log.info(" system props {}", System.getProperty(CONFIGS));
-                log.info(" stem props {}", new StringReader(System.getProperty(CONFIGS)));
                 props.load(new StringReader(System.getProperty(CONFIGS)));
             } catch (IOException e) {
                 log.error("Error reading custom config file.", e);
