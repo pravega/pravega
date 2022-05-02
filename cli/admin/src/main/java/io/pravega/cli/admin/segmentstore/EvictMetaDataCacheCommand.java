@@ -25,47 +25,35 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Executes a request to checkChunkSanity for the chosen Segment Store instance.
- */
-public class CheckChunkSanityCommand extends SegmentStoreCommand {
-
+public class EvictMetaDataCacheCommand extends SegmentStoreCommand{
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
-    /**
-     * Creates new instance of the CheckChunkSanityCommand.
-     * @param args The arguments for the command.
-     */
-    public CheckChunkSanityCommand(CommandArgs args) {
+    public EvictMetaDataCacheCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(4);
+        ensureArgCount(2);
 
         final int containerId = getIntArg(0);
-        final String fullyQualifiedChunkName = getArg(1);
-        final int dataSize = getIntArg(2);
-        final String segmentStoreHost = getArg(3);
+        final String segmentStoreHost = getArg(1);
+
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
 
-        CompletableFuture<WireCommands.ChunkSanityChecked> reply = adminSegmentHelper.checkChunkSanity(containerId, fullyQualifiedChunkName, dataSize,
-                    new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+        CompletableFuture<WireCommands.MetaDataCacheEvicted> reply = adminSegmentHelper.evictMetaDataCache(containerId,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        output("Chunk sanity checked for the Segment Container with containerId %d.", containerId);
-
+        output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "check-chunk-sanity", "Check sanity of the given chunk with range of operations performed on it.",
+        return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Persist the given Segment Container into Storage.",
                 new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                                                   "if given as \"all\" all the containers will be persisted."),
-                new ArgDescriptor("qualified-chunk-name", "Fully qualified name of the Chunk to perform sanity operations like (e.g., create, check if exists, write, read, delete)."),
-                new ArgDescriptor("data-size", "Data size of the bytes to be read."),
+                        "if given as \"all\" all the containers will be persisted."),
                 new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

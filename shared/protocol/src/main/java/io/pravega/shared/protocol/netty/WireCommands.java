@@ -966,6 +966,11 @@ public final class WireCommands {
         }
 
         @Override
+        public WireCommandType getType() {
+            return WireCommandType.EVICT_METADATA_CACHE;
+        }
+
+        @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(containerId);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -1012,6 +1017,11 @@ public final class WireCommands {
         @Override
         public void process(RequestProcessor cp) {
             ((AdminRequestProcessor) cp).evictReadIndexCache(this);
+        }
+
+        @Override
+        public WireCommandType getType() {
+            return WireCommandType.EVICT_READINDEX_CACHE;
         }
 
         @Override
@@ -1065,6 +1075,11 @@ public final class WireCommands {
         }
 
         @Override
+        public WireCommandType getType() {
+            return WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+        }
+
+        @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(containerId);
             out.writeUTF(segmentName);
@@ -1098,7 +1113,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new MetaDataCacheEvicted(requestId);
+            return new ReadIndexCacheEvictedForSegment(requestId);
         }
     }
 

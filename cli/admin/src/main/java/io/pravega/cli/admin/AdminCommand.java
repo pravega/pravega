@@ -53,12 +53,7 @@ import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
-import io.pravega.cli.admin.segmentstore.CheckChunkSanityCommand;
-import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
-import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
-import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
-import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
-import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.*;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand;
@@ -398,6 +393,8 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
                         .put(CheckChunkSanityCommand::descriptor, CheckChunkSanityCommand::new)
+                        .put(EvictMetaDataCacheCommand::descriptor, EvictMetaDataCacheCommand::new)
+                        .put(EvictReadIndexCacheCommand::descriptor, EvictReadIndexCacheCommand::new)
                         .build());
 
         /**
