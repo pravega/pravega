@@ -26,7 +26,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictReadIndexCacheCommand extends SegmentStoreCommand{
+public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     public EvictReadIndexCacheCommand(CommandArgs args) {
@@ -35,8 +35,6 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand{
 
     @Override
     public void execute() throws Exception {
-
-
 
         final int containerId = getIntArg(0);
         final String segmentStoreHost = getArg(1);
@@ -51,8 +49,7 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand{
             CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> reply = adminSegmentHelper.evictReadIndexCacheForSegment(containerId, fullyQualifiedSegmentName,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);
-        }
+            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);}
         else {
             CompletableFuture<WireCommands.ReadIndexCacheEvicted> reply = adminSegmentHelper.evictReadIndexCache(containerId,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());

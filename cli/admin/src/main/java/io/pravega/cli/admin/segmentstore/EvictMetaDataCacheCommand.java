@@ -25,7 +25,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictMetaDataCacheCommand extends SegmentStoreCommand{
+public class EvictMetaDataCacheCommand extends SegmentStoreCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     public EvictMetaDataCacheCommand(CommandArgs args) {
