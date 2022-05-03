@@ -65,7 +65,7 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand{
         return new AdminCommand.CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Persist the given Segment Container into Storage.",
                 new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
                         "if given as \"all\" all the containers will be persisted."),
-                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment for which .", true),
-                new AdminCommand.ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
+                new AdminCommand.ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."),
+                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment for which .", true));
     }
 }

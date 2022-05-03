@@ -67,4 +67,22 @@ public class AdminRequestProcessorAuthFailedTest {
         processor.checkChunkSanity(new WireCommands.CheckChunkSanity(0, "testChunk", 123, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
+
+    @Test
+    public void evictMetaDataCache() {
+        processor.evictMetaDataCache(new WireCommands.EvictMetaDataCache(0,"", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
+
+    @Test
+    public void evictReadIndexCache() {
+        processor.evictReadIndexCache(new WireCommands.EvictReadIndexCache(0,"", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
+
+    @Test
+    public void evictReadIndexCacheForSegment() {
+        processor.evictReadIndexCacheForSegment(new WireCommands.EvictReadIndexCacheForSegment(0,"dummy", "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
 }

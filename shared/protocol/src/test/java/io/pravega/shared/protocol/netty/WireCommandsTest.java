@@ -586,6 +586,35 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testEvictMetaDataCache() throws IOException {
+        testCommand(new WireCommands.EvictMetaDataCache(i,"", l));
+    }
+
+    @Test
+    public void testMetaDataCacheEvicted() throws IOException {
+        testCommand(new WireCommands.MetaDataCacheEvicted(l));
+    }
+    @Test
+    public void testEvictReadIndexCache() throws IOException {
+        testCommand(new WireCommands.EvictReadIndexCache(i,"", l));
+    }
+    
+    @Test
+    public void testReadIndexCacheEvicted() throws IOException {
+        testCommand(new WireCommands.ReadIndexCacheEvicted(l));
+    }
+
+    @Test
+    public void testEvictReadIndexCacheForSegment() throws IOException {
+        testCommand(new WireCommands.EvictReadIndexCacheForSegment(i, testString1,"", l));
+    }
+
+    @Test
+    public void testReadIndexCacheEvictedForSegment() throws IOException {
+        testCommand(new WireCommands.ReadIndexCacheEvictedForSegment(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }
