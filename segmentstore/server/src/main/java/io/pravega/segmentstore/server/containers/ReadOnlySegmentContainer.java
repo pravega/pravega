@@ -193,6 +193,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
         throw new UnsupportedOperationException("evictReadIndexCacheForSegment is not supported on " + getClass().getSimpleName());
     }
+
     @Override
     public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return unsupported("append");

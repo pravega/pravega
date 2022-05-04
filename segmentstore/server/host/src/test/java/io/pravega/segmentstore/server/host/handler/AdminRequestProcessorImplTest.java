@@ -158,7 +158,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
-        processor.evictReadIndexCacheForSegment(new WireCommands.EvictReadIndexCacheForSegment(1,"dummy", null,123));
+        processor.evictReadIndexCacheForSegment(new WireCommands.EvictReadIndexCacheForSegment(1, "dummy", null, 123));
         order.verify(connection).send(new WireCommands.ReadIndexCacheEvictedForSegment(123));
     }
 

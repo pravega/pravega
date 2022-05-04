@@ -45,12 +45,12 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
 
-        if(null != fullyQualifiedSegmentName) {
+        if (null != fullyQualifiedSegmentName) {
             CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> reply = adminSegmentHelper.evictReadIndexCacheForSegment(containerId, fullyQualifiedSegmentName,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);}
-        else {
+            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);
+        } else {
             CompletableFuture<WireCommands.ReadIndexCacheEvicted> reply = adminSegmentHelper.evictReadIndexCache(containerId,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
