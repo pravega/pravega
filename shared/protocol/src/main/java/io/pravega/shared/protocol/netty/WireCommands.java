@@ -1056,7 +1056,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new MetaDataCacheEvicted(requestId);
+            return new ReadIndexCacheEvicted(requestId);
         }
     }
 

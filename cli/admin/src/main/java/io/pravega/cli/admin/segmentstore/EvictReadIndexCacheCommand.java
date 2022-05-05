@@ -49,20 +49,19 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
             CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> reply = adminSegmentHelper.evictReadIndexCacheForSegment(containerId, fullyQualifiedSegmentName,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);
+            output("Read Index Cache evicted for the Segment Container with containerId %d.", containerId);
         } else {
             CompletableFuture<WireCommands.ReadIndexCacheEvicted> reply = adminSegmentHelper.evictReadIndexCache(containerId,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);
+            output("Read Index Cache evicted for the Segment Container with containerId %d.", containerId);
         }
     }
 
     public static AdminCommand.CommandDescriptor descriptor() {
-        return new AdminCommand.CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Persist the given Segment Container into Storage.",
-                new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."),
+        return new AdminCommand.CommandDescriptor(COMPONENT, "evict-read-index-cache", "Evict entire Read Index Cache.",
+                new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container for which read index cache is evicted"),
                 new AdminCommand.ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."),
-                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment for which .", true));
+                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment.", true));
     }
 }

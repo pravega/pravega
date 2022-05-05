@@ -51,9 +51,8 @@ public class EvictMetaDataCacheCommand extends SegmentStoreCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Persist the given Segment Container into Storage.",
-                new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."),
+        return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Evicts all eligible entries from buffer cache and all entries from guava cache.",
+                new ArgDescriptor("container-id", "The container Id of the Segment Container for which meta data cache is evicted."),
                 new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

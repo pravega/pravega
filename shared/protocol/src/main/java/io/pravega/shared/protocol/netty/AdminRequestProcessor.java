@@ -41,9 +41,24 @@ public interface AdminRequestProcessor extends RequestProcessor {
      */
     void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity);
 
+    /**
+     * Call to evict all eligible entries from buffer cache and all entries from guava cache.
+     *
+     * @param evictMetaDataCache {@link WireCommand} call for evicting all entries from cache.
+     */
     void evictMetaDataCache(WireCommands.EvictMetaDataCache evictMetaDataCache);
 
+    /**
+     * Call to evict entire read index cache.
+     *
+     * @param evictReadIndexCache {@link WireCommand} call for evicting entire ReadIndexCache.
+     */
     void evictReadIndexCache(WireCommands.EvictReadIndexCache evictReadIndexCache);
 
+    /**
+     * Call to evict entire read index cache for given segment.
+     *
+     * @param evictReadIndexCacheForSegment {@link WireCommand} call for evicting entire read index cache for given segment.
+     */
     void evictReadIndexCacheForSegment(WireCommands.EvictReadIndexCacheForSegment evictReadIndexCacheForSegment);
 }

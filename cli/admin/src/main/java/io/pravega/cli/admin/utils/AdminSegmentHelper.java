@@ -84,7 +84,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to check the sanity of the container corresponding to the given containerId.
      *
-     * @param containerId The Id of the container that needs to be persisted to storage.
+     * @param containerId The Id of the container for which the sanity needs to be checked.
      * @param chunkName Name of the chunk.
      * @param dataSize DataSize of the bytes to read.
      * @param uri The uri of the Segment Store instance.
@@ -107,6 +107,14 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    /**
+     * Evicts all eligible entries from buffer cache and all entries from guava cache.
+     *
+     * @param containerId The Id of the container for which the meta data cache is evicted.
+     * @param uri The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return
+     */
     public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
         RawClient connection = new RawClient(uri, connectionPool);
@@ -121,6 +129,13 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    /**
+     * Evicts entire read index cache
+     * @param containerId The Id of the container for which the read index cache is evicted.
+     * @param uri The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return
+     */
     public CompletableFuture<WireCommands.ReadIndexCacheEvicted> evictReadIndexCache(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
         RawClient connection = new RawClient(uri, connectionPool);
@@ -135,6 +150,14 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                 });
     }
 
+    /**
+     * Evicts read index cache for given segment.
+     * @param containerId The Id of the container for which the read index cache for given segment is evicted.
+     * @param segmentName Name of the segment for which the read index cache is evicted.
+     * @param uri The uri of the Segment Store instance.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @return
+     */
     public CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> evictReadIndexCacheForSegment(int containerId, String segmentName, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
         RawClient connection = new RawClient(uri, connectionPool);
