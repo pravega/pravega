@@ -113,7 +113,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
      * @param containerId The Id of the container for which the meta data cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
-     * @return
+     * @return A CompletableFuture that will complete normally when all the eligible entries from buffer cache and guava cache are evicted.
      */
     public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
@@ -130,11 +130,11 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
     }
 
     /**
-     * Evicts entire read index cache
+     * Evicts entire read index cache.
      * @param containerId The Id of the container for which the read index cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
-     * @return
+     * @return A CompletableFuture that will complete normally when entire read index cache is evicted.
      */
     public CompletableFuture<WireCommands.ReadIndexCacheEvicted> evictReadIndexCache(int containerId, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
@@ -156,7 +156,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
      * @param segmentName Name of the segment for which the read index cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
-     * @return
+     * @return A CompletableFuture that will complete normally when entire read index cache for given segment is evicted.
      */
     public CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> evictReadIndexCacheForSegment(int containerId, String segmentName, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
