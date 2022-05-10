@@ -38,17 +38,17 @@ public enum WireCommandType {
     LIST_STORAGE_CHUNKS(-5, WireCommands.ListStorageChunks::readFrom),
     STORAGE_CHUNKS_LISTED(-6, WireCommands.StorageChunksListed::readFrom),
 
-    CHECK_CHUNK_SANITY(-10, WireCommands.CheckChunkSanity::readFrom),
-    CHUNK_SANITY_CHECKED(-11, WireCommands.ChunkSanityChecked::readFrom),
+    CHECK_CHUNK_SANITY(-7, WireCommands.CheckChunkSanity::readFrom),
+    CHUNK_SANITY_CHECKED(-8, WireCommands.ChunkSanityChecked::readFrom),
 
-    EVICT_METADATA_CACHE(-12, WireCommands.EvictMetaDataCache::readFrom),
-    METADATA_CACHE_EVICTED(-13, WireCommands.MetaDataCacheEvicted::readFrom),
+    EVICT_METADATA_CACHE(-9, WireCommands.EvictMetaDataCache::readFrom),
+    METADATA_CACHE_EVICTED(-10, WireCommands.MetaDataCacheEvicted::readFrom),
 
-    EVICT_READINDEX_CACHE(-14, WireCommands.EvictReadIndexCache::readFrom),
-    READINDEX_CACHE_EVICTED(-15, WireCommands.ReadIndexCacheEvicted::readFrom),
+    EVICT_READINDEX_CACHE(-11, WireCommands.EvictReadIndexCache::readFrom),
+    READINDEX_CACHE_EVICTED(-12, WireCommands.ReadIndexCacheEvicted::readFrom),
 
-    EVICT_READINDEX_CACHE_SEGMENT(-7, WireCommands.EvictReadIndexCacheForSegment::readFrom),
-    READINDEX_CACHE_EVICTED_SEGMENT(-8, WireCommands.ReadIndexCacheEvictedForSegment::readFrom),
+    EVICT_READINDEX_CACHE_SEGMENT(-13, WireCommands.EvictReadIndexCacheForSegment::readFrom),
+    READINDEX_CACHE_EVICTED_SEGMENT(-14, WireCommands.ReadIndexCacheEvictedForSegment::readFrom),
 
     EVENT(0, null), // Is read manually.
 

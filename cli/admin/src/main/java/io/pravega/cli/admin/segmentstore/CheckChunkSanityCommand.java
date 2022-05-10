@@ -62,8 +62,7 @@ public class CheckChunkSanityCommand extends SegmentStoreCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "check-chunk-sanity", "Check sanity of the given chunk with range of operations performed on it.",
-                new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                                                   "if given as \"all\" all the containers will be persisted."),
+                new ArgDescriptor("container-id", "The container Id of the Segment Container for which sanity operation is performed."),
                 new ArgDescriptor("qualified-chunk-name", "Fully qualified name of the Chunk to perform sanity operations like (e.g., create, check if exists, write, read, delete)."),
                 new ArgDescriptor("data-size", "Data size of the bytes to be read."),
                 new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));

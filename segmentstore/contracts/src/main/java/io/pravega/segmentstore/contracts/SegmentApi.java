@@ -251,11 +251,43 @@ public interface SegmentApi {
      */
     CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
 
+    /**
+     * Performs sanity operations on chunk like create chunk, write to the chunk, check if the chunk exists, read back contents to the chunk and delete the chunk.
+     *
+     * @param containerId The Id of the container on which sanity operations are to be performed.
+     * @param chunkName Name of the chunk on which sanity operations are to be performed.
+     * @param dataSize dataSize of the bytes to read.
+     * @param timeout Timeout for the operation.
+     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
+     * If the operation failed, the future will fail with the causing exception.
+     */
     CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout);
 
+    /**
+     * Evicts all eligible entries from buffer cache and all entries from guava cache.
+     *
+     * @param containerId The Id of the container for which meta data cache is eviction is performed.
+     * @param timeout Timeout for the operation.
+     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
+     */
     CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout);
 
+    /**
+     * Evict entire read index cache.
+     *
+     * @param containerId The Id of the container for which read index cache eviction is performed.
+     * @param timeout Timeout for the operation.
+     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
+     */
     CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout);
 
+    /**
+     * Evict entire read index cache for given segment.
+     *
+     * @param containerId The Id of the container for which read index cache eviction is performed.
+     * @param segmentName Name of the segment for which read index cache eviction is performed.
+     * @param timeout Timeout for the operation.
+     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
+     */
     CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout);
 }

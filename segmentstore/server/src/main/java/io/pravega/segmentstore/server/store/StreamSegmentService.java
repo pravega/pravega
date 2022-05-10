@@ -109,7 +109,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
         return invoke(
                 containerId,
                 container -> container.checkChunkStorageSanity(containerId, chunkName, dataSize, timeout),
-                "getCheckSanity", chunkName);
+                "checkChunkStorageSanity", chunkName, dataSize);
     }
 
     @Override
