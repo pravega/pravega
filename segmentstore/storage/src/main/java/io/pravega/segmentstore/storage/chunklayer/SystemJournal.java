@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -186,7 +187,7 @@ public class SystemJournal {
     /**
      * List of chunks (journals & snapshots) to delete after snapshot.
      */
-    final private List<String> pendingGarbageChunks = Collections.synchronizedList(new ArrayList<>());
+    final private List<String> pendingGarbageChunks = new Vector<>();
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -689,28 +690,29 @@ public class SystemJournal {
         if (null == systemSnapshot) {
             return CompletableFuture.completedFuture(null);
         }
-
+        val iterator = systemSnapshot.getSegmentSnapshotRecords().iterator();
         // For each segment in snapshot
         return Futures.loop(
-                systemSnapshot.getSegmentSnapshotRecords(),
-                segmentSnapshot ->
-                    txn.get(segmentSnapshot.segmentMetadata.getKey())
-                        .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
-                        .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor)
-                        .thenApplyAsync(v -> true, executor),
-                executor);
+                () -> iterator.hasNext(),
+                () -> {
+                        val segmentSnapshot = iterator.next();
+                        return txn.get(segmentSnapshot.segmentMetadata.getKey())
+                                .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
+                                .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor);
+
+                    }, executor);
     }
 
     private CompletableFuture<Void> validateChunksInSegmentSnapshot(MetadataTransaction txn, SegmentSnapshotRecord segmentSnapshot) {
+        val iterator = segmentSnapshot.getChunkMetadataCollection().iterator();
         // For each chunk in the segment
         return Futures.loop(
-                segmentSnapshot.getChunkMetadataCollection(),
-                m -> txn.get(m.getKey())
-                        .thenApplyAsync(mm -> {
-                            Preconditions.checkState(null != mm, "Chunk metadata must not be null.");
-                            return true;
-                        }, executor),
-                executor);
+                () -> iterator.hasNext(),
+                () -> {
+                    val m = iterator.next();
+                    return txn.get(m.getKey())
+                            .thenAcceptAsync(mm -> Preconditions.checkState(null != mm, "Chunk metadata must not be null."), executor);
+                }, executor);
     }
 
     /**
@@ -831,7 +833,7 @@ public class SystemJournal {
 
         val epochToStartScanning = new AtomicLong();
         val fileIndexToRecover = new AtomicInteger(1);
-        val journalsProcessed = Collections.synchronizedList(new ArrayList<String>());
+        val journalsProcessed = new Vector<String>();
         // Starting with journal file after last snapshot,
         if (null != systemSnapshotRecord) {
             epochToStartScanning.set(systemSnapshotRecord.epoch);
@@ -909,11 +911,13 @@ public class SystemJournal {
                     try {
                         log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
                         val batch = BATCH_SERIALIZER.deserialize(input);
-
+                        val iterator = batch.getSystemJournalRecords().iterator();
                         return Futures.loop(
-                                batch.getSystemJournalRecords(),
-                                record -> applyRecord(txn, state, record)
-                                        .thenApply(r -> true),
+                                () -> iterator.hasNext(),
+                                () -> {
+                                    val record = iterator.next();
+                                    return applyRecord(txn, state, record);
+                                },
                                 executor);
                     } catch (EOFException e) {
                         log.debug("SystemJournal[{}] Done processing journal {}.", containerId, systemLogName);
@@ -940,7 +944,7 @@ public class SystemJournal {
         }
         state.visitedRecords.add(record);
         state.recordsProcessedCount.incrementAndGet();
-        CompletableFuture<Void> retValue = null;
+        final CompletableFuture<Void> retValue;
         // ChunkAddedRecord.
         if (record instanceof ChunkAddedRecord) {
             val chunkAddedRecord = (ChunkAddedRecord) record;
@@ -958,8 +962,7 @@ public class SystemJournal {
         } else if (record instanceof SystemSnapshotRecord) {
             val snapshotRecord = (SystemSnapshotRecord) record;
             retValue = Futures.toVoid(applySystemSnapshotRecord(txn, state, snapshotRecord));
-        }
-        if (null == retValue) {
+        } else {
             // Unknown record.
             retValue = CompletableFuture.failedFuture(new IllegalStateException(String.format("Unknown record type encountered. record = %s", record)));
         }
@@ -1034,11 +1037,11 @@ public class SystemJournal {
         Preconditions.checkState(null != oldChunkName, "oldChunkName must not be null");
         Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty(), "newChunkName must not be null or empty");
 
-        return txn.get(segmentName)
+        return validateSegment(txn, segmentName)
+                .thenComposeAsync(v -> txn.get(segmentName), executor)
                 .thenComposeAsync(m -> {
                     val segmentMetadata = (SegmentMetadata) m;
                     segmentMetadata.checkInvariants();
-                    validateSegment(txn, segmentName);
                     // set length.
                     segmentMetadata.setLength(offset);
 
@@ -1166,10 +1169,10 @@ public class SystemJournal {
         val systemSnapshot = SystemSnapshotRecord.builder()
                 .epoch(epoch)
                 .fileIndex(currentFileIndex.get())
-                .segmentSnapshotRecords(new ArrayList<>())
+                .segmentSnapshotRecords(new Vector<>())
                 .build();
 
-        val futures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        val futures = new ArrayList<CompletableFuture<Void>>();
         for (val systemSegment : systemSegments) {
             // Find segment metadata.
             val future = txn.get(systemSegment)
@@ -1179,7 +1182,7 @@ public class SystemJournal {
 
                         val segmentSnapshot = SegmentSnapshotRecord.builder()
                                 .segmentMetadata(segmentMetadata)
-                                .chunkMetadataCollection(new ArrayList<>())
+                                .chunkMetadataCollection(new Vector<>())
                                 .build();
 
                         // Enumerate all chunks.
@@ -1223,9 +1226,7 @@ public class SystemJournal {
                                     }
 
                                     // Add to the system snapshot.
-                                    synchronized (systemSnapshot) {
-                                        systemSnapshot.segmentSnapshotRecords.add(segmentSnapshot);
-                                    }
+                                    systemSnapshot.segmentSnapshotRecords.add(segmentSnapshot);
                                 }, executor);
                     }, executor);
             futures.add(future);
@@ -1452,7 +1453,7 @@ public class SystemJournal {
             }
 
             private void read00(RevisionDataInput input, SystemJournalRecordBatchBuilder b) throws IOException {
-                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER));
+                b.systemJournalRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
 
             private void write00(SystemJournalRecordBatch object, RevisionDataOutput output) throws IOException {
@@ -1694,7 +1695,7 @@ public class SystemJournal {
 
             private void read00(RevisionDataInput input, SegmentSnapshotRecord.SegmentSnapshotRecordBuilder b) throws IOException {
                 b.segmentMetadata((SegmentMetadata) SEGMENT_METADATA_SERIALIZER.deserialize(input.getBaseStream()));
-                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER));
+                b.chunkMetadataCollection(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
         }
     }
@@ -1769,7 +1770,7 @@ public class SystemJournal {
             private void read00(RevisionDataInput input, SystemSnapshotRecord.SystemSnapshotRecordBuilder b) throws IOException {
                 b.epoch(input.readCompactLong());
                 b.fileIndex(input.readCompactInt());
-                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER));
+                b.segmentSnapshotRecords(input.readCollection(ELEMENT_DESERIALIZER, () -> new Vector<>()));
             }
         }
     }
