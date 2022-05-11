@@ -158,9 +158,27 @@ public abstract class AbstractService implements Service {
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
                 .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec, tlsSpec, authGenericSpec))
+                .put("segmentStorePodAffinity", getPodAntiAffinity())
                 .build();
     }
 
+    private Object getPodAntiAffinity() {
+        return ImmutableMap.<String, Object>builder()
+                .put("affinity", ImmutableMap.of("podAntiAffinity",
+                        ImmutableMap.of("requiredDuringSchedulingIgnoredDuringExecution", ImmutableMap.<String, Object>builder()
+                                .put("labelSelector", ImmutableMap.builder()
+                                        .put("matchExpressions", ImmutableMap.builder()
+                                                .put("key", "kind")
+                                                .put("operator", "In")
+                                                .put("values", "ZookeeperMember")
+                                                .build()
+                                        )
+                                        .build()
+                                )
+                                .put("topologyKey", "kubernetes.io/hostname")
+                                .build())))
+                .build();
+    }
     protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec,
                                                                        Map<String, Object> tlsSpec, Map<String, Object> authGenericSpec) {
 
