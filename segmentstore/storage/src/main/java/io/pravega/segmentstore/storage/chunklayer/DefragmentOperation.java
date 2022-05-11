@@ -23,11 +23,9 @@ import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -113,7 +111,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final List<String> chunksToDelete;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
 
-    private volatile List<ChunkInfo> chunksToConcat = Collections.synchronizedList(new ArrayList<>());
+    private volatile List<ChunkInfo> chunksToConcat = new Vector<>();
     private final List<ChunkNameOffsetPair> newReadIndexEntries;
     private volatile ChunkMetadata target;
     private volatile String targetChunkName;
@@ -259,7 +257,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength() - target.getLength());
             }
 
-            final List<CompletableFuture<Void>> futures = Collections.synchronizedList(new ArrayList<>());
+            final List<CompletableFuture<Void>> futures = new Vector<>();
             // Update metadata for affected chunks.
             for (int i = 1; i < concatArgs.length; i++) {
                 final int n = i;
@@ -280,7 +278,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> gatherChunks() {
-        chunksToConcat = Collections.synchronizedList(new ArrayList<>());
+        chunksToConcat = new Vector<>();
 
         return txn.get(targetChunkName)
                 .thenComposeAsync(storageMetadata -> {

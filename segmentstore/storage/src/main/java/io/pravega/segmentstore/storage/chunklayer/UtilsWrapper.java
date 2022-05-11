@@ -36,8 +36,8 @@ import java.io.OutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -216,7 +216,7 @@ public class UtilsWrapper {
      */
     public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfoList(String streamSegmentName, boolean checkStorage) {
         Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-        val infoList = Collections.synchronizedList(new ArrayList<ExtendedChunkInfo>());
+        val infoList = new Vector<ExtendedChunkInfo>();
         return chunkedSegmentStorage.executeSerialized(() -> chunkedSegmentStorage.tryWith(
                 chunkedSegmentStorage.getMetadataStore().beginTransaction(true, streamSegmentName),
                 txn ->  txn.get(streamSegmentName)
