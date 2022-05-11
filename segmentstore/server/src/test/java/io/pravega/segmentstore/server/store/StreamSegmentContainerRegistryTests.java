@@ -467,27 +467,6 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
             return null;
         }
-
-        @Override
-        public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
-            return null;
-        }
-
-        @Override
-        public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
-            return null;
-        }
-
-        @Override
-        public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
-            return null;
-        }
-
-        @Override
-        public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
-            return null;
-        }
-
         //endregion
     }
 

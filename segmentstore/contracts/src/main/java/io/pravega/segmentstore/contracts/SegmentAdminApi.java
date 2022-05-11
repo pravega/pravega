@@ -18,21 +18,7 @@ package io.pravega.segmentstore.contracts;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Defines the StreamSegmentStore which is responsible for delegating the various
- * operations possible on a StreamSegment to their respective Container.
- */
-public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
-
-    /**
-     * Applies all outstanding operations in a particular SegmentContainer from the DurableLog into the underlying Storage.
-     *
-     * @param containerId The Id of the container that needs to persisted to storage.
-     * @param timeout     Timeout for the operation.
-     * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
-     * If the operation fails, it will be completed with the appropriate exception.
-     */
-    CompletableFuture<Void> flushToStorage(int containerId, Duration timeout);
+public interface SegmentAdminApi {
 
     /**
      * Performs sanity operations on chunk like create chunk, write to the chunk, check if the chunk exists, read back contents to the chunk and delete the chunk.
@@ -43,7 +29,9 @@ public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout);
+    default CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
+        throw new UnsupportedOperationException("checkChunkStorageSanity is not supported on " + getClass().getSimpleName());
+    }
 
     /**
      * Evicts all eligible entries from buffer cache and all entries from guava cache.
@@ -52,7 +40,9 @@ public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout);
+    default CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
+        throw new UnsupportedOperationException("evictMetaDataCache is not supported on " + getClass().getSimpleName());
+    }
 
     /**
      * Evict entire read index cache.
@@ -61,7 +51,9 @@ public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout);
+    default CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
+        throw new UnsupportedOperationException("evictReadIndexCache is not supported on " + getClass().getSimpleName());
+    }
 
     /**
      * Evict entire read index cache for given segment.
@@ -71,5 +63,7 @@ public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout);
+    default CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        throw new UnsupportedOperationException("evictReadIndexCacheForSegment is not supported on " + getClass().getSimpleName());
+    }
 }
