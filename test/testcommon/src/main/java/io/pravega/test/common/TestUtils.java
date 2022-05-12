@@ -22,6 +22,7 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Random;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -83,6 +84,34 @@ public class TestUtils {
         if (!condition.get() && remainingMillis <= 0) {
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
+    }
+
+    @SneakyThrows(InterruptedException.class)
+    public static <T> T awaitEvaluateExpr(T expected, Callable<T> eval, int checkFrequencyMillis, long timeoutMillis) throws TimeoutException {
+
+        T result = null;
+        Supplier<Boolean> condition = null;
+        long remainingMillis = timeoutMillis;
+
+        while (condition==null || !condition.get() && remainingMillis > 0) {
+            try {
+                result = eval.call();
+                T finalResult = result;
+                condition = () -> (expected == null && finalResult == null)
+                        || (expected != null && expected.equals(finalResult));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            Thread.sleep(checkFrequencyMillis);
+            remainingMillis -= checkFrequencyMillis;
+        }
+
+        if (condition==null || !condition.get() && remainingMillis <= 0) {
+            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
+        }
+
+        return result;
     }
 
     /**
