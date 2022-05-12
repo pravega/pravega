@@ -93,7 +93,7 @@ public class TestUtils {
         Supplier<Boolean> condition = null;
         long remainingMillis = timeoutMillis;
 
-        while (condition==null || !condition.get() && remainingMillis > 0) {
+        while (condition == null || !condition.get() && remainingMillis > 0) {
             try {
                 result = eval.call();
                 T finalResult = result;
@@ -107,7 +107,7 @@ public class TestUtils {
             remainingMillis -= checkFrequencyMillis;
         }
 
-        if (condition==null || !condition.get() && remainingMillis <= 0) {
+        if (condition == null || !condition.get() && remainingMillis <= 0) {
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
 
