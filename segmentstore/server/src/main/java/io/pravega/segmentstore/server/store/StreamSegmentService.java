@@ -133,7 +133,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
         return invoke(
                 containerId,
                 container -> container.evictReadIndexCacheForSegment(containerId, segmentName, timeout),
-                "evictReadIndexCacheForSegment");
+                "evictReadIndexCacheForSegment", segmentName);
     }
 
     @Override

@@ -894,6 +894,9 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * WireCommand to perform sanity operations on chunk like create chunk, write to the chunk, check if the chunk exists, read back contents to the chunk and delete the chunk.
+     */
     @Data
     public static final class CheckChunkSanity implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CHECK_CHUNK_SANITY;
@@ -952,6 +955,9 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * WireCommand to evict all eligible entries from buffer cache and guava cache.
+     */
     @Data
     public static final class EvictMetaDataCache implements Request, WireCommand {
         final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
@@ -1006,6 +1012,9 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * WireCommand to evict entire read index cache.
+     */
     @Data
     public static final class EvictReadIndexCache implements Request, WireCommand {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
@@ -1060,6 +1069,9 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * Command to evict read index cache for specific segment.
+     */
     @Data
     public static final class EvictReadIndexCacheForSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;

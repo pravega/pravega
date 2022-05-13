@@ -283,26 +283,6 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
-            throw new UnsupportedOperationException("checkChunkStorageSanity");
-        }
-
-        @Override
-        public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
-            throw new UnsupportedOperationException("evictMetaDataCache");
-        }
-
-        @Override
-        public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
-            throw new UnsupportedOperationException("evictReadIndexCache");
-        }
-
-        @Override
-        public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
-            throw new UnsupportedOperationException("evictReadIndexCacheForSegment");
-        }
-
-        @Override
         public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("getExtendedChunkInfo");
         }

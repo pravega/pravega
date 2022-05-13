@@ -45,6 +45,9 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                     .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.TableSegmentInfo.class))
                     .put(WireCommands.ListStorageChunks.class, ImmutableSet.of(WireCommands.StorageChunksListed.class))
                     .put(WireCommands.CheckChunkSanity.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
+                    .put(WireCommands.EvictMetaDataCache.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
+                    .put(WireCommands.EvictReadIndexCache.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
+                    .put(WireCommands.EvictReadIndexCacheForSegment.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
                     .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
