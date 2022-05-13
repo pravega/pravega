@@ -60,7 +60,7 @@ public class AssertExtensions {
      * @param eval                  The function to test
      * @param checkIntervalMillis   The number of milliseconds to wait between two checks.
      * @param timeoutMillis         The timeout in milliseconds after which an assertion error should be thrown.
-     * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     * @throws Exception            If there is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
         T result = null;
