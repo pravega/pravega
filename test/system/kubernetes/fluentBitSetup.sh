@@ -474,7 +474,7 @@ spec:
       - name: rotate
         image: $ALPINE_IMAGE
         workingDir: $MOUNT_PATH
-        command: [ '/bin/sh', '-c' ]
+        command: [ '/bin/ash', '-c' ]
         args:
           - apk add logrotate;
             apk add bash;
