@@ -34,11 +34,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for DataFrameReader class.
@@ -208,6 +211,59 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
                     () -> new DataLogNotAvailableException("intentional getNext exception"));
             dataLog.setReadErrorInjectors(null, readErrorInjector);
             testReadWithException(dataLog, logItemFactory, ex -> ex == readErrorInjector.getLastCycleException());
+        }
+    }
+
+    /**
+     * Test DataFrameReader in case of reading a log with duplicate entries. The expected output should be having only
+     * the unique items, skipping the duplicate ones.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testWithDuplicateLogItems() throws Exception {
+        long startSeqNo = 0;
+        int count = 100;
+        int minSize = 10;
+        int maxSize = 1000;
+        int duplicates = 0;
+        ArrayList<byte[]> rawRecords = DataFrameTestHelpers.generateRecords(count, minSize, maxSize);
+        ArrayList<TestLogItem> result = new ArrayList<>(rawRecords.size());
+        for (int i = 0; i < count; i++) {
+            result.add(new TestLogItem(startSeqNo + i + duplicates, rawRecords.get(i)));
+            // Let's add a duplicate element every 10.
+            if (i % 10 == 0) {
+                // Use this to cheat DataFrameBuilder, as it does not allow adding duplicate sequence numbers, but we
+                // need that to test how DataFrameReader skips them when reading.
+                TestLogItem duplicateLogItem = Mockito.spy(new TestLogItem(startSeqNo + i + duplicates, rawRecords.get(i)));
+                duplicates++;
+                Mockito.when(duplicateLogItem.getSequenceNumber()).thenReturn(startSeqNo + i + duplicates).thenCallRealMethod();
+                result.add(duplicateLogItem);
+            }
+        }
+
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
+            dataLog.initialize(TIMEOUT);
+            BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
+                    Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, Callbacks::doNothing, errorCallback, executorService());
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args)) {
+                for (TestLogItem testLogItem : result) {
+                    b.append(testLogItem);
+                }
+                b.flush();
+            }
+
+            TestSerializer logItemFactory = new TestSerializer();
+            @Cleanup
+            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID);
+            List<TestLogItem> readItems = readAll(reader);
+            Assert.assertEquals(count, readItems.size());
+            int actualSeqNumber = 0;
+            for (int i = 0; i < count; i++) {
+                Assert.assertEquals(actualSeqNumber, readItems.get(i).getSequenceNumber());
+                actualSeqNumber = (i % 10 == 0) ? actualSeqNumber + 2 : actualSeqNumber + 1;
+            }
         }
     }
 
