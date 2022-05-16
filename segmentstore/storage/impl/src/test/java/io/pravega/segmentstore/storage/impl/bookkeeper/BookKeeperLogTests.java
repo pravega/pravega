@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +75,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -84,10 +86,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
-    private static final int BOOKIE_COUNT = 1;
+    private static final int BOOKIE_COUNT = 2;
     private static final int THREAD_POOL_SIZE = 3;
     private static final int MAX_WRITE_ATTEMPTS = 5;
-    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
+    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * 10;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(100);
@@ -96,6 +98,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
     private final AtomicBoolean secureBk = new AtomicBoolean();
     private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
+    private final AtomicReference<String> ledgersPath = new AtomicReference<>();
+    private final AtomicReference<String> namespace = new AtomicReference<>();
+    private final AtomicInteger zkPort = new AtomicInteger();
 
     /**
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
@@ -105,17 +110,17 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         secureBk.set(secure);
         String testId = Long.toHexString(System.nanoTime());
-        int zkPort = TestUtils.getAvailableListenPort();
+        zkPort.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
         }
 
-        String ledgersPath = "/pravega/bookkeeper/ledgers/" + testId;
+        ledgersPath.set("/pravega/bookkeeper/ledgers/" + testId);
         val runner = BookKeeperServiceRunner.builder()
                                             .startZk(true)
-                                            .zkPort(zkPort)
-                                            .ledgersPath(ledgersPath)
+                                            .zkPort(zkPort.get())
+                                            .ledgersPath(ledgersPath.get())
                                             .secureBK(isSecure())
                                             .secureZK(isSecure())
                                             .tlsTrustStore("../../../config/bookie.truststore.jks")
@@ -127,11 +132,11 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         bkService.set(runner);
         
         // Create a ZKClient with a unique namespace.
-        String namespace = "pravega/segmentstore/unittest_" + testId;
+        namespace.set("pravega/segmentstore/unittest_" + testId);
         this.zkClient.set(CuratorFrameworkFactory
                 .builder()
                 .connectString("127.0.0.1:" + zkPort)
-                .namespace(namespace)
+                .namespace(namespace.get())
                 .retryPolicy(new ExponentialBackoffRetry(1000, 10))
                 .build());
         this.zkClient.get().start();
@@ -144,8 +149,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
                 .with(BookKeeperConfig.BK_DIGEST_TYPE, DigestType.DUMMY.name())
-                .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, ledgersPath)
+                .with(BookKeeperConfig.ZK_METADATA_PATH, namespace.get())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, ledgersPath.get())
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
@@ -798,6 +803,58 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
         factory.get().createDebugLogWrapper(0);
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+    }
+
+    //@Test
+    public void testPartialWriteDuringRollover() throws DurableDataLogException, ExecutionException, InterruptedException {
+        try (BookKeeperLog log = Mockito.spy((BookKeeperLog) createDurableDataLog())) {
+            log.initialize(TIMEOUT);
+
+            try {
+                // Write some events.
+                for (int i = 0; i < MAX_LEDGER_SIZE; i++) {
+                    log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
+                    System.err.println("writing event " + i);
+                }
+
+                // Suspend a bookie (this will trigger write errors).
+                stopFirstBookie();
+
+                // Now, let's assume that there has been a partial write of an event. This means that the lastAddsEntryConfirmed
+                // method shows that there is a LAC related to the ongoing writes.
+//                log.fetchLastAddConfirmed()
+
+                // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
+                // WriteFailureException (general unable to write) should be thrown.
+                AssertExtensions.assertSuppliedFutureThrows(
+                        "First write did not fail with the appropriate exception.",
+                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
+                        ex -> ex instanceof RetriesExhaustedException
+                                && (ex.getCause() instanceof DataLogNotAvailableException
+                                || isLedgerClosedException(ex.getCause()))
+                                || ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
+
+                // Subsequent writes should be rejected since the BookKeeperLog is now closed.
+                AssertExtensions.assertSuppliedFutureThrows(
+                        "Second write did not fail with the appropriate exception.",
+                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
+                        ex -> ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
+
+
+
+
+                restartFirstBookie();
+
+                // We need somw way to check that an entry has been duplciated.
+                log.getReader().getNext().getPayload();
+
+
+            } finally {
+                // Don't forget to resume the bookie.
+            }
+        }
     }
 
     private void checkLogReadAfterReconciliation(int expectedLedgerCount) throws Exception {

@@ -45,11 +45,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -90,7 +88,7 @@ import org.apache.zookeeper.data.Stat;
  */
 @Slf4j
 @ThreadSafe
-class BookKeeperLog implements DurableDataLog {
+class  BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
@@ -116,6 +114,7 @@ class BookKeeperLog implements DurableDataLog {
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
     private final ThrottlerSourceListenerCollection queueStateChangeListeners;
+    private final AtomicLong currentLedgerExpectedEntryId = new AtomicLong();
     //endregion
 
     //region Constructor
@@ -196,6 +195,9 @@ class BookKeeperLog implements DurableDataLog {
                 }
             }
 
+            this.currentLedgerExpectedEntryId.set(0);
+            System.err.println("SETTING currentLedgerExpectedEntryId TO 0 ON CLOSE");
+
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -255,6 +257,10 @@ class BookKeeperLog implements DurableDataLog {
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = newMetadata;
             ledgersToDelete = getLedgerIdsToDelete(oldMetadata, newMetadata);
+            // Initialize the counter of expected ledger entry ids for the current ledger.
+            long lac = this.writeLedger.ledger.getLastAddConfirmed();
+            this.currentLedgerExpectedEntryId.set(lac < 0 ? 0 : lac);
+            System.err.println("SETTING currentLedgerExpectedEntryId TO LAC " + this.currentLedgerExpectedEntryId.get());
         }
 
         // Delete the orphaned ledgers from BookKeeper.
@@ -474,6 +480,11 @@ class BookKeeperLog implements DurableDataLog {
         log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
+            if (w.getExpectedEntryId() < 0) {
+                // Set to the new write the expected Ledger Entry Id for the associated entry and increment counter.
+                w.setExpectedEntryId(this.currentLedgerExpectedEntryId.getAndIncrement());
+                System.err.println("Setting new expected entry id in write " + w.getExpectedEntryId());
+            }
             try {
                 // Record the beginning of a new attempt.
                 int attemptCount = w.beginAttempt();
@@ -531,9 +542,16 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Write likely failed because of LedgerClosedException. Need to check the LastAddConfirmed for each
-            // involved Ledger and see if the write actually made it through or not.
+            // involved Ledger and see if the Write actually made it through or not. Note that there is a small chance
+            // that the Write has "partially" made it, which means that there is at least one Bookie with the entry stored,
+            // but the writeQuorum has not been satisfied and therefore the addCallback() has not been called
+            // (i.e. entryId=Long.MIN_VALUE). For this particular case, we compare the expected entry id of the Write
+            // against LAC as a safety mechanism to prevent duplicate entries (see https://github.com/pravega/pravega/issues/6444).
             long lac = fetchLastAddConfirmed(w.getWriteLedger(), lastAddsConfirmed);
-            if (w.getEntryId() >= 0 && w.getEntryId() <= lac) {
+            if ((w.getEntryId() >= 0 && w.getEntryId() <= lac) || (w.getExpectedEntryId() >= 0 && w.getExpectedEntryId() <= lac)) {
+                System.err.println("WRITE ENTRY ID " + w.getEntryId() + " LAC " + lac + " EXPECTED ENTRY ID " + w.getExpectedEntryId());
+                Preconditions.checkState(w.getEntryId() < 0 || w.getEntryId() == w.getExpectedEntryId());
+                w.setEntryId(w.getExpectedEntryId());
                 // Write was actually successful. Complete it and move on.
                 completeWrite(w);
                 anythingChanged = true;
@@ -557,7 +575,8 @@ class BookKeeperLog implements DurableDataLog {
      * @return The LastAddConfirmed for the WriteLedger.
      */
     @SneakyThrows(DurableDataLogException.class)
-    private long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
+    @VisibleForTesting
+    long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
         long ledgerId = writeLedger.ledger.getId();
         long lac = lastAddsConfirmed.getOrDefault(ledgerId, -1L);
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "fetchLastAddConfirmed", ledgerId, lac);
@@ -591,6 +610,8 @@ class BookKeeperLog implements DurableDataLog {
             if (error == null) {
                 assert entryId != null;
                 write.setEntryId(entryId);
+                Preconditions.checkState(entryId == write.getExpectedEntryId(), String.format("Wrong expected entry id (%d) compared to actual one (%d) for ledger %d",
+                        write.getExpectedEntryId(), entryId, write.getWriteLedger().ledger.getId()));
                 // Successful write. If we get this, then by virtue of how the Writes are executed (always wait for writes
                 // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
@@ -929,7 +950,8 @@ class BookKeeperLog implements DurableDataLog {
      * part of the Rollover Processor.
      */
     @SneakyThrows(DurableDataLogException.class) // Because this is an arg to SequentialAsyncProcessor, which wants a Runnable.
-    private void rollover() {
+    @VisibleForTesting
+    void rollover() {
         if (this.closed.get()) {
             // BookKeeperLog is closed; no point in running this.
             return;
@@ -969,6 +991,8 @@ class BookKeeperLog implements DurableDataLog {
 
                 this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
                 this.logMetadata = metadata;
+                this.currentLedgerExpectedEntryId.set(0); // Set the expected entry id counter to 0 for the new ledger.
+                System.err.println("SETTING currentLedgerExpectedEntryId TO 0 IN ROLLOVER FOR LEDGER " + this.writeLedger.ledger.getId());
             }
 
             // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks)
