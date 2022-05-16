@@ -308,7 +308,7 @@ public class K8sClient {
                                                         String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject-" + customResourceGroup);
-        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT,null,  null, callback);
+        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, null,  null, callback);
         return callback.getFuture();
     }
 
@@ -553,7 +553,7 @@ public class K8sClient {
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
                 api.listNamespacedPodCall(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                        null, null,DEFAULT_TIMEOUT_MINUTES * 60, Boolean.TRUE, callback),
+                        null, null, DEFAULT_TIMEOUT_MINUTES * 60, Boolean.TRUE, callback),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
 
