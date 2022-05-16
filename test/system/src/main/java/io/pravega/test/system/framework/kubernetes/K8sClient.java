@@ -773,7 +773,7 @@ public class K8sClient {
         }
 
         CompletableFuture<T> getFuture() {
-            return future;
+            return future; 
         }
     }
 }
