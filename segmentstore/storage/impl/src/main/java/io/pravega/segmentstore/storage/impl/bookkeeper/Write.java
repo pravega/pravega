@@ -226,9 +226,9 @@ class Write {
 
     @Override
     public String toString() {
-        return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
+        return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s, EntryId = %s, ExpectedEntryId = %s",
                 this.writeLedger.get().metadata.getLedgerId(), getLength(), this.attemptCount, isInProgress(),
-                isDone(), this.failureCause.get() != null);
+                isDone(), this.failureCause.get() != null, this.entryId, this.expectedEntryId);
     }
 
     //endregion
