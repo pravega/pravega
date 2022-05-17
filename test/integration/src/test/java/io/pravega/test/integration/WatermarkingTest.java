@@ -508,14 +508,14 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         writer1.writeEvent("1").get();
-        writer1.noteTime(100L);
+        writer1.noteTime(80L);
 
         @Cleanup
         EventStreamWriter<String> writer2 = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         writer2.writeEvent("2").get();
-        writer2.noteTime(102L);
+        writer2.noteTime(150L);
 
         // writer0, writer1 and writer2 should result in the first watermark with following time:
         // 1: 50L-102L
@@ -528,16 +528,18 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         Watermark watermark1 = watermarks.poll();
         Watermark watermark2 = watermarks.poll();
-        Watermark watermark3 = watermarks.poll(10, TimeUnit.SECONDS);
 
         assertEquals(50L, watermark1.getLowerTimeBound());
-        assertEquals(102L, watermark1.getUpperTimeBound());
+        assertEquals(150L, watermark1.getUpperTimeBound());
 
-        assertEquals(100L, watermark2.getLowerTimeBound());
-        assertEquals(102L, watermark2.getUpperTimeBound());
+        assertEquals(80L, watermark2.getLowerTimeBound());
+        assertEquals(150L, watermark2.getUpperTimeBound());
 
-        assertEquals(102L, watermark3.getLowerTimeBound());
-        assertEquals(102L, watermark3.getUpperTimeBound());
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+                Watermark w = watermarks.poll();
+                boolean flag = w != null && w.getLowerTimeBound() == 150 && w.getUpperTimeBound() == 150;
+                return flag;
+            }, 100000);
 
         // stream cut should be same
         assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()).equals(x.getValue())));
@@ -547,8 +549,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         writer1.noteTime(90L);
 
         // no watermark should be emitted.
-        Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
-        assertNull(nullMark);
+        AssertExtensions.assertEventuallyEquals(null, () -> watermarks.poll(), 100000);
     }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {
