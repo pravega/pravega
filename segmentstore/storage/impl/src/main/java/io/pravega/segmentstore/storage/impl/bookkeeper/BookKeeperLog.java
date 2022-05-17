@@ -56,9 +56,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -462,22 +460,18 @@ class  BookKeeperLog implements DurableDataLog {
 
         // Get the writes to execute from the queue.
         List<Write> toExecute = this.writes.getWritesToExecute(maxTotalSize);
-        toExecute.forEach(w -> System.err.println("Before handlingClosedLedgers " + w));
 
         // Check to see if any writes executed on closed ledgers, in which case they either need to be failed (if deemed
         // appropriate, or retried).
         if (handleClosedLedgers(toExecute)) {
             // If after handling closed ledgers there has been a change in writeLedger, reset the expected entry id for the new ledger.
             if (this.writeLedger.ledger.getId() != this.expectedLedgerAndEntryId.getLedgerId().get()) {
-                System.err.println("Resetting write ledger id for tracking. Old ledger " + this.writeLedger.ledger.getId() +
-                        " old expected entry " + this.expectedLedgerAndEntryId.getExpectedEntryId().get());
                 this.expectedLedgerAndEntryId.getExpectedEntryId().set(0L);
                 this.expectedLedgerAndEntryId.getLedgerId().set(this.writeLedger.ledger.getId());
             }
             // If any changes were made to the Writes in the list, re-do the search to get a more accurate list of Writes
             // to execute (since some may have changed Ledgers, more writes may not be eligible for execution).
             toExecute = this.writes.getWritesToExecute(maxTotalSize);
-            toExecute.forEach(w -> System.err.println("AFTER handlingClosedLedgers " + w));
         }
 
         return toExecute;
@@ -495,9 +489,6 @@ class  BookKeeperLog implements DurableDataLog {
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
             if (w.getExpectedEntryId() < 0) {
-                System.err.println("Setting expected entry id for write (" + w.hashCode() + ") expected entry id " +
-                        w.getExpectedEntryId() + " write ledger " + w.getWriteLedger().ledger.getId() +
-                        " tracking expected id ledger " + this.expectedLedgerAndEntryId.getLedgerId().get());
                 // Set to the new write the expected Entry Id for the associated Write and increment counter.
                 w.setExpectedEntryId(this.expectedLedgerAndEntryId.getExpectedEntryId().getAndIncrement());
             }
@@ -657,8 +648,6 @@ class  BookKeeperLog implements DurableDataLog {
         try {
             if (error == null) {
                 assert entryId != null;
-                System.err.println("Confirmed write (" + write.hashCode() + ") actual entry id " + entryId + " expected entry id " +
-                        write.getExpectedEntryId() + " write ledger " + write.getWriteLedger().ledger.getId() + " tracking expected id ledger " + this.expectedLedgerAndEntryId.getLedgerId().get());
                 // Expected and actual entryIds should always match.
                 Preconditions.checkState(entryId == write.getExpectedEntryId(), String.format("Wrong expected entry id (%d) compared to actual one (%d) for ledger %d",
                         write.getExpectedEntryId(), entryId, write.getWriteLedger().ledger.getId()));
@@ -1042,10 +1031,6 @@ class  BookKeeperLog implements DurableDataLog {
 
                 this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
                 this.logMetadata = metadata;
-                System.err.println("ROLLOVER Resetting write ledger id for tracking. Old ledger " + this.writeLedger.ledger.getId() +
-                        " old expected entry " + this.expectedLedgerAndEntryId.getExpectedEntryId().get());
-                this.expectedLedgerAndEntryId.getExpectedEntryId().set(0L);
-                this.expectedLedgerAndEntryId.getLedgerId().set(this.writeLedger.ledger.getId());
             }
 
             // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks)
