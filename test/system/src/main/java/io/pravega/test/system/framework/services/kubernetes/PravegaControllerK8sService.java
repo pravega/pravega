@@ -22,6 +22,7 @@ import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -105,8 +106,9 @@ public class PravegaControllerK8sService extends AbstractService {
                            log.info("Current instance counts : Controller {} SegmentStore {}.",
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentControllerCount != newInstanceCount) {
+                               log.info("<<DEBUG>> Going to Patch controller");
                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("controllerReplicas", newInstanceCount, "pravega");
-
+                               log.info("<<DEBUG>> Patched Spec {}", Arrays.asList(patchedSpec));
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
