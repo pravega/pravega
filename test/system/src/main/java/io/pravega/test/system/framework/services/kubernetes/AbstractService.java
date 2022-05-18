@@ -59,7 +59,7 @@ public abstract class AbstractService implements Service {
     static final int BOOKKEEPER_PORT = 3181;
     static final String NAMESPACE = System.getProperty("namespace", "default");
     static final String CUSTOM_RESOURCE_GROUP_PRAVEGA = "pravega.pravega.io";
-    static final String CUSTOM_RESOURCE_VERSION_PRAVEGA = "v1beta1";
+    static final String CUSTOM_RESOURCE_VERSION_PRAVEGA = "v1";
     static final String CUSTOM_RESOURCE_API_VERSION = CUSTOM_RESOURCE_GROUP_PRAVEGA + "/" + CUSTOM_RESOURCE_VERSION_PRAVEGA;
     static final String CUSTOM_RESOURCE_PLURAL_PRAVEGA = "pravegaclusters";
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
