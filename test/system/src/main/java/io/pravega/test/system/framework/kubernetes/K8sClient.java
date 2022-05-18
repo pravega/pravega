@@ -344,7 +344,7 @@ public class K8sClient {
                                         request,
                                         null,
                                         null,
-                                        false,
+                                        true,
                                         cb1),
                                 V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH);
                         return cb1.getFuture();
