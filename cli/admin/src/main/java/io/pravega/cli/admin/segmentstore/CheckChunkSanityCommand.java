@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.storage.StorageCommand;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -28,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Executes a request to checkChunkSanity for the chosen Segment Store instance.
  */
-public class CheckChunkSanityCommand extends SegmentStoreCommand {
+public class CheckChunkSanityCommand extends StorageCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
@@ -65,6 +66,6 @@ public class CheckChunkSanityCommand extends SegmentStoreCommand {
                 new ArgDescriptor("container-id", "The container Id of the Segment Container for which sanity operation is performed."),
                 new ArgDescriptor("qualified-chunk-name", "Fully qualified name of the Chunk to perform sanity operations like (e.g., create, check if exists, write, read, delete)."),
                 new ArgDescriptor("data-size", "Data size of the bytes to be read."),
-                new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

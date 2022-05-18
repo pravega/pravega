@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.storage.StorageCommand;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -25,7 +26,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictMetaDataCacheCommand extends SegmentStoreCommand {
+public class EvictMetaDataCacheCommand extends StorageCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     public EvictMetaDataCacheCommand(CommandArgs args) {
@@ -38,7 +39,6 @@ public class EvictMetaDataCacheCommand extends SegmentStoreCommand {
 
         final int containerId = getIntArg(0);
         final String segmentStoreHost = getArg(1);
-
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -53,6 +53,6 @@ public class EvictMetaDataCacheCommand extends SegmentStoreCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Evicts all eligible entries from buffer cache and all entries from guava cache.",
                 new ArgDescriptor("container-id", "The container Id of the Segment Container for which meta data cache is evicted."),
-                new ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

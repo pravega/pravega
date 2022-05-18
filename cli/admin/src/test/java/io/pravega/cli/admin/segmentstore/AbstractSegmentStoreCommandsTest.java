@@ -77,7 +77,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     protected static final int CONTAINER_COUNT = 1;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(6000, TimeUnit.SECONDS);
 
     private ClientConfig clientConfig;
 
@@ -371,6 +371,33 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Assert.assertTrue(commandResult.contains("No fields provided to modify."));
     }
 
+    @Test
+    public void testCheckChunkStorageSanityCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("storage check-chunk-sanity 0 test 100 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Chunk sanity checked for the Segment Container with containerId 0."));
+        Assert.assertNotNull(CheckChunkSanityCommand.descriptor());
+    }
+
+    @Test
+    public void testEvictMetaDataCacheCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("storage evict-meta-data-cache 0 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Meta Data Cache evicted for the Segment Container with containerId 0."));
+        Assert.assertNotNull(EvictMetaDataCacheCommand.descriptor());
+    }
+
+    @Test
+    public void testEvictReadIndexCacheCommand() throws Exception {
+        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache 0 localhost", STATE.get());
+        Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
+        Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
+    }
+
+//    @Test
+//    public void testEvictReadIndexCacheForSegment() throws Exception {
+//        String commonResult = TestUtils.executeCommand("segmentstore evict-read-index-cache-for-segment.", STATE.get());
+//        Assert.assertTrue(commonResult.contains("Read Index Cache for segment evicted."));
+//        Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
+//    }
     @After
     public void tearDown() throws Exception {
         SETUP_UTILS.stopAllServices();

@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.storage.StorageCommand;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -26,7 +27,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
+public class EvictReadIndexCacheCommand extends StorageCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     public EvictReadIndexCacheCommand(CommandArgs args) {
@@ -38,7 +39,7 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
 
         final int containerId = getIntArg(0);
         final String segmentStoreHost = getArg(1);
-        final String fullyQualifiedSegmentName = getArg(2);
+        final String fullyQualifiedSegmentName = getArg(2, null);
 
         @Cleanup
         CuratorFramework zkClient = createZKClient();
@@ -61,7 +62,7 @@ public class EvictReadIndexCacheCommand extends SegmentStoreCommand {
     public static AdminCommand.CommandDescriptor descriptor() {
         return new AdminCommand.CommandDescriptor(COMPONENT, "evict-read-index-cache", "Evict entire Read Index Cache.",
                 new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container for which read index cache is evicted"),
-                new AdminCommand.ArgDescriptor("segmentStore-endpoint", "Address of the Segment Store we want to send this request."),
+                new AdminCommand.ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment.", true));
     }
 }

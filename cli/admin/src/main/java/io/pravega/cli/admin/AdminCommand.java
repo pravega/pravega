@@ -298,9 +298,17 @@ public abstract class AdminCommand {
         return getArg(index, String::toString);
     }
 
+    protected String getArg(int index, String defaultValue) {
+        String retValue = getArg(index, String::toString);
+        return retValue != null ? retValue : defaultValue;
+    }
+
     private <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
+            if (this.commandArgs.getArgs().size() <= index) {
+              return null;
+            }
             s = this.commandArgs.getArgs().get(index);
             return converter.apply(s);
         } catch (Exception ex) {
