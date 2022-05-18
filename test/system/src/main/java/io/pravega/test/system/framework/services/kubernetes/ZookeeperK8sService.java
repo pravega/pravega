@@ -35,7 +35,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 public class ZookeeperK8sService extends AbstractService {
 
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
-    private static final String CUSTOM_RESOURCE_VERSION = "v1";
+    private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeperclusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
@@ -105,7 +105,7 @@ public class ZookeeperK8sService extends AbstractService {
 
     private Map<String, Object> getZookeeperDeployment(final String deploymentName, final int clusterSize) {
         return ImmutableMap.<String, Object>builder()
-                .put("apiVersion", "zookeeper.pravega.io/v1")
+                .put("apiVersion", "zookeeper.pravega.io/v1beta1")
                 .put("kind", CUSTOM_RESOURCE_KIND)
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
