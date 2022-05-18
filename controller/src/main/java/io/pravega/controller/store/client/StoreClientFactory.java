@@ -99,7 +99,7 @@ public class StoreClientFactory {
                 .build();
 
         zkClient.getConnectionStateListenable().addListener((client1, newState) -> {
-            if (newState.equals(ConnectionState.LOST)) {
+            if (newState.equals(ConnectionState.LOST) || newState.equals(ConnectionState.SUSPENDED)) {
                 expiryHandler.accept(null);
             }
         });
