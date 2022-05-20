@@ -607,8 +607,7 @@ class BookKeeperLog implements DurableDataLog {
      * @return The LastAddConfirmed for the WriteLedger.
      */
     @SneakyThrows(DurableDataLogException.class)
-    @VisibleForTesting
-    long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
+    private long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
         long ledgerId = writeLedger.ledger.getId();
         long lac = lastAddsConfirmed.getOrDefault(ledgerId, -1L);
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "fetchLastAddConfirmed", ledgerId, lac);
@@ -637,8 +636,7 @@ class BookKeeperLog implements DurableDataLog {
      * @param error   Error.
      * @param write   the Write we were writing.
      */
-    @VisibleForTesting
-    void addCallback(Long entryId, Throwable error, Write write) {
+    private void addCallback(Long entryId, Throwable error, Write write) {
         try {
             if (error == null) {
                 Preconditions.checkState(entryId != null, "Confirmed entry id cannot be null.");
@@ -984,8 +982,7 @@ class BookKeeperLog implements DurableDataLog {
      * part of the Rollover Processor.
      */
     @SneakyThrows(DurableDataLogException.class) // Because this is an arg to SequentialAsyncProcessor, which wants a Runnable.
-    @VisibleForTesting
-    void rollover() {
+    private void rollover() {
         if (this.closed.get()) {
             // BookKeeperLog is closed; no point in running this.
             return;

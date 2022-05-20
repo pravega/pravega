@@ -84,10 +84,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
-    private static final int BOOKIE_COUNT = 2;
+    private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 3;
     private static final int MAX_WRITE_ATTEMPTS = 5;
-    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * 10;
+    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(100);
@@ -976,8 +976,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         private boolean throwZkException = false;
         private final AtomicInteger createExceptionCount = new AtomicInteger();
         private final AtomicInteger updateExceptionCount = new AtomicInteger();
-        @Setter
-        private volatile boolean runAddCallback = true;
 
         TestBookKeeperLog() {
             super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config.get(), executorService());
