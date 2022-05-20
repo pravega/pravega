@@ -193,7 +193,7 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                null, null, DEFAULT_TIMEOUT_MINUTES * 60, false, callback);
+                null, null, null, false, callback);
         return callback.getFuture()
                 .thenApply(v1PodList -> {
                     Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
@@ -244,7 +244,7 @@ public class K8sClient {
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods-" + labels);
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
-                null, null, DEFAULT_TIMEOUT_MINUTES * 60, false, callback);
+                null, null, null, false, callback);
         return callback.getFuture();
     }
 
@@ -344,7 +344,7 @@ public class K8sClient {
                                         request,
                                         null,
                                         null,
-                                        true,
+                                        null,
                                         cb1),
                                 V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH);
                         return cb1.getFuture();
@@ -553,7 +553,7 @@ public class K8sClient {
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
                 api.listNamespacedPodCall(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                        null, null, DEFAULT_TIMEOUT_MINUTES * 60, Boolean.TRUE, callback),
+                        null, null, null, Boolean.TRUE, callback),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
 

@@ -179,7 +179,6 @@ public abstract class AbstractService implements Service {
 
     protected static Map<String, Object> buildPatchedPravegaClusterSpec(String service, int replicaCount, String component) {
 
-        log.info("<<DEBUG>> service {}, replica count {}, component{}",service,replicaCount, component);
         final Map<String, Object> componentSpec = ImmutableMap.<String, Object>builder()
                 .put(service, replicaCount)
                 .build();
