@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -75,7 +74,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -805,55 +803,57 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
     }
 
-    //@Test
-    public void testPartialWriteDuringRollover() throws DurableDataLogException, ExecutionException, InterruptedException {
-        try (BookKeeperLog log = Mockito.spy((BookKeeperLog) createDurableDataLog())) {
+    @Test
+    public void testUnconfirmedWritesDuringRollover() throws Exception {
+        // Config to add more retry attempts to writes and prevent test to fail due to retries exhausted.
+        BookKeeperConfig config = BookKeeperConfig
+                .builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + zkPort)
+                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 100) // Increased retries.
+                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
+                .with(BookKeeperConfig.BK_DIGEST_TYPE, DigestType.DUMMY.name())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, namespace.get())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, ledgersPath.get())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
+                .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 5000)
+                .build();
+
+        try (TestBookKeeperLog log = new TestBookKeeperLog(config)) {
             log.initialize(TIMEOUT);
 
-            try {
-                // Write some events.
-                for (int i = 0; i < MAX_LEDGER_SIZE; i++) {
-                    log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
-                    System.err.println("writing event " + i);
-                }
-
-                // Suspend a bookie (this will trigger write errors).
-                stopFirstBookie();
-
-                // Now, let's assume that there has been a partial write of an event. This means that the lastAddsEntryConfirmed
-                // method shows that there is a LAC related to the ongoing writes.
-//                log.fetchLastAddConfirmed()
-
-                // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
-                // WriteFailureException (general unable to write) should be thrown.
-                AssertExtensions.assertSuppliedFutureThrows(
-                        "First write did not fail with the appropriate exception.",
-                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof RetriesExhaustedException
-                                && (ex.getCause() instanceof DataLogNotAvailableException
-                                || isLedgerClosedException(ex.getCause()))
-                                || ex instanceof ObjectClosedException
-                                || ex instanceof CancellationException);
-
-                // Subsequent writes should be rejected since the BookKeeperLog is now closed.
-                AssertExtensions.assertSuppliedFutureThrows(
-                        "Second write did not fail with the appropriate exception.",
-                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof ObjectClosedException
-                                || ex instanceof CancellationException);
-
-
-
-
-                restartFirstBookie();
-
-                // We need somw way to check that an entry has been duplciated.
-                log.getReader().getNext().getPayload();
-
-
-            } finally {
-                // Don't forget to resume the bookie.
+            // Write some events normally.
+            for (int i = 0; i < 5; i++) {
+                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
+                System.err.println("writing event " + i);
             }
+
+            // Simulate 2 written but non-confirmed writes. We do that by just writing directly to the ledger.
+            log.getWriteLedger().ledger.append(getWriteData()); // This is entryId 5 in ledger 0
+            log.getWriteLedger().ledger.append(getWriteData()); // THis is entryId 6 in ledger 0
+
+            // Then we stop one of the Bookies, so further writes cannot meet the ackQuorum.
+            stopFirstBookie();
+
+            // At this point, we add a couple of writes that represent the writes being retried but for which the write
+            // callback in the Bookkeeper write has not been executed.
+            CompletableFuture<LogAddress> firstUnconfirmedWrite = log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT);
+            LedgerAddress expectedIdForFirstUnconfirmedWrite = new LedgerAddress(5, 0);
+            CompletableFuture<LogAddress> secondUnconfirmedWrite = log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT);
+            LedgerAddress expectedIdForSecondUnconfirmedWrite = new LedgerAddress(6, 0);
+
+            // Restart the first Bookie to force a rollover, so a new ledger is created (ledger 1).
+            restartFirstBookie();
+
+            // Now, we have to check that we only have 5 + 2 writes, meaning that the 2 appends we executed realized about
+            // having unconfirmed writes that actually made it to Bookkeeper. We are completing these writes but not writing
+            // them again in Bookkeeper to prevent duplicates.
+            Assert.assertEquals(expectedIdForFirstUnconfirmedWrite.getLedgerId(), ((LedgerAddress) firstUnconfirmedWrite.join()).getLedgerId());
+            Assert.assertEquals(expectedIdForFirstUnconfirmedWrite.getEntryId(), ((LedgerAddress) firstUnconfirmedWrite.join()).getEntryId());
+            Assert.assertEquals(expectedIdForSecondUnconfirmedWrite.getLedgerId(), ((LedgerAddress) secondUnconfirmedWrite.join()).getLedgerId());
+            Assert.assertEquals(expectedIdForSecondUnconfirmedWrite.getEntryId(), ((LedgerAddress) secondUnconfirmedWrite.join()).getEntryId());
         }
     }
 
@@ -976,9 +976,15 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         private boolean throwZkException = false;
         private final AtomicInteger createExceptionCount = new AtomicInteger();
         private final AtomicInteger updateExceptionCount = new AtomicInteger();
+        @Setter
+        private volatile boolean runAddCallback = true;
 
         TestBookKeeperLog() {
             super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config.get(), executorService());
+        }
+
+        TestBookKeeperLog(BookKeeperConfig config) {
+            super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config, executorService());
         }
 
         int getCreateExceptionCount() {

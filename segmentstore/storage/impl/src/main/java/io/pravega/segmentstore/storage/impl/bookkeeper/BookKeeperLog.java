@@ -64,7 +64,6 @@ import org.apache.bookkeeper.client.api.BKException;
 import org.apache.bookkeeper.client.api.BKException.Code;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.WriteHandle;
-import org.apache.bookkeeper.net.BookieId;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -92,7 +91,7 @@ import org.apache.zookeeper.data.Stat;
  */
 @Slf4j
 @ThreadSafe
-class  BookKeeperLog implements DurableDataLog {
+class BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
@@ -118,7 +117,7 @@ class  BookKeeperLog implements DurableDataLog {
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
     private final ThrottlerSourceListenerCollection queueStateChangeListeners;
-    private final ExpectedLedgerAndEntryId expectedLedgerAndEntryId;
+    private final LedgerAndEntryIdPair lastAcknowledgedEntryId;
     //endregion
 
     //region Constructor
@@ -149,7 +148,7 @@ class  BookKeeperLog implements DurableDataLog {
         this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
         this.queueStateChangeListeners = new ThrottlerSourceListenerCollection();
-        this.expectedLedgerAndEntryId = new ExpectedLedgerAndEntryId();
+        this.lastAcknowledgedEntryId = new LedgerAndEntryIdPair();
     }
 
     private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
@@ -262,8 +261,8 @@ class  BookKeeperLog implements DurableDataLog {
 
             // Initialize the counter of expected ledger entry ids for the current ledger.
             long lac = this.writeLedger.ledger.getLastAddConfirmed();
-            this.expectedLedgerAndEntryId.getLedgerId().set(this.writeLedger.ledger.getId());
-            this.expectedLedgerAndEntryId.getExpectedEntryId().set(lac < 0 ? 0 : lac);
+            this.lastAcknowledgedEntryId.getLedgerId().set(this.writeLedger.ledger.getId());
+            this.lastAcknowledgedEntryId.getExpectedEntryId().set(lac < 0 ? 0 : lac);
         }
 
         // Delete the orphaned ledgers from BookKeeper.
@@ -464,11 +463,6 @@ class  BookKeeperLog implements DurableDataLog {
         // Check to see if any writes executed on closed ledgers, in which case they either need to be failed (if deemed
         // appropriate, or retried).
         if (handleClosedLedgers(toExecute)) {
-            // If after handling closed ledgers there has been a change in writeLedger, reset the expected entry id for the new ledger.
-            if (this.writeLedger.ledger.getId() != this.expectedLedgerAndEntryId.getLedgerId().get()) {
-                this.expectedLedgerAndEntryId.getExpectedEntryId().set(0L);
-                this.expectedLedgerAndEntryId.getLedgerId().set(this.writeLedger.ledger.getId());
-            }
             // If any changes were made to the Writes in the list, re-do the search to get a more accurate list of Writes
             // to execute (since some may have changed Ledgers, more writes may not be eligible for execution).
             toExecute = this.writes.getWritesToExecute(maxTotalSize);
@@ -488,10 +482,6 @@ class  BookKeeperLog implements DurableDataLog {
         log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
-            if (w.getExpectedEntryId() < 0) {
-                // Set to the new write the expected Entry Id for the associated Write and increment counter.
-                w.setExpectedEntryId(this.expectedLedgerAndEntryId.getExpectedEntryId().getAndIncrement());
-            }
             try {
                 // Record the beginning of a new attempt.
                 int attemptCount = w.beginAttempt();
@@ -556,11 +546,15 @@ class  BookKeeperLog implements DurableDataLog {
             // addCallback() has not been called (i.e. entryId=Long.MIN_VALUE). For this particular case, we compare the
             // expected entry id of the Write against LAC as a safety mechanism to prevent duplicate entries (see
             // https://github.com/pravega/pravega/issues/6444).
-            boolean isWriteStoredInPartialAckQuorum = isWriteStoredInPartialAckQuorum(w, lac);
-            if ((w.getEntryId() >= 0 && w.getEntryId() <= lac) || isWriteStoredInPartialAckQuorum) {
-                Preconditions.checkState(w.getEntryId() < 0 || w.getEntryId() == w.getExpectedEntryId());
-                // If it is a Write that has made it to a partial quorum, it would not have entryId assigned. So pick the expected one.
-                w.setEntryId(w.getExpectedEntryId());
+            long nonAcknowledgedWrites = getWritesStoredButNotAcknowledged(w, lac);
+            if ((w.getEntryId() >= 0 && w.getEntryId() <= lac) || nonAcknowledgedWrites > 0) {
+                if (nonAcknowledgedWrites > 0) {
+                    // We got some unconfirmed writes that made it to Bookkeeper. The entry id is calculated based on
+                    // lastAddConfirmed (inclusive), so we need to subtract one.
+                    nonAcknowledgedWrites--;
+                }
+                // For non-acknowledged writes, set their expected entry id.
+                w.setEntryId(lac - nonAcknowledgedWrites);
                 // Write was actually successful. Complete it and move on.
                 completeWrite(w);
                 anythingChanged = true;
@@ -588,21 +582,20 @@ class  BookKeeperLog implements DurableDataLog {
      * @param lastAddConfirmed  Last add confirmed by this Ledger (i.e., the highest entry id across Bookies for this Ledger).
      * @return Whether this is a partially written but not yet confirmed Write.
      */
-    private boolean isWriteStoredInPartialAckQuorum(Write w, long lastAddConfirmed) {
-        if (!w.getWriteLedger().ledger.getLedgerMetadata().getAllEnsembles().containsKey(lastAddConfirmed)) {
-            // Entry is not in ensembles map, so this is not a partial entry.
-            return false;
-        }
-        List<BookieId> lacEnsembleSize = w.getWriteLedger().ledger.getLedgerMetadata().getEnsembleAt(lastAddConfirmed);
-        boolean isPartiallyWrittenEntry = w.getEntryId() < 0
-                && lacEnsembleSize != null
-                && lacEnsembleSize.size() < w.getWriteLedger().ledger.getLedgerMetadata().getAckQuorumSize();
-
-        if (isPartiallyWrittenEntry) {
-            log.warn("{}: Found a partially written entry ({}). Skipping.", this.traceObjectId, w);
+    private long getWritesStoredButNotAcknowledged(Write w, long lastAddConfirmed) {
+        if (w.getWriteLedger().ledger.getId() != this.lastAcknowledgedEntryId.getLedgerId().get() || lastAddConfirmed < 0) {
+            // If this Write belongs to an older ledger, or we do not know the LAC, do nothing.
+            return 0L;
         }
 
-        return isPartiallyWrittenEntry;
+        long nonAcknowledgedWrites = lastAddConfirmed - this.lastAcknowledgedEntryId.getExpectedEntryId().get();
+        Preconditions.checkState(nonAcknowledgedWrites >= 0, "There are confirmed writes that have not been stored in Bookkeeper.");
+        if (nonAcknowledgedWrites > 0) {
+            log.warn("{}: Found {} non-acknowledged but written entries. Completing current one without writing it again {}.",
+                    this.traceObjectId, nonAcknowledgedWrites, w);
+        }
+
+        return nonAcknowledgedWrites;
     }
 
     /**
@@ -644,13 +637,11 @@ class  BookKeeperLog implements DurableDataLog {
      * @param error   Error.
      * @param write   the Write we were writing.
      */
-    private void addCallback(Long entryId, Throwable error, Write write) {
+    @VisibleForTesting
+    void addCallback(Long entryId, Throwable error, Write write) {
         try {
             if (error == null) {
-                assert entryId != null;
-                // Expected and actual entryIds should always match.
-                Preconditions.checkState(entryId == write.getExpectedEntryId(), String.format("Wrong expected entry id (%d) compared to actual one (%d) for ledger %d",
-                        write.getExpectedEntryId(), entryId, write.getWriteLedger().ledger.getId()));
+                Preconditions.checkState(entryId != null, "Confirmed entry id cannot be null.");
                 write.setEntryId(entryId);
                 // Successful write. If we get this, then by virtue of how the Writes are executed (always wait for writes
                 // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
@@ -683,7 +674,10 @@ class  BookKeeperLog implements DurableDataLog {
      *
      * @param write The write to complete.
      */
-    private void completeWrite(Write write) {
+    void completeWrite(Write write) {
+        // Set the last ledger entry that has been acknowledged.
+        this.lastAcknowledgedEntryId.getLedgerId().set(write.getWriteLedger().ledger.getId());
+        this.lastAcknowledgedEntryId.getExpectedEntryId().set(write.getEntryId());
         Timer t = write.complete();
         if (t != null) {
             this.metrics.bookKeeperWriteCompleted(write.getLength(), t.getElapsed());
@@ -1088,7 +1082,8 @@ class  BookKeeperLog implements DurableDataLog {
         }
     }
 
-    private WriteLedger getWriteLedger() {
+    @VisibleForTesting
+    WriteLedger getWriteLedger() {
         synchronized (this.lock) {
             return this.writeLedger;
         }
@@ -1103,7 +1098,7 @@ class  BookKeeperLog implements DurableDataLog {
     }
 
     @Getter
-    static class ExpectedLedgerAndEntryId {
+    static class LedgerAndEntryIdPair {
         private final AtomicLong ledgerId = new AtomicLong(0L);
         private final AtomicLong expectedEntryId = new AtomicLong(0L);
     }

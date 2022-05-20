@@ -44,7 +44,6 @@ class Write {
     private final AtomicInteger attemptCount;
     private final AtomicReference<WriteLedger> writeLedger;
     private final AtomicLong entryId;
-    private final AtomicLong expectedEntryId;
     private final AtomicReference<Timer> beginAttemptTimer;
     private final AtomicReference<Throwable> failureCause;
     @Getter
@@ -72,7 +71,6 @@ class Write {
         this.attemptCount = new AtomicInteger();
         this.failureCause = new AtomicReference<>();
         this.entryId = new AtomicLong(Long.MIN_VALUE);
-        this.expectedEntryId = new AtomicLong(Long.MIN_VALUE);
         this.beginAttemptTimer = new AtomicReference<>();
     }
 
@@ -104,7 +102,6 @@ class Write {
     void setWriteLedger(WriteLedger writeLedger) {
         this.writeLedger.set(writeLedger);
         this.entryId.set(Long.MIN_VALUE);
-        this.expectedEntryId.set(Long.MIN_VALUE);
     }
 
     /**
@@ -124,26 +121,6 @@ class Write {
      */
     long getEntryId() {
         return this.entryId.get();
-    }
-
-    /**
-     * Sets the expected assigned Ledger Entry Id for this Write. In general, this should be always equal to entryId.
-     * This field is used as a safety mechanism to keep track of partial writes that could happen across ledger rollovers
-     * (see https://github.com/pravega/pravega/issues/6444).
-     *
-     * @param value
-     */
-    void setExpectedEntryId(long value) {
-        this.expectedEntryId.set(value);
-    }
-
-    /**
-     * Gets the expected Ledger Entry Id.
-     *
-     * @return Expected Ledger Entry Id.
-     */
-    long getExpectedEntryId() {
-        return this.expectedEntryId.get();
     }
 
     /**
@@ -226,9 +203,9 @@ class Write {
 
     @Override
     public String toString() {
-        return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s, EntryId = %s, ExpectedEntryId = %s",
+        return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
                 this.writeLedger.get().metadata.getLedgerId(), getLength(), this.attemptCount, isInProgress(),
-                isDone(), this.failureCause.get() != null, this.entryId, this.expectedEntryId);
+                isDone(), this.failureCause.get() != null);
     }
 
     //endregion
