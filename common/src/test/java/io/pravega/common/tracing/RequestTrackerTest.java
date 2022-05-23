@@ -67,8 +67,8 @@ public class RequestTrackerTest {
      * with the same request descriptor. That is, due to the idempotence of traced operations, there cannot be multiple
      * concurrent requests performing actual changes on the system's state (e.g., createStream, deleteStream). Therefore,
      * the policy adopted is that in the case of concurrent operations with the same request descriptor, the first id
-     * in the descriptor's associated list will represent all the side-effects of that operation; this includes the
-     * activity of the requests that does perform changes in the system, as well as the other requests that are rejected.
+     * in the descriptor's associated list will represent all the side effects of that operation; this includes the
+     * activity of the requests that perform changes in the system, as well as the other requests that are rejected.
      * Note that from a debugging perspective, we log the requests ids that are represented by the first one on the list.
      */
     @Test
@@ -77,17 +77,58 @@ public class RequestTrackerTest {
         final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
 
         // Log multiple request ids associated with the same request descriptor and assert that the first one is retrieved.
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < RequestTracker.MAX_PARALLEL_REQUESTS; i++) {
             requestTracker.trackRequest(requestDescriptor, i);
             Assert.assertEquals(0, requestTracker.getRequestIdFor(requestDescriptor));
         }
+        Assert.assertEquals(1, requestTracker.getNumDescriptors());
 
         // When untracking requests ids from the descriptor, the most recent ones should be removed first.
-        for (int i = 9; i >= 0; i--) {
+        for (int i = RequestTracker.MAX_PARALLEL_REQUESTS - 1; i >= 0; i--) {
             Assert.assertEquals(i, requestTracker.untrackRequest(requestDescriptor));
         }
 
         // Getting a non-existing key, so a default value is retrieved.
         Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.getRequestIdFor(requestDescriptor));
+        Assert.assertEquals(0, requestTracker.getNumDescriptors());
+        Assert.assertNotNull(requestTracker.initializeAndTrackRequestTag(123L, "createStream", "scope", "stream"));
+    }
+
+    /**
+     * Tests the behavior of parallel requests when they outnumber the max size for parallel requests defined in
+     * {@link RequestTracker}.
+     */
+    @Test
+    public void testMoreThanMaxParallelRequestsWithSameDescriptor() {
+        RequestTracker requestTracker = new RequestTracker(true);
+        final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
+
+        // Log multiple request ids associated with the same request descriptor and assert that the first one is retrieved.
+        // Note that we should always keep
+        int totalParallelRequests = RequestTracker.MAX_PARALLEL_REQUESTS * 10;
+        for (int i = 0; i < totalParallelRequests; i++) {
+            requestTracker.trackRequest(requestDescriptor, i);
+            Assert.assertEquals(0, requestTracker.getRequestIdFor(requestDescriptor));
+        }
+
+        // When untracking requests ids from the descriptor, the most recent ones should be removed first.
+        for (int i = totalParallelRequests - 1; i > totalParallelRequests - RequestTracker.MAX_PARALLEL_REQUESTS; i--) {
+            Assert.assertEquals(i, requestTracker.untrackRequest(requestDescriptor));
+        }
+
+        // Getting a non-existing key, so a default value is retrieved.
+        Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.getRequestIdFor(requestDescriptor));
+    }
+
+    @Test
+    public void testDisabledRequestTracking() {
+        RequestTracker requestTracker = new RequestTracker(false);
+        final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
+        requestTracker.trackRequest(requestDescriptor, 123L);
+        Assert.assertFalse(requestTracker.isTracingEnabled());
+        Assert.assertEquals(requestTracker.getRequestIdFor(requestDescriptor), RequestTag.NON_EXISTENT_ID);
+        Assert.assertEquals(requestTracker.getRequestIdFor("createStream", "scope", "stream"), RequestTag.NON_EXISTENT_ID);
+        Assert.assertEquals(requestTracker.untrackRequest(requestTracker.getRequestTagFor("createStream", "scope", "stream")), RequestTag.NON_EXISTENT_ID);
+        Assert.assertNotNull(requestTracker.initializeAndTrackRequestTag(123L, "createStream", "scope", "stream"));
     }
 }
