@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -170,7 +169,7 @@ public final class RequestTracker {
         synchronized (lock) {
             List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
             if (requestIds == null) {
-                requestIds = Collections.synchronizedList(new ArrayList<>());
+                requestIds = new ArrayList<>();
                 ongoingRequests.put(requestDescriptor, requestIds);
             }
 
@@ -263,6 +262,8 @@ public final class RequestTracker {
      */
     @VisibleForTesting
     public long getNumDescriptors() {
-        return ongoingRequests.size();
+        synchronized (lock) {
+            return ongoingRequests.size();
+        }
     }
 }
