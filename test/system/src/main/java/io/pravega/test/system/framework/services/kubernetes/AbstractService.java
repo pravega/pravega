@@ -136,7 +136,7 @@ public abstract class AbstractService implements Service {
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
                 .put("controllerjvmOptions", getControllerJVMOptions())
-                .put("segmentStorePodAffinity", getPodAntiAffinity())
+                .put("segmentStorePodAffinity", getSegmentStoreAntiAffinityPolicy())
                 .build();
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
@@ -161,7 +161,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private Object getPodAntiAffinity() {
+    private Object getSegmentStoreAntiAffinityPolicy() {
         return ImmutableMap.of("podAntiAffinity",
                 ImmutableMap.of("requiredDuringSchedulingIgnoredDuringExecution", Arrays.asList(
                         ImmutableMap.<String, Object>builder()
