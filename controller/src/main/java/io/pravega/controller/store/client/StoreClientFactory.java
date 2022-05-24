@@ -128,6 +128,8 @@ public class StoreClientFactory {
                 this.sessionTimeout = sessionTimeout;
                 this.canBeReadOnly = canBeReadOnly;
             }
+            // Ensure that a new instance of Zookeeper clients in Curator are always created
+            // So it can be resolved to a new IP in the case of a Zookeeper instance restart.
             this.client = new ZooKeeper(this.connectString, this.sessionTimeout, watcher, this.canBeReadOnly);
             return this.client;
         }
