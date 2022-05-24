@@ -82,10 +82,10 @@ public class K8SequentialExecutor implements TestExecutor {
                     }
                     return client.waitUntilPodCompletes(NAMESPACE, podName);
                 }).handle((s, t) -> {
-                    Futures.getAndHandleExceptions(logDownload.get(), t1 -> {
-                        log.error("Failed to download logs for {}#{}", className, methodName, t1);
-                        return null;
-                    });
+                       Futures.getAndHandleExceptions(logDownload.get(), t1 -> {
+                           log.error("Failed to download logs for {}#{}", className, methodName, t1);
+                           return null;
+                       });
                     if (t == null) {
                         log.info("Test {}#{} execution completed with status {}", className, methodName, s);
                         verifyPravegaPodRestart(podStatusBeforeTest, getPravegaPodStatus(client));
@@ -130,20 +130,20 @@ public class K8SequentialExecutor implements TestExecutor {
         V1Pod pod =  new V1Pod()
                 .metadata(new V1ObjectMeta().name(podName).namespace(NAMESPACE).labels(ImmutableMap.of("POD_NAME", podName, "app", APP)))
                 .spec( new V1PodSpec().serviceAccountName(SERVICE_ACCOUNT).automountServiceAccountToken(true)
-                        .volumes(ImmutableList.of(new V1Volume().name("task-pv-storage")
-                                .persistentVolumeClaim(new V1PersistentVolumeClaimVolumeSource().claimName("task-pv-claim"))
-                        ))
-                        .containers( ImmutableList.of( new V1Container()
-                                .name(podName) // container name is same as that of the pod.
-                                .image(TEST_POD_IMAGE)
-                                .imagePullPolicy("IfNotPresent")
-                                .command(ImmutableList.of("/bin/sh"))
-                                .args( ImmutableList.of("-c", "java" +
-                                        getArgs() +
-                                        " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?"))
-                                .volumeMounts(ImmutableList.of(new V1VolumeMount().mountPath("/data").name("task-pv-storage")))
-                        ))
-                        .restartPolicy("Never"));
+                .volumes(ImmutableList.of(new V1Volume().name("task-pv-storage")
+                    .persistentVolumeClaim(new V1PersistentVolumeClaimVolumeSource().claimName("task-pv-claim"))
+                    ))
+                .containers( ImmutableList.of( new V1Container()
+                .name(podName) // container name is same as that of the pod.
+                .image(TEST_POD_IMAGE)
+                .imagePullPolicy("IfNotPresent")
+                .command(ImmutableList.of("/bin/sh"))
+                .args( ImmutableList.of("-c", "java" +
+                    getArgs() +
+                    " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?"))
+                .volumeMounts(ImmutableList.of(new V1VolumeMount().mountPath("/data").name("task-pv-storage")))
+                ))
+                .restartPolicy("Never"));
         if (Utils.TLS_AND_AUTH_ENABLED) {
             pod.getSpec().getVolumes().add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().defaultMode(420).secretName(Utils.TLS_SECRET_NAME)));
             pod.getSpec().getContainers().get(0).addVolumeMountsItem(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-secret"));

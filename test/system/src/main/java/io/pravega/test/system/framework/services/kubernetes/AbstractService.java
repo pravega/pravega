@@ -109,11 +109,11 @@ public abstract class AbstractService implements Service {
         return registerTLSSecret()
                 .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                        NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                        getPravegaOnlyDeployment(zkUri.getAuthority(),
-                                controllerCount,
-                                segmentStoreCount,
-                                props)));
+                                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+                                getPravegaOnlyDeployment(zkUri.getAuthority(),
+                                        controllerCount,
+                                        segmentStoreCount,
+                                        props)));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -122,7 +122,7 @@ public abstract class AbstractService implements Service {
         final String pravegaImg = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
         final Map<String, Object> pravegaImgSpec;
 
-        pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
+         pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
 
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                 .put("segmentStoreReplicas", segmentStoreCount)
@@ -198,7 +198,7 @@ public abstract class AbstractService implements Service {
         log.info("Loading tier2Type = {}", TIER2_TYPE);
         if (TIER2_TYPE.equalsIgnoreCase(TIER2_NFS)) {
             spec = ImmutableMap.of("filesystem", ImmutableMap.of("persistentVolumeClaim",
-                    ImmutableMap.of("claimName", "pravega-tier2")));
+                                                                 ImmutableMap.of("claimName", "pravega-tier2")));
         } else if (TIER2_TYPE.equalsIgnoreCase("custom")) {
             spec = getCustomTier2Config();
         } else {
@@ -211,9 +211,9 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getCustomTier2Config() {
         return ImmutableMap.of("custom",
                 ImmutableMap.<String, Object>builder()
-                        .put("options", getTier2Config())
-                        .put("env", getTier2Env())
-                        .build());
+                                .put("options", getTier2Config())
+                                .put("env", getTier2Env())
+                                .build());
     }
 
     private Map<String, Object> getTier2Config() {
@@ -344,9 +344,9 @@ public abstract class AbstractService implements Service {
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
-        Map<String, String>  dataMap = new HashMap<>();
-        dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
-        dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
+            Map<String, String>  dataMap = new HashMap<>();
+            dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
+            dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
 
         return new V1ConfigMap().apiVersion("v1")
                 .kind("ConfigMap")
