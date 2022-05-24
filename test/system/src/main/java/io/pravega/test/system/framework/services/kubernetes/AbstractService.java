@@ -18,10 +18,8 @@ package io.pravega.test.system.framework.services.kubernetes;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.openapi.models.V1Secret;
-import io.kubernetes.client.openapi.models.V1SecretBuilder;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
-import io.kubernetes.client.openapi.models.V1ConfigMapBuilder;
 import io.kubernetes.client.util.Yaml;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
@@ -114,9 +112,9 @@ public abstract class AbstractService implements Service {
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
                 NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
                 getPravegaOnlyDeployment(zkUri.getAuthority(),
-                        controllerCount,
-                        segmentStoreCount,
-                        props)));
+                controllerCount,
+                segmentStoreCount,
+                props)));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -338,14 +336,13 @@ public abstract class AbstractService implements Service {
     private V1Secret authSecret() {
         Map<String, String>  dataMap = new HashMap<>();
         dataMap.put("password.txt", "YWRtaW46MzUzMDMwMzAzYTM4MzYzNTM0MzE2MTYxNjQ2NDMyMzE2MTM4MzkzMjM4NjQzNzYxMzgzMTMxMzQzOTYxMzA2MTM4NjQ2NDM3MzQ2MjM2NjU2MjM0NjIzMTMwMzgzNTYzNjIzMDMyMzE2NjY2NjQzNzY0NjMzMjM1NjMzMDM0MzA2MzM0NjE2MjY1M2E2MTY1MzEzNDM4MzkzNDM5MzQzMzMyMzczOTMyMzgzNzMyNjU2MTYxNjQ2NjMyNjEzNDM5NjQzMzY2NjM2MTY0MzkzNDY2NjU2MjY1NjE2NTY0MzA2NDYxMzMzNDM2NjIzNzMxMzE2MzM5MzIzOTM1MzQzMzM1NjI2MzY2NjY2NTY1MzUzNjMzNjM2NjM1NjEzNzM0MzQ2MTY2MzczMzYxMzEzMTMxNjYzMDM4MzAzNjM1MzkzMDM0MzQ2NjM0Mzc2NDMyMzYzOTM5MzA2NDM5Mzk2NTM4NjUzMTYyMzMzNDM4MzU2NDY1MzE2MzMxMzgzMjYzMzMzMTY2NjQ2MTMxOiosUkVBRF9VUERBVEUKdGVzdHJlYWQ6MzUzMDMwMzAzYTYxMzM2MTM2NjYzOTMwMzg2NjMxMzg2MjMxMzIzOTY1NjMzMTM5NjMzNjMyNjM2MzMxMzYzNzM5MzQ2MTY1NjUzNzYzNjQzOTYzNjUzNjYzMzMzNDMwNjIzNjMxMzM2NjM0NjIzNDMxNjIzNTMxNjQzNTY0MzY2NDY1NjY2MzYyM2E2NTYzNjYzNzY1NjE2MjM4NjYzMzY2NjQzMDMzMzI2NjMwNjQ2NDM1NjQzOTYyMzczNjM3Mzg2NTYyMzY2MzY2NjUzMDM4MzgzNDYxMzAzMDM2NjMzODMzNjUzMjYxMzc2MTYzMzIzODMyNjMzNDMzMzc2NjMyNjIzNTY2NjMzNjMyMzc2NDYyNjUzODM4MzEzMjM5MzAzNzM2MzgzOTM1MzAzMjM2NjE2NjYzMzczNzMwMzk2NjMwMzAzNDM4MzMzMDMxNjQzOTYyMzk2NTM5NjMzMjY1NjQzODM4MzY2MTYxMzAzNjMxMzU2MTM1NjIzNDMxMzIzOTM1NjUzMDY1OiosUkVBRAoK");
-        return new V1SecretBuilder()
-                .withStringData(dataMap)
-                .withApiVersion("v1")
-                .withKind("Secret")
-                .withMetadata(new V1ObjectMeta().name(SECRET_NAME_USED_FOR_AUTH))
-                .withType("Opaque")
-                .withStringData(dataMap)
-                .build();
+        return new V1Secret()
+                .stringData(dataMap)
+                .apiVersion("v1")
+                .kind("Secret")
+                .metadata(new V1ObjectMeta().name(SECRET_NAME_USED_FOR_AUTH))
+                .type("Opaque")
+                .stringData(dataMap);
     }
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
@@ -367,11 +364,10 @@ public abstract class AbstractService implements Service {
             dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
             dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
 
-        return new V1ConfigMapBuilder().withApiVersion("v1")
-                .withKind("ConfigMap")
-                .withMetadata(new V1ObjectMeta().name(CONFIG_MAP_BOOKKEEPER))
-                .withData(dataMap)
-                .build();
+        return new V1ConfigMap().apiVersion("v1")
+                .kind("ConfigMap")
+                .metadata(new V1ObjectMeta().name(CONFIG_MAP_BOOKKEEPER))
+                .data(dataMap);
     }
 
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
