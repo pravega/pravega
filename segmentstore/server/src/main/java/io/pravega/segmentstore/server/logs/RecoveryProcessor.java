@@ -42,6 +42,10 @@ import lombok.extern.slf4j.Slf4j;
 class RecoveryProcessor {
     //region Members
 
+    // Determines how many entries we keep track of in order to compare for duplicate log entries in the recent past
+    // upon recovery. If there is a duplicate entry, but it is beyond that point, an exception will be thrown anyway.
+    private final static int MAX_OVERLAP_TO_CHECK_DUPLICATES = 25;
+
     @Getter (AccessLevel.PROTECTED)
     private final UpdateableContainerMetadata metadata;
     @Getter (AccessLevel.PROTECTED)
@@ -142,6 +146,7 @@ class RecoveryProcessor {
         // Also update metadata along the way.
         try (DataFrameReader<Operation> reader = createDataFrameReader()) {
             DataFrameRecord<Operation> dataFrameRecord;
+            reader.getMaxOverlapToCheckForDuplicates().set(MAX_OVERLAP_TO_CHECK_DUPLICATES);
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.
             while (true) {

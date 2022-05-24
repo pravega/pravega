@@ -15,12 +15,15 @@
  */
 package io.pravega.segmentstore.storage;
 
+import lombok.EqualsAndHashCode;
+
 /**
  * Represents the base for an addressing scheme inside a DurableDataLog. This can be used for accurately locating where
  * DataFrames are stored inside a DurableDataLog.
  *
  * Subclasses would be specific to DurableDataLog implementations.
  */
+@EqualsAndHashCode
 public abstract class LogAddress {
     private final long sequence;
 

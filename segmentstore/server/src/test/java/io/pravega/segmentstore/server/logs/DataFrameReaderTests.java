@@ -215,13 +215,24 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test DataFrameReader in case of reading a log with duplicate entries. The expected output should be having only
-     * the unique items, skipping the duplicate ones.
-     *
-     * @throws Exception
+     * Test DataFrameReader in case of reading a log with duplicate entries and no tolerance to repeated entries upon recovery.
+     * The expected output is to throw DataCorruptionException while reading the log.
      */
     @Test
-    public void testWithDuplicateLogItems() throws Exception {
+    public void testWithDuplicateLogItemsAndNoToleranceToDuplicates() {
+        AssertExtensions.assertThrows(DataCorruptionException.class, () -> testWithDuplicateLogItems(0));
+    }
+
+    /**
+     * Test DataFrameReader in case of reading a log with duplicate entries and tolerance to repeated entries upon recovery
+     * (up to 10 elements behind). The expected output is to read the log skipping duplicate entries.
+     */
+    @Test
+    public void testWithDuplicateLogItemsAndToleranceToDuplicates() throws Exception {
+        testWithDuplicateLogItems(10);
+    }
+
+    private void testWithDuplicateLogItems(int toleratedOverlap) throws Exception {
         long startSeqNo = 0;
         int count = 100;
         int minSize = 10;
@@ -250,13 +261,14 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args)) {
                 for (TestLogItem testLogItem : result) {
                     b.append(testLogItem);
+                    b.flush();
                 }
-                b.flush();
             }
 
             TestSerializer logItemFactory = new TestSerializer();
             @Cleanup
             DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID);
+            reader.getMaxOverlapToCheckForDuplicates().set(toleratedOverlap);
             List<TestLogItem> readItems = readAll(reader);
             Assert.assertEquals(count, readItems.size());
             int actualSeqNumber = 0;
