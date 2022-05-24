@@ -43,6 +43,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("write.quorum.size", 3, "bkWriteQuorumSize");
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("write.timeout.milliseconds", 60000, "bkWriteTimeoutMillis");
     public static final Property<Integer> BK_READ_TIMEOUT = Property.named("read.timeout.milliseconds", 30000, "bkReadTimeoutMillis");
+    public static final Property<Integer> BK_USER_TCP_TIMEOUT = Property.named("user.tcp.timeout.milliseconds", 10000);
     public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("read.batch.size", 64, "readBatchSize");
     public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstanding.bytes.max", 256 * 1024 * 1024, "maxOutstandingBytes");
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("ledger.size.max", 1024 * 1024 * 1024, "bkLedgerMaxSize");
@@ -141,6 +142,12 @@ public class BookKeeperConfig {
     private final int bkReadTimeoutMillis;
 
     /**
+     * The timeout for non-responsive TCP connections, in milliseconds.
+     */
+    @Getter
+    private final int bkUserTcpTimeoutMillis;
+
+    /**
      * The number of Ledger Entries to read at once from BookKeeper.
      */
     @Getter
@@ -215,6 +222,7 @@ public class BookKeeperConfig {
 
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
+        this.bkUserTcpTimeoutMillis = properties.getInt(BK_USER_TCP_TIMEOUT);
         this.bkReadBatchSize = properties.getInt(BK_READ_BATCH_SIZE);
         if (this.bkReadBatchSize < 1) {
             throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a positive integer.",

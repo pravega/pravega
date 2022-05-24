@@ -17,11 +17,10 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.controller.util.Config;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.Property;
+import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.host.ServiceStarter;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -31,13 +30,13 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
@@ -56,8 +55,8 @@ class OutOfProcessAdapter extends ExternalAdapter {
     private final ServiceBuilderConfig builderConfig;
     private final AtomicReference<Process> zooKeeperProcess;
     private final AtomicReference<Process> bookieProcess;
-    private final List<Process> segmentStoreProcesses;
-    private final List<Process> controllerProcesses;
+    private final AtomicReference<List<Process>> segmentStoreProcesses;
+    private final AtomicReference<List<Process>> controllerProcesses;
     private final AtomicReference<File> segmentStoreRoot;
     private final Thread destroyChildProcesses;
 
@@ -80,8 +79,8 @@ class OutOfProcessAdapter extends ExternalAdapter {
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.zooKeeperProcess = new AtomicReference<>();
         this.bookieProcess = new AtomicReference<>();
-        this.segmentStoreProcesses = Collections.synchronizedList(new ArrayList<>());
-        this.controllerProcesses = Collections.synchronizedList(new ArrayList<>());
+        this.segmentStoreProcesses = new AtomicReference<>();
+        this.controllerProcesses = new AtomicReference<>();
         this.segmentStoreRoot = new AtomicReference<>();
 
         // Make sure the child processes and any created files get killed/deleted if the process is terminated.
@@ -126,9 +125,9 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     private void destroyExternalComponents() {
         // Stop all services.
-        int controllerCount = stopProcesses(this.controllerProcesses);
+        int controllerCount = stopProcesses(this.controllerProcesses.getAndSet(null));
         log("Controller(s) (%d count) shut down.", controllerCount);
-        int segmentStoreCount = stopProcesses(this.segmentStoreProcesses);
+        int segmentStoreCount = stopProcesses(this.segmentStoreProcesses.getAndSet(null));
         log("SegmentStore(s) (%d count) shut down.", segmentStoreCount);
         stopProcess(this.bookieProcess);
         log("Bookies shut down.");
@@ -185,10 +184,11 @@ class OutOfProcessAdapter extends ExternalAdapter {
     }
 
     private void startAllControllers() throws IOException {
-        Preconditions.checkState(this.controllerProcesses.size() == 0, "At least one Controller is already started.");
+        List<Process> controllers = new ArrayList<>(); 
         for (int i = 0; i < this.testConfig.getControllerCount(); i++) {
-            this.controllerProcesses.add(startController(i));
+            controllers.add(startController(i));
         }
+        Preconditions.checkState(this.controllerProcesses.compareAndSet(null, controllers), "At least one Controller is already started.");
     }
 
     private Process startController(int controllerId) throws IOException {
@@ -222,11 +222,12 @@ class OutOfProcessAdapter extends ExternalAdapter {
     }
 
     private void startAllSegmentStores() throws IOException {
-        Preconditions.checkState(this.segmentStoreProcesses.size() == 0, "At least one SegmentStore is already started.");
+        List<Process> segmentStores = new ArrayList<>(); 
         createSegmentStoreFileSystem();
         for (int i = 0; i < this.testConfig.getSegmentStoreCount(); i++) {
-            this.segmentStoreProcesses.add(startSegmentStore(i));
+            segmentStores.add(startSegmentStore(i));
         }
+        Preconditions.checkState(this.segmentStoreProcesses.compareAndSet(null, segmentStores), "At least one SegmentStore is already started.");
     }
 
     private Process startSegmentStore(int segmentStoreId) throws IOException {
