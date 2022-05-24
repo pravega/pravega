@@ -145,7 +145,7 @@ public class K8SequentialExecutor implements TestExecutor {
                 ))
                 .restartPolicy("Never"));
         if (Utils.TLS_AND_AUTH_ENABLED) {
-            pod.getSpec().getVolumes().add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().defaultMode(420).secretName(Utils.TLS_SECRET_NAME)));
+            pod.getSpec().getVolumes().add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().secretName(Utils.TLS_SECRET_NAME)));
             pod.getSpec().getContainers().get(0).addVolumeMountsItem(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-secret"));
         }
         return pod;

@@ -109,11 +109,11 @@ public abstract class AbstractService implements Service {
         return registerTLSSecret()
                 .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                                getPravegaOnlyDeployment(zkUri.getAuthority(),
-                                        controllerCount,
-                                        segmentStoreCount,
-                                        props)));
+                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+                getPravegaOnlyDeployment(zkUri.getAuthority(),
+                controllerCount,
+                segmentStoreCount,
+                props)));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -211,9 +211,9 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getCustomTier2Config() {
         return ImmutableMap.of("custom",
                 ImmutableMap.<String, Object>builder()
-                                .put("options", getTier2Config())
-                                .put("env", getTier2Env())
-                                .build());
+                .put("options", getTier2Config())
+                .put("env", getTier2Env())
+                .build());
     }
 
     private Map<String, Object> getTier2Config() {
