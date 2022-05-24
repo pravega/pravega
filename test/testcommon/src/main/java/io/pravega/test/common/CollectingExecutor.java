@@ -17,8 +17,8 @@ package io.pravega.test.common;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
@@ -35,7 +35,7 @@ import lombok.Data;
  */
 public class CollectingExecutor implements ScheduledExecutorService {
 
-    private final List<Runnable> tasks = Collections.synchronizedList(new ArrayList<>());
+    private final List<Runnable> tasks = new Vector<>();
     
     @Override
     public void shutdown() {
@@ -159,7 +159,7 @@ public class CollectingExecutor implements ScheduledExecutorService {
     }
 
     public List<Runnable> getScheduledTasks() { 
-        return Collections.unmodifiableList(tasks);
+        return new ArrayList<>(tasks);
     }
     
     @Data
