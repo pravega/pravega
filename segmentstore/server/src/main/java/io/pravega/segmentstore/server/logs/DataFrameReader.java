@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -51,7 +50,7 @@ class DataFrameReader<T extends SequencedElement> implements CloseableIterator<D
     private boolean closed;
     private final String traceObjectId;
     @Getter (AccessLevel.PACKAGE)
-    private final AtomicInteger maxOverlapToCheckForDuplicates = new AtomicInteger(0); // Default, no tolerance to repeated elements.
+    private final int maxOverlapToCheckForDuplicates;
     private final DuplicateEntryTracker duplicateEntryTracker = new DuplicateEntryTracker();
 
     //endregion
@@ -68,12 +67,27 @@ class DataFrameReader<T extends SequencedElement> implements CloseableIterator<D
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
     DataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId) throws DurableDataLogException {
+        this(log, serializer, containerId, 0); // By default, tolerate no duplicates.
+    }
+
+    /**
+     * Creates a new instance of the DataFrameReader class.
+     *
+     * @param log            The DataFrameLog to read data frames from.
+     * @param serializer A Serializer to create LogItems upon deserialization.
+     * @param containerId    The Container Id for the DataFrameReader (used primarily for logging).
+     * @param maxOverlapToCheckForDuplicates Max number of log items to keep track of to check for duplicates.
+     * @throws NullPointerException    If any of the arguments are null.
+     * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
+     */
+    DataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId, int maxOverlapToCheckForDuplicates) throws DurableDataLogException {
         Preconditions.checkNotNull(log, "log");
         Preconditions.checkNotNull(serializer, "serializer");
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.traceObjectId = String.format("DataFrameReader[%d]", containerId);
         this.dataFrameInputStream = new DataFrameInputStream(log.getReader(), this.traceObjectId);
         this.serializer = serializer;
+        this.maxOverlapToCheckForDuplicates = maxOverlapToCheckForDuplicates;
     }
 
     //endregion
@@ -173,7 +187,7 @@ class DataFrameReader<T extends SequencedElement> implements CloseableIterator<D
         this.duplicateEntryTracker.put(seqNo, logItem);
 
         // Remove exceeding elements from tracking map.
-        if (this.duplicateEntryTracker.getNumTrackedElements() > this.maxOverlapToCheckForDuplicates.get()) {
+        if (this.duplicateEntryTracker.getNumTrackedElements() > this.maxOverlapToCheckForDuplicates) {
             this.duplicateEntryTracker.removeLast();
         }
     }
@@ -182,7 +196,7 @@ class DataFrameReader<T extends SequencedElement> implements CloseableIterator<D
         // Check if the duplicate comes from too far behind. In this case, we will report DCE anyway.
         if (!duplicateEntryTracker.containsKey(seqNo)) {
             log.warn("{}: Seems that we have found a duplicate {}, but it exceeds the max number of tracking elements {}.",
-                    this.traceObjectId, seqNo, this.maxOverlapToCheckForDuplicates.get());
+                    this.traceObjectId, seqNo, this.maxOverlapToCheckForDuplicates);
             return false;
         }
 

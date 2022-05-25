@@ -267,8 +267,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             TestSerializer logItemFactory = new TestSerializer();
             @Cleanup
-            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID);
-            reader.getMaxOverlapToCheckForDuplicates().set(toleratedOverlap);
+            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID, toleratedOverlap);
             List<TestLogItem> readItems = readAll(reader);
             Assert.assertEquals(count, readItems.size());
             int actualSeqNumber = 0;
