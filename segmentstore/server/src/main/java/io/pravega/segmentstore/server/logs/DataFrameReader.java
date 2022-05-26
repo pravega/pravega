@@ -33,6 +33,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 /**
  * Decomposes Data Frames into the Log Operations that were serialized into them. Uses a DataFrameLog as an input, reads
  * it in order from the beginning, and returns all successfully serialized Log Operations from them in the order in which
@@ -40,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Getter (AccessLevel.PROTECTED)
+@NotThreadSafe
 class DataFrameReader<T extends SequencedElement> implements CloseableIterator<DataFrameRecord<T>, Exception> {
     //region Members
 
@@ -227,6 +230,7 @@ class DataFrameReader<T extends SequencedElement> implements CloseableIterator<D
      * Helper class to keep track of recent read items from the log in order to check if it is safe to discard duplicate
      * entries that could have been written to the log.
      */
+    @NotThreadSafe
     private static class DuplicateEntryTracker {
         private final Map<Long, DataFrameRecord.RecordInfo> lastProcessedLogItems = new LinkedHashMap<>();
 
