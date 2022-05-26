@@ -93,7 +93,7 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         sessionExpiry.join();
 
-        // Check that, once closed by the ZKClientFactory, the client throws an expected exception (SessionExpiredException).
-        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath(testZNode));
+        // Check that, once closed by the ZKClientFactory, the client throws an expected exception (ConnectionLossException).
+        AssertExtensions.assertThrows(KeeperException.ConnectionLossException.class, () -> client.getData().forPath(testZNode));
     }
 }
