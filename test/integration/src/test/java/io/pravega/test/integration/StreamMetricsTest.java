@@ -168,7 +168,7 @@ public class StreamMetricsTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void testStreamsAndScopesBasicMetricsTests() throws Exception {
         String scopeName = "scopeBasic";
         String streamName = "streamBasic";
