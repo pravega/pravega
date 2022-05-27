@@ -59,8 +59,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -69,8 +72,7 @@ import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @Slf4j
 @RunWith(SerializedClassRunner.class)
@@ -166,7 +168,7 @@ public class StreamMetricsTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test(timeout = 30000)
+    @Test//(timeout = 30000)
     public void testStreamsAndScopesBasicMetricsTests() throws Exception {
         String scopeName = "scopeBasic";
         String streamName = "streamBasic";
@@ -218,11 +220,15 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
 
+        assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_LATENCY) > 0);
+
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();
         controllerWrapper.getControllerService().deleteScope(scopeName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+
+        assertTrue(getTimerMillis(MetricsNames.DELETE_STREAM_EVENT_LATENCY)>0);
 
         String failedScope = "failedScope";
         String failedStream = "failedStream";
@@ -253,6 +259,11 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
+    }
+
+    private long getTimerMillis(String timerName) {
+        val t = MetricRegistryUtils.getTimer(timerName);
+        return (long) t.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)

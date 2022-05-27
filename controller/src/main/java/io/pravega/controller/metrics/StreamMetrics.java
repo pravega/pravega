@@ -66,6 +66,8 @@ import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_STREAM_EVENT_LATENCY;
+import static io.pravega.shared.MetricsNames.SEAL_STREAM_EVENT_LATENCY;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -81,6 +83,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger createStreamLatency;
     private final OpStatsLogger deleteStreamLatency;
     private final OpStatsLogger sealStreamLatency;
+    private final OpStatsLogger deleteStreamEventLatency;
+    private final OpStatsLogger sealStreamEventLatency;
     private final OpStatsLogger updateStreamLatency;
     private final OpStatsLogger addReaderGroupLatency;
     private final OpStatsLogger truncateStreamLatency;
@@ -96,6 +100,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
         deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
+        deleteStreamEventLatency = STATS_LOGGER.createStats(DELETE_STREAM_EVENT_LATENCY);
+        sealStreamEventLatency = STATS_LOGGER.createStats(SEAL_STREAM_EVENT_LATENCY);
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
@@ -241,6 +247,24 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void deleteStream(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM, 1);
         deleteStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of delete Stream event processing.
+     *
+     * @param latency       Latency of the deleteStream operation.
+     */
+    public void deleteStreamEvent(Duration latency) {
+        deleteStreamEventLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of Seal Stream event processing.
+     *
+     * @param latency       Latency of the deleteStream operation.
+     */
+    public void sealStreamEvent(Duration latency) {
+        sealStreamEventLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

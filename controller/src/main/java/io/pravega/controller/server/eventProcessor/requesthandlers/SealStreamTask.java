@@ -17,8 +17,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -69,6 +71,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     public CompletableFuture<Void> execute(final SealStreamEvent request) {
         String scope = request.getScope();
         String stream = request.getStream();
+        Timer timer = new Timer();
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
@@ -101,7 +104,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                     } else {
                         return notifySealed(scope, stream, context, activeSegments, requestId);
                     }
-                });
+                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()));
     }
 
     /**
