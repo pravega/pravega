@@ -13,10 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
-========================================================================================================================
+<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span> Retention in Pravega Streams
+===========================================================================================================================
 
-# Retention in Pravega
+# Pravega Stream Retention
 
 ## Motivation
 Retention is an integral part of any data system. It is important to enable the application to remove their data for at least three reasons:
@@ -159,12 +159,3 @@ There are two ways for an application to acknowledge its consumed position: auto
    ![Consumption Based Retention](img/Figure2.png)
    Figure shows the interaction among various Pravega components required to implement Consumption based retention. 
    In this figure, RG1 and RG2 are 2 different subscriber reader groups reading from Stream S1 and these publish stream cuts SC1 and SC2 respectively to indicate their consumed positions in the Stream.
-
- 
- 
- 
- 
- 
- 
-
-
