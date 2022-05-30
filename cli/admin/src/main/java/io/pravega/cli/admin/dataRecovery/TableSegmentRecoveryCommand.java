@@ -17,16 +17,20 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.InProcessServiceStarter;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.BufferViewBuilder;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
@@ -62,6 +66,8 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
     private File baseDir = null;
     private StorageFactory storageFactory = null;
     private ScheduledExecutorService executor;
+    private File logsDir = null;
+    private BookKeeperLogFactory factory = null;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -88,6 +94,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 .collect(Collectors.toList());
 
         // STEP 2: Start a Pravega instance that is able to write data to tier 2.
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "table-segment-repair-command");
         setupStorageEnabledInProcPravegaCluster();
 
         byte[] partialEntryFromLastChunk = null;
@@ -102,18 +109,24 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                     chunkData.getReader(chunkData.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes() : null;
 
             // STEP 4: Write all the data to a new (hash-based) Table Segment
-            //writeEntriesToNewTableSegment(newTableSegmentName, tableSegmentOperations);
+            writeEntriesToNewTableSegment(newTableSegmentName, tableSegmentOperations);
         }
+
+        // Close resources.
+        ExecutorServiceHelpers.shutdown(this.executor);
     }
 
-    private void setupStorageEnabledInProcPravegaCluster() throws IOException {
+    private void setupStorageEnabledInProcPravegaCluster() throws Exception {
         this.baseDir = Files.createTempDirectory("TestDataRecovery").toFile().getAbsoluteFile();
         this.logsDir = Files.createTempDirectory("DataRecovery").toFile().getAbsoluteFile();
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, exe);
+        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
+        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(1, 1);
+        pravegaRunner.startBookKeeperRunner(0);
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
     }
 
     private void writeEntriesToNewTableSegment(String tableSegment, List<TableSegmentOperation> tableSegmentOperations) throws Exception {
