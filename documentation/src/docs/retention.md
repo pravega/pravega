@@ -58,6 +58,8 @@ The retention workflow performs the following for each stream S:
  - If a max limit is set, and the size of S is greater than the max limit, find a Stream Cut SC in the retention set closest to but smaller than the max limit, such that truncating at SC leaves less data than the max limit but more data than the min limit in S.
  - If there is a max limit set and the size of S is between the max and the min limits, then attempt to truncate S at a Stream Cut SC closest to its min limit.
 
+   ![Stream truncation](img/Figure1.png)
+
 Stream S with Segments S1 to S12 and Stream Cuts SC1, SC2, SC3, SC4, SC5, SC6.
 
 ### Consumption Based Retention
@@ -70,8 +72,16 @@ Use cases that require such space reclamation include but are not limited to the
 1. A message queue - When using a Pravega Stream as a message queue, events in the queue can be deleted post consumption by all subscribers.
 2. Deployments with limited storage capacity - The storage available on small-footprint environments like edge devices (gateways) is typically constrained. Once data is no longer needed, perhaps because it has moved out of the edge to a core data center or to the cloud, it can be deleted to create space for more incoming data.
    
+#### Terminology
+- Subscriber Reader Group - A Subscriber Reader Group is a Reader Group whose read positions are considered for computing the truncation point for a Stream with Consumption Based Retention. When such a Subscribing Reader Group goes down, the system will truncate the Stream based on last published position of this Reader Group and will not truncate any data _not _read by this Reader Group.
+- Non-Subscriber Reader Group - A Non-Subscriber Reader Group (default) is the one that wants to read from a Stream, but does not want the consumption to impact Stream truncation. When this Reader Group goes down and comes back up, it may have lost some messages in the queue because those were deleted while it was away.
+- Stream-Cut - A StreamCut represents a consistent position in the Stream. It contains a set of Segment and offset pairs for a single Stream which represents the complete keyspace at a given point in time. The offset always points to the event boundary and hence there will be no offset pointing to an incomplete Event.
+- Checkpoint - A system event that causes all Readers in a Reader Group to persist their current read positions to State Synchronizer. A Checkpoint is necessary for a Reader Group to be able to resume reading from the Stream after it goes down. With ESR, Check-pointing is also a prerequisite for assignment of unassigned segments in the Stream. For a Reader Group, checkpoints can be generated automatically or explicitly on user request. Automated check-pointing is enabled by default. The lastCheckpoint is stored in ReaderGroupState.
+
 #### How it works
-Consumption-Based Retention aims to reclaim space occupied by consumed data in a stream. It retains data for as long as at least one consuming application has not consumed it. Like the other two retention policies, it relies on stream cuts to determine positions to truncate the Stream.
+Consumption-Based Retention aims to reclaim space occupied by consumed data in a stream. 
+It retains data for as long as at least one consuming application has not consumed it. 
+Like the other two retention policies, it relies on stream cuts to determine positions to truncate the Stream.
 
 For a given stream S, each application consuming data from S regularly publishes a Stream Cut SC corresponding to its consumed position to the Controller. 
 The Stream Cut SC serves as an acknowledgement that all data prior to this position in the stream has been consumed and the application no longer needs that data. We call SC an Acknowledgement Stream Cut. Upon receiving published stream cuts, the Controller stores them with the metadata of S. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of S has an acknowledgement stream cut from at least one application, the workflow truncates this stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
@@ -84,48 +94,71 @@ The Controller stores only the most recent stream cut for each Subscriber.
 When the retention workflow runs, and a Stream S has a retention policy set, we first check if the metadata table for S has any subscriber stream cuts.
 1. If no entries are found, the stream is truncated based on space or time limits, depending on the retention policy configuration for the stream.
 2. If only a single subscriber stream cut is present, we consider this stream cut as the subscriber_lower_bound stream cut.
-3. If the acknowledgement stream cuts for multiple subscribers are present, we compute a subscriber_lower_bound stream cut based on stream cuts of all subscribers. The subscriber_lower_bound is computed such that truncating at this stream cut ensures that no subscriber loses any unconsumed data. The algorithm for arriving at a subscriber_lower_bound stream cut is out of scope for this document.
-   On Controller, the truncation process, happens as follows:
+   1. If the acknowledgement stream cuts for multiple subscribers are present, we compute a subscriber_lower_bound stream cut based on stream cuts of all subscribers. The subscriber_lower_bound is computed such that truncating at this stream cut ensures that no subscriber loses any unconsumed data. The algorithm for arriving at a subscriber_lower_bound stream cut is out of scope for this document.
+      On Controller, the truncation process, happens as follows:
 
-   1) Compute a subscriber_lower_bound stream cut, using acknowledgement stream cuts of all consuming applications. 
-   Truncating the stream at this point would ensure no application loses unconsumed data. 
-   2) Once we have a subscriber_lower_bound stream cut, the stream can be truncated based on the following:
+      1) Compute a subscriber_lower_bound stream cut, using acknowledgement stream cuts of all consuming applications. 
+      Truncating the stream at this point would ensure no application loses unconsumed data. Once we have a subscriber_lower_bound stream cut, the stream can be truncated based on the following:
 
-       a. subscriber_lower_bound stream cut is within min & max limits: If truncating at the subscriber_lower_bound stream cut leaves more data in the stream than the configured minimum limit, but less data than the configured maximum limit, as per the stream retention policy, we choose to truncate the stream at the subscriber_lower_bound s stream cut.
+      a. subscriber_lower_bound stream cut is within min & max limits: If truncating at the subscriber_lower_bound stream cut leaves more data in the stream than the configured minimum limit, but less data than the configured maximum limit, as per the stream retention policy, we choose to truncate the stream at the subscriber_lower_bound s stream cut.
 
-       b. subscriber_lower_bound is less than Min Limit: If truncating at the subscriber_lower_bound, leaves less data in the stream than required by the min limit in the retention policy, then we discard the subscriber_lower_bound. We find another stream cut closest to but greater than the min limit, such that truncating at this would leave more data in the Stream than the min limit.
+         ![CBR truncate at SLB](img/Figure3.png)
+         
+      b. subscriber_lower_bound is less than Min Limit: If truncating at the subscriber_lower_bound, leaves less data in the stream than required by the min limit in the retention policy, then we discard the subscriber_lower_bound. We find another stream cut closest to but greater than the min limit, such that truncating at this would leave more data in the Stream than the min limit.
 
-       c. subscriber_lower_bound is greater than Max Limit: If truncating at the subscriber_lower_bound would leave more data in the stream than max limit, we discard subscriber_lower_bound. Instead, we find a stream cut closest to the max limit, such that truncating at this Stream Cut would leave less data in the Stream than the max limit.
+         ![CBR truncate Min Limit](img/Figure4.png)  
+         
+      c. subscriber_lower_bound is greater than Max Limit: If truncating at the subscriber_lower_bound would leave more data in the stream than max limit, we discard subscriber_lower_bound. Instead, we find a stream cut closest to the max limit, such that truncating at this Stream Cut would leave less data in the Stream than the max limit.
 
-       d. subscriber_lower_bound Overlaps with Min Limit: In this case, we choose to truncate the Stream at the first non-overlapping stream cut preceding the subscriber_lower_bound stream cut from the tail. This way we may leave a little more
+         ![CBR truncate Max Limit](img/Figure5.png)
+
+      d. subscriber_lower_bound Overlaps with Min Limit: In this case, we choose to truncate the Stream at the first non-overlapping stream cut preceding the subscriber_lower_bound stream cut from the tail. This way we may leave a little more
 data in the Stream than is required by Consumption Based Retention, but we guarantee that we satisfy the minimum limit specified by the retention policy.
+
+         ![CBR truncate Overlap Min Limit](img/Figure6.png)
 
        e. subscriber_lower_bound Overlaps with Max Limit: In this case, we choose to truncate the stream at the first non-overlapping stream cut immediately succeeding the
 subscriber_lower_bound Stream Cut from the head.
 
-Note: Stream truncation happens asynchronously and eventually based on the truncation Stream-Cuts published by all Subscribers and min/max limits per the Retention Policy.
-Enabling Consumption Based Retention on a Pravega Stream
+         ![CBR truncate Overlap Max Limit](img/Figure7.png)
+
+**Note**: Stream truncation happens asynchronously and eventually based on the truncation Stream-Cuts published by all Subscribers and min/max limits set in the Retention Policy.
+
+#### Enabling Consumption Based Retention on a Pravega Stream
+
 To enable consumption-based retention the following must hold:
-▪ The stream must have a retention policy configured.
-▪ One or more reader groups reading from the Stream should be subscriber reader groups.
-▪ The Controller should periodically receive acknowledgement stream cuts from the subscriber reader groups, indicating their consumption boundary in the Stream.
-Creating a Subscriber Reader Group
-A reader group interested in subscribing is configured accordingly. We add a new Retention Configuration field in the reader group configuration to indicate that a reader group is either a subscriber or non-subscriber. The configuration also indicates whether the reader group publishes acknowledgement stream cuts to the Controller automatically or not. The configuration for acknowledgement stream cuts can have the following values:
-▪ Auto_Publish_At_Last_Checkpoint - A Subscriber Reader Group would automatically
-publish the Stream Cut corresponding to the last read checkpoint to Controller.
-▪ Manual_Publish_Stream_Cut – A Subscriber Reader Group would not automatically
+   - The stream must have a retention policy configured.
+   - One or more reader groups reading from the Stream should be subscriber reader groups.
+   - The Controller should periodically receive acknowledgement stream cuts from the subscriber reader groups, indicating their consumption boundary in the Stream.
+
+#### Creating a Subscriber Reader Group
+
+A `Retention Type` field in the Reader Group configuration indicates that a Reader Group is either a subscriber or non-subscriber. 
+
+A `Retention Type` field can have the following values:
+
+   - Auto_Publish_At_Last_Checkpoint - A Subscriber Reader Group would automatically publish the Stream Cut corresponding to the last read checkpoint to Controller.
+
+   - Manual_Publish_Stream_Cut – A Subscriber Reader Group would not automatically
 publish Stream Cuts to Controller but instead the user application would need to explicitly invoke readerGroup.updateTruncationStreamCut() and provide the acknowledgement Stream Cut to be updated to Controller.
-▪ None – A non-subscriber Reader Group.
-A Reader Group can be converted between a subscriber to non-subscriber or vice versa by changing the
-corresponding value of the retention policy in the reader group configuration.
-Acknowledging Consumed Positions Using Checkpoints
+     
+   - None – A non-subscriber Reader Group.
+     
+A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the corresponding value of the retention policy in the reader group configuration.
+
+#### Acknowledging Consumed Positions Using Checkpoints
 There are two ways for an application to acknowledge its consumed position: automatically via checkpoints or explicitly by generating a stream cut and publishing to the Controller.
-Automatically Publish Acknowledgement Stream Cuts
-Reader groups checkpoint either automatically or via explicit API calls. A checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at checkpoint time. Once a reader learns of an ongoing checkpoint (internally via shared reader group state), it emits a checkpoint event. The checkpoint event for a given reader in the group separates the data events before the checkpoint and events after the checkpoint. Reading a data event after the checkpoint event indicates that the corresponding reader has read and consumed all events before the checkpoint. Once all readers read beyond their corresponding checkpoint events, the stream cut corresponding to the position of the checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
-Explicit Publishing of Acknowledgement Stream Cuts by the Application
-Alternatively, checkpoints can be generated on the stream by the user application. The application can choose to publish the stream cut corresponding to this checkpoint to the Controller, once it determines that it does not need data in the stream prior to this checkpoint position.
-Consumption Based Retention Sequence Diagram
-Figure 2 shows the interaction among various Pravega components required to implement Consumption based retention. In this figure, RG1 and RG2 are 2 different subscriber reader groups reading from Stream S1 and these publish stream cuts SC1 and SC2 respectively to indicate their consumed positions in the Stream.
+  - Automatically Publish Acknowledgement Stream Cuts
+    Reader groups checkpoint either automatically or via explicit API calls. A checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at checkpoint time. Once a reader learns of an ongoing checkpoint (internally via shared reader group state), it emits a checkpoint event. The checkpoint event for a given reader in the group separates the data events before the checkpoint and events after the checkpoint. Reading a data event after the checkpoint event indicates that the corresponding reader has read and consumed all events before the checkpoint. Once all readers read beyond their corresponding checkpoint events, the stream cut corresponding to the position of the checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
+
+  - Explicit Publishing of Acknowledgement Stream Cuts by the Application
+    Alternatively, checkpoints can be generated on the stream by the user application. The application can choose to publish the stream cut corresponding to this checkpoint to the Controller, once it determines that it does not need data in the stream prior to this checkpoint position.
+
+#### Consumption Based Retention Sequence Diagram
+
+   ![Consumption Based Retention](img/Figure2.png)
+   Figure shows the interaction among various Pravega components required to implement Consumption based retention. 
+   In this figure, RG1 and RG2 are 2 different subscriber reader groups reading from Stream S1 and these publish stream cuts SC1 and SC2 respectively to indicate their consumed positions in the Stream.
 
  
  
