@@ -92,7 +92,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Rule
-    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(12000, TimeUnit.SECONDS);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
@@ -895,5 +895,48 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 () -> command.checkBackupLogAssertions(1, 1, 2, false), t -> t instanceof IllegalStateException);
         AssertExtensions.assertThrows("Not successful BackupLogProcessor execution should have thrown an assertion error..",
                 () -> command.checkBackupLogAssertions(1, 1, 1, true), t -> t instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testTableSegmentRecoveryCommand() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 1;
+        int containerCount = 1;
+        @Cleanup
+        TestUtils.PravegaRunner pravegaRunner = new TestUtils.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testDataRecoveryCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+
+        // set pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:2181");
+        pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        pravegaProperties.entrySet().forEach(System.err::println);
+
+        // Command under test
+        TestUtils.executeCommand("data-recovery tableSegment-recovery /home/raul/Downloads/PRAVEGA-2145/batch24/test test", STATE.get());
     }
 }

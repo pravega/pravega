@@ -42,8 +42,8 @@ import lombok.val;
  * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
  * requires us to read the whole thing before retrieving anything.
  */
-class EntrySerializer {
-    static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
+public class EntrySerializer {
+    public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     /**
      * Maximum size allowed for any single Table Segment Update (update or removal).
@@ -164,7 +164,7 @@ class EntrySerializer {
      * @return The Entry Header.
      * @throws SerializationException If an invalid header was detected.
      */
-    Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
+    public Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
         byte version = input.readByte();
         int keyLength = input.readInt();
         int valueLength = input.readInt();
@@ -192,7 +192,7 @@ class EntrySerializer {
      * Defines a serialized Entry's Header.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class Header {
+    public static class Header {
         private final byte serializationVersion;
         @Getter
         private final int keyLength;
