@@ -1,12 +1,6 @@
-package io.pravega.cli.admin.utils;
+package io.pravega.test.integration.utils;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -22,7 +16,7 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -36,6 +30,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VERSION;
 
+/**
+ * Encapsulate utility methods to run Pravega server side services in process.
+ */
 @Slf4j
 public class InProcessServiceStarter {
 

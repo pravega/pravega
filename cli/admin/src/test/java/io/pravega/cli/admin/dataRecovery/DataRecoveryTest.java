@@ -17,7 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.InProcessServiceStarter;
+import io.pravega.test.integration.utils.InProcessServiceStarter;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -900,30 +900,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     @Test
     public void testTableSegmentRecoveryCommand() throws Exception {
-        /*int instanceId = 0;
-        int bookieCount = 1;
-        int containerCount = 1;
-        @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId);
-        val bkConfig = BookKeeperConfig.builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
-                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
-                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
-                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
-                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
-                .build();
-        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
-
-        String streamName = "testDataRecoveryCommand";
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
-            // Write events to the streams.
-            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
-        }*/
-
         // set pravega properties for the test
         STATE.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();

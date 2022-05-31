@@ -17,11 +17,13 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.cli.admin.utils.InProcessServiceStarter;
+import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.integration.utils.InProcessServiceStarter;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.util.BufferViewBuilder;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
@@ -29,45 +31,46 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
 import lombok.Getter;
-import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Attempts to repair an already corrupted Attribute Index Segment in Storage (see SegmentAttributeBTreeIndex, BTreeIndex).
- * 
+ * Attempts to repair an already corrupted Attribute Index in Storage of a Hash-Based Table Segment (see
+ * SegmentAttributeBTreeIndex, BTreeIndex). The command works in three steps:
+ *    1. It scans the main Segment data chunks (i.e., the ones that contain PUT or DELETE operations). This yields that
+ *       the user of the command should provide this data in a folder so the CLI command can process it.
+ *    2. Then, the CLI command starts a new in-process Pravega instance that writes data to local storage.
+ *    3. All the processed PUT/DELETE operations from the original main Segment of the Table Segment are written to the
+ *       local Pravega instance, so it reconstructs the Attribute Index in Storage for the original data.
+ *
+ * The generated Attribute Index chunks in Storage should be stored in the original cluster replacing the corrupted index.
+ * This operation requires additional steps in terms of modifying the Container and Storage Metadata of the original
+ * Table Segment, so it can work with the new generated data.
  *
  */
 public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
     private final static int DEFAULT_ROLLOVER_SIZE = 32 * 1024 * 1024; // Default rollover size for Table Segment attribute chunks.
+    private final static int NUM_CONTAINERS = 1;
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
 
-    /**
-     * A directory for FILESYSTEM storage as LTS.
-     */
-    private File baseDir = null;
-    private StorageFactory storageFactory = null;
     private ScheduledExecutorService executor;
-    private File logsDir = null;
-    private BookKeeperLogFactory factory = null;
+    private InProcessServiceStarter.PravegaRunner pravegaRunner = null;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -112,33 +115,46 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
             writeEntriesToNewTableSegment(newTableSegmentName, tableSegmentOperations);
         }
 
+        // STEP 5: Make sure that we flush all the data to Storage before closing the Pravega instance.
+        @Cleanup
+        CuratorFramework zkClient = createZKClient();
+        @Cleanup
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(0,
+                new PravegaNodeUri("localhost", getServiceConfig().getAdminGatewayPort()), "");
+        reply.get(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        output("Flushed the Segment Container with containerId %d to Storage.", 0);
+
         // Close resources.
         ExecutorServiceHelpers.shutdown(this.executor);
+        this.pravegaRunner.close();
     }
 
     private void setupStorageEnabledInProcPravegaCluster() throws Exception {
-        this.baseDir = Files.createTempDirectory("TestDataRecovery").toFile().getAbsoluteFile();
-        this.logsDir = Files.createTempDirectory("DataRecovery").toFile().getAbsoluteFile();
+        /**
+         * A directory for FILESYSTEM storage as LTS.
+         */
+        File baseDir = Files.createTempDirectory("table-segment-recovery").toFile().getAbsoluteFile();
+        System.err.println("Storage directory for this cluster is: " + baseDir.getAbsolutePath());
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(1, 1);
-        pravegaRunner.startBookKeeperRunner(0);
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
+        StorageFactory storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
+        this.pravegaRunner = new InProcessServiceStarter.PravegaRunner(1, NUM_CONTAINERS);
+        this.pravegaRunner.startBookKeeperRunner(0);
+        this.pravegaRunner.startControllerAndSegmentStore(storageFactory, null);
     }
 
     private void writeEntriesToNewTableSegment(String tableSegment, List<TableSegmentOperation> tableSegmentOperations) throws Exception {
         @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
+        SegmentHelper segmentHelper = instantiateAdminSegmentHelper(zkClient);
         segmentHelper.createTableSegment(tableSegment, "", 0, false, 0, DEFAULT_ROLLOVER_SIZE).join();
         for (TableSegmentOperation operation : tableSegmentOperations) {
             if (operation instanceof PutOperation) {
+                System.err.println("Writing table entry");
                 segmentHelper.updateTableEntries(tableSegment, Collections.singletonList(operation.getContents()), "", 0)
                         .get(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             } else {
@@ -148,7 +164,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         }
     }
 
-    private int scanAllEntriesInTableSegmentChunks(ByteArraySegment byteArraySegment, List<TableSegmentOperation> entries) throws IOException {
+    private int scanAllEntriesInTableSegmentChunks(ByteArraySegment byteArraySegment, List<TableSegmentOperation> entries) {
         EntrySerializer serializer = new EntrySerializer();
         int processedBytes = 0;
         int unprocessedBytesFromLastChunk = 0;
@@ -157,24 +173,25 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 ByteArraySegment slice = byteArraySegment.slice(processedBytes, byteArraySegment.getLength() - processedBytes);
                 EntrySerializer.Header header = serializer.readHeader(slice.getBufferViewReader());
                 // If the header has been parsed correctly, then we can proceed.
-                processedBytes += EntrySerializer.HEADER_LENGTH + header.getKeyLength() + header.getValueLength();
+                int totalEntryLength = EntrySerializer.HEADER_LENGTH + header.getKeyLength() + header.getValueLength();
+                processedBytes += totalEntryLength;
                 byte[] keyBytes = slice.slice(EntrySerializer.HEADER_LENGTH, EntrySerializer.HEADER_LENGTH + header.getKeyLength())
                         .getReader().readNBytes(header.getKeyLength());
-                byte[] valueBytes = slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(),
-                                EntrySerializer.HEADER_LENGTH + header.getKeyLength() + header.getValueLength())
+                byte[] valueBytes = slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), totalEntryLength)
                         .getReader().readNBytes(header.getValueLength());
-                System.err.println(new String(keyBytes, StandardCharsets.UTF_8) + " -> " + new String(valueBytes, StandardCharsets.UTF_8) + " version " + header.getEntryVersion());
                 // Add operation to the list of operations to replay later on (PUT or DELETE).
                 entries.add(valueBytes.length == 0 ? new DeleteOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())) :
                         new PutOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())));
                 // Full entry read, so reset unprocessed bytes.
-                if (unprocessedBytesFromLastChunk > EntrySerializer.HEADER_LENGTH + header.getKeyLength() + header.getValueLength()) {
-                    System.err.println("WARNING: SOME BYTES ARE MISSING " + unprocessedBytesFromLastChunk);
-                }
+                Preconditions.checkState(unprocessedBytesFromLastChunk < totalEntryLength, "Some bytes are missing to process.");
                 unprocessedBytesFromLastChunk = 0;
+                if (entries.size() % 100 == 0) {
+                    output("Progress of scanning data chunk: " + ((processedBytes * 100.0) / byteArraySegment.getLength()));
+                }
             } catch (Exception e) {
                 processedBytes++;
                 unprocessedBytesFromLastChunk++;
+                outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk);
             }
         }
 

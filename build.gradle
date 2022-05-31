@@ -870,6 +870,7 @@ project('cli:admin') {
         compile project(':shared:cluster')
         compile project(":shared:security")
         compile project(':test:testcommon')
+        compile project(':test:integration')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion

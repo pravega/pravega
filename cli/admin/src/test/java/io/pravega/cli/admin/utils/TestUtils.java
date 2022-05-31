@@ -40,33 +40,16 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
-import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
+import io.pravega.test.integration.utils.InProcessServiceStarter;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.retry.RetryOneTime;
 import org.junit.Assert;
 
@@ -75,16 +58,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VERSION;
 
 /**
  * Class to contain convenient utilities for writing test cases.

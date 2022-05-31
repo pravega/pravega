@@ -16,7 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommandState;
-import io.pravega.cli.admin.utils.InProcessServiceStarter;
+import io.pravega.test.integration.utils.InProcessServiceStarter;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
