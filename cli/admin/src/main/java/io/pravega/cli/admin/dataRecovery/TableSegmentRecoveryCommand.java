@@ -18,6 +18,7 @@ package io.pravega.cli.admin.dataRecovery;
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.integration.utils.InProcessServiceStarter;
@@ -65,8 +66,8 @@ import java.util.stream.Collectors;
 public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
     private final static int DEFAULT_ROLLOVER_SIZE = 32 * 1024 * 1024; // Default rollover size for Table Segment attribute chunks.
-    private final static int NUM_CONTAINERS = 1;
-    private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
+    private final static int NUM_CONTAINERS = 1; // We need just one Container in the local Pravega instance.
+    private static final String ATTRIBUTE_SUFFIX = "$attributes.index"; // We need main Segment chunks, not attribute chunks.
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
 
     private ScheduledExecutorService executor;
@@ -117,11 +118,9 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
         // STEP 5: Make sure that we flush all the data to Storage before closing the Pravega instance.
         @Cleanup
-        CuratorFramework zkClient = createZKClient();
-        @Cleanup
-        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
+        AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(this.pravegaRunner.getBookKeeperRunner().getZkClient().get());
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(0,
-                new PravegaNodeUri("localhost", getServiceConfig().getAdminGatewayPort()), "");
+                new PravegaNodeUri("localhost", this.pravegaRunner.getSegmentStoreRunner().getAdminPort()), "");
         reply.get(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         output("Flushed the Segment Container with containerId %d to Storage.", 0);
 
@@ -135,7 +134,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
          * A directory for FILESYSTEM storage as LTS.
          */
         File baseDir = Files.createTempDirectory("table-segment-recovery").toFile().getAbsoluteFile();
-        System.err.println("Storage directory for this cluster is: " + baseDir.getAbsolutePath());
+        output("Storage directory for this cluster is: " + baseDir.getAbsolutePath());
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
@@ -143,22 +142,27 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         StorageFactory storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
         this.pravegaRunner = new InProcessServiceStarter.PravegaRunner(1, NUM_CONTAINERS);
         this.pravegaRunner.startBookKeeperRunner(0);
-        this.pravegaRunner.startControllerAndSegmentStore(storageFactory, null);
+        //BookKeeperLogFactory factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(),
+        //        pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executor);
+        this.pravegaRunner.startControllerAndSegmentStore(storageFactory, null, true);
     }
 
     private void writeEntriesToNewTableSegment(String tableSegment, List<TableSegmentOperation> tableSegmentOperations) throws Exception {
         @Cleanup
-        CuratorFramework zkClient = createZKClient();
-        @Cleanup
-        SegmentHelper segmentHelper = instantiateAdminSegmentHelper(zkClient);
-        segmentHelper.createTableSegment(tableSegment, "", 0, false, 0, DEFAULT_ROLLOVER_SIZE).join();
+        SegmentHelper segmentHelper = instantiateAdminSegmentHelper(this.pravegaRunner.getBookKeeperRunner().getZkClient().get());
+        Controller.NodeUri nodeUri = Controller.NodeUri.newBuilder()
+                .setEndpoint("localhost")
+                .setPort(this.pravegaRunner.getSegmentStoreRunner().getServicePort())
+                .build();
+        segmentHelper.createTableSegment(tableSegment, "", 0, false, 0, DEFAULT_ROLLOVER_SIZE, nodeUri).join();
+        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", this.pravegaRunner.getSegmentStoreRunner().getServicePort());
         for (TableSegmentOperation operation : tableSegmentOperations) {
             if (operation instanceof PutOperation) {
                 System.err.println("Writing table entry");
-                segmentHelper.updateTableEntries(tableSegment, Collections.singletonList(operation.getContents()), "", 0)
+                segmentHelper.updateTableEntries(tableSegment, pravegaNodeUri, Collections.singletonList(operation.getContents()), "", 0)
                         .get(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             } else {
-                segmentHelper.removeTableKeys(tableSegment, Collections.singletonList(operation.getContents().getKey()), "", 0)
+                segmentHelper.removeTableKeys(tableSegment, nodeUri, Collections.singletonList(operation.getContents().getKey()), "", 0)
                         .get(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             }
         }

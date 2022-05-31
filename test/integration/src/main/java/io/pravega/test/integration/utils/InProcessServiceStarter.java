@@ -88,7 +88,7 @@ public class InProcessServiceStarter {
 
             this.zkClient.get().start();
 
-            logMetaNamespace = "segmentstore/containers" + instanceId;
+            this.logMetaNamespace = "segmentstore/containers" + instanceId;
             this.bkConfig.set(BookKeeperConfig
                     .builder()
                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
@@ -120,6 +120,7 @@ public class InProcessServiceStarter {
      * Creates a segment store.
      */
     public static class SegmentStoreRunner implements AutoCloseable {
+        @Getter
         private final int servicePort = io.pravega.test.common.TestUtils.getAvailableListenPort();
         @Getter
         private final int adminPort = io.pravega.test.common.TestUtils.getAvailableListenPort();

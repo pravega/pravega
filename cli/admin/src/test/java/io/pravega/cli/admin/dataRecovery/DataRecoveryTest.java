@@ -903,13 +903,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // set pravega properties for the test
         STATE.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
         pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
-        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
-        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega0");
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:2181");
-        pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers");
+        pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers0");
         STATE.get().getConfigBuilder().include(pravegaProperties);
         pravegaProperties.entrySet().forEach(System.err::println);
 
