@@ -109,7 +109,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                 .exceptionally(e -> {
                     StreamMetrics.getInstance().sealStreamEventFailed(timer.getElapsed());
                     log.warn(requestId, "{}/{} stream seal workflow threw exception.", scope, stream, e);
-                    throw new CompletionException(e);
+                    return null;
                 });
     }
 
