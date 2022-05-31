@@ -298,7 +298,9 @@ public final class MetricsNames {
     public static final String DELETE_STREAM = PREFIX + "controller.stream.deleted";                         // Counter
     public static final String DELETE_STREAM_LATENCY = PREFIX + "controller.stream.deleted_latency_ms";      // Histogram
     public static final String DELETE_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.deleted_latency_ms";      // Histogram
+    public static final String DELETE_STREAM_EVENT_FAILED_LATENCY = PREFIX + "controller.stream.event.deleted_latency_ms";      // Histogram
     public static final String SEAL_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.sealed_latency_ms";      // Histogram
+    public static final String SEAL_STREAM_EVENT_FAILED_LATENCY = PREFIX + "controller.stream.event.sealed_latency_ms";      // Histogram
     public static final String DELETE_STREAM_FAILED = PREFIX + "controller.stream.delete_failed";            // Counter and Per-stream Counter
     public static final String UPDATE_STREAM = PREFIX + "controller.stream.updated";                         // Counter and Per-stream Counter
     public static final String UPDATE_STREAM_LATENCY = PREFIX + "controller.stream.updated_latency_ms";      // Histogram

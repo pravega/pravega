@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -69,9 +70,9 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final SealStreamEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         String stream = request.getStream();
-        Timer timer = new Timer();
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
@@ -104,7 +105,12 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                     } else {
                         return notifySealed(scope, stream, context, activeSegments, requestId);
                     }
-                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()));
+                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()))
+                .exceptionally(e -> {
+                    StreamMetrics.getInstance().sealStreamEventFailed(timer.getElapsed());
+                    log.warn(requestId, "{}/{} stream seal workflow threw exception.", scope, stream, e);
+                    throw new CompletionException(e);
+                });
     }
 
     /**
