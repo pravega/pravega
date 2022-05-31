@@ -52,7 +52,9 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
@@ -395,7 +397,8 @@ public class ServiceBuilder implements AutoCloseable {
                 .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getCoreExecutor()))
                 .withContainerManager(setup -> new LocalSegmentContainerManager(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
-                .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getStorageExecutor()))
+                .withStorageFactory(setup -> new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                        setup.getStorageExecutor(), true))
                 .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                         setup.getSegmentToContainerMapper()));
 

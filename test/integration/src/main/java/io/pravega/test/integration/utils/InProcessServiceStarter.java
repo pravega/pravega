@@ -6,9 +6,11 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -16,7 +18,8 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.test.integration.utils.ControllerWrapper;
+import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -91,6 +94,9 @@ public class InProcessServiceStarter {
             this.logMetaNamespace = "segmentstore/containers" + instanceId;
             this.bkConfig.set(BookKeeperConfig
                     .builder()
+                    .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
+                    .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bookieCount)
+                    .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bookieCount)
                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
                     .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
                     .with(BookKeeperConfig.BK_LEDGER_PATH, ledgerPath)
@@ -125,34 +131,32 @@ public class InProcessServiceStarter {
         @Getter
         private final int adminPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
         @Getter
-        private final ServiceBuilder serviceBuilder;
+        private ServiceBuilder serviceBuilder;
         private final PravegaConnectionListener server;
 
         private AdminConnectionListener adminServer = null;
 
         SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount, boolean enableAdminGateway)
                 throws DurableDataLogException {
-            ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+            ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
                     .include(ServiceConfig.builder()
                             .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                             .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.CHUNKED_STORAGE)
-                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.FILESYSTEM.name()))
+                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.FILESYSTEM.name())
+                            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost"))
                     .include(WriterConfig.builder()
                             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
                             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
-                    );
+                    ).build();
+
+            // Components that are required for all types of SegmentStore.
+            this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
+            if (dataLogFactory != null) {
+                this.serviceBuilder = this.serviceBuilder.withDataLogFactory(setup -> dataLogFactory);
+            }
             if (storageFactory != null) {
-                if (dataLogFactory != null) {
-                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                            .withStorageFactory(setup -> storageFactory)
-                            .withDataLogFactory(setup -> dataLogFactory);
-                } else {
-                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                            .withStorageFactory(setup -> storageFactory);
-                }
-            } else {
-                this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+                this.serviceBuilder = this.serviceBuilder.withStorageFactory(setup -> storageFactory);
             }
             this.serviceBuilder.initialize();
             StreamSegmentStore streamSegmentStore = this.serviceBuilder.createStreamSegmentService();

@@ -19,22 +19,20 @@ import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.test.integration.utils.InProcessServiceStarter;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import lombok.Cleanup;
 import lombok.Getter;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.io.File;
 import java.io.IOException;
@@ -139,11 +137,9 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        StorageFactory storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
+        StorageFactory storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, adapterConfig, this.executor);
         this.pravegaRunner = new InProcessServiceStarter.PravegaRunner(1, NUM_CONTAINERS);
         this.pravegaRunner.startBookKeeperRunner(0);
-        //BookKeeperLogFactory factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(),
-        //        pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executor);
         this.pravegaRunner.startControllerAndSegmentStore(storageFactory, null, true);
     }
 
