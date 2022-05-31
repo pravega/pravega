@@ -18,6 +18,7 @@ package io.pravega.cli.admin.dataRecovery;
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.common.io.SerializationException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -91,7 +92,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
         // STEP 1: Get all the segment chunks related to the main Segment in order.
         File[] potentialFiles = new File(tableSegmentDataChunksPath).listFiles();
-        Preconditions.checkNotNull(potentialFiles, "No files found in provided path.");
+        assert potentialFiles != null;
         List<File> listOfFiles = Arrays.stream(potentialFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX)) // We are interested in the data, not the attribute segments.
@@ -206,7 +207,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 if (tableSegmentOperations.size() % 100 == 0) {
                     output("Progress of scanning data chunk: " + ((processedBytes * 100.0) / byteArraySegment.getLength()));
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 processedBytes++;
                 unprocessedBytesFromLastChunk++;
                 outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk);
