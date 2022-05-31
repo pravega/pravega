@@ -16,7 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommandState;
-import io.pravega.test.integration.utils.InProcessServiceStarter;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -104,7 +104,7 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         this.factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(), pravegaRunner.getBookKeeperRunner().getZkClient().get(),
                 executorService());

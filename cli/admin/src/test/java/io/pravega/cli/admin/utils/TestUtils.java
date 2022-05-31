@@ -43,7 +43,7 @@ import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.ClusterWrapper;
-import io.pravega.test.integration.utils.InProcessServiceStarter;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -305,7 +305,7 @@ public final class TestUtils {
         @Getter
         private final ReaderGroupManager readerGroupManager;
 
-        public ClientRunner(InProcessServiceStarter.ControllerRunner controllerRunner, String scope) {
+        public ClientRunner(LocalServiceStarter.ControllerRunner controllerRunner, String scope) {
             this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                     .controllerURI(controllerRunner.getControllerURI()).build());
             this.clientFactory = new ClientFactoryImpl(scope, controllerRunner.getController(), connectionFactory);

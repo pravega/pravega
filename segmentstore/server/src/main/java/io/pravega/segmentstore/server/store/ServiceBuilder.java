@@ -55,7 +55,6 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collections;

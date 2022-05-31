@@ -17,7 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.test.integration.utils.InProcessServiceStarter;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -146,7 +146,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testDataRecoveryCommand";
@@ -210,7 +210,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testListSegmentsCommand";
@@ -257,7 +257,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -356,7 +356,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -764,7 +764,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
         @Cleanup
-        InProcessServiceStarter.PravegaRunner pravegaRunner = new InProcessServiceStarter.PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -912,5 +912,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Command under test
         TestUtils.executeCommand("data-recovery tableSegment-recovery /home/raul/Downloads/PRAVEGA-2145/batch24/test test", STATE.get());
+        Assert.assertNotNull(TableSegmentRecoveryCommand.descriptor());
     }
 }

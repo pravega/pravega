@@ -1,3 +1,18 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.test.integration.utils;
 
 import io.pravega.client.control.impl.Controller;
@@ -6,11 +21,9 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -18,8 +31,6 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -37,7 +48,7 @@ import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VE
  * Encapsulate utility methods to run Pravega server side services in process.
  */
 @Slf4j
-public class InProcessServiceStarter {
+public class LocalServiceStarter {
 
     /**
      * Sets up a new BookKeeper & ZooKeeper.

@@ -32,7 +32,6 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
-import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
