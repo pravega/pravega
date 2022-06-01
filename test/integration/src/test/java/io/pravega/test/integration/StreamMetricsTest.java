@@ -223,7 +223,7 @@ public class StreamMetricsTest {
 
         assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_LATENCY) > 0);
 
-        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1,0l).get();
+        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
         assertTrue(getTimerMillis(MetricsNames.TRUNCATE_STREAM_EVENT_LATENCY) > 0);
 
         // Delete the Stream and Scope and check for the respective metrics.
