@@ -28,7 +28,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
