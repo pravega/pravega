@@ -227,7 +227,6 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().deleteScope(scopeName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
-
         assertTrue(getTimerMillis(MetricsNames.DELETE_STREAM_EVENT_LATENCY) > 0);
 
         String failedScope = "failedScope";
