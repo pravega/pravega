@@ -91,7 +91,6 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    StreamMetrics.getInstance().deleteStreamEventFailed(timer.getElapsed());
                     log.warn(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
                     throw new CompletionException(e);
                 });

@@ -104,12 +104,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                     } else {
                         return notifySealed(scope, stream, context, activeSegments, requestId);
                     }
-                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()))
-                .exceptionally(e -> {
-                    StreamMetrics.getInstance().sealStreamEventFailed(timer.getElapsed());
-                    log.warn(requestId, "{}/{} stream seal workflow threw exception.", scope, stream, e);
-                    return null;
-                });
+                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()));
+
     }
 
     /**

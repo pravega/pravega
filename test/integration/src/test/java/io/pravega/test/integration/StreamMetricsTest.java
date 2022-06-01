@@ -231,7 +231,6 @@ public class StreamMetricsTest {
 
         assertTrue(getTimerMillis(MetricsNames.DELETE_STREAM_EVENT_LATENCY) > 0);
 
-        Timer timer = new Timer();
         String failedScope = "failedScope";
         String failedStream = "failedStream";
         String failedRG = "failedRG";
@@ -250,8 +249,6 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().deleteReaderGroupFailed(failedRG, failedRG);
         StreamMetrics.getInstance().updateReaderGroupFailed(failedRG, failedRG);
         StreamMetrics.getInstance().updateTruncationSCFailed(failedRG, failedRG);
-        StreamMetrics.getInstance().deleteStreamEventFailed(timer.getElapsed());
-        StreamMetrics.getInstance().sealStreamEventFailed(timer.getElapsed());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED, failedScopeTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED, failedScopeTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED, failedScopeStreamTags).count());
@@ -263,8 +260,6 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
-        assertTrue(getTimerMillis(MetricsNames.DELETE_STREAM_EVENT_FAILED_LATENCY) > 0);
-        assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_FAILED_LATENCY) > 0);
     }
 
     private long getTimerMillis(String timerName) {
